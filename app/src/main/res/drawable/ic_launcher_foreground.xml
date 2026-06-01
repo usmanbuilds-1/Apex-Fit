@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer Shield Crest -->
+    <path
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFE8A020"
+        android:pathData="M 54 26 L 76 34 L 76 60 C 76 74 54 82 54 82 C 54 82 32 74 32 60 L 32 34 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="26"
+                android:endX="54"
+                android:endY="82"
+                android:type="linear">
+                <item android:color="#20E8A020" android:offset="0.0" />
+                <item android:color="#00000000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Stylized Muscle APEX Double Triangle Inside -->
+    <path
+        android:pathData="M 54 35 L 70 65 L 61 65 L 54 51 L 47 65 L 38 65 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="35"
+                android:endX="54"
+                android:endY="65"
+                android:type="linear">
+                <item android:color="#FFE8A020" android:offset="0.0" />
+                <item android:color="#FFFFD580" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Athletic Horizontal Heavy Barbell Cross Bar -->
+    <path
+        android:pathData="M 40 55 L 68 55"
+        android:strokeWidth="3.0"
+        android:strokeColor="#FFE8A020" />
+        
+</vector>
