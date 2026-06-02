@@ -2,13 +2,26 @@
 package com.example
 
 import android.app.Application
-import android.media.AudioFormat
-import android.media.AudioManager
-import android.media.AudioTrack
 import android.util.Base64
+import com.example.utils.AudioService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.*
+import com.example.data.AppDatabase
+import com.example.data.FitnessDao
+import com.example.data.WeightEntry
+import com.example.data.NutritionEntry
+import com.example.data.BodyMeasurement
+import com.example.data.WorkoutPlan
+import com.example.data.PlanSession
+import com.example.data.PlanExercise
+import com.example.data.ExerciseSet
+import com.example.data.RichTrainingSession
+import com.example.data.DataStoreManager
+import com.example.data.EffectiveSetsData
+import com.example.data.AlgorithmViewModel
+import com.example.data.WeeklyReport
+import com.example.data.TrainingSession
+import com.example.data.MuscleRecoveryStatus
 import com.example.utils.toSystemContextString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -24,6 +37,7 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 import com.example.network.GeminiService
+import com.example.ui.models.*
 
 class FitnessViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -67,19 +81,25 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     private val _selectedNutritionDate = MutableStateFlow(getTodayDateString())
     val selectedNutritionDate: StateFlow<String> = _selectedNutritionDate.asStateFlow()
 
-    val loggedMeals = _selectedNutritionDate.flatMapLatest { date ->
+    val loggedMeals: StateFlow<List<UiNutritionEntry>> = _selectedNutritionDate.flatMapLatest { date ->
         dao.getAllNutritionEntriesFlow().map { entries ->
-            entries.filter { it.date == date }
+            entries.filter { it.date == date }.map { it.toUi() }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val allNutritionHistory = dao.getAllNutritionEntriesFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allNutritionHistory: StateFlow<List<UiNutritionEntry>> = dao.getAllNutritionEntriesFlow()
+        .map { entries -> entries.map { it.toUi() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Weight logging State
-    val weightHistory = dao.getAllWeightEntriesFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val weightHistory: StateFlow<List<UiWeightEntry>> = dao.getAllWeightEntriesFlow()
+        .map { entries -> entries.map { it.toUi() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Body Measurements State
-    val allBodyMeasurements = dao.getAllBodyMeasurementsFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allBodyMeasurements: StateFlow<List<UiBodyMeasurement>> = dao.getAllBodyMeasurementsFlow()
+        .map { entries -> entries.map { it.toUi() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Clinically calculated muscle recovery statuses
     val muscleRecoveryStatuses = dao.getAllTrainingSessionsFlow().map { sessions ->
@@ -89,7 +109,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     // Monthly muscle volumes for radar chart
     val monthlyMuscleVolumes = dao.getAllTrainingSessionsFlow().map { sessions ->
         val allSets = dao.getAllExerciseSets()
-        val currentMonthPrefix = "2026-05" // Matches current date in metadata (May 2026)
+        val currentMonthPrefix = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(java.util.Date())
         val thisMonthSessions = sessions.filter { it.date.startsWith(currentMonthPrefix) }
         val thisMonthSessionIds = thisMonthSessions.map { it.id }.toSet()
         val finishedSets = allSets.filter { it.completed && !it.isWarmup && it.sessionId in thisMonthSessionIds }
@@ -170,7 +190,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     private val _currentExerciseIdx = MutableStateFlow(0)
     val currentExerciseIdx: StateFlow<Int> = _currentExerciseIdx.asStateFlow()
 
-    val loggedSets: StateFlow<Map<Long, List<ExerciseSet>>> = sessionManager.activeSession.map { active ->
+    val loggedSets: StateFlow<Map<Long, List<UiExerciseSet>>> = sessionManager.activeSession.map { active ->
         if (active != null) {
             active.exercises.associate { exercise ->
                 val exIdLong = exercise.exerciseId.toLongOrNull() ?: 0L
@@ -187,7 +207,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
                         isWarmup = setObj.isWarmup,
                         restTaken = setObj.restTakenSeconds,
                         completed = setObj.completed
-                    )
+                    ).toUi()
                 }
             }
         } else {
@@ -246,8 +266,8 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     )
     val warmupCompleted: StateFlow<Map<String, Boolean>> = _warmupCompleted.asStateFlow()
 
-    private val _lastCompletedSessionSets = MutableStateFlow<List<ExerciseSet>>(emptyList())
-    val lastCompletedSessionSets: StateFlow<List<ExerciseSet>> = _lastCompletedSessionSets.asStateFlow()
+    private val _lastCompletedSessionSets = MutableStateFlow<List<UiExerciseSet>>(emptyList())
+    val lastCompletedSessionSets: StateFlow<List<UiExerciseSet>> = _lastCompletedSessionSets.asStateFlow()
 
     // Rest Timer State
     private val _restTimerSeconds = MutableStateFlow(0)
@@ -687,9 +707,9 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
                 // Sound Pool: trigger ticks at 3, 2, 1
                 val remaining = _restTimerSeconds.value
                 if (remaining in 1..3) {
-                    playSynthesizedAudioTone(880.0, 150)
+                    AudioService.playBeep()
                 } else if (remaining == 0) {
-                    playSynthesizedAudioTone(1100.0, 350)
+                    AudioService.playRestTimerComplete()
                 }
             }
             if (_isRestTimerActive.value) {
@@ -720,7 +740,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     fun finishWorkoutSession(sessionFeel: Int = 4) {
         viewModelScope.launch {
             val session = sessionManager.activeSession.value
-            val completedSets = mutableListOf<ExerciseSet>()
+            val completedSets = mutableListOf<UiExerciseSet>()
             session?.exercises?.forEach { ex ->
                 ex.sets.filter { it.completed }.forEach { setObj ->
                     completedSets.add(
@@ -735,7 +755,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
                             restTaken = setObj.restTakenSeconds,
                             completed = setObj.completed,
                             effectiveSetValue = com.example.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
-                        )
+                        ).toUi()
                     )
                 }
             }
@@ -754,7 +774,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun generateWorkoutSessionHypertrophyQualityScore(sets: List<ExerciseSet>) {
+    private fun generateWorkoutSessionHypertrophyQualityScore(sets: List<UiExerciseSet>) {
         if (sets.isEmpty()) {
             _completedHypertrophyScore.value = 0.0
             return
@@ -807,7 +827,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     fun savePartialAndExit(sessionFeel: Int) {
         viewModelScope.launch {
             val session = sessionManager.activeSession.value
-            val completedSets = mutableListOf<ExerciseSet>()
+            val completedSets = mutableListOf<UiExerciseSet>()
             session?.exercises?.forEach { ex ->
                 ex.sets.filter { it.completed }.forEach { setObj ->
                     completedSets.add(
@@ -822,7 +842,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
                             restTaken = setObj.restTakenSeconds,
                             completed = setObj.completed,
                             effectiveSetValue = com.example.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
-                        )
+                        ).toUi()
                     )
                 }
             }
@@ -1196,67 +1216,8 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         return clean.trim()
     }
 
-    // Tone Synth Generator playing synchronous audio tick
-    private fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int) {
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
-                val sampleRate = 8000
-                val numSamples = durationMs * sampleRate / 1000
-                val sample = DoubleArray(numSamples)
-                val generatedSnd = ShortArray(numSamples)
-
-                for (i in 0 until numSamples) {
-                    sample[i] = Math.sin(2 * Math.PI * i / (sampleRate / frequencyHz))
-                }
-                var idx = 0
-                for (dVal in sample) {
-                    val val1 = (dVal * 32767).toInt().toShort()
-                    generatedSnd[idx++] = val1
-                }
-
-                val audioTrack = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    AudioTrack.Builder()
-                        .setAudioAttributes(
-                            android.media.AudioAttributes.Builder()
-                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
-                                .build()
-                        )
-                        .setAudioFormat(
-                            android.media.AudioFormat.Builder()
-                                .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
-                                .setSampleRate(sampleRate)
-                                .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
-                                .build()
-                        )
-                        .setBufferSizeInBytes(numSamples * 2)
-                        .setTransferMode(AudioTrack.MODE_STATIC)
-                        .build()
-                } else {
-                    @Suppress("DEPRECATION")
-                    AudioTrack(
-                        AudioManager.STREAM_MUSIC,
-                        sampleRate,
-                        AudioFormat.CHANNEL_OUT_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT,
-                        numSamples * 2,
-                        AudioTrack.MODE_STATIC
-                    )
-                }
-                audioTrack.write(generatedSnd, 0, numSamples)
-                audioTrack.play()
-                delay(durationMs.toLong() + 50)
-                audioTrack.release()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
     fun playMusicSynthNote() {
-        val notes = listOf(130.81, 164.81, 196.00, 220.00) // C3, E3, G3, A3
-        val randomNote = notes.random()
-        playSynthesizedAudioTone(randomNote, 80)
+        AudioService.playMusicSynthNote()
     }
 
     // Check if exercise name is compound for hypertrophy formulas
@@ -1448,6 +1409,11 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        AudioService.release()
     }
 }
 

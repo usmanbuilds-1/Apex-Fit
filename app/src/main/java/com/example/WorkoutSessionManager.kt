@@ -165,7 +165,14 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
         repsInReserve: Int? = null
     ) {
         val session = _activeSession.value ?: return
-        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
+
+        // Deep copy of exercises list and inner sets to avoid in-place mutation
+        val updatedExercises = session.exercises.map { ex ->
+            val updatedSets = ex.sets.map { it.copy() }.toMutableList()
+            ex.copy(sets = updatedSets)
+        }.toMutableList()
+
+        val exercise = updatedExercises.find { it.exerciseId == exerciseId } ?: return
 
         if (setIndex < exercise.sets.size) {
             val rpeVal = rpe.coerceIn(1, 10)
@@ -179,8 +186,8 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
                 completed = completed,
                 repsInReserve = rirVal
             )
-            // Trigger StateFlow emission with new object reference
-            _activeSession.value = session.copy()
+            // Trigger StateFlow emission with a completely new reference and nested elements
+            _activeSession.value = session.copy(exercises = updatedExercises)
         }
     }
 
@@ -189,7 +196,14 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
      */
     fun addCustomSet(exerciseId: String) {
         val session = _activeSession.value ?: return
-        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
+
+        // Deep copy of exercises list and inner sets to avoid in-place mutation
+        val updatedExercises = session.exercises.map { ex ->
+            val updatedSets = ex.sets.map { it.copy() }.toMutableList()
+            ex.copy(sets = updatedSets)
+        }.toMutableList()
+
+        val exercise = updatedExercises.find { it.exerciseId == exerciseId } ?: return
         val lastSet = exercise.sets.lastOrNull()
         val newSetNum = exercise.sets.size + 1
         val suggestedWeight = lastSet?.weight ?: 50.0
@@ -206,7 +220,8 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
                 completed = false
             )
         )
-        _activeSession.value = session.copy()
+        // Trigger StateFlow emission with a completely new reference and nested elements
+        _activeSession.value = session.copy(exercises = updatedExercises)
     }
 
 

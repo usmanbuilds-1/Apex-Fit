@@ -61,4 +61,26 @@ class ExampleRobolectricTest {
     // Verify it doesn't crash during drawing/measurement phases
     composeTestRule.waitForIdle()
   }
+
+  @Test
+  fun `test active session set update`() = kotlinx.coroutines.runBlocking {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val app = context.applicationContext as android.app.Application
+    val fitnessVm = com.example.FitnessViewModel(app)
+
+    // Start active session
+    val planSession = com.example.data.PlanSession(0L, 0L, "Day 1", "Monday", "Push Day")
+    val planEx = listOf(
+        com.example.data.PlanExercise(1L, 0L, "Bench Press", "Chest", 3, 8, 12, 100.0, 90, "")
+    )
+
+    fitnessVm.sessionManager.startSession(planSession, planEx, 80.0, 180.0, "kg")
+
+    // Log set complete
+    fitnessVm.logWorkoutSetState(1L, 0, 100.0, 10, 8, true)
+
+    val active = fitnessVm.sessionManager.activeSession.value
+    org.junit.Assert.assertNotNull(active)
+    org.junit.Assert.assertTrue(active!!.exercises[0].sets[0].completed)
+  }
 }

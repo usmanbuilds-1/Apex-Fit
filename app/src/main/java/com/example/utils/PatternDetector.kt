@@ -158,7 +158,7 @@ object PatternDetector {
             val twoDaysLater = getDateDaysFromNow(entry.date, 2)
             val currentTrend = trendMap[entry.date]?.trend ?: return@forEach
             val futureTrend = trendMap[twoDaysLater]?.trend ?: return@forEach
-            weightChangePairs.add(Pair(entry.carbs, futureTrend - currentTrend))
+            weightChangePairs.add(Pair(entry.carbs.toInt(), futureTrend - currentTrend))
         }
 
         if (weightChangePairs.size < 8) return patterns

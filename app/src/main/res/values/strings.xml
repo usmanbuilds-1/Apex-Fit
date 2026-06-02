@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">APEX FIT</string>
+    <string name="empty_string" translatable="false"></string>
 </resources>

@@ -49,7 +49,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
-import com.example.data.*
+import com.example.data.AlgorithmViewModel
+import com.example.data.PlanSession
+import com.example.data.EffectiveSetsData
+import com.example.ui.models.*
 import com.example.ui.theme.*
 import com.example.utils.AlgorithmEngine
 import com.example.ui.components.MuscleHeatmapCanvas
@@ -1318,10 +1321,10 @@ fun HomeTab(
                     )
                 }
 
-                if (plateauResult.plateau) {
+                if (plateauResult.isPlateau) {
                     IntelligenceAlertCard(
                         title = "PLATEAU / STALL AT-RISK INDEX DETECTED",
-                        desc = "Science (Israetel 2019): Weight stale for 10+ days despite compliance. Suggested: ${plateauResult.interventions.joinToString(". ")}",
+                        desc = "Science (Israetel 2019): Weight stale for 10+ days despite compliance. Suggested: ${plateauResult.recommendation}",
                         borderColor = RedAccent
                     )
                 }
@@ -2314,6 +2317,14 @@ fun WorkoutExecutionSubTab(
                     var rawReps by remember(setObj.reps) { mutableStateOf(setObj.reps.toString()) }
                     var selectedRpe by remember(setObj.rpe) { mutableStateOf(setObj.rpe) }
 
+                    var weightError by remember { mutableStateOf("") }
+                    var repsError by remember { mutableStateOf("") }
+
+                    val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in 0.25..500.0 } ?: false
+                    val isRepsValid = rawReps.toIntOrNull()?.let { it in 1..50 } ?: false
+                    val isRpeValid = selectedRpe in 1..10
+                    val isSetValid = isWeightValid && isRepsValid && isRpeValid
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2338,168 +2349,268 @@ fun WorkoutExecutionSubTab(
                             )
                             .padding(12.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Column set label
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(48.dp)) {
-                                if (setObj.isWarmup) {
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                // Column set label
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(48.dp)) {
+                                    if (setObj.isWarmup) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(Color(0xFF6366F1).copy(alpha = 0.2f))
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "WARMUP",
+                                                fontFamily = JetBrainsMonoFamily,
+                                                fontSize = 6.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1E1B4B)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                    } else {
+                                        Text(
+                                            text = "SET",
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontSize = 8.sp,
+                                            color = MutedText
+                                        )
+                                    }
+                                    Text(
+                                        text = "${sIdx + 1}",
+                                        fontFamily = SyneFamily,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = when {
+                                            setObj.completed -> GreenAccent
+                                            setObj.isWarmup -> Color(0xFFA78BFA)
+                                            else -> AmberAccent
+                                        }
+                                    )
+                                }
+
+                                // Weight textfield
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("WEIGHT", fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
+                                    BasicTextField(
+                                        value = rawWeight,
+                                        onValueChange = { input ->
+                                            val filtered = input.filter { it.isDigit() || it == '.' }
+                                            val clean = if (filtered.count { it == '.' } > 1) {
+                                                val firstDot = filtered.indexOf('.')
+                                                filtered.substring(0, firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
+                                            } else {
+                                                filtered
+                                            }
+
+                                            var finalStr = clean
+                                            var error = ""
+                                            val dVal = clean.toDoubleOrNull()
+                                            if (dVal != null) {
+                                                if (dVal > 500.0) {
+                                                    finalStr = "500.0"
+                                                    error = "Weight: 0.25–500 kg"
+                                                } else if (dVal < 0.25) {
+                                                    val isTypingPrefix = clean == "0" || clean == "0." || clean == "0.2"
+                                                    if (!isTypingPrefix) {
+                                                        finalStr = "0.25"
+                                                    }
+                                                    error = "Weight: 0.25–500 kg"
+                                                }
+                                            } else if (clean.isNotEmpty()) {
+                                                error = "Weight: 0.25–500 kg"
+                                            }
+
+                                            rawWeight = finalStr
+                                            weightError = error
+
+                                            val w = finalStr.toDoubleOrNull()
+                                            if (w != null && w in 0.25..500.0) {
+                                                val r = rawReps.toIntOrNull() ?: setObj.reps
+                                                fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
+                                            }
+                                        },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 14.sp),
+                                        modifier = Modifier
+                                            .background(DarkRaised, RoundedCornerShape(4.dp))
+                                            .padding(6.dp)
+                                            .fillMaxWidth(),
+                                        decorationBox = { innerTextField ->
+                                            Box(contentAlignment = Alignment.CenterStart) {
+                                                if (rawWeight.isEmpty()) {
+                                                    val suggested = lastWeights[ex.id.toString()] ?: ex.weight
+                                                    Text(
+                                                        text = "${suggested} $preferredUnits",
+                                                        color = MutedText,
+                                                        fontFamily = JetBrainsMonoFamily,
+                                                        fontSize = 14.sp
+                                                    )
+                                                }
+                                                innerTextField()
+                                            }
+                                        }
+                                    )
+                                    val contextLineInside = weightContextLines[ex.id.toString()] ?: ""
+                                    if (contextLineInside.isNotEmpty()) {
+                                        val shortNote = if (contextLineInside.contains(" → Suggested:")) {
+                                            contextLineInside.substringBefore(" → Suggested:")
+                                        } else {
+                                            "Beginner Base"
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = shortNote,
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontSize = 8.sp,
+                                            color = MutedText
+                                        )
+                                    }
+                                    if (weightError.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = weightError,
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontSize = 8.sp,
+                                            color = RedAccent,
+                                            modifier = Modifier.testTag("weight_error_msg")
+                                        )
+                                    }
+                                }
+
+                                // Reps textfield
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("REPS", fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
+                                    BasicTextField(
+                                        value = rawReps,
+                                        onValueChange = { input ->
+                                            val filtered = input.filter { it.isDigit() }
+                                            var finalStr = filtered
+                                            var error = ""
+                                            val iVal = filtered.toIntOrNull()
+                                            if (iVal != null) {
+                                                if (iVal > 50) {
+                                                    finalStr = "50"
+                                                    error = "Reps: 1–50"
+                                                } else if (iVal < 1) {
+                                                    finalStr = "1"
+                                                    error = "Reps: 1–50"
+                                                }
+                                            } else if (filtered.isNotEmpty()) {
+                                                error = "Reps: 1–50"
+                                            }
+
+                                            rawReps = finalStr
+                                            repsError = error
+
+                                            val r = finalStr.toIntOrNull()
+                                            if (r != null && r in 1..50) {
+                                                val w = rawWeight.toDoubleOrNull() ?: setObj.weight
+                                                fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
+                                            }
+                                        },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 14.sp),
+                                        modifier = Modifier
+                                            .background(DarkRaised, RoundedCornerShape(4.dp))
+                                            .padding(6.dp)
+                                            .fillMaxWidth()
+                                    )
+                                    if (repsError.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = repsError,
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontSize = 8.sp,
+                                            color = RedAccent,
+                                            modifier = Modifier.testTag("reps_error_msg")
+                                        )
+                                    }
+                                }
+
+                                // Completion Checkbox
+                                IconButton(
+                                    enabled = isSetValid,
+                                    onClick = {
+                                        val newCompleted = !setObj.completed
+                                        val w = rawWeight.toDoubleOrNull() ?: setObj.weight
+                                        val r = rawReps.toIntOrNull() ?: setObj.reps
+
+                                        if (newCompleted) {
+                                            // Smart RIR dynamic selector instead of instant log
+                                            fitnessViewModel.openRirSelector(
+                                                exerciseId = ex.id,
+                                                exerciseName = ex.name,
+                                                muscleGroup = ex.muscleGroup,
+                                                setIndex = sIdx,
+                                                weight = w,
+                                                reps = r,
+                                                totalSets = setsList.size
+                                            )
+                                        } else {
+                                            // Simple uncheck log state
+                                            fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, false)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("log_checkmark_button")
+                                ) {
+                                    Icon(
+                                        imageVector = if (setObj.completed) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                                        contentDescription = "Log set",
+                                        tint = if (!isSetValid) MutedText.copy(alpha = 0.3f) else if (setObj.completed) GreenAccent else MutedText,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Custom Segmented Button select row for RPE (1 to 10)
+                            Text("RPE: $selectedRpe", fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(DarkRaised)
+                                    .padding(2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                (1..10).forEach { rpeVal ->
+                                    val isRpeSelected = selectedRpe == rpeVal
+                                    val zoneColor = when (rpeVal) {
+                                        in 1..5 -> Color(0xFF2EC46A) // Green zone
+                                        in 6..7 -> Color(0xFFFFB300) // Yellow/Amber zone
+                                        else -> Color(0xFFEF4444) // Red zone
+                                    }
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(3.dp))
-                                            .background(Color(0xFF6366F1).copy(alpha = 0.2f))
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isRpeSelected) zoneColor else Color.Transparent)
+                                            .clickable {
+                                                selectedRpe = rpeVal
+                                                val w = rawWeight.toDoubleOrNull() ?: setObj.weight
+                                                val r = rawReps.toIntOrNull() ?: setObj.reps
+                                                fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, rpeVal, setObj.completed)
+                                            }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "WARMUP",
+                                            text = rpeVal.toString(),
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 6.sp,
+                                            fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFA78BFA)
+                                            color = if (isRpeSelected) Color(0xFF0A0A0F) else zoneColor.copy(alpha = 0.7f)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                } else {
-                                    Text(
-                                        text = "SET",
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 8.sp,
-                                        color = MutedText
-                                    )
                                 }
-                                Text(
-                                    text = "${sIdx + 1}",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = when {
-                                        setObj.completed -> GreenAccent
-                                        setObj.isWarmup -> Color(0xFFA78BFA)
-                                        else -> AmberAccent
-                                    }
-                                )
-                            }
-
-                            // Weight textfield
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("WEIGHT", fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
-                                BasicTextField(
-                                    value = rawWeight,
-                                    onValueChange = {
-                                        rawWeight = it
-                                        val w = it.toDoubleOrNull() ?: setObj.weight
-                                        val r = rawReps.toIntOrNull() ?: setObj.reps
-                                        fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
-                                    },
-                                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 14.sp),
-                                    modifier = Modifier
-                                        .background(DarkRaised, RoundedCornerShape(4.dp))
-                                        .padding(6.dp)
-                                        .fillMaxWidth(),
-                                    decorationBox = { innerTextField ->
-                                        Box(contentAlignment = Alignment.CenterStart) {
-                                            if (rawWeight.isEmpty()) {
-                                                val suggested = lastWeights[ex.id.toString()] ?: ex.weight
-                                                Text(
-                                                    text = "${suggested} $preferredUnits",
-                                                    color = MutedText,
-                                                    fontFamily = JetBrainsMonoFamily,
-                                                    fontSize = 14.sp
-                                                )
-                                            }
-                                            innerTextField()
-                                        }
-                                    }
-                                )
-                                val contextLineInside = weightContextLines[ex.id.toString()] ?: ""
-                                if (contextLineInside.isNotEmpty()) {
-                                    val shortNote = if (contextLineInside.contains(" → Suggested:")) {
-                                        contextLineInside.substringBefore(" → Suggested:")
-                                    } else {
-                                        "Beginner Base"
-                                    }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = shortNote,
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 8.sp,
-                                        color = MutedText
-                                    )
-                                }
-                            }
-
-                            // Reps textfield
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("REPS", fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
-                                BasicTextField(
-                                    value = rawReps,
-                                    onValueChange = {
-                                        rawReps = it
-                                        val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                                        val r = it.toIntOrNull() ?: setObj.reps
-                                        fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
-                                    },
-                                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 14.sp),
-                                    modifier = Modifier
-                                        .background(DarkRaised, RoundedCornerShape(4.dp))
-                                        .padding(6.dp)
-                                        .fillMaxWidth()
-                                )
-                            }
-
-                            // RPE Row Dropdown logic simplified to a slider or toggler
-                            Column(modifier = Modifier.width(64.dp)) {
-                                Text("RPE: $selectedRpe", fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
-                                Row(
-                                    modifier = Modifier
-                                        .background(DarkRaised, RoundedCornerShape(4.dp))
-                                        .clickable {
-                                            val nextRpe = if (selectedRpe < 10) selectedRpe + 1 else 5
-                                            selectedRpe = nextRpe
-                                            val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                                            val r = rawReps.toIntOrNull() ?: setObj.reps
-                                            fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, nextRpe, setObj.completed)
-                                        }
-                                        .padding(6.dp)
-                                        .fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Text("+1 RPE", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = SecondaryText)
-                                }
-                            }
-
-                            // Completion Checkbox
-                            IconButton(
-                                onClick = {
-                                    val newCompleted = !setObj.completed
-                                    val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                                    val r = rawReps.toIntOrNull() ?: setObj.reps
-
-                                    if (newCompleted) {
-                                        // Smart RIR dynamic selector instead of instant log
-                                        fitnessViewModel.openRirSelector(
-                                            exerciseId = ex.id,
-                                            exerciseName = ex.name,
-                                            muscleGroup = ex.muscleGroup,
-                                            setIndex = sIdx,
-                                            weight = w,
-                                            reps = r,
-                                            totalSets = setsList.size
-                                        )
-                                    } else {
-                                        // Simple uncheck log state
-                                        fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, false)
-                                    }
-                                },
-                                modifier = Modifier.testTag("log_checkmark_button")
-                            ) {
-                                Icon(
-                                    imageVector = if (setObj.completed) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
-                                    contentDescription = "Log set",
-                                    tint = if (setObj.completed) GreenAccent else MutedText,
-                                    modifier = Modifier.size(28.dp)
-                                )
                             }
                         }
                     }
@@ -2507,19 +2618,27 @@ fun WorkoutExecutionSubTab(
 
                 // Add extra sets CTA row
                 item {
+                    val canAddSet = setsList.size < 20
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Button(
-                                onClick = { fitnessViewModel.addCustomLogSet(ex.id) },
-                                colors = ButtonDefaults.buttonColors(containerColor = DarkCardSurface),
-                                border = BorderStroke(1.dp, BorderSubtle),
+                                onClick = {
+                                    if (canAddSet) {
+                                        fitnessViewModel.addCustomLogSet(ex.id)
+                                    }
+                                },
+                                enabled = canAddSet,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (canAddSet) DarkCardSurface else DarkCardSurface.copy(alpha = 0.5f)
+                                ),
+                                border = BorderStroke(1.dp, if (canAddSet) BorderSubtle else BorderSubtle.copy(alpha = 0.3f)),
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("+ ADD EXTRA SET", fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
+                                Text("+ ADD EXTRA SET", fontFamily = SyneFamily, fontSize = 11.sp, color = if (canAddSet) PrimaryText else MutedText)
                             }
 
                             Button(
@@ -2542,6 +2661,17 @@ fun WorkoutExecutionSubTab(
                                     color = Color(0xFF0A0A0F)
                                 )
                             }
+                        }
+
+                        if (setsList.size >= 20) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Sets: 1–20",
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 10.sp,
+                                color = RedAccent,
+                                modifier = Modifier.testTag("sets_error_msg")
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -4081,6 +4211,19 @@ fun AddFoodSheet(
     var inputCarb by remember { mutableStateOf("30") }
     var inputFat by remember { mutableStateOf("8") }
 
+    var calError by remember { mutableStateOf("") }
+    var protError by remember { mutableStateOf("") }
+    var carbError by remember { mutableStateOf("") }
+    var fatError by remember { mutableStateOf("") }
+
+    val isCalValid = inputCal.toIntOrNull()?.let { it in 0..5000 } ?: false
+    val isProtValid = inputProt.toDoubleOrNull()?.let { it in 0.0..300.0 } ?: false
+    val isCarbValid = inputCarb.toDoubleOrNull()?.let { it in 0.0..300.0 } ?: false
+    val isFatValid = inputFat.toDoubleOrNull()?.let { it in 0.0..300.0 } ?: false
+
+    val computedCalFromMacros = ((inputProt.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputCarb.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputFat.toDoubleOrNull() ?: 0.0) * 9.0)
+    val showMacroCalWarning = computedCalFromMacros > 5000.0
+
     val isScanning by fitnessViewModel.isCoachLoading.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
@@ -4103,6 +4246,10 @@ fun AddFoodSheet(
                             inputCarb = carb.toString()
                             inputFat = fat.toString()
                             querySearch = name
+                            calError = ""
+                            protError = ""
+                            carbError = ""
+                            fatError = ""
                             Toast.makeText(context, "AI scanned meal and pre-filled macro values!", Toast.LENGTH_SHORT).show()
                         },
                         onFailure = { err ->
@@ -4173,44 +4320,252 @@ fun AddFoodSheet(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = inputCal,
-                        onValueChange = { inputCal = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() }
+                            var finalStr = filtered
+                            var error = ""
+                            val iVal = filtered.toIntOrNull()
+                            if (iVal != null) {
+                                if (iVal > 5000) {
+                                    finalStr = "5000"
+                                    error = "Calories: 0–5000"
+                                } else if (iVal < 0) {
+                                    finalStr = "0"
+                                    error = "Calories: 0–5000"
+                                }
+                            } else if (filtered.isNotEmpty()) {
+                                error = "Calories: 0–5000"
+                            }
+                            inputCal = finalStr
+                            calError = error
+                        },
                         label = { Text("Calories", color = SecondaryText, fontSize = 10.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f).testTag("add_food_calories_input"),
-                        colors = TextFieldDefaults.colors(focusedContainerColor = DarkRaised, unfocusedContainerColor = DarkRaised)
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = DarkRaised,
+                            unfocusedContainerColor = DarkRaised,
+                            focusedIndicatorColor = if (calError.isNotEmpty()) RedAccent else AmberAccent,
+                            unfocusedIndicatorColor = if (calError.isNotEmpty()) RedAccent else BorderSubtle
+                        )
                     )
                     OutlinedTextField(
                         value = inputProt,
-                        onValueChange = { inputProt = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val clean = if (filtered.count { it == '.' } > 1) {
+                                val firstDot = filtered.indexOf('.')
+                                filtered.substring(0, firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
+                            } else {
+                                filtered
+                            }
+
+                            var finalStr = clean
+                            var error = ""
+                            val dVal = clean.toDoubleOrNull()
+                            if (dVal != null) {
+                                if (dVal > 300.0) {
+                                    finalStr = "300.0"
+                                    error = "Protein: 0–300g"
+                                } else if (dVal < 0.0) {
+                                    finalStr = "0.0"
+                                    error = "Protein: 0–300g"
+                                }
+                            } else if (clean.isNotEmpty()) {
+                                error = "Protein: 0–300g"
+                            }
+                            inputProt = finalStr
+                            protError = error
+                        },
                         label = { Text("Protein (g)", color = SecondaryText, fontSize = 10.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_protein_input"),
-                        colors = TextFieldDefaults.colors(focusedContainerColor = DarkRaised, unfocusedContainerColor = DarkRaised)
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = DarkRaised,
+                            unfocusedContainerColor = DarkRaised,
+                            focusedIndicatorColor = if (protError.isNotEmpty()) RedAccent else AmberAccent,
+                            unfocusedIndicatorColor = if (protError.isNotEmpty()) RedAccent else BorderSubtle
+                        )
                     )
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = inputCarb,
-                        onValueChange = { inputCarb = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val clean = if (filtered.count { it == '.' } > 1) {
+                                val firstDot = filtered.indexOf('.')
+                                filtered.substring(0, firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
+                            } else {
+                                filtered
+                            }
+
+                            var finalStr = clean
+                            var error = ""
+                            val dVal = clean.toDoubleOrNull()
+                            if (dVal != null) {
+                                if (dVal > 300.0) {
+                                    finalStr = "300.0"
+                                    error = "Carbs: 0–300g"
+                                } else if (dVal < 0.0) {
+                                    finalStr = "0.0"
+                                    error = "Carbs: 0–300g"
+                                }
+                            } else if (clean.isNotEmpty()) {
+                                error = "Carbs: 0–300g"
+                            }
+                            inputCarb = finalStr
+                            carbError = error
+                        },
                         label = { Text("Carbs (g)", color = SecondaryText, fontSize = 10.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                        modifier = Modifier.weight(1f),
-                        colors = TextFieldDefaults.colors(focusedContainerColor = DarkRaised, unfocusedContainerColor = DarkRaised)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f).testTag("add_food_carbs_input"),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = DarkRaised,
+                            unfocusedContainerColor = DarkRaised,
+                            focusedIndicatorColor = if (carbError.isNotEmpty()) RedAccent else AmberAccent,
+                            unfocusedIndicatorColor = if (carbError.isNotEmpty()) RedAccent else BorderSubtle
+                        )
                     )
                     OutlinedTextField(
                         value = inputFat,
-                        onValueChange = { inputFat = it },
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val clean = if (filtered.count { it == '.' } > 1) {
+                                val firstDot = filtered.indexOf('.')
+                                filtered.substring(0, firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
+                            } else {
+                                filtered
+                            }
+
+                            var finalStr = clean
+                            var error = ""
+                            val dVal = clean.toDoubleOrNull()
+                            if (dVal != null) {
+                                if (dVal > 300.0) {
+                                    finalStr = "300.0"
+                                    error = "Fat: 0–300g"
+                                } else if (dVal < 0.0) {
+                                    finalStr = "0.0"
+                                    error = "Fat: 0–300g"
+                                }
+                            } else if (clean.isNotEmpty()) {
+                                error = "Fat: 0–300g"
+                            }
+                            inputFat = finalStr
+                            fatError = error
+                        },
                         label = { Text("Fat (g)", color = SecondaryText, fontSize = 10.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                        modifier = Modifier.weight(1f),
-                        colors = TextFieldDefaults.colors(focusedContainerColor = DarkRaised, unfocusedContainerColor = DarkRaised)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f).testTag("add_food_fat_input"),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = DarkRaised,
+                            unfocusedContainerColor = DarkRaised,
+                            focusedIndicatorColor = if (fatError.isNotEmpty()) RedAccent else AmberAccent,
+                            unfocusedIndicatorColor = if (fatError.isNotEmpty()) RedAccent else BorderSubtle
+                        )
+                    )
+                }
+
+                // Quick Add Row
+                Text("QUICK ADD", fontFamily = SyneFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AmberAccent)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val curr = inputCal.toIntOrNull() ?: 0
+                            val newVal = (curr + 100).coerceAtMost(5000)
+                            inputCal = newVal.toString()
+                            calError = if (newVal == 5000) "Calories: 0–5000" else ""
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, BorderSubtle),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
+                        modifier = Modifier.weight(1f).height(36.dp)
+                    ) {
+                        Text("+100 kcal", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val curr = inputProt.toDoubleOrNull() ?: 0.0
+                            val newVal = (curr + 10.0).coerceAtMost(300.0)
+                            inputProt = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
+                            protError = if (newVal == 300.0) "Protein: 0–300g" else ""
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, BorderSubtle),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
+                        modifier = Modifier.weight(1f).height(36.dp)
+                    ) {
+                        Text("+10g Prot", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val curr = inputCarb.toDoubleOrNull() ?: 0.0
+                            val newVal = (curr + 10.0).coerceAtMost(300.0)
+                            inputCarb = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
+                            carbError = if (newVal == 300.0) "Carbs: 0–300g" else ""
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, BorderSubtle),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
+                        modifier = Modifier.weight(1f).height(36.dp)
+                    ) {
+                        Text("+10g Carbs", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val curr = inputFat.toDoubleOrNull() ?: 0.0
+                            val newVal = (curr + 5.0).coerceAtMost(300.0)
+                            inputFat = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
+                            fatError = if (newVal == 300.0) "Fat: 0–300g" else ""
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, BorderSubtle),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
+                        modifier = Modifier.weight(1f).height(36.dp)
+                    ) {
+                        Text("+5g Fat", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                    }
+                }
+
+                // Error text feedback
+                val errors = listOf(calError, protError, carbError, fatError).filter { it.isNotEmpty() }
+                if (errors.isNotEmpty()) {
+                    Text(
+                        text = errors.first(),
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 11.sp,
+                        color = RedAccent,
+                        modifier = Modifier.testTag("nutrition_error_msg")
+                    )
+                }
+
+                if (showMacroCalWarning) {
+                    Text(
+                        text = "Total exceeds 5000 cal",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 11.sp,
+                        color = RedAccent,
+                        modifier = Modifier.testTag("nutrition_warn_msg")
                     )
                 }
             }
         },
         confirmButton = {
+            val isMealValid = isCalValid && isProtValid && isCarbValid && isFatValid && !showMacroCalWarning
             Button(
+                enabled = isMealValid,
                 onClick = {
                     val cal = inputCal.toIntOrNull() ?: 100
                     val prot = inputProt.toDoubleOrNull() ?: 0.0
@@ -4220,9 +4575,17 @@ fun AddFoodSheet(
                     fitnessViewModel.logNutrition(cal, prot, carb, fat, name = mealName)
                     onDismiss()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = AmberAccent)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AmberAccent,
+                    disabledContainerColor = DarkRaised.copy(alpha = 0.5f)
+                )
             ) {
-                Text("LOG MEAL", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0F))
+                Text(
+                    text = "LOG MEAL",
+                    fontFamily = SyneFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isMealValid) Color(0xFF0A0A0F) else MutedText
+                )
             }
         },
         dismissButton = {

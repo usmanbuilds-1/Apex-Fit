@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.sp
 import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.FitnessViewModel
-import com.example.data.BodyMeasurement
+import com.example.ui.models.UiBodyMeasurement
 import com.example.data.MuscleRecoveryStatus
 import com.example.ui.theme.SyneFamily
 import com.example.ui.theme.JetBrainsMonoFamily
@@ -597,7 +597,7 @@ fun BodyMeasurementDetailScreen(
 // Draw custom high fidelity progression line chart using native compose primitives
 @Composable
 fun MeasurementLineChart(
-    entries: List<BodyMeasurement>,
+    entries: List<UiBodyMeasurement>,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier.padding(vertical = 12.dp, horizontal = 16.dp)) {
@@ -882,7 +882,7 @@ fun MonthlyVolumeRadarChart(
 
 @Composable
 fun BodyMeasurementsTrackerPanel(
-    measurements: List<BodyMeasurement>,
+    measurements: List<UiBodyMeasurement>,
     onPartClick: (String) -> Unit
 ) {
     Card(

@@ -5,6 +5,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.utils.*
+import com.example.ui.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -92,7 +93,8 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // SECTION 3 — PUBLIC STATEFLOWS
     // ─────────────────────────────────────────────────────────────────
 
-    val completedSessions: StateFlow<List<com.example.data.TrainingSession>> = sessionsFlow
+    val completedSessions: StateFlow<List<UiTrainingSession>> = sessionsFlow
+        .map { list -> list.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val trendWeight: StateFlow<Double?> = weightFlow
@@ -183,24 +185,25 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .map { it.overall }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 88)
 
-    val plateauResult: StateFlow<com.example.utils.PlateauResult> = combine(
+    val plateauResult: StateFlow<UiPlateauResult> = combine(
         weightFlow, nutritionFlow
-    ) { weights, nutrition ->
-        withContext(Dispatchers.Default) {
+    ) { weights: List<com.example.utils.WeightEntry>, nutrition: List<com.example.utils.NutritionEntry> ->
+        val res = withContext(Dispatchers.Default) {
             com.example.utils.AlgorithmEngine.detectPlateau(weights, nutrition)
         }
+        res.toUi()
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        com.example.utils.PlateauResult(plateau = false)
+        com.example.data.PlateauResult(isPlateaued = false).toUi()
     )
 
     val plateauAlert: StateFlow<com.example.data.PlateauResult?> = plateauResult
         .map { result ->
-            if (result.plateau) {
+            if (result.isPlateau) {
                 com.example.data.PlateauResult(
                     isPlateaued = true,
-                    interventionRecommendation = result.interventions.joinToString(". ")
+                    interventionRecommendation = result.recommendation
                 )
             } else {
                 null
@@ -335,7 +338,8 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     private val _progressionStatus = MutableStateFlow("PROGRESSING")
     val progressionStatus: StateFlow<String> = _progressionStatus.asStateFlow()
 
-    val allPRs: StateFlow<List<com.example.data.PersonalRecord>> = dao.getAllPRsFlow()
+    val allPRs: StateFlow<List<UiPersonalRecord>> = dao.getAllPRsFlow()
+        .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val injuryRiskSignals: StateFlow<List<String>> = richSessionsFlow
@@ -469,7 +473,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             appendLine("Trend weight ${tw?.let { "%.1f".format(it) } ?: "unknown"} kg moving $dir.")
             appendLine("Fatigue status ${fatigue.statusLabel} with ratio ${fatigue.ratio?.let { "%.2f".format(it) } ?: "N/A"}.")
             appendLine("Compliance this week: calories ${compliance.calories}%, protein ${compliance.protein}%, training ${compliance.training}%, overall ${compliance.overall}%.")
-            appendLine("Plateau status: ${if (plateau.plateau) "yes — severity ${plateau.severity}" else "no"}.")
+            appendLine("Plateau status: ${if (plateau.isPlateau) "yes" else "no"}.")
             appendLine("Weakest nutrition day: ${compliance.weakestDay ?: "unknown"}.")
             appendLine("Deload recommendation: ${deload.recommendation} (urgency: ${deload.urgency}, signals: ${deload.signals}).")
             appendLine("Injury signals: ${if (injuries.isEmpty()) "none" else injuries.joinToString(", ")}.")
