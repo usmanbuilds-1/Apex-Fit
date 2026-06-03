@@ -2,7 +2,7 @@ package com.example.network
 
 import android.util.Log
 import com.example.data.DataStoreManager
-import com.example.data.FitnessDao
+import com.example.domain.repository.FitnessRepository
 import com.example.data.WeeklyReport
 import com.example.utils.AlgorithmEngine
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +45,7 @@ data class ParsedWorkoutDay(
 
 class GeminiService(
     private val dataStore: DataStoreManager,
-    private val dao: FitnessDao
+    private val repository: FitnessRepository
 ) {
 
     private val BASE_URL =
@@ -70,12 +70,12 @@ class GeminiService(
         context: com.example.data.AlgorithmViewModel
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val dbWeights = dao.getAllWeightEntries()
+            val dbWeights = repository.getAllWeightEntries()
             val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
                 com.example.utils.WeightEntry(date, list.map { it.weight }.average())
             }.sortedBy { it.date }
             
-            val dbNutrition = dao.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList()
+            val dbNutrition = repository.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList()
             val engineNutrition = dbNutrition.groupBy { it.date }.map { (date, list) ->
                 com.example.utils.NutritionEntry(
                     date = date,
@@ -86,9 +86,9 @@ class GeminiService(
                 )
             }.sortedBy { it.date }
             
-            val dbSessions = dao.getAllTrainingSessions()
+            val dbSessions = repository.getTrainingSessions().firstOrNull() ?: emptyList()
             val completedSessions = dbSessions.filter { it.completed }.map { session ->
-                val dbSets = dao.getSetsForSession(session.id)
+                val dbSets = repository.getSetsForSession(session.id)
                 val exerciseLogs = dbSets.groupBy { it.exerciseId }.map { (exId, sets) ->
                     val firstSet = sets.firstOrNull()
                     val name = firstSet?.exerciseName ?: "Exercise"
@@ -153,7 +153,7 @@ class GeminiService(
                         cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
                     }
                     val weekStart = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal.time)
-                    dao.insertWeeklyReport(
+                    repository.insertWeeklyReport(
                         WeeklyReport(
                             weekStart = weekStart,
                             score = context.complianceScore.value,

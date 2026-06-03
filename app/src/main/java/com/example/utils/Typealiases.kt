@@ -27,3 +27,5 @@ typealias SleepEntry = com.example.data.SleepEntry
 typealias UserIntelligenceProfile = com.example.data.UserIntelligenceProfile
 typealias StreakInfo = com.example.data.StreakInfo
 typealias StreakResult = com.example.data.StreakResult
+typealias EffectiveSetsData = com.example.data.EffectiveSetsData
+typealias PlanSession = com.example.data.PlanSession

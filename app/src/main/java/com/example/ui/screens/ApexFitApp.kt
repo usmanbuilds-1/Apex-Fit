@@ -50,12 +50,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
 import com.example.data.AlgorithmViewModel
-import com.example.data.PlanSession
-import com.example.data.EffectiveSetsData
 import com.example.ui.models.*
 import com.example.ui.theme.*
 import com.example.utils.AlgorithmEngine
 import com.example.ui.components.MuscleHeatmapCanvas
+import com.example.utils.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -713,11 +712,12 @@ fun HomeTab(
     val fallbackTdee = (bmrBaseline * 1.55).toInt()
     val activeTdee = tdeeResult.tdee ?: fallbackTdee
 
+    val suggestedCalories by fitnessViewModel.suggestedCaloricTarget.collectAsStateWithLifecycle()
     // Science: Helms et al. (2014) Daily caloric targets adjusted by objective goals
     val calorieTarget = if (calorieTargetManual) {
         calorieTargetValue
     } else {
-        com.example.utils.AlgorithmEngine.suggestCaloricTarget(activeTdee, userGoal)
+        suggestedCalories
     }
 
     // Dynamic Macro prescriptions (Helms et al. 2014 - Muscle & Strength Pyramids)
@@ -1153,7 +1153,7 @@ fun HomeTab(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(vertical = 2.dp)
                         ) {
-                            val yesterdayNutritionLogged = loggedMeals.any { it.date == com.example.utils.AlgorithmEngine.getDateDaysAgo(1) }
+                            val yesterdayNutritionLogged = loggedMeals.any { it.date == fitnessViewModel.getDateDaysAgo(1) }
                             Icon(
                                 imageVector = if (yesterdayNutritionLogged) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                 contentDescription = null,
@@ -1189,6 +1189,7 @@ fun HomeTab(
             val sessionName = todaySession?.label ?: "Science Hypertrophy"
             val focusMuscles = todaySession?.focus ?: "Standard Workout Routine"
 
+            val estimateDuration by fitnessViewModel.estimatedSetDuration.collectAsStateWithLifecycle()
             // Calculate precise metabolic duration based on specific exercise sets
             val estimatedWorkoutDurationMin = if (todaySession == null || todaySession.focus == "Muscle Recovery & Rest") {
                 0
@@ -1196,7 +1197,7 @@ fun HomeTab(
                 75
             } else {
                 val rawTime = todayExercises.sumOf { 
-                    val setMinutes = com.example.utils.AlgorithmEngine.estimateSetDurationMinutes(it.repsMin, it.repsMax)
+                    val setMinutes = estimateDuration(it.repsMin, it.repsMax)
                     it.sets * (setMinutes + it.restSeconds / 60.0) 
                 }
                 val transitionTime = (todayExercises.size - 1).coerceAtLeast(0) * 2.0

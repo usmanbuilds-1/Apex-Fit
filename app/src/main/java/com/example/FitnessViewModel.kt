@@ -8,6 +8,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.FitnessDao
+import com.example.domain.repository.FitnessRepository
+import com.example.data.repository.FitnessRepositoryImpl
 import com.example.data.WeightEntry
 import com.example.data.NutritionEntry
 import com.example.data.BodyMeasurement
@@ -44,8 +46,9 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     private val db = AppDatabase.getDatabase(application)
     private val dao = db.fitnessDao()
     private val dataStore = DataStoreManager(application)
-    private val geminiService = GeminiService(dataStore, dao)
-    val sessionManager = WorkoutSessionManager(dao)
+    private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
+    private val geminiService = GeminiService(dataStore, repository)
+    val sessionManager = WorkoutSessionManager(repository)
 
 
     // User preferences & onboarding State
@@ -82,9 +85,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     val selectedNutritionDate: StateFlow<String> = _selectedNutritionDate.asStateFlow()
 
     val loggedMeals: StateFlow<List<UiNutritionEntry>> = _selectedNutritionDate.flatMapLatest { date ->
-        dao.getAllNutritionEntriesFlow().map { entries ->
-            entries.filter { it.date == date }.map { it.toUi() }
-        }
+        repository.getNutritionEntries(date).map { list -> list.map { it.toUi() } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allNutritionHistory: StateFlow<List<UiNutritionEntry>> = dao.getAllNutritionEntriesFlow()
@@ -92,7 +93,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Weight logging State
-    val weightHistory: StateFlow<List<UiWeightEntry>> = dao.getAllWeightEntriesFlow()
+    val weightHistory: StateFlow<List<UiWeightEntry>> = repository.getWeightHistory()
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -128,7 +129,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
 
     // Training State (Plans, Sessions)
     val workoutPlans = dao.getAllPlansFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val activePlan = dao.getActivePlanFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val activePlan = repository.getActivePlan().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _selectedDayOfWeek = MutableStateFlow("Monday")
     val selectedDayOfWeek: StateFlow<String> = _selectedDayOfWeek.asStateFlow()
@@ -150,6 +151,63 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         val todaySession = sessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
         if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ── Algorithm Results (moved from UI layer) ────────────────────────────────
+    val userGoal: StateFlow<String> = goal
+
+    val activeTdee: StateFlow<Int> = combine(
+        weightHistory,
+        allNutritionHistory,
+        userHeight,
+        userAge,
+        userSex
+    ) { weights, nutrition, height, age, sex ->
+        val weightData = weights.map { it.toData() }
+        val nutritionData = nutrition.map { it.toData() }
+        
+        val sexOffset = if (sex.equals("female", ignoreCase = true)) -161.0 else 5.0
+        val latestWeight = weightData.firstOrNull()?.weight ?: 80.0
+        val bmrBaseline = (10.0 * latestWeight) + (6.25 * height) - (5.0 * age) + sexOffset
+        val fallbackTdee = (bmrBaseline * 1.55).toInt()
+        
+        val tdeeResult = com.example.utils.AlgorithmEngine.calcAdaptiveTDEE(
+            weightLog = weightData,
+            nutritionLog = nutritionData,
+            windowDays = 14,
+            heightCm = height,
+            ageYears = age,
+            biologicalSex = sex,
+            weeklyWorkouts = 4
+        )
+        tdeeResult.tdee ?: fallbackTdee
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2500)
+
+    val suggestedCaloricTarget: StateFlow<Int> = combine(
+        activeTdee,
+        userGoal
+    ) { tdee, goal ->
+        if (tdee > 0 && goal.isNotEmpty()) {
+            com.example.utils.AlgorithmEngine.suggestCaloricTarget(tdee, goal)
+        } else {
+            2500
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = 2500
+    )
+
+    val estimatedSetDuration: StateFlow<(Int, Int) -> Int> = flowOf { repsMin: Int, repsMax: Int ->
+        com.example.utils.AlgorithmEngine.estimateSetDurationMinutes(repsMin, repsMax).toInt()
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = { _, _ -> 3 }
+    )
+
+    fun getDateDaysAgo(daysAgo: Int): String {
+        return com.example.utils.AlgorithmEngine.getDateDaysAgo(daysAgo)
+    }
 
     // Active Workout Mode state (derived reactively from sessionManager)
     val activeSession = sessionManager.activeSession

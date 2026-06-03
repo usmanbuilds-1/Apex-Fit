@@ -243,3 +243,117 @@ fun UiPlateauResult.toData(): com.example.data.PlateauResult = com.example.data.
     severity = "",
     interventions = emptyList()
 )
+
+data class UiComplianceResult(
+    val calories: Int,
+    val protein: Int,
+    val training: Int,
+    val overall: Int,
+    val weakestDay: String?
+)
+
+data class UiFatigueResult(
+    val ratio: Double?,
+    val status: String,
+    val statusLabel: String,
+    val recommendation: String
+)
+
+data class UiDeloadResult(
+    val recommendation: String,
+    val urgency: String,
+    val signals: Int,
+    val protocol: List<String>
+)
+
+data class UiReadinessFactor(
+    val name: String,
+    val impact: String,
+    val value: String
+)
+
+data class UiSessionReadiness(
+    val score: Int,
+    val label: String,
+    val colorHex: String,
+    val prediction: String,
+    val recommendation: String,
+    val factors: List<UiReadinessFactor>
+)
+
+fun com.example.utils.ComplianceResult.toUi(): UiComplianceResult = UiComplianceResult(
+    calories = this.calories,
+    protein = this.protein,
+    training = this.training,
+    overall = this.overall,
+    weakestDay = this.weakestDay
+)
+
+fun UiComplianceResult.toData(): com.example.utils.ComplianceResult = com.example.utils.ComplianceResult(
+    calories = this.calories,
+    protein = this.protein,
+    training = this.training,
+    overall = this.overall,
+    weakestDay = this.weakestDay
+)
+
+fun com.example.utils.FatigueResult.toUi(): UiFatigueResult = UiFatigueResult(
+    ratio = this.ratio,
+    status = this.status,
+    statusLabel = this.statusLabel,
+    recommendation = this.recommendation
+)
+
+fun UiFatigueResult.toData(): com.example.utils.FatigueResult = com.example.utils.FatigueResult(
+    ratio = this.ratio,
+    status = this.status,
+    statusLabel = this.statusLabel,
+    recommendation = this.recommendation,
+    acuteLoad = 0.0,
+    chronicLoad = 0.0
+)
+
+fun com.example.utils.DeloadResult.toUi(): UiDeloadResult = UiDeloadResult(
+    recommendation = this.recommendation,
+    urgency = this.urgency,
+    signals = this.signals,
+    protocol = this.protocol
+)
+
+fun UiDeloadResult.toData(): com.example.utils.DeloadResult = com.example.utils.DeloadResult(
+    recommendation = this.recommendation,
+    urgency = this.urgency,
+    signals = this.signals,
+    protocol = this.protocol
+)
+
+fun com.example.utils.ReadinessFactor.toUi(): UiReadinessFactor = UiReadinessFactor(
+    name = this.name,
+    impact = this.impact,
+    value = this.value
+)
+
+fun UiReadinessFactor.toData(): com.example.utils.ReadinessFactor = com.example.utils.ReadinessFactor(
+    name = this.name,
+    impact = this.impact,
+    value = this.value
+)
+
+fun com.example.utils.SessionReadiness.toUi(): UiSessionReadiness = UiSessionReadiness(
+    score = this.score,
+    label = this.label,
+    colorHex = this.colorHex,
+    prediction = this.prediction,
+    recommendation = this.recommendation,
+    factors = this.factors.map { it.toUi() }
+)
+
+fun UiSessionReadiness.toData(): com.example.utils.SessionReadiness = com.example.utils.SessionReadiness(
+    score = this.score,
+    label = this.label,
+    colorHex = this.colorHex,
+    prediction = this.prediction,
+    recommendation = this.recommendation,
+    factors = this.factors.map { it.toData() }
+)
+

@@ -1,5 +1,5 @@
 package com.example
-
+import com.example.domain.repository.FitnessRepository
 import com.example.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +14,7 @@ import java.util.UUID
  * Nothing touches Room until commitToDatabase() is called — one atomic
  * write covers the TrainingSession row and all ExerciseSet rows together.
  */
-class WorkoutSessionManager(private val dao: FitnessDao) {
+class WorkoutSessionManager(private val repository: FitnessRepository) {
 
     // ── Active session state ──────────────────────────────────────
     private val _activeSession = MutableStateFlow<ActiveSession?>(null)
@@ -62,7 +62,7 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
         }
 
         exercises.forEach { ex ->
-            val lastSet = dao.getLastSetForExercise(ex.id.toString())
+            val lastSet = repository.getLastSetForExercise(ex.id.toString())
             val exType = com.example.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedLbs: Double
@@ -231,7 +231,7 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
      * to show the PR badge in the UI.
      */
     suspend fun checkPRPreview(exerciseId: String, weight: Double, reps: Int) {
-        val prs = dao.getPRsForExercise(exerciseId)
+        val prs = repository.getPRsForExercise(exerciseId)
         val currentMaxWeight = prs.firstOrNull { it.type == "max_weight" }?.value ?: 0.0
         val currentEstimated1RM = prs.firstOrNull { it.type == "estimated_1rm" }?.value ?: 0.0
         val newEstimated1RM = weight * (1.0 + reps / 30.0)
@@ -299,7 +299,7 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
         )
 
         // Single atomic transaction — both rows or neither
-        dao.insertSessionAtomic(trainingSession, allSets)
+        repository.insertSessionAtomic(trainingSession, allSets)
 
         // Save PRs after commit
         evaluateAndSavePRs(allSets)
@@ -365,7 +365,7 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
                     it.weight * (1.0 + it.reps / 30.0)
                 } ?: return@forEach
 
-                val existing = dao.getPRsForExercise(exerciseId)
+                val existing = repository.getPRsForExercise(exerciseId)
                 val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
 
                 val prevWeight = existing.firstOrNull { it.type == "max_weight" }?.value ?: 0.0
@@ -373,17 +373,17 @@ class WorkoutSessionManager(private val dao: FitnessDao) {
                 val prev1RM = existing.firstOrNull { it.type == "estimated_1rm" }?.value ?: 0.0
 
                 if (maxWeight > prevWeight) {
-                    dao.insertPersonalRecord(
+                    repository.insertPersonalRecord(
                         PersonalRecord("${exerciseId}_max_weight", exerciseId, "max_weight", maxWeight, today)
                     )
                 }
                 if (totalVolume > prevVolume) {
-                    dao.insertPersonalRecord(
+                    repository.insertPersonalRecord(
                         PersonalRecord("${exerciseId}_volume", exerciseId, "volume", totalVolume, today)
                     )
                 }
                 if (maxEstimated1RM > prev1RM) {
-                    dao.insertPersonalRecord(
+                    repository.insertPersonalRecord(
                         PersonalRecord("${exerciseId}_estimated_1rm", exerciseId, "estimated_1rm", maxEstimated1RM, today)
                     )
                 }

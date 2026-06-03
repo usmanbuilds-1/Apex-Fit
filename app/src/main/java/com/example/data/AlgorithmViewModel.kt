@@ -169,16 +169,17 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     val weeklyReportText = MutableStateFlow<String>("")
 
-    val complianceScores: StateFlow<com.example.utils.ComplianceResult> = combine(
+    val complianceScores: StateFlow<UiComplianceResult> = combine(
         nutritionFlow, richSessionsFlow, targetsFlow
     ) { nutrition, sessions, targets ->
-        withContext(Dispatchers.Default) {
+        val res = withContext(Dispatchers.Default) {
             com.example.utils.AlgorithmEngine.calcComplianceScores(nutrition, sessions, targets)
         }
+        res.toUi()
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        com.example.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null)
+        com.example.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi()
     )
 
     val complianceScore: StateFlow<Int> = complianceScores
@@ -211,11 +212,12 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val fatigueResult: StateFlow<com.example.utils.FatigueResult> = richSessionsFlow
+    val fatigueResult: StateFlow<UiFatigueResult> = richSessionsFlow
         .map { sessions ->
-            withContext(Dispatchers.Default) {
+            val res = withContext(Dispatchers.Default) {
                 com.example.utils.AlgorithmEngine.calcFatigueToFitness(sessions)
             }
+            res.toUi()
         }
         .stateIn(
             viewModelScope,
@@ -227,7 +229,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 recommendation = "Log workouts to activate fatigue tracking",
                 acuteLoad = 0.0,
                 chronicLoad = 0.0
-            )
+            ).toUi()
         )
 
     val fatigueRatio: StateFlow<com.example.data.FatigueRatio> = fatigueResult
@@ -416,13 +418,13 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     val targets: StateFlow<com.example.utils.NutritionTargets?> = targetsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val sessionReadiness: StateFlow<com.example.utils.SessionReadiness?> = combine(
+    val sessionReadiness: StateFlow<UiSessionReadiness?> = combine(
         nutritionFlow,
         richSessionsFlow,
         weightFlow,
         targetsFlow
     ) { nutrition, sessions, weights, targets ->
-        withContext(Dispatchers.Default) {
+        val res = withContext(Dispatchers.Default) {
             if (sessions.isEmpty()) null
             else {
                 com.example.utils.SessionReadinessEngine.calcSessionReadiness(
@@ -435,21 +437,23 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 )
             }
         }
+        res?.toUi()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val detectedPatterns: StateFlow<List<com.example.data.DetectedPatternEntity>> = dao.getAllDetectedPatternsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val deloadRecommendation: StateFlow<com.example.utils.DeloadResult> = combine(
+    val deloadRecommendation: StateFlow<UiDeloadResult> = combine(
         richSessionsFlow, complianceScore
     ) { sessions, score ->
-        withContext(Dispatchers.Default) {
+        val res = withContext(Dispatchers.Default) {
             com.example.utils.AlgorithmEngine.calcDeloadRecommendation(sessions, score)
         }
+        res.toUi()
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        com.example.utils.DeloadResult(recommendation = "No data yet", urgency = "low", signals = 0)
+        com.example.utils.DeloadResult(recommendation = "No data yet", urgency = "low", signals = 0).toUi()
     )
 
     // ─────────────────────────────────────────────────────────────────
