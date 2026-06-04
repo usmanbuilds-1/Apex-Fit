@@ -58,6 +58,10 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         _currentTab.value = tab
     }
 
+    fun setCurrentTab(tab: Int) {
+        selectTab(tab)
+    }
+
     fun completeOnboarding(username: String, goal: String, currentWeight: Double, goalWeight: Double, apiKey: String, height: Double = 175.0, age: Int = 25, sex: String = "male") {
         viewModelScope.launch {
             dataStore.saveOnboardingData(username, goal, currentWeight, goalWeight, apiKey, height, age, sex)
