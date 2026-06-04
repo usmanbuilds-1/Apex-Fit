@@ -357,3 +357,8 @@ fun UiSessionReadiness.toData(): com.example.utils.SessionReadiness = com.exampl
     factors = this.factors.map { it.toData() }
 )
 
+data class ChatMessage(
+    val isUser: Boolean,
+    val message: String
+)
+
