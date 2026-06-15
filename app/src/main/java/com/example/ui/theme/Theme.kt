@@ -16,7 +16,7 @@ private val ApexDarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun MyApplicationTheme(
+fun ApexFitTheme(
     darkTheme: Boolean = true, // Force Dark Theme always
     dynamicColor: Boolean = false, // Disable dynamic colors to maintain premium vibe
     content: @Composable () -> Unit

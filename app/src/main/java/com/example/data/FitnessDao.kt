@@ -68,6 +68,14 @@ interface FitnessDao {
     @Query("SELECT * FROM exercise_sets ORDER BY id DESC")
     suspend fun getAllExerciseSets(): List<ExerciseSet>
 
+    @Query("""
+        SELECT es.* FROM exercise_sets es
+        INNER JOIN training_sessions ts ON es.sessionId = ts.id
+        WHERE (LOWER(es.exerciseName) = LOWER(:exerciseName) OR LOWER(es.exerciseId) = LOWER(:exerciseName)) AND es.completed = 1
+        ORDER BY ts.date DESC, es.id ASC
+    """)
+    suspend fun getLastSetsForExercise(exerciseName: String): List<ExerciseSet>
+
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId")
     fun getSetsForExerciseFlow(exerciseId: String): Flow<List<ExerciseSet>>
 

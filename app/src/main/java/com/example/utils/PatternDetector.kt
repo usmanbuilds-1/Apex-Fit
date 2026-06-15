@@ -13,13 +13,14 @@ object PatternDetector {
         weightLog: List<WeightEntry>,
         nutritionLog: List<NutritionEntry>,
         trainingLog: List<TrainingSession>,
-        sleepLog: List<SleepEntry> = emptyList()
+        sleepLog: List<SleepEntry> = emptyList(),
+        proteinTarget: Double = 140.0
     ): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
         if (nutritionLog.size < 14) return patterns
 
         patterns.addAll(detectDayOfWeekPatterns(nutritionLog))
-        patterns.addAll(detectNutritionPerformancePatterns(nutritionLog, trainingLog))
+        patterns.addAll(detectNutritionPerformancePatterns(nutritionLog, trainingLog, proteinTarget))
         patterns.addAll(detectWeightNutritionPatterns(weightLog, nutritionLog))
         patterns.addAll(detectRecoveryPatterns(trainingLog))
         if (sleepLog.isNotEmpty()) patterns.addAll(detectSleepPatterns(sleepLog, trainingLog, weightLog))
@@ -101,7 +102,8 @@ object PatternDetector {
     // directly impacts training capacity and RPE
     private fun detectNutritionPerformancePatterns(
         nutritionLog: List<NutritionEntry>,
-        trainingLog: List<TrainingSession>
+        trainingLog: List<TrainingSession>,
+        proteinTarget: Double
     ): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
         val nutritionMap = nutritionLog.associateBy { it.date }
@@ -110,7 +112,7 @@ object PatternDetector {
         trainingLog.filter { it.completed && it.sessionFeel > 0 }.forEach { session ->
             val prevDate = getPreviousDate(session.date)
             val prevNutrition = nutritionMap[prevDate] ?: return@forEach
-            val proteinPct = prevNutrition.protein.toDouble() / 140.0
+            val proteinPct = prevNutrition.protein.toDouble() / proteinTarget
             pairs.add(Pair(proteinPct, session.sessionFeel))
         }
 

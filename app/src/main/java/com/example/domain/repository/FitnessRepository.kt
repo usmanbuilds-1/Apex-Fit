@@ -8,6 +8,9 @@ interface FitnessRepository {
     suspend fun logNutritionEntry(entry: NutritionEntry)
     suspend fun logExerciseSet(set: ExerciseSet)
     suspend fun savePlan(plan: WorkoutPlan)
+    fun getWorkoutPlans(): Flow<List<WorkoutPlan>>
+    fun getExercisesForSession(sessionId: Long): Flow<List<PlanExercise>>
+    suspend fun updateWorkoutPlan(plan: WorkoutPlan, sessions: List<PlanSession>, exercises: List<PlanExercise>)
     
     fun getWeightHistory(): Flow<List<WeightEntry>>
     fun getNutritionEntries(date: String): Flow<List<NutritionEntry>>

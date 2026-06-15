@@ -44,7 +44,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
-import com.example.data.AlgorithmViewModel
+import com.example.AlgorithmViewModel
+import com.example.HomeViewModel
+import com.example.TrainViewModel
+import com.example.NutritionViewModel
 import com.example.ui.models.*
 import com.example.ui.theme.*
 import com.example.utils.AlgorithmEngine
@@ -64,21 +67,24 @@ import kotlin.math.sin
 fun HomeScreen(
     fitnessViewModel: FitnessViewModel,
     algorithmViewModel: AlgorithmViewModel,
+    homeViewModel: HomeViewModel,
+    trainViewModel: TrainViewModel,
+    nutritionViewModel: NutritionViewModel,
     onNavigateTo: (Int) -> Unit
 ) {
     val username by fitnessViewModel.username.collectAsStateWithLifecycle()
     val weight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
-    val activePlanSessions by fitnessViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val activePlanSessions by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
 
-    val loggedMeals by fitnessViewModel.loggedMeals.collectAsStateWithLifecycle()
+    val loggedMeals by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
     val calorieTargetManual by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
 
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
     val streakResult by algorithmViewModel.streakResult.collectAsStateWithLifecycle()
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
-    val todayExercises by fitnessViewModel.todayExercises.collectAsStateWithLifecycle()
-    val weightHistory by fitnessViewModel.weightHistory.collectAsStateWithLifecycle()
+    val todayExercises by trainViewModel.todayExercises.collectAsStateWithLifecycle()
+    val weightHistory by homeViewModel.weightHistory.collectAsStateWithLifecycle()
     val plateauResult by algorithmViewModel.plateauResult.collectAsStateWithLifecycle()
     val targets by algorithmViewModel.targets.collectAsStateWithLifecycle()
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
@@ -88,12 +94,7 @@ fun HomeScreen(
     val userSex by fitnessViewModel.userSex.collectAsStateWithLifecycle()
 
     // Aggregate meal stats
-    val loggedCalories = loggedMeals.sumOf { it.calories }
-    val loggedProtein = loggedMeals.sumOf { it.protein }
-    val loggedCarbs = loggedMeals.sumOf { it.carbs }
-    val loggedFat = loggedMeals.sumOf { it.fat }
-
-    val latestWeight = weightHistory.firstOrNull()?.weight ?: weight ?: 80.0
+    val latestWeight = weightHistory.firstOrNull()?.weight ?: weight ?: com.example.UserDefaults.WEIGHT_KG
     
     // Dynamic Mifflin-St Jeor equation to calculate BMR baseline with biological offset
     val sexOffset = if (userSex.equals("female", ignoreCase = true)) -161.0 else 5.0
@@ -103,24 +104,12 @@ fun HomeScreen(
     val fallbackTdee = (bmrBaseline * 1.55).toInt()
     val activeTdee = tdeeResult.tdee ?: fallbackTdee
 
-    val suggestedCalories by fitnessViewModel.suggestedCaloricTarget.collectAsStateWithLifecycle()
+    val suggestedCalories by nutritionViewModel.suggestedCaloricTarget.collectAsStateWithLifecycle()
     // Science: Helms et al. (2014) Daily caloric targets adjusted by objective goals
-    val calorieTarget = if (calorieTargetManual) {
-        calorieTargetValue
-    } else {
-        suggestedCalories
-    }
+    val calorieTarget = if (calorieTargetManual) calorieTargetValue else suggestedCalories
 
-    // Dynamic Macro prescriptions (Helms et al. 2014 - Muscle & Strength Pyramids)
-    // Protein: 1.8g per kg of total bodyweight (sufficient for muscle building and retention)
-    val proteinTarget = (latestWeight * 1.8).coerceIn(100.0, 250.0)
-    // Fat: 25% of total calorie target (supports metabolic health and hormone profiles)
-    val fatTarget = (calorieTarget * 0.25 / 9.0).coerceIn(40.0, 120.0)
-    // Carbs: Remainder of daily energy allocations
-    val carbsTarget = ((calorieTarget - (proteinTarget * 4.0) - (fatTarget * 9.0)) / 4.0).coerceIn(100.0, 500.0)
-
-    val complianceScores by algorithmViewModel.complianceScores.collectAsStateWithLifecycle()
-    val complianceScore by algorithmViewModel.complianceScore.collectAsStateWithLifecycle()
+    val complianceScores by homeViewModel.complianceScores.collectAsStateWithLifecycle()
+    val complianceScore by homeViewModel.complianceScore.collectAsStateWithLifecycle()
     val fatigueRatio by algorithmViewModel.fatigueRatio.collectAsStateWithLifecycle()
     val injuryRisks by algorithmViewModel.injuryRiskSignals.collectAsStateWithLifecycle()
 
@@ -203,6 +192,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val loggedCalories = loggedMeals.sumOf { it.calories }
                     // Ring
                     Box(
                         modifier = Modifier
@@ -271,9 +261,17 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        MacroTrackerBar(label = "PROTEIN", current = loggedProtein, target = proteinTarget, color = AmberAccent)
-                        MacroTrackerBar(label = "CARBS", current = loggedCarbs, target = carbsTarget, color = BlueAccent)
-                        MacroTrackerBar(label = "FAT", current = loggedFat, target = fatTarget, color = RedAccent)
+                        val loggedProtein = loggedMeals.sumOf { it.protein }
+                        val loggedCarbs = loggedMeals.sumOf { it.carbs }
+                        val loggedFat = loggedMeals.sumOf { it.fat }
+
+                        val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250)
+                        val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
+                        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
+
+                        MacroTrackerBar(label = "PROTEIN", current = loggedProtein, target = proteinTarget.toDouble(), color = AmberAccent)
+                        MacroTrackerBar(label = "CARBS", current = loggedCarbs, target = carbsTarget.toDouble(), color = BlueAccent)
+                        MacroTrackerBar(label = "FAT", current = loggedFat, target = fatTarget.toDouble(), color = RedAccent)
                     }
                 }
             }
@@ -281,7 +279,7 @@ fun HomeScreen(
 
         // Stats strip horizontal
         item {
-            val history by fitnessViewModel.weightHistory.collectAsStateWithLifecycle()
+            val history by homeViewModel.weightHistory.collectAsStateWithLifecycle()
             val trendWeightVal by algorithmViewModel.trendWeight.collectAsStateWithLifecycle()
             
             val trendWeightDisplay = trendWeightVal ?: latestWeight
@@ -327,7 +325,7 @@ fun HomeScreen(
 
         // Bio-metric Session Readiness Card
         item {
-            val readiness by algorithmViewModel.sessionReadiness.collectAsStateWithLifecycle()
+            val readiness by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
 
             if (readiness != null) {
                 val rd = readiness!!

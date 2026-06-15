@@ -45,11 +45,11 @@ class DataStoreManager(private val context: Context) {
     }
 
     val currentWeightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
-        preferences[CURRENT_WEIGHT_KEY] ?: 80.0
+        preferences[CURRENT_WEIGHT_KEY] ?: com.example.UserDefaults.WEIGHT_KG
     }
 
     val goalWeightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
-        preferences[GOAL_WEIGHT_KEY] ?: 80.0
+        preferences[GOAL_WEIGHT_KEY] ?: com.example.UserDefaults.WEIGHT_KG
     }
 
     val geminiApiKeyFlow: Flow<String> = context.dataStore.data.map { preferences ->
@@ -61,11 +61,11 @@ class DataStoreManager(private val context: Context) {
     }
 
     val heightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
-        preferences[HEIGHT_KEY] ?: 175.0
+        preferences[HEIGHT_KEY] ?: com.example.UserDefaults.HEIGHT_CM
     }
 
     val ageFlow: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[AGE_KEY] ?: 25
+        preferences[AGE_KEY] ?: com.example.UserDefaults.AGE_YEARS
     }
 
     val sexFlow: Flow<String> = context.dataStore.data.map { preferences ->
@@ -77,7 +77,7 @@ class DataStoreManager(private val context: Context) {
     }
 
     val calorieTargetValueFlow: Flow<Int> = context.dataStore.data.map { preferences ->
-        preferences[CALORIE_TARGET_VALUE_KEY] ?: 2500
+        preferences[CALORIE_TARGET_VALUE_KEY] ?: com.example.UserDefaults.CALORIES
     }
 
     val equipmentFlow: Flow<String> = context.dataStore.data.map { preferences ->
@@ -90,8 +90,8 @@ class DataStoreManager(private val context: Context) {
         currentWeight: Double,
         goalWeight: Double,
         apiKey: String,
-        height: Double = 175.0,
-        age: Int = 25,
+        height: Double = com.example.UserDefaults.HEIGHT_CM,
+        age: Int = com.example.UserDefaults.AGE_YEARS,
         sex: String = "male"
     ) {
         context.dataStore.edit { preferences ->

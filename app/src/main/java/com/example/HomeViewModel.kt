@@ -53,7 +53,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         weightFlow,
         dataStore.goalFlow
     ) { calorieTarget, weights, goal ->
-        val latestWeight = weights.lastOrNull()?.weight ?: 80.0
+        val latestWeight = weights.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
         val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250)
         val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
         val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
@@ -120,6 +120,41 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val allNutritionHistory: StateFlow<List<UiNutritionEntry>> = dao.getAllNutritionEntriesFlow()
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val currentWeight: Flow<Double> = dataStore.currentWeightFlow
+    val calorieTargetFlow: Flow<Int> = dataStore.calorieTargetValueFlow
+
+    val loggedCalories: StateFlow<Int> = allNutritionHistory.map { meals ->
+        meals.sumOf { it.calories }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val loggedProtein: StateFlow<Int> = allNutritionHistory.map { meals ->
+        meals.sumOf { it.protein }.toInt()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val loggedCarbs: StateFlow<Int> = allNutritionHistory.map { meals ->
+        meals.sumOf { it.carbs }.toInt()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val loggedFat: StateFlow<Int> = allNutritionHistory.map { meals ->
+        meals.sumOf { it.fat }.toInt()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val macroTargets: StateFlow<com.example.utils.NutritionTargets> = combine(
+        currentWeight,
+        calorieTargetFlow
+    ) { weight, calorieTarget ->
+        val proteinTarget = (weight * 1.8).toInt().coerceIn(100, 250)
+        val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
+        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
+        com.example.utils.NutritionTargets(
+            calories = calorieTarget,
+            protein = proteinTarget,
+            carbs = carbsTarget,
+            fat = fatTarget,
+            weeklyTrainingSessions = 4
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.utils.NutritionTargets(calories = com.example.UserDefaults.CALORIES, protein = com.example.UserDefaults.PROTEIN_G, fat = 70, carbs = 300))
 
     // Readiness
     val sessionReadiness: StateFlow<UiSessionReadiness?> = combine(

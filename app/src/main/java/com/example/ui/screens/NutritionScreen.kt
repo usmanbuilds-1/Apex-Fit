@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.FitnessViewModel
 import com.example.NutritionViewModel
-import com.example.data.AlgorithmViewModel
+import com.example.AlgorithmViewModel
 import com.example.ui.theme.*
 import java.io.InputStream
 
@@ -42,8 +42,8 @@ fun NutritionScreen(
     nutritionViewModel: NutritionViewModel,
     onNavigateTo: (Int) -> Unit
 ) {
-    val selectedDate by fitnessViewModel.selectedNutritionDate.collectAsStateWithLifecycle()
-    val loggedMeals by fitnessViewModel.loggedMeals.collectAsStateWithLifecycle()
+    val selectedDate by nutritionViewModel.selectedNutritionDate.collectAsStateWithLifecycle()
+    val loggedMeals by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
     val calorieTargetManual by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
@@ -346,7 +346,7 @@ fun AddFoodSheet(
                     )
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("ApexFit", "Error: ${e.message}", e)
             }
         }
     }

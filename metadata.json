@@ -1,5 +1,5 @@
 {
-  "name": "APEX FIT",
+  "name": "Apex Fit",
   "description": "Premium personal training and nutrition tracking app with adaptive intelligence.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

@@ -48,7 +48,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
-import com.example.data.AlgorithmViewModel
+import com.example.AlgorithmViewModel
+import com.example.TrainViewModel
 import com.example.ui.models.*
 import com.example.ui.theme.*
 import com.example.utils.AlgorithmEngine
@@ -62,16 +63,19 @@ import kotlin.math.cos
 @Composable
 fun TrainScreen(
     fitnessViewModel: FitnessViewModel,
-    algorithmViewModel: AlgorithmViewModel
+    algorithmViewModel: AlgorithmViewModel,
+    trainViewModel: TrainViewModel,
+    onNavigateTo: (Int) -> Unit
 ) {
-    TrainTab(fitnessViewModel, algorithmViewModel)
+    TrainTab(fitnessViewModel, algorithmViewModel, trainViewModel)
 }
 
 // TRAIN TAB
 @Composable
 fun TrainTab(
     fitnessViewModel: FitnessViewModel,
-    algorithmViewModel: AlgorithmViewModel
+    algorithmViewModel: AlgorithmViewModel,
+    trainViewModel: TrainViewModel
 ) {
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
 
@@ -113,9 +117,9 @@ fun TrainTab(
 
         Crossfade(targetState = subTab, label = "trainSubCross") { tab ->
             when (tab) {
-                0 -> ProgramSubTab(fitnessViewModel)
-                1 -> WorkoutExecutionSubTab(fitnessViewModel)
-                2 -> NewPlansSubTab(fitnessViewModel)
+                0 -> ProgramSubTab(fitnessViewModel, trainViewModel)
+                1 -> WorkoutExecutionSubTab(fitnessViewModel, trainViewModel)
+                2 -> NewPlansSubTab(fitnessViewModel, trainViewModel)
             }
         }
     }
@@ -123,12 +127,13 @@ fun TrainTab(
 
 @Composable
 fun ProgramSubTab(
-    fitnessViewModel: FitnessViewModel
+    fitnessViewModel: FitnessViewModel,
+    trainViewModel: TrainViewModel
 ) {
     val context = LocalContext.current
-    val selectedDay by fitnessViewModel.selectedDayOfWeek.collectAsStateWithLifecycle()
-    val selectedDaySessionRaw by fitnessViewModel.selectedDaySession.collectAsStateWithLifecycle()
-    val exercises by fitnessViewModel.selectedDayExercises.collectAsStateWithLifecycle()
+    val selectedDay by trainViewModel.selectedDayOfWeek.collectAsStateWithLifecycle()
+    val selectedDaySessionRaw by trainViewModel.selectedDaySession.collectAsStateWithLifecycle()
+    val exercises by trainViewModel.selectedDayExercises.collectAsStateWithLifecycle()
 
     val selectedDaySession = selectedDaySessionRaw
 
@@ -156,7 +161,7 @@ fun ProgramSubTab(
                             BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
                             RoundedCornerShape(14.dp)
                         )
-                        .clickable { fitnessViewModel.selectDay(day) }
+                        .clickable { trainViewModel.selectDay(day) }
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text(
@@ -236,7 +241,10 @@ fun ProgramSubTab(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(
-                            onClick = { fitnessViewModel.startWorkoutSession(selectedDaySession) },
+                            onClick = {
+                                trainViewModel.startWorkoutSession(selectedDaySession)
+                                fitnessViewModel.setTrainSubTab(1)
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
                             shape = RoundedCornerShape(12.dp)
@@ -339,7 +347,7 @@ fun ProgramSubTab(
                                         onClick = {
                                             activeSubstIndex = index
                                             scope.launch {
-                                                substitutionList = fitnessViewModel.getSubstitutionSuggestions(ex.muscleGroup, ex.name)
+                                                substitutionList = trainViewModel.getSubstitutionSuggestions(ex.muscleGroup, ex.name)
                                             }
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
@@ -403,17 +411,18 @@ fun ProgramSubTab(
 
 @Composable
 fun WorkoutExecutionSubTab(
-    fitnessViewModel: FitnessViewModel
+    fitnessViewModel: FitnessViewModel,
+    trainViewModel: TrainViewModel
 ) {
-    val activeSession by fitnessViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
-    val exercises by fitnessViewModel.activeExercises.collectAsStateWithLifecycle()
-    val currentIdx by fitnessViewModel.currentExerciseIdx.collectAsStateWithLifecycle()
-    val loggedSets by fitnessViewModel.loggedSets.collectAsStateWithLifecycle()
-    val effectiveSetsMap by fitnessViewModel.effectiveSetsStateFlow.collectAsStateWithLifecycle()
-    val warmupComp by fitnessViewModel.warmupCompleted.collectAsStateWithLifecycle()
-    val lastWeights by fitnessViewModel.lastWeights.collectAsStateWithLifecycle()
-    val weightContextLines by fitnessViewModel.weightContextLines.collectAsStateWithLifecycle()
-    val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
+    val activeSession by trainViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
+    val exercises by trainViewModel.activeExercises.collectAsStateWithLifecycle()
+    val currentIdx by trainViewModel.currentExerciseIdx.collectAsStateWithLifecycle()
+    val loggedSets by trainViewModel.loggedSets.collectAsStateWithLifecycle()
+    val effectiveSetsMap by trainViewModel.effectiveSetsStateFlow.collectAsStateWithLifecycle()
+    val warmupComp by trainViewModel.warmupCompleted.collectAsStateWithLifecycle()
+    val lastWeights by trainViewModel.lastWeights.collectAsStateWithLifecycle()
+    val weightContextLines by trainViewModel.weightContextLines.collectAsStateWithLifecycle()
+    val preferredUnits by trainViewModel.units.collectAsStateWithLifecycle()
 
 
     val context = LocalContext.current
@@ -423,10 +432,10 @@ fun WorkoutExecutionSubTab(
     var showExitDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = activeSession != null) {
-        if (fitnessViewModel.hasCompletedSets) {
+        if (trainViewModel.hasCompletedSets) {
             showExitDialog = true
         } else {
-            fitnessViewModel.discardAndExit()
+            trainViewModel.cancelActiveWorkout()
         }
     }
 
@@ -465,7 +474,7 @@ fun WorkoutExecutionSubTab(
                 TextButton(
                     onClick = {
                         showExitDialog = false
-                        fitnessViewModel.discardAndExit()
+                        trainViewModel.cancelActiveWorkout()
                     }
                 ) {
                     Text("DISCARD", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = MutedText)
@@ -548,7 +557,7 @@ fun WorkoutExecutionSubTab(
                 TextButton(
                     onClick = {
                         showFinishEarlyDialog = false
-                        fitnessViewModel.finishWorkoutEarly(selectedFeelRating)
+                        trainViewModel.finishWorkoutEarly(selectedFeelRating)
                     }
                 ) {
                     Text(
@@ -652,7 +661,7 @@ fun WorkoutExecutionSubTab(
                 TextButton(
                     onClick = {
                         showNormalFinishFeelDialog = false
-                        fitnessViewModel.finishWorkoutSession(selectedFeelRating)
+                        trainViewModel.finishWorkoutSession(selectedFeelRating)
                     }
                 ) {
                     Text(
@@ -737,12 +746,12 @@ fun WorkoutExecutionSubTab(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { fitnessViewModel.toggleWarmupItem(item) }
+                                .clickable { trainViewModel.toggleWarmupItem(item) }
                                 .padding(vertical = 4.dp)
                         ) {
                             Checkbox(
                                 checked = comp,
-                                onCheckedChange = { fitnessViewModel.toggleWarmupItem(item) },
+                                onCheckedChange = { trainViewModel.toggleWarmupItem(item) },
                                 colors = CheckboxDefaults.colors(checkedColor = AmberAccent, uncheckedColor = MutedText)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -988,7 +997,7 @@ fun WorkoutExecutionSubTab(
                                             val w = finalStr.toDoubleOrNull()
                                             if (w != null && w in 0.25..500.0) {
                                                 val r = rawReps.toIntOrNull() ?: setObj.reps
-                                                fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
+                                                trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
                                             }
                                         },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -1067,7 +1076,7 @@ fun WorkoutExecutionSubTab(
                                             val r = finalStr.toIntOrNull()
                                             if (r != null && r in 1..50) {
                                                 val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                                                fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
+                                                trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
                                             }
                                         },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -1099,7 +1108,7 @@ fun WorkoutExecutionSubTab(
 
                                         if (newCompleted) {
                                             // Smart RIR dynamic selector instead of instant log
-                                            fitnessViewModel.openRirSelector(
+                                            trainViewModel.openRirSelector(
                                                 exerciseId = ex.id,
                                                 exerciseName = ex.name,
                                                 muscleGroup = ex.muscleGroup,
@@ -1110,7 +1119,7 @@ fun WorkoutExecutionSubTab(
                                             )
                                         } else {
                                             // Simple uncheck log state
-                                            fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, false)
+                                            trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, false)
                                         }
                                     },
                                     modifier = Modifier.testTag("log_checkmark_button")
@@ -1153,7 +1162,7 @@ fun WorkoutExecutionSubTab(
                                                 selectedRpe = rpeVal
                                                 val w = rawWeight.toDoubleOrNull() ?: setObj.weight
                                                 val r = rawReps.toIntOrNull() ?: setObj.reps
-                                                fitnessViewModel.logWorkoutSetState(ex.id, sIdx, w, r, rpeVal, setObj.completed)
+                                                trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, rpeVal, setObj.completed)
                                             }
                                             .padding(vertical = 8.dp),
                                         contentAlignment = Alignment.Center
@@ -1183,7 +1192,7 @@ fun WorkoutExecutionSubTab(
                             Button(
                                 onClick = {
                                     if (canAddSet) {
-                                        fitnessViewModel.addCustomLogSet(ex.id)
+                                        trainViewModel.addCustomLogSet(ex.id)
                                     }
                                 },
                                 enabled = canAddSet,
@@ -1202,7 +1211,7 @@ fun WorkoutExecutionSubTab(
                                     if (currentIdx == exercises.size - 1) {
                                         showNormalFinishFeelDialog = true
                                     } else {
-                                        fitnessViewModel.nextExercise()
+                                        trainViewModel.nextExercise()
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
@@ -1237,7 +1246,7 @@ fun WorkoutExecutionSubTab(
                                 if (currentIdx == exercises.size - 1) {
                                     showNormalFinishFeelDialog = true
                                 } else {
-                                    fitnessViewModel.skipExercise()
+                                    trainViewModel.skipExercise()
                                     Toast.makeText(context, "Exercise skipped: ${ex.name}", Toast.LENGTH_SHORT).show()
                                 }
                             },
@@ -1275,7 +1284,7 @@ fun WorkoutExecutionSubTab(
                 ) {
                     if (exercises.isEmpty()) {
                         Button(
-                            onClick = { fitnessViewModel.cancelOrCompleteEmptySession() },
+                            onClick = { trainViewModel.cancelOrCompleteEmptySession() },
                             colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().height(48.dp)
@@ -1306,7 +1315,7 @@ fun WorkoutExecutionSubTab(
                         }
                     }
                     Button(
-                        onClick = { fitnessViewModel.cancelActiveWorkout() },
+                        onClick = { trainViewModel.cancelActiveWorkout() },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B1616)),
                         border = BorderStroke(1.dp, Color(0xFFE84A4A)),
                         shape = RoundedCornerShape(10.dp),
@@ -1329,10 +1338,11 @@ fun WorkoutExecutionSubTab(
 
 @Composable
 fun NewPlansSubTab(
-    fitnessViewModel: FitnessViewModel
+    fitnessViewModel: FitnessViewModel,
+    trainViewModel: TrainViewModel
 ) {
-    val plans by fitnessViewModel.workoutPlans.collectAsStateWithLifecycle()
-    val activePlan by fitnessViewModel.activePlan.collectAsStateWithLifecycle()
+    val plans by trainViewModel.workoutPlans.collectAsStateWithLifecycle()
+    val activePlan by trainViewModel.activePlan.collectAsStateWithLifecycle()
 
     var pastedText by remember { mutableStateOf("") }
     var parseError by remember { mutableStateOf("") }
@@ -1393,11 +1403,11 @@ fun NewPlansSubTab(
                             Toast.makeText(context, "Paste some text first", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        fitnessViewModel.uploadPlanTextGemini(
+                        trainViewModel.uploadPlanTextGemini(
                             rawText = pastedText,
                             onComplete = { plan, sessions, exercises ->
                                 if (plan != null) {
-                                    fitnessViewModel.saveImportedWorkoutPlan(plan, sessions, exercises)
+                                    trainViewModel.saveImportedWorkoutPlan(plan, sessions, exercises)
                                     pastedText = ""
                                     parseError = ""
                                     Toast.makeText(context, "AI Workout Plan parsed & loaded as ACTIVE!", Toast.LENGTH_LONG).show()

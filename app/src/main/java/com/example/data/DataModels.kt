@@ -2,6 +2,7 @@ package com.example.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Index
 
 @Entity(tableName = "weight_entries")
 data class WeightEntry(
@@ -22,7 +23,10 @@ data class TrendPoint(
     val trend: Double get() = trendWeight
 }
 
-@Entity(tableName = "nutrition_entries")
+@Entity(
+    tableName = "nutrition_entries",
+    indices = [Index(value = ["date"])]
+)
 data class NutritionEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val date: String, // YYYY-MM-DD
@@ -45,7 +49,10 @@ data class NutritionEntry(
     )
 }
 
-@Entity(tableName = "training_sessions")
+@Entity(
+    tableName = "training_sessions",
+    indices = [Index(value = ["date"])]
+)
 data class TrainingSession(
     @PrimaryKey val id: String, // unique session UUID or string
     val date: String, // YYYY-MM-DD
@@ -55,7 +62,13 @@ data class TrainingSession(
     val sessionFeel: Int // 1 to 5
 )
 
-@Entity(tableName = "exercise_sets")
+@Entity(
+    tableName = "exercise_sets",
+    indices = [
+        Index(value = ["sessionId"]),
+        Index(value = ["exerciseId"])
+    ]
+)
 data class ExerciseSet(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val sessionId: String = "",

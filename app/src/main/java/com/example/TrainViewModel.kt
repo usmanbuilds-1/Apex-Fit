@@ -22,13 +22,26 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
     val sessionManager = WorkoutSessionManager(repository)
 
+    init {
+        viewModelScope.launch {
+            try {
+                val existing = dao.getAllPlans()
+                if (existing.isEmpty()) {
+                    seedDefaultWorkoutPlan()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TrainViewModel", "Failed to seed default plan: ${e.message}", e)
+            }
+        }
+    }
+
     // User weight from preferences for relative calculations
-    val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 80.0)
-    val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 175.0)
+    val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.WEIGHT_KG)
+    val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.HEIGHT_CM)
     val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "kg")
 
     // Training State (Plans, Sessions)
-    val workoutPlans = dao.getAllPlansFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val workoutPlans = repository.getWorkoutPlans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val activePlan = repository.getActivePlan().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _selectedDayOfWeek = MutableStateFlow("Monday")
@@ -43,13 +56,13 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val selectedDayExercises = selectedDaySession.flatMapLatest { session ->
-        if (session != null) dao.getExercisesForSessionFlow(session.id) else flowOf(emptyList())
+        if (session != null) repository.getExercisesForSession(session.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val todayExercises = activePlanSessions.flatMapLatest { sessions ->
         val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
         val todaySession = sessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-        if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
+        if (todaySession != null) repository.getExercisesForSession(todaySession.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun selectDay(day: String) {
@@ -261,6 +274,14 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun cancelActiveWorkout() {
         sessionManager.discardAndExit()
+    }
+
+    fun cancelOrCompleteEmptySession() {
+        if (hasCompletedSets) {
+            savePartialAndExit(4)
+        } else {
+            cancelActiveWorkout()
+        }
     }
 
     fun toggleWarmupItem(item: String) {
@@ -658,10 +679,61 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         exercises: List<PlanExercise>
     ) {
         viewModelScope.launch {
-            dao.deactivateAllPlans()
-            dao.insertWorkoutPlan(plan)
-            sessions.forEach { dao.insertPlanSession(it) }
-            exercises.forEach { dao.insertPlanExercise(it) }
+            repository.updateWorkoutPlan(plan, sessions, exercises)
         }
+    }
+
+    private suspend fun seedDefaultWorkoutPlan() {
+        val planId = 1L
+        val plan = WorkoutPlan(
+            id = planId,
+            name = "Scientific Hypertrophy Split",
+            goal = "Gain Muscle",
+            isActive = true,
+            createdAt = System.currentTimeMillis()
+        )
+        
+        val sessions = listOf(
+            PlanSession(id = 101L, planId = planId, label = "Upper A", day = "Monday", focus = "Chest, Back, Arms"),
+            PlanSession(id = 102L, planId = planId, label = "Lower A", day = "Tuesday", focus = "Quads, Hamstrings, Calves"),
+            PlanSession(id = 103L, planId = planId, label = "Upper B", day = "Thursday", focus = "Shoulders, Chest, Back"),
+            PlanSession(id = 104L, planId = planId, label = "Lower B", day = "Friday", focus = "Hamstrings, Glutes, Quads")
+        )
+
+        val exercises = listOf(
+            // Monday - Upper A
+            PlanExercise(id = 10101L, planSessionId = 101L, name = "Incline Barbell Bench Press", muscleGroup = "Chest", sets = 4, repsMin = 6, repsMax = 10, weight = 80.0, restSeconds = 120, notes = "Focus on the deep stretch at chest level."),
+            PlanExercise(id = 10102L, planSessionId = 101L, name = "Weighted Pull-Up", muscleGroup = "Back", sets = 4, repsMin = 6, repsMax = 10, weight = 5.0, restSeconds = 120, notes = "Control the eccentric descent."),
+            PlanExercise(id = 10103L, planSessionId = 101L, name = "Dumbbell Lateral Raise", muscleGroup = "Shoulders", sets = 3, repsMin = 10, repsMax = 15, weight = 12.5, restSeconds = 90, notes = "Slight torso lean forward."),
+            PlanExercise(id = 10104L, planSessionId = 101L, name = "Incline Dumbbell Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 8, repsMax = 12, weight = 14.0, restSeconds = 90, notes = "Biceps fully stretched at bottom."),
+            PlanExercise(id = 10105L, planSessionId = 101L, name = "Dual Rope Tricep Pushdown", muscleGroup = "Triceps", sets = 3, repsMin = 10, repsMax = 15, weight = 25.0, restSeconds = 90, notes = "Flare ropes outward at end of range."),
+
+            // Tuesday - Lower A
+            PlanExercise(id = 10201L, planSessionId = 102L, name = "Barbell Back Squat", muscleGroup = "Quads", sets = 4, repsMin = 6, repsMax = 8, weight = 100.0, restSeconds = 180, notes = "Keep knees tracking over toes."),
+            PlanExercise(id = 10202L, planSessionId = 102L, name = "Romanian Deadlift", muscleGroup = "Hamstrings", sets = 4, repsMin = 8, repsMax = 12, weight = 90.0, restSeconds = 120, notes = "Hinge at hips, keep back flat."),
+            PlanExercise(id = 10203L, planSessionId = 102L, name = "Leg Press (High & Wide)", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 12, weight = 160.0, restSeconds = 120, notes = "Aesthetic emphasis on quad sweep."),
+            PlanExercise(id = 10204L, planSessionId = 102L, name = "Seated Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 15, weight = 50.0, restSeconds = 90, notes = "Hard squeeze at full flexion."),
+            PlanExercise(id = 10205L, planSessionId = 102L, name = "Standing Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 60.0, restSeconds = 60, notes = "2-second pause at full stretch."),
+
+            // Thursday - Upper B
+            PlanExercise(id = 10301L, planSessionId = 103L, name = "Standing Overhead Press", muscleGroup = "Shoulders", sets = 4, repsMin = 6, repsMax = 10, weight = 50.0, restSeconds = 120, notes = "Press overhead in a straight line."),
+            PlanExercise(id = 10302L, planSessionId = 103L, name = "Chest-Supported Dumbbell Row", muscleGroup = "Back", sets = 4, repsMin = 8, repsMax = 12, weight = 25.0, restSeconds = 120, notes = "Squeeze shoulder blades together."),
+            PlanExercise(id = 10303L, planSessionId = 103L, name = "Flat Dumbbell Press", muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 30.0, restSeconds = 120, notes = "Drive dumbbells toward center on press."),
+            PlanExercise(id = 10304L, planSessionId = 103L, name = "Lat Pulldown (Neutral Grip)", muscleGroup = "Back", sets = 3, repsMin = 8, repsMax = 12, weight = 65.0, restSeconds = 90, notes = "Pull down to upper collarbone."),
+            PlanExercise(id = 10305L, planSessionId = 103L, name = "Hammer Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 10, repsMax = 15, weight = 15.0, restSeconds = 90, notes = "Focus on brachialis and forearm development."),
+
+            // Friday - Lower B
+            PlanExercise(id = 10401L, planSessionId = 104L, name = "Conventional Deadlift", muscleGroup = "Core", sets = 3, repsMin = 5, repsMax = 5, weight = 120.0, restSeconds = 180, notes = "Full reset each rep, do not bounce."),
+            PlanExercise(id = 10402L, planSessionId = 104L, name = "Bulgarian Split Squat", muscleGroup = "Quads", sets = 3, repsMin = 8, repsMax = 12, weight = 16.0, restSeconds = 90, notes = "Load front heel, maintain vertical spine."),
+            PlanExercise(id = 10403L, planSessionId = 104L, name = "Leg Extension", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 15, weight = 60.0, restSeconds = 90, notes = "Peak contraction at top."),
+            PlanExercise(id = 10404L, planSessionId = 104L, name = "Lying Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 12, weight = 40.0, restSeconds = 90, notes = "Keep hips flat against the pad."),
+            PlanExercise(id = 10405L, planSessionId = 104L, name = "Seated Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 40.0, restSeconds = 60, notes = "Slow stretch at bottom range.")
+        )
+
+        dao.deactivateAllPlans()
+        dao.insertWorkoutPlan(plan)
+        dao.insertPlanSessions(sessions)
+        dao.insertPlanExercises(exercises)
+        selectDay("Monday")
     }
 }

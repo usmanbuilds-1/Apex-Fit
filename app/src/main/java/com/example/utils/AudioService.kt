@@ -76,7 +76,7 @@ object AudioService {
                         it.stop()
                         it.release()
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        android.util.Log.e("ApexFit", "Error playing synthesized frequency preview track stop: ${e.message}", e)
                     }
                 }
                 
@@ -89,7 +89,7 @@ object AudioService {
                     audioTrack = null
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("ApexFit", "Error in playSynthesizedAudioTone: ${e.message}", e)
             }
         }
     }
@@ -100,7 +100,7 @@ object AudioService {
                 it.stop()
                 it.release()
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("ApexFit", "Error releasing AudioTrack: ${e.message}", e)
             }
         }
         audioTrack = null

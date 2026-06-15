@@ -49,10 +49,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
+import com.example.HomeViewModel
+import com.example.TrainViewModel
 import com.example.ProgressViewModel
 import com.example.NutritionViewModel
-import com.example.CoachViewModel
-import com.example.data.AlgorithmViewModel
+import com.example.AlgorithmViewModel
 import com.example.ui.models.*
 import com.example.ui.theme.*
 import com.example.utils.AlgorithmEngine
@@ -116,10 +117,17 @@ fun PremiumCard(
 fun ApexFitApp(
     fitnessViewModel: FitnessViewModel = viewModel(),
     algorithmViewModel: AlgorithmViewModel = viewModel(),
+    homeViewModel: HomeViewModel = viewModel(),
+    trainViewModel: TrainViewModel = viewModel(),
     progressViewModel: ProgressViewModel = viewModel(),
-    nutritionViewModel: NutritionViewModel = viewModel(),
-    coachViewModel: CoachViewModel = viewModel()
+    nutritionViewModel: NutritionViewModel = viewModel()
 ) {
+    // Link specialized ViewModels to fitnessViewModel
+    fitnessViewModel.homeVM = homeViewModel
+    fitnessViewModel.trainVM = trainViewModel
+    fitnessViewModel.progressVM = progressViewModel
+    fitnessViewModel.nutritionVM = nutritionViewModel
+
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -144,7 +152,6 @@ fun ApexFitApp(
             "train" -> 1
             "nutrition" -> 2
             "progress" -> 3
-            "coach" -> 4
             else -> null
         }
         if (tabIndex != null && tabIndex != activeTab) {
@@ -159,7 +166,6 @@ fun ApexFitApp(
             1 -> "train"
             2 -> "nutrition"
             3 -> "progress"
-            4 -> "coach"
             else -> "home"
         }
         if (navController.currentDestination != null && currentRoute != targetRoute) {
@@ -232,13 +238,23 @@ fun ApexFitApp(
                         HomeScreen(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
+                            homeViewModel = homeViewModel,
+                            trainViewModel = trainViewModel,
+                            nutritionViewModel = nutritionViewModel,
                             onNavigateTo = { tabIndex ->
                                 fitnessViewModel.selectTab(tabIndex)
                             }
                         )
                     }
                     composable("train") {
-                        TrainScreen(fitnessViewModel, algorithmViewModel)
+                        TrainScreen(
+                            fitnessViewModel = fitnessViewModel,
+                            algorithmViewModel = algorithmViewModel,
+                            trainViewModel = trainViewModel,
+                            onNavigateTo = { tabIndex ->
+                                fitnessViewModel.selectTab(tabIndex)
+                            }
+                        )
                     }
                     composable("nutrition") {
                         NutritionScreen(
@@ -255,39 +271,30 @@ fun ApexFitApp(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             progressViewModel = progressViewModel,
+                            homeViewModel = homeViewModel,
                             onNavigateTo = { tabIndex ->
                                 fitnessViewModel.selectTab(tabIndex)
-                            }
-                        )
-                    }
-                    composable("coach") {
-                        CoachScreen(
-                            fitnessViewModel = fitnessViewModel,
-                            algorithmViewModel = algorithmViewModel,
-                            coachViewModel = coachViewModel,
-                            onNavigateTo = { tabIndex ->
-                                fitnessViewModel.setCurrentTab(tabIndex)
                             }
                         )
                     }
                 }
 
                 // Render smart rest timer overlay if triggered
-                val showRestOverlay by fitnessViewModel.showRestOverlay.collectAsStateWithLifecycle()
+                val showRestOverlay by trainViewModel.showRestOverlay.collectAsStateWithLifecycle()
                 if (showRestOverlay) {
-                    RestTimerOverlay(fitnessViewModel)
+                    RestTimerOverlay(fitnessViewModel, trainViewModel)
                 }
 
                 // Render smart RIR selector overlay if triggered
-                val showRirOverlay by fitnessViewModel.showRirOverlay.collectAsStateWithLifecycle()
+                val showRirOverlay by trainViewModel.showRirOverlay.collectAsStateWithLifecycle()
                 if (showRirOverlay) {
-                    RirSelectorOverlay(fitnessViewModel)
+                    RirSelectorOverlay(fitnessViewModel, trainViewModel)
                 }
 
                 // Render session complete page
-                val showComplete by fitnessViewModel.showSessionCompleteScreen.collectAsStateWithLifecycle()
+                val showComplete by trainViewModel.showSessionCompleteScreen.collectAsStateWithLifecycle()
                 if (showComplete) {
-                    SessionCompleteOverlay(fitnessViewModel)
+                    SessionCompleteOverlay(fitnessViewModel, trainViewModel)
                 }
             }
         }
@@ -585,10 +592,10 @@ fun OnboardingScreen(
                             Toast.makeText(context, "Please configure athlete identity", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        val cw = currentWeightStr.toDoubleOrNull() ?: 80.0
-                        val gw = goalWeightStr.toDoubleOrNull() ?: 80.0
-                        val ht = heightStr.toDoubleOrNull() ?: 175.0
-                        val ageVal = ageStr.toIntOrNull() ?: 25
+                        val cw = currentWeightStr.toDoubleOrNull() ?: com.example.UserDefaults.WEIGHT_KG
+                        val gw = goalWeightStr.toDoubleOrNull() ?: com.example.UserDefaults.WEIGHT_KG
+                        val ht = heightStr.toDoubleOrNull() ?: com.example.UserDefaults.HEIGHT_CM
+                        val ageVal = ageStr.toIntOrNull() ?: com.example.UserDefaults.AGE_YEARS
                         onComplete(name, goalTarget, cw, gw, apiKey, ht, ageVal, sexChoice.lowercase())
                     },
                     modifier = Modifier
@@ -611,7 +618,7 @@ fun OnboardingScreen(
 
                 TextButton(
                     onClick = {
-                        onComplete("Athlete X", "Maintain", 80.0, 80.0, "", 175.0, 25, "male")
+                        onComplete("Athlete X", "Maintain", com.example.UserDefaults.WEIGHT_KG, com.example.UserDefaults.WEIGHT_KG, "", com.example.UserDefaults.HEIGHT_CM, com.example.UserDefaults.AGE_YEARS, "male")
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -657,8 +664,7 @@ fun BottomNavBar(
                 TabItem("Home", Icons.Filled.Home, Icons.Outlined.Home, 0),
                 TabItem("Train", Icons.Filled.FitnessCenter, Icons.Outlined.FitnessCenter, 1),
                 TabItem("Nutrition", Icons.Filled.Restaurant, Icons.Outlined.Restaurant, 2),
-                TabItem("Progress", Icons.Filled.BarChart, Icons.Outlined.BarChart, 3),
-                TabItem("Coach", Icons.Filled.ChatBubble, Icons.Outlined.ChatBubble, 4)
+                TabItem("Progress", Icons.Filled.BarChart, Icons.Outlined.BarChart, 3)
             )
 
             tabs.forEach { item ->
@@ -719,12 +725,13 @@ data class TabItem(
 // REST TIMER COUNTDOWN OVERLAY
 @Composable
 fun RestTimerOverlay(
-    fitnessViewModel: FitnessViewModel
+    fitnessViewModel: FitnessViewModel,
+    trainViewModel: TrainViewModel
 ) {
-    val seconds by fitnessViewModel.restTimerSeconds.collectAsStateWithLifecycle()
-    val totalTime by fitnessViewModel.restTimerTotal.collectAsStateWithLifecycle()
-    val lastSetContext by fitnessViewModel.restTimerLastSetContext.collectAsStateWithLifecycle()
-    val nextSetPreview by fitnessViewModel.restTimerNextSetPreview.collectAsStateWithLifecycle()
+    val seconds by trainViewModel.restTimerSeconds.collectAsStateWithLifecycle()
+    val totalTime by trainViewModel.restTimerTotal.collectAsStateWithLifecycle()
+    val lastSetContext by trainViewModel.restTimerLastSetContext.collectAsStateWithLifecycle()
+    val nextSetPreview by trainViewModel.restTimerNextSetPreview.collectAsStateWithLifecycle()
 
     val progress = if (totalTime > 0) seconds.toFloat() / totalTime.toFloat() else 1f
 
@@ -967,16 +974,17 @@ fun RestTimerOverlay(
 // SMART RIR TO RPE SELECTOR AND HISTORICAL PATTERN OVERLAY
 @Composable
 fun RirSelectorOverlay(
-    fitnessViewModel: FitnessViewModel
+    fitnessViewModel: FitnessViewModel,
+    trainViewModel: TrainViewModel
 ) {
-    val isShowingHistory by fitnessViewModel.isShowingRirHistory.collectAsStateWithLifecycle()
-    val exerciseName by fitnessViewModel.rirSelectorExerciseName.collectAsStateWithLifecycle()
-    val setIndex by fitnessViewModel.rirSelectorSetIndex.collectAsStateWithLifecycle()
-    val weight by fitnessViewModel.rirSelectorWeight.collectAsStateWithLifecycle()
-    val reps by fitnessViewModel.rirSelectorReps.collectAsStateWithLifecycle()
-    val totalSets by fitnessViewModel.rirSelectorTotalSets.collectAsStateWithLifecycle()
-    val selectedRir by fitnessViewModel.selectedRir.collectAsStateWithLifecycle()
-    val history by fitnessViewModel.rirHistoricalSets.collectAsStateWithLifecycle()
+    val isShowingHistory by trainViewModel.isShowingRirHistory.collectAsStateWithLifecycle()
+    val exerciseName by trainViewModel.rirSelectorExerciseName.collectAsStateWithLifecycle()
+    val setIndex by trainViewModel.rirSelectorSetIndex.collectAsStateWithLifecycle()
+    val weight by trainViewModel.rirSelectorWeight.collectAsStateWithLifecycle()
+    val reps by trainViewModel.rirSelectorReps.collectAsStateWithLifecycle()
+    val totalSets by trainViewModel.rirSelectorTotalSets.collectAsStateWithLifecycle()
+    val selectedRir by trainViewModel.selectedRir.collectAsStateWithLifecycle()
+    val history by trainViewModel.rirHistoricalSets.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
@@ -992,6 +1000,7 @@ fun RirSelectorOverlay(
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF0F0F14))
                 .border(BorderStroke(1.dp, AmberAccent.copy(alpha = 0.25f)), RoundedCornerShape(24.dp))
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp)
         ) {
             if (!isShowingHistory) {
@@ -1309,11 +1318,12 @@ fun RirSelectorOverlay(
 // SESSION COMPLETE OVERLAY OVERRIDE
 @Composable
 fun SessionCompleteOverlay(
-    fitnessViewModel: FitnessViewModel
+    fitnessViewModel: FitnessViewModel,
+    trainViewModel: TrainViewModel
 ) {
-    val stats by fitnessViewModel.completedStats.collectAsStateWithLifecycle()
-    val prsBreak by fitnessViewModel.completedPRsBroken.collectAsStateWithLifecycle()
-    val hyperQ by fitnessViewModel.completedHypertrophyScore.collectAsStateWithLifecycle()
+    val stats by trainViewModel.completedStats.collectAsStateWithLifecycle()
+    val prsBreak by trainViewModel.completedPRsBroken.collectAsStateWithLifecycle()
+    val hyperQ by trainViewModel.completedHypertrophyScore.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier
@@ -1415,12 +1425,12 @@ fun SessionCompleteOverlay(
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                val sessionCompletedSets by fitnessViewModel.lastCompletedSessionSets.collectAsStateWithLifecycle()
+                val sessionCompletedSets by trainViewModel.lastCompletedSessionSets.collectAsStateWithLifecycle()
                 if (sessionCompletedSets.isNotEmpty()) {
                     val setsByExercise = sessionCompletedSets.groupBy { it.exerciseName }
                     setsByExercise.forEach { (exName, sets) ->
                         val totalSessionEff = sets.sumOf { it.effectiveSetValue }
-                        val plannedExercise = fitnessViewModel.activeExercises.value.find { it.name.equals(exName, ignoreCase = true) }
+                        val plannedExercise = trainViewModel.activeExercises.value.find { it.name.equals(exName, ignoreCase = true) }
                         val planSets = plannedExercise?.sets ?: sets.size
                         val targetEff = planSets * 0.75
 

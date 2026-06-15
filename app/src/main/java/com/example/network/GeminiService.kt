@@ -67,7 +67,7 @@ class GeminiService(
     // ─────────────────────────────────────────────────────────────
 
     suspend fun generateWeeklyReport(
-        context: com.example.data.AlgorithmViewModel
+        context: com.example.AlgorithmViewModel
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val dbWeights = repository.getAllWeightEntries()
@@ -118,13 +118,19 @@ class GeminiService(
                 )
             }
 
-            val valCalTarget = context.targets.value?.calories ?: 2500
+            val targetsState = context.targets.value
+            val userCalories = targetsState?.calories ?: com.example.UserDefaults.CALORIES
+            val userProtein = targetsState?.protein ?: com.example.UserDefaults.PROTEIN_G
+            val userCarbs = targetsState?.carbs ?: 280
+            val userFat = targetsState?.fat ?: 75
+            val userSessions = targetsState?.weeklyTrainingSessions ?: 4
+
             val targets = com.example.utils.NutritionTargets(
-                calories = valCalTarget,
-                protein = 160,
-                carbs = 280,
-                fat = 75,
-                weeklyTrainingSessions = 4
+                calories = userCalories,
+                protein = userProtein,
+                carbs = userCarbs,
+                fat = userFat,
+                weeklyTrainingSessions = userSessions
             )
 
             val goalStr = dataStore.goalFlow.firstOrNull() ?: "Gain Muscle"

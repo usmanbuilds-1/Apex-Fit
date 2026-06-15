@@ -155,10 +155,10 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     // 5. Plateau Analysis
     val plateauResult: StateFlow<UiPlateauResult> = combine(
-        weightFlow, nutritionFlow
-    ) { weights, nutrition ->
+        weightFlow, nutritionFlow, richSessionsFlow
+    ) { weights, nutrition, sessions ->
         val res = withContext(Dispatchers.Default) {
-            com.example.utils.AlgorithmEngine.detectPlateau(weights, nutrition)
+            com.example.utils.AlgorithmEngine.detectPlateau(weights, nutrition, sessions)
         }
         res.toUi()
     }.stateIn(

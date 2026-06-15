@@ -21,8 +21,8 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Onboarding preferences for TDEE calculations
     val userGoal: StateFlow<String> = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Gain Muscle")
-    val userHeight: StateFlow<Double> = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 175.0)
-    val userAge: StateFlow<Int> = dataStore.ageFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 25)
+    val userHeight: StateFlow<Double> = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.HEIGHT_CM)
+    val userAge: StateFlow<Int> = dataStore.ageFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.AGE_YEARS)
     val userSex: StateFlow<String> = dataStore.sexFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "male")
 
     private val _selectedNutritionDate = MutableStateFlow(getTodayDateString())
@@ -42,22 +42,37 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
 
     // Caloric target values
     val calorieTargetManual: StateFlow<Boolean> = dataStore.calorieTargetManualFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val calorieTargetValue: StateFlow<Int> = dataStore.calorieTargetValueFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2500)
+    val calorieTargetValue: StateFlow<Int> = dataStore.calorieTargetValueFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.CALORIES)
+
+    val profileFlow: Flow<Triple<Double, Int, String>> = combine(userHeight, userAge, userSex) { h, a, s -> Triple(h, a, s) }
 
     val activeTdee: StateFlow<Int> = combine(
         weightHistory,
         allNutritionHistory,
-        userHeight,
-        userAge,
-        userSex
-    ) { weights, nutrition, height, age, sex ->
+        dao.getAllCompletedSessionsFlow().flowOn(kotlinx.coroutines.Dispatchers.IO),
+        profileFlow
+    ) { weights, nutrition, completedSessions, profile ->
         val weightData = weights.map { it.toData() }
         val nutritionData = nutrition.map { it.toData() }
+        val (height, age, sex) = profile
+        
+        // Dynamic weeklyWorkouts determination over trailing 28 days
+        val cutoff = com.example.utils.AlgorithmEngine.getDateDaysAgo(28)
+        val sessionsInLast4Weeks = completedSessions.count { it.date >= cutoff && it.completed }
+        val avgWorkoutsPerWeek = (sessionsInLast4Weeks / 4.0).coerceIn(0.0, 7.0)
+        val workoutsFreq = Math.round(avgWorkoutsPerWeek).toInt().coerceIn(1, 7)
         
         val sexOffset = if (sex.equals("female", ignoreCase = true)) -161.0 else 5.0
-        val latestWeight = weightData.firstOrNull()?.weight ?: 80.0
+        val latestWeight = weightData.firstOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
         val bmrBaseline = (10.0 * latestWeight) + (6.25 * height) - (5.0 * age) + sexOffset
-        val fallbackTdee = (bmrBaseline * 1.55).toInt()
+        
+        val activityMultiplier = when {
+            workoutsFreq <= 1 -> 1.2
+            workoutsFreq <= 3 -> 1.375
+            workoutsFreq <= 5 -> 1.55
+            else -> 1.725
+        }
+        val fallbackTdee = (bmrBaseline * activityMultiplier).toInt()
         
         val tdeeResult = com.example.utils.AlgorithmEngine.calcAdaptiveTDEE(
             weightLog = weightData,
@@ -66,10 +81,10 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
             heightCm = height,
             ageYears = age,
             biologicalSex = sex,
-            weeklyWorkouts = 4
+            weeklyWorkouts = workoutsFreq
         )
         tdeeResult.tdee ?: fallbackTdee
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 2500)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.CALORIES)
 
     val suggestedCaloricTarget: StateFlow<Int> = combine(
         activeTdee,
@@ -78,9 +93,9 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         if (tdee > 0 && goal.isNotEmpty()) {
             com.example.utils.AlgorithmEngine.suggestCaloricTarget(tdee, goal)
         } else {
-            2500
+            com.example.UserDefaults.CALORIES
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 2500)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.example.UserDefaults.CALORIES)
 
     // Log meal and delete meal
     fun logNutrition(
@@ -121,7 +136,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
                 cal.add(java.util.Calendar.DAY_OF_YEAR, offsetDays)
                 _selectedNutritionDate.value = sdf.format(cal.time)
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("ApexFit", "Error in changeNutritionDate: ${e.message}", e)
             }
         }
     }

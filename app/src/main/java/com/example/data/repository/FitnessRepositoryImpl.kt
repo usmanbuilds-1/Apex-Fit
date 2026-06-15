@@ -29,6 +29,21 @@ class FitnessRepositoryImpl(
         dao.insertWorkoutPlan(plan)
     }
 
+    override fun getWorkoutPlans(): Flow<List<WorkoutPlan>> {
+        return dao.getAllPlansFlow()
+    }
+
+    override fun getExercisesForSession(sessionId: Long): Flow<List<PlanExercise>> {
+        return dao.getExercisesForSessionFlow(sessionId)
+    }
+
+    override suspend fun updateWorkoutPlan(plan: WorkoutPlan, sessions: List<PlanSession>, exercises: List<PlanExercise>) {
+        dao.deactivateAllPlans()
+        dao.insertWorkoutPlan(plan)
+        sessions.forEach { dao.insertPlanSession(it) }
+        exercises.forEach { dao.insertPlanExercise(it) }
+    }
+
     override fun getWeightHistory(): Flow<List<WeightEntry>> {
         return dao.getAllWeightEntriesFlow()
     }
@@ -54,9 +69,8 @@ class FitnessRepositoryImpl(
     }
 
     override suspend fun getLastSessionWeights(exerciseName: String): List<Pair<Double, Int>> {
-        val allSets = dao.getAllExerciseSets()
-        return allSets
-            .filter { (it.exerciseName.equals(exerciseName, ignoreCase = true) || it.exerciseId.equals(exerciseName, ignoreCase = true)) && it.completed }
+        val sets = dao.getLastSetsForExercise(exerciseName)
+        return sets
             .groupBy { it.sessionId }
             .values
             .firstOrNull()

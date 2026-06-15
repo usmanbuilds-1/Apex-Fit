@@ -47,12 +47,12 @@ object AlgorithmEngine {
         weightLog: List<WeightEntry>,
         nutritionLog: List<NutritionEntry>,
         windowDays: Int = 14,
-        heightCm: Double = 175.0,
-        ageYears: Int = 25,
+        heightCm: Double = com.example.UserDefaults.HEIGHT_CM,
+        ageYears: Int = com.example.UserDefaults.AGE_YEARS,
         biologicalSex: String = "male",
         weeklyWorkouts: Int = 4
     ): TDEEResult {
-        val latestWeight = weightLog.lastOrNull()?.weight ?: 80.0
+        val latestWeight = weightLog.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
         
         // Mifflin-St Jeor Equation (Mifflin MD, et al. 1990)
         // Males: REE = (10 * weight_kg) + (6.25 * height_cm) - (5 * age_years) + 5
@@ -148,7 +148,7 @@ object AlgorithmEngine {
     }
 
     // ── PLATEAU DETECTION ─────────────────────────────────────
-    fun detectPlateau(weightLog: List<WeightEntry>, nutritionLog: List<NutritionEntry>, windowDays: Int = 10): PlateauResult {
+    fun detectPlateau(weightLog: List<WeightEntry>, nutritionLog: List<NutritionEntry>, trainingLog: List<TrainingSession>, windowDays: Int = 10): PlateauResult {
         val trend = calcTrendWeight(weightLog)
         if (trend.size < windowDays) return PlateauResult(false)
         val recent = trend.takeLast(windowDays)
@@ -158,6 +158,22 @@ object AlgorithmEngine {
         val loggingConsistency = recentLogs.size.toDouble() / windowDays
         if (change >= 0.3) return PlateauResult(false)
         if (loggingConsistency < 0.7) return PlateauResult(false)
+
+        val volumeRecent = trainingLog.filter { it.completed && it.date >= cutoff }
+            .flatMap { it.exercises }
+            .flatMap { it.sets }
+            .filter { !it.isWarmup }
+            .sumOf { it.weight * it.reps }
+
+        val volumeEarlier = trainingLog.filter { it.completed && it.date < cutoff }
+            .take(windowDays)
+            .flatMap { it.exercises }
+            .flatMap { it.sets }
+            .filter { !it.isWarmup }
+            .sumOf { it.weight * it.reps }
+
+        if (volumeRecent >= volumeEarlier * 0.95) return PlateauResult(false)
+
         return PlateauResult(
             plateau = true,
             severity = if (windowDays >= 14) "confirmed" else "early",
@@ -235,14 +251,14 @@ object AlgorithmEngine {
             val working = ex.sets.filter { !it.isWarmup && it.completed }
             prevMaxWeight = maxOf(prevMaxWeight, working.maxOfOrNull { it.weight } ?: 0.0)
             prevMaxVolume = maxOf(prevMaxVolume, working.sumOf { it.weight * it.reps })
-            prevMax1RM = maxOf(prevMax1RM, working.maxOfOrNull { it.weight * (1 + it.reps / 30.0) } ?: 0.0)
+            prevMax1RM = maxOf(prevMax1RM, working.filter { it.reps <= 12 }.maxOfOrNull { it.weight * (1 + it.reps / 30.0) } ?: 0.0)
         }
 
         val latest = sessions.last().exercises.find { it.id == exerciseId } ?: return PRResult(false)
         val latestWorking = latest.sets.filter { !it.isWarmup && it.completed }
         val latestWeight = latestWorking.maxOfOrNull { it.weight } ?: 0.0
         val latestVolume = latestWorking.sumOf { it.weight * it.reps }
-        val latest1RM = latestWorking.maxOfOrNull { it.weight * (1 + it.reps / 30.0) } ?: 0.0
+        val latest1RM = latestWorking.filter { it.reps <= 12 }.maxOfOrNull { it.weight * (1 + it.reps / 30.0) } ?: 0.0
 
         val newPRs = mutableListOf<PREntry>()
         if (latestWeight > prevMaxWeight) newPRs.add(PREntry("weight", "Weight PR", "${latestWeight}kg", "${prevMaxWeight}kg"))
@@ -363,17 +379,12 @@ object AlgorithmEngine {
                 working.forEach { set ->
                     val rpeModifier = when {
                         set.rpe >= 10 -> 1.0
-                        set.rpe == 9 -> 0.95
-                        set.rpe == 8 -> 0.85
-                        set.rpe == 7 -> 0.70
-                        else -> 0.45
+                        set.rpe == 9 -> 0.9
+                        set.rpe == 8 -> 0.75
+                        set.rpe == 7 -> 0.5
+                        else -> 0.0
                     }
-                    val typeModifier = when (exercise.muscleGroup) {
-                        "chest", "back", "quad", "hamstring" -> 1.2
-                        "side_delt", "rear_delt", "bicep", "tricep" -> 1.05
-                        else -> 0.9
-                    }
-                    val score = 1.0 * rpeModifier * typeModifier
+                    val score = rpeModifier
                     effectiveSets[exercise.muscleGroup] = (effectiveSets[exercise.muscleGroup] ?: 0.0) + score
                 }
             }
@@ -412,7 +423,7 @@ object AlgorithmEngine {
         val tdee = calcAdaptiveTDEE(weightLog, nutritionLog)
         val compliance = calcComplianceScores(nutritionLog, trainingLog, targets)
         val fatigue = calcFatigueToFitness(trainingLog)
-        val plateau = detectPlateau(weightLog, nutritionLog)
+        val plateau = detectPlateau(weightLog, nutritionLog, trainingLog)
         val deload = calcDeloadRecommendation(trainingLog, compliance.overall)
         return """
 You are a science-based fitness and nutrition coach. Write a personalised weekly check-in in 4 short paragraphs. Be direct, specific, motivating. No generic advice. Cite the mechanism behind every recommendation.

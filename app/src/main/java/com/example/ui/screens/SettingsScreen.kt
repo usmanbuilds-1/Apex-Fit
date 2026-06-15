@@ -41,6 +41,7 @@ fun SettingsScreen(
     val userHeight by fitnessViewModel.userHeight.collectAsStateWithLifecycle()
     val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()
     val userSex by fitnessViewModel.userSex.collectAsStateWithLifecycle()
+    val currentEquipment by fitnessViewModel.equipmentAvailable.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
@@ -225,19 +226,20 @@ fun SettingsScreen(
 
             Button(
                 onClick = {
-                    val hVal = editHeight.toDoubleOrNull() ?: 175.0
-                    val aVal = editAge.toIntOrNull() ?: 25
+                    val hVal = editHeight.toDoubleOrNull() ?: com.example.UserDefaults.HEIGHT_CM
+                    val aVal = editAge.toIntOrNull() ?: com.example.UserDefaults.AGE_YEARS
+                    val equipmentVal = if (currentEquipment.isNotEmpty()) currentEquipment else "Barbell,Dumbbell,Cable,Machine"
                     fitnessViewModel.updateProfile(
                         name = editName,
                         userGoal = editGoal,
                         targetUnit = "kg",
                         key = editApiKey,
-                        equipment = "Barbell,Dumbbell,Cable,Machine",
+                        equipment = equipmentVal,
                         height = hVal,
                         age = aVal,
                         sex = editSex.lowercase()
                     )
-                    val cInt = editedManualCalValue.toIntOrNull() ?: 2500
+                    val cInt = editedManualCalValue.toIntOrNull() ?: com.example.UserDefaults.CALORIES
                     fitnessViewModel.setManualCalorieTarget(true, cInt)
                     Toast.makeText(context, "Profile Saved Successfully", Toast.LENGTH_SHORT).show()
                     onNavigateTo(0)

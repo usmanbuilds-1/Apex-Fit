@@ -9,7 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.example.ui.screens.ApexFitApp
-import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.ApexFitTheme
 import com.example.utils.CoachingScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         setContent {
-            MyApplicationTheme {
+            ApexFitTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize()
                 ) {

@@ -40,7 +40,7 @@ data class UiExerciseSet(
     val isWarmup: Boolean = false,
     val completed: Boolean = true,
     val exerciseName: String = "",
-    val sessionId: Long = 0,
+    val sessionId: String = "",
     val muscleGroup: String = ""
 ) {
     val effectiveSetValue: Double get() = try {
@@ -51,7 +51,7 @@ data class UiExerciseSet(
 }
 
 data class UiTrainingSession(
-    val id: Long = 0,
+    val id: String = "",
     val name: String,
     val date: String,
     val duration: Int = 0,
@@ -119,12 +119,12 @@ fun com.example.data.ExerciseSet.toUi(): UiExerciseSet = UiExerciseSet(
     isWarmup = this.isWarmup,
     completed = this.completed,
     exerciseName = this.exerciseName,
-    sessionId = this.sessionId.toLongOrNull() ?: 0L,
+    sessionId = this.sessionId,
     muscleGroup = this.muscleGroup
 )
 
 fun com.example.data.TrainingSession.toUi(): UiTrainingSession = UiTrainingSession(
-    id = this.id.toLongOrNull() ?: 0L,
+    id = this.id,
     name = this.sessionType,
     date = this.date,
     duration = this.durationMinutes,
@@ -194,7 +194,7 @@ fun UiNutritionEntry.toData(): com.example.data.NutritionEntry {
 
 fun UiExerciseSet.toData(): com.example.data.ExerciseSet = com.example.data.ExerciseSet(
     id = this.id,
-    sessionId = this.sessionId.toString(),
+    sessionId = this.sessionId,
     exerciseId = "",
     exerciseName = this.exerciseName,
     muscleGroup = this.muscleGroup,
@@ -208,7 +208,7 @@ fun UiExerciseSet.toData(): com.example.data.ExerciseSet = com.example.data.Exer
 )
 
 fun UiTrainingSession.toData(): com.example.data.TrainingSession = com.example.data.TrainingSession(
-    id = this.id.toString(),
+    id = this.id,
     date = this.date,
     sessionType = this.name,
     completed = this.isCompleted,

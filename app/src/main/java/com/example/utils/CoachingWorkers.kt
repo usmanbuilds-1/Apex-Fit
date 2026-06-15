@@ -108,11 +108,17 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         }
 
         val calTarget = dataStore.calorieTargetValueFlow.first()
+        val dbWeightsForCoaching = dao.getAllWeightEntries()
+        val latestWeightForCoaching = dbWeightsForCoaching.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
+        val proteinTarget = (latestWeightForCoaching * 1.8).toInt().coerceIn(100, 250)
+        val fatTarget = (calTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
+        val carbsTarget = ((calTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
+
         val targets = NutritionTargets(
             calories = calTarget,
-            protein = 160,
-            carbs = 280,
-            fat = 75,
+            protein = proteinTarget,
+            carbs = carbsTarget,
+            fat = fatTarget,
             weeklyTrainingSessions = 4
         )
 
