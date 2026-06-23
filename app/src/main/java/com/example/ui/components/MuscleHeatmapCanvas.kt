@@ -35,6 +35,16 @@ private val EMPTY_FILL           = Color(0xFF252535)  // matches BorderSubtle
 // ─────────────────────────────────────────────────────────────────
 
 @Composable
+fun SingleFrontHeatmapCanvas(
+    heatmap: Map<String, HeatmapEntry>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        drawFrontView(heatmap)
+    }
+}
+
+@Composable
 fun MuscleHeatmapCanvas(
     heatmap: Map<String, HeatmapEntry>,
     modifier: Modifier = Modifier
@@ -517,8 +527,14 @@ private fun DrawScope.drawRoundedMuscle(
 private fun HeatmapEntry?.toColorPair(): Pair<Color, Float> {
     if (this == null || intensity <= 0) return EMPTY_FILL to EMPTY_ALPHA
     return try {
-        Color(AndroidColor.parseColor(colorHex)) to ACTIVE_ALPHA
-    } catch (e: IllegalArgumentException) {
+        val parsedColor = Color(AndroidColor.parseColor(colorHex))
+        when (intensity) {
+            3 -> parsedColor to 1.0f                       // Active color at full brightness
+            2 -> parsedColor to 0.30f                      // Recovering color at 30% alpha
+            1 -> Color.Transparent to 0.0f                 // Neutral / transparent
+            else -> parsedColor to ACTIVE_ALPHA
+        }
+    } catch (e: Exception) {
         EMPTY_FILL to EMPTY_ALPHA
     }
 }

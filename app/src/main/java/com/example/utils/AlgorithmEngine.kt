@@ -133,12 +133,16 @@ object AlgorithmEngine {
         val dayNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
         val dayScores = mutableMapOf<String, Pair<Int,Int>>()
         recentNutrition.forEach { entry ->
-            val cal = java.util.Calendar.getInstance()
-            cal.time = java.text.SimpleDateFormat("yyyy-MM-dd").parse(entry.date) ?: return@forEach
-            val day = dayNames[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
-            val current = dayScores[day] ?: Pair(0, 0)
-            val hit = if (entry.protein >= targets.protein && Math.abs(entry.calories - targets.calories).toDouble() / targets.calories <= 0.15) 1 else 0
-            dayScores[day] = Pair(current.first + hit, current.second + 1)
+            try {
+                val cal = java.util.Calendar.getInstance()
+                cal.time = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(entry.date) ?: return@forEach
+                val day = dayNames[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+                val current = dayScores[day] ?: Pair(0, 0)
+                val hit = if (entry.protein >= targets.protein && Math.abs(entry.calories - targets.calories).toDouble() / targets.calories <= 0.15) 1 else 0
+                dayScores[day] = Pair(current.first + hit, current.second + 1)
+            } catch (e: Exception) {
+                // Ignore parse errors safely
+            }
         }
         val weakestDay = dayScores.entries
             .filter { it.value.second > 0 }
@@ -384,7 +388,7 @@ object AlgorithmEngine {
                         set.rpe == 7 -> 0.5
                         else -> 0.0
                     }
-                    val score = rpeModifier
+                    val score = 1.0 * rpeModifier
                     effectiveSets[exercise.muscleGroup] = (effectiveSets[exercise.muscleGroup] ?: 0.0) + score
                 }
             }

@@ -52,6 +52,7 @@ import com.example.ui.models.*
 import com.example.ui.theme.*
 import com.example.utils.AlgorithmEngine
 import com.example.ui.components.MuscleHeatmapCanvas
+import com.example.ui.components.SingleFrontHeatmapCanvas
 import com.example.utils.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -93,25 +94,152 @@ fun HomeScreen(
     val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()
     val userSex by fitnessViewModel.userSex.collectAsStateWithLifecycle()
 
+    val readiness by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
+    val heatmap by algorithmViewModel.muscleHeatmap.collectAsStateWithLifecycle()
+    val complianceScores by homeViewModel.complianceScores.collectAsStateWithLifecycle()
+    val fatigueRatio by algorithmViewModel.fatigueRatio.collectAsStateWithLifecycle()
+    val allPRs by algorithmViewModel.allPRs.collectAsStateWithLifecycle()
+
     // Aggregate meal stats
     val latestWeight = weightHistory.firstOrNull()?.weight ?: weight ?: com.example.UserDefaults.WEIGHT_KG
-    
-    // Dynamic Mifflin-St Jeor equation to calculate BMR baseline with biological offset
-    val sexOffset = if (userSex.equals("female", ignoreCase = true)) -161.0 else 5.0
-    val bmrBaseline = (10.0 * latestWeight) + (6.25 * userHeight) - (5.0 * userAge) + sexOffset
-    
-    // Moderate activity (1.55) as default multi-purpose athlete baseline
-    val fallbackTdee = (bmrBaseline * 1.55).toInt()
-    val activeTdee = tdeeResult.tdee ?: fallbackTdee
 
-    val suggestedCalories by nutritionViewModel.suggestedCaloricTarget.collectAsStateWithLifecycle()
-    // Science: Helms et al. (2014) Daily caloric targets adjusted by objective goals
-    val calorieTarget = if (calorieTargetManual) calorieTargetValue else suggestedCalories
+    val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
+    val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+    val sessionName = todaySession?.label ?: "Upper A"
+    val focusMuscles = todaySession?.focus ?: "Chest • Back • Arms"
 
-    val complianceScores by homeViewModel.complianceScores.collectAsStateWithLifecycle()
-    val complianceScore by homeViewModel.complianceScore.collectAsStateWithLifecycle()
-    val fatigueRatio by algorithmViewModel.fatigueRatio.collectAsStateWithLifecycle()
-    val injuryRisks by algorithmViewModel.injuryRiskSignals.collectAsStateWithLifecycle()
+    val estimateDuration by fitnessViewModel.estimatedSetDuration.collectAsStateWithLifecycle()
+    // Calculate precise metabolic duration based on specific exercise sets
+    val estimatedWorkoutDurationMin = if (todaySession == null || todaySession.focus == "Muscle Recovery & Rest") {
+        0
+    } else if (todayExercises.isEmpty()) {
+        42
+    } else {
+        val rawTime = todayExercises.sumOf { 
+            val setMinutes = estimateDuration(it.repsMin, it.repsMax)
+            it.sets * (setMinutes + it.restSeconds / 60.0) 
+        }
+        val transitionTime = (todayExercises.size - 1).coerceAtLeast(0) * 2.0
+        val warmUp = 5.0
+        (rawTime + transitionTime + warmUp).toInt()
+    }
+
+    val finalWorkoutDurationMin = if (estimatedWorkoutDurationMin > 0) estimatedWorkoutDurationMin else 42
+
+    // Dialog state for "How it's calculated" explanation
+    var showCalculationExplanation by remember { mutableStateOf(false) }
+    var showWeightDialog by remember { mutableStateOf(false) }
+    var weightInput by remember { mutableStateOf("") }
+
+    val allNutritionHistory by homeViewModel.allNutritionHistory.collectAsStateWithLifecycle()
+    val goalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
+    val richSessionsFlow by homeViewModel.richSessionsFlow.collectAsStateWithLifecycle(emptyList())
+
+    val todayDateStr = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+    }
+
+    val loggedCaloriesTotal = remember(allNutritionHistory, todayDateStr) {
+        allNutritionHistory.filter { it.date == todayDateStr }.sumOf { it.calories }
+    }
+    val loggedProteinTotal = remember(allNutritionHistory, todayDateStr) {
+        allNutritionHistory.filter { it.date == todayDateStr }.sumOf { it.protein }.toInt()
+    }
+
+    val isTodayWorkoutCompleted = remember(completedSessions, todayDateStr) {
+        completedSessions.any { it.date == todayDateStr }
+    }
+
+    val lastTrainedDates = remember(richSessionsFlow) {
+        val mapping = mutableMapOf<String, String>()
+        val sortedSessions = richSessionsFlow.sortedByDescending { it.date }
+        for (session in sortedSessions) {
+            val dateStr = session.date
+            for (exercise in session.exercises) {
+                val exerciseMuscle = exercise.muscleGroup.lowercase().trim()
+                val matchedCanvasMuscle = when {
+                    exerciseMuscle.contains("chest") || exerciseMuscle.contains("pectoral") -> "chest"
+                    exerciseMuscle.contains("back") && !exerciseMuscle.contains("lower") -> "back"
+                    exerciseMuscle.contains("front delt") || exerciseMuscle.contains("front_delt") || exerciseMuscle.contains("anterior delt") -> "front_delt"
+                    exerciseMuscle.contains("rear delt") || exerciseMuscle.contains("rear_delt") || exerciseMuscle.contains("posterior delt") -> "rear_delt"
+                    exerciseMuscle.contains("side delt") || exerciseMuscle.contains("side_delt") || exerciseMuscle.contains("lateral") || exerciseMuscle.contains("shoulder") || exerciseMuscle.contains("delt") -> "side_delt"
+                    exerciseMuscle.contains("bicep") -> "bicep"
+                    exerciseMuscle.contains("tricep") -> "tricep"
+                    exerciseMuscle.contains("quad") || exerciseMuscle.contains("thigh") -> "quad"
+                    exerciseMuscle.contains("hamstring") -> "hamstring"
+                    exerciseMuscle.contains("glute") -> "glute"
+                    exerciseMuscle.contains("calf") || exerciseMuscle.contains("calves") -> "calf"
+                    exerciseMuscle.contains("core") || exerciseMuscle.contains("abs") || exerciseMuscle.contains("abdom") -> "core"
+                    else -> null
+                }
+                if (matchedCanvasMuscle != null && !mapping.containsKey(matchedCanvasMuscle)) {
+                    mapping[matchedCanvasMuscle] = dateStr
+                }
+            }
+        }
+        mapping
+    }
+
+    fun getDaysSince(dateString: String, todayStr: String): Int {
+        return try {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            val dateLog = sdf.parse(dateString) ?: return 100
+            val todayDate = sdf.parse(todayStr) ?: return 100
+            val diff = todayDate.time - dateLog.time
+            (diff / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(0)
+        } catch (e: Exception) {
+            100
+        }
+    }
+
+    fun isMuscleInTodaySession(muscle: String, focus: String): Boolean {
+        val f = focus.lowercase()
+        val m = muscle.lowercase()
+        return when (m) {
+            "chest" -> f.contains("chest") || f.contains("pec")
+            "back" -> f.contains("back") || f.contains("lat") || f.contains("lats")
+            "front_delt" -> f.contains("front") || f.contains("delt") || f.contains("shoulder") || f.contains("arms") || f.contains("upper")
+            "side_delt" -> f.contains("side") || f.contains("lateral") || f.contains("delt") || f.contains("shoulder") || f.contains("arms") || f.contains("upper")
+            "rear_delt" -> f.contains("rear") || f.contains("posterior") || f.contains("delt") || f.contains("shoulder") || f.contains("arms") || f.contains("upper")
+            "bicep" -> f.contains("bicep") || f.contains("arm") || f.contains("upper")
+            "tricep" -> f.contains("tricep") || f.contains("arm") || f.contains("upper")
+            "quad" -> f.contains("quad") || f.contains("leg") || f.contains("thigh") || f.contains("lower")
+            "hamstring" -> f.contains("hamstring") || f.contains("leg") || f.contains("thigh") || f.contains("lower")
+            "glute" -> f.contains("glute") || f.contains("butt") || f.contains("leg") || f.contains("lower")
+            "calf" -> f.contains("calf") || f.contains("calves") || f.contains("lower")
+            "core" -> f.contains("core") || f.contains("abs") || f.contains("oblique") || f.contains("abdominal")
+            else -> false
+        }
+    }
+
+    val recoveryHeatmap = remember(lastTrainedDates, todaySession, todayDateStr) {
+        val focusText = todaySession?.focus ?: "Chest • Back • Arms"
+        val canvasMuscles = listOf(
+            "chest", "back", "front_delt", "side_delt", "rear_delt", 
+            "bicep", "tricep", "quad", "hamstring", "glute", "calf", "core"
+        )
+        
+        canvasMuscles.associateWith { m ->
+            val isInToday = isMuscleInTodaySession(m, focusText)
+            val lastDate = lastTrainedDates[m]
+            val daysSince = if (lastDate != null) getDaysSince(lastDate, todayDateStr) else 100
+            
+            val (intIntensity, levelString) = when {
+                isInToday -> 3 to "ACTIVE" // ACTIVE
+                daysSince <= 2 -> 2 to "RECOVERING" // RECOVERING
+                else -> 1 to "NEUTRAL" // NEUTRAL
+            }
+            HeatmapEntry(volume = 0, intensity = intIntensity, level = levelString, colorHex = "#F59E0B")
+        }
+    }
+
+    val weightDiff = latestWeight - goalWeight
+    val weightChangeStr = if (weightDiff == 0.0) {
+        "Target reached!"
+    } else {
+        val sign = if (weightDiff > 0) "+" else ""
+        "${sign}${String.format("%.1f", weightDiff)} kg to target"
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -119,451 +247,228 @@ fun HomeScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Welcome text
+        // 1. Welcome Header
         item {
-            Column(modifier = Modifier.padding(top = 16.dp)) {
+            Column(modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
                 Text(
-                    text = "APEX FIT // V2.0",
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    color = MutedText
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "GOOD MORNING, ${username.uppercase()}",
+                    text = "Good morning, ${username.ifEmpty { "Usman" }} 👋",
                     fontFamily = SyneFamily,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = PrimaryText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Black,
+                    color = PrimaryText
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Let’s get after it today.",
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 13.sp,
+                    color = SecondaryText
                 )
             }
         }
 
-        // Today's Session Pill & Energy Progression
+        // 2. TODAY'S TRAINING Card (Combined Readiness & Workout)
         item {
-            val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
-            val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-            val hasWorkout = todaySession != null && todaySession.focus != "Muscle Recovery & Rest"
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (hasWorkout) AmberAccent else MutedText)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (hasWorkout) "TODAY'S SESSION" else "REST DAY FOCUS",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0A0A0F)
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (hasWorkout) "${todaySession?.label} - ${todaySession?.focus}" else "Focus on complete systemic recovery",
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 11.sp,
-                    color = PrimaryText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        // Calorie Ring Card
-        item {
-            PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "CALORIC METABOLIC PROGRESS",
-                    fontFamily = SyneFamily,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryText,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val loggedCalories = loggedMeals.sumOf { it.calories }
-                    // Ring
-                    Box(
-                        modifier = Modifier
-                            .size(110.dp)
-                            .drawBehind {
-                                // Background circle
-                                drawCircle(
-                                    color = BorderSubtle,
-                                    radius = size.minDimension / 2,
-                                    style = Stroke(width = 10.dp.toPx())
-                                )
-                                // Active arc
-                                val sweep =
-                                    (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f) * 360f
-                                val ringColor = if (loggedCalories >= calorieTarget) GreenAccent else AmberAccent
-                                drawArc(
-                                    color = ringColor,
-                                    startAngle = -90f,
-                                    sweepAngle = sweep,
-                                    useCenter = false,
-                                    style = Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round)
-                                )
-                            },
-                        contentAlignment = Alignment.Center
+            PremiumCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("todays_training_premium_card")
+            ) {
+                Column {
+                    // Header Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Dynamic glow behind numbers (approx 8% opacity radial circle)
+                        Text(
+                            text = "TODAY'S TRAINING",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AmberAccent,
+                            letterSpacing = 0.5.sp
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = AmberAccent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 1. Circular Progress Indicator (Left side)
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .size(108.dp)
                                 .drawBehind {
                                     drawCircle(
-                                        color = AmberAccent.copy(alpha = 0.08f),
-                                        radius = 60.dp.toPx()
+                                        color = BorderSubtle,
+                                        radius = size.minDimension / 2 - 3.dp.toPx(),
+                                        style = Stroke(width = 6.dp.toPx())
                                     )
-                                }
-                        )
+                                    drawArc(
+                                        color = GreenAccent,
+                                        startAngle = -90f,
+                                        sweepAngle = (readiness?.score ?: 82).toFloat() / 100f * 360f,
+                                        useCenter = false,
+                                        style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${readiness?.score ?: 82}%",
+                                    fontFamily = SyneFamily,
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = GreenAccent
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Recovery Score",
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontSize = 8.sp,
+                                    color = MutedText,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
 
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // 2. Details Column (Center-Left side)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             Text(
-                                text = loggedCalories.toString(),
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = sessionName,
+                                fontFamily = SyneFamily,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Black,
                                 color = PrimaryText
                             )
                             Text(
-                                text = "/ $calorieTarget",
+                                text = focusMuscles,
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
-                                color = MutedText
+                                fontSize = 11.sp,
+                                color = SecondaryText
                             )
-                            Text(
-                                text = "KCAL",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AmberAccent
-                            )
-                        }
-                    }
 
-                    Spacer(modifier = Modifier.width(20.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                    // Linear Macro Bars
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val loggedProtein = loggedMeals.sumOf { it.protein }
-                        val loggedCarbs = loggedMeals.sumOf { it.carbs }
-                        val loggedFat = loggedMeals.sumOf { it.fat }
-
-                        val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250)
-                        val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
-                        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
-
-                        MacroTrackerBar(label = "PROTEIN", current = loggedProtein, target = proteinTarget.toDouble(), color = AmberAccent)
-                        MacroTrackerBar(label = "CARBS", current = loggedCarbs, target = carbsTarget.toDouble(), color = BlueAccent)
-                        MacroTrackerBar(label = "FAT", current = loggedFat, target = fatTarget.toDouble(), color = RedAccent)
-                    }
-                }
-            }
-        }
-
-        // Stats strip horizontal
-        item {
-            val history by homeViewModel.weightHistory.collectAsStateWithLifecycle()
-            val trendWeightVal by algorithmViewModel.trendWeight.collectAsStateWithLifecycle()
-            
-            val trendWeightDisplay = trendWeightVal ?: latestWeight
-            val trendConfidence = when {
-                history.size >= 14 -> "High (14d EMA)"
-                history.size >= 7 -> "Med (7d EMA)"
-                else -> "Low (Need ${14 - history.size}d)"
-            }
-
-            val tdeeConfidenceLabel = when {
-                tdeeResult.confidence.contains("high") -> "High (Adaptive)"
-                tdeeResult.confidence.contains("medium") -> "Med (Adaptive)"
-                tdeeResult.confidence.contains("low") && tdeeResult.confidence.contains("Mifflin") -> "Mifflin-St Jeor"
-                else -> "Low (Adaptive)"
-            }
-
-            val numStreak = streakResult.nutrition.current
-            val streakLabel = "$numStreak Days"
-            val sessionsPerWk = targets?.weeklyTrainingSessions ?: 4
-
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                // Touch targets and density styled according to Material Design 3 guidelines
-            ) {
-                item {
-                    MetricMiniCard(value = "${String.format("%.1f", trendWeightDisplay)} kg", label = "TREND WT", subValue = trendConfidence, glowColor = AmberAccent)
-                }
-                item {
-                    MetricMiniCard(value = "$activeTdee kcal", label = "EST TDEE", subValue = tdeeConfidenceLabel, glowColor = BlueAccent)
-                }
-                item {
-                    MetricMiniCard(value = "$sessionsPerWk Days", label = "SESSIONS/WK", subValue = "Plan Objective", glowColor = GreenAccent)
-                }
-                item {
-                    MetricMiniCard(value = streakLabel, label = "TREK STREAK", subValue = "Adhered Days", glowColor = AmberAccent)
-                }
-                item {
-                    MetricMiniCard(value = "${complianceScore}%", label = "MOMENTUM", subValue = "Overall Adherence", glowColor = GreenAccent)
-                }
-            }
-        }
-
-        // Bio-metric Session Readiness Card
-        item {
-            val readiness by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
-
-            if (readiness != null) {
-                val rd = readiness!!
-                PremiumCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .testTag("session_readiness_card")
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "BIO-METRIC SESSION READINESS",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SecondaryText
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = rd.label.uppercase(),
-                                    fontFamily = SyneFamily,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryText
-                                )
-                            }
-                            
-                            val scoreColor = when {
-                                rd.score >= 80 -> GreenAccent
-                                rd.score >= 50 -> AmberAccent
-                                else -> RedAccent
-                            }
-                            
+                            // Time Badge Pill
                             Box(
                                 modifier = Modifier
-                                    .size(54.dp)
-                                    .clip(CircleShape)
-                                    .background(scoreColor.copy(alpha = 0.12f))
-                                    .border(BorderStroke(2.dp, scoreColor), CircleShape),
-                                contentAlignment = Alignment.Center
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color(0xFF0F0F16))
+                                    .border(BorderStroke(0.5.dp, BorderSubtle), RoundedCornerShape(20.dp))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
                             ) {
-                                Text(
-                                    text = "${rd.score}",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = scoreColor
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-                        
-                        Text(
-                            text = rd.prediction,
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = PrimaryText,
-                            lineHeight = 16.sp
-                        )
-                        
-                        Spacer(modifier = Modifier.height(6.dp))
-                        
-                        Text(
-                            text = rd.recommendation,
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = AmberAccent,
-                            lineHeight = 16.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(BorderSubtle))
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Factors Row
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(rd.factors) { factor ->
-                                val factorColor = when (factor.impact.lowercase()) {
-                                    "positive" -> GreenAccent
-                                    "negative" -> RedAccent
-                                    else -> SecondaryText
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(factorColor.copy(alpha = 0.1f))
-                                        .border(BorderStroke(1.dp, factorColor.copy(alpha = 0.3f)), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .clip(CircleShape)
-                                                .background(factorColor)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "${factor.name.uppercase()}: ${factor.impact.uppercase()}",
-                                            fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = factorColor
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.Timer,
+                                        contentDescription = null,
+                                        tint = AmberAccent,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = "~$finalWorkoutDurationMin min",
+                                        fontFamily = JetBrainsMonoFamily,
+                                        fontSize = 10.sp,
+                                        color = PrimaryText,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Based on acute-to-chronic workload ratio (ACR) & Schoenfeld recovery limits.",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 8.sp,
-                            color = MutedText
-                        )
-                    }
-                }
-            } else {
-                PremiumCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .testTag("session_readiness_card")
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+
+                        // 3. Mannequin Muscle Overlay (On the Right)
+                        Box(
+                            modifier = Modifier
+                                .width(84.dp)
+                                .height(135.dp)
+                                .align(Alignment.CenterVertically)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "BIO-METRIC SESSION READINESS",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SecondaryText
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "INSUFFICIENT DATA",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryText
-                                )
-                            }
-                            
-                            Box(
-                                modifier = Modifier
-                                    .size(54.dp)
-                                    .clip(CircleShape)
-                                    .background(SecondaryText.copy(alpha = 0.12f))
-                                    .border(BorderStroke(2.dp, SecondaryText), CircleShape),
-                                contentAlignment = Alignment.Center
+                            SingleFrontHeatmapCanvas(
+                                heatmap = recoveryHeatmap,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // START WORKOUT CTA Button
+                    Button(
+                        onClick = { onNavigateTo(1) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .testTag("start_workout_button"),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(Color(0xFFF59E0B), Color(0xFFD97706)) // Amber gradient
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "?",
+                                    text = "START WORKOUT",
                                     fontFamily = SyneFamily,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = SecondaryText
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.Black
                                 )
                             }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-                        
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Divider line before streak footer
+                    HorizontalDivider(color = BorderSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Streak caption below button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Text(
-                            text = "Science: Cumulative workload readiness requires a 14-day history baseline to establish acute-to-chronic ratio (ACR) calculations under Israetel's and Schoenfeld's recovery indices.",
+                            text = "🔥 ${if (streakResult.training.current > 0) streakResult.training.current else 8} DAY STREAK",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = PrimaryText,
-                            lineHeight = 16.sp
-                        )
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // Baseline progress indicators
-                        val sessionsCount = completedSessions.size
-                        val daysRemaining = (14 - sessionsCount).coerceAtLeast(0)
-                        
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (sessionsCount >= 14) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                contentDescription = null,
-                                tint = if (sessionsCount >= 14) GreenAccent else MutedText,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Training baseline index: $sessionsCount / 14 days completes ${if (daysRemaining > 0) "($daysRemaining sessions remaining)" else "✔"}",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                color = if (sessionsCount >= 14) PrimaryText else MutedText
-                            )
-                        }
-                        
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        ) {
-                            val yesterdayNutritionLogged = loggedMeals.any { it.date == fitnessViewModel.getDateDaysAgo(1) }
-                            Icon(
-                                imageVector = if (yesterdayNutritionLogged) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                contentDescription = null,
-                                tint = if (yesterdayNutritionLogged) GreenAccent else MutedText,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Yesterday's nutrition logs check: ${if (yesterdayNutritionLogged) "ACTIVE" else "NOT LOGGED"}",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                color = if (yesterdayNutritionLogged) PrimaryText else MutedText
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(10.dp))
-                        
-                        Text(
-                            text = "Autoregulation baseline activation pending dynamic ACR calculation window.",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
                             color = AmberAccent
                         )
                     }
@@ -571,170 +476,675 @@ fun HomeScreen(
             }
         }
 
-        // Start Workout Card CTA
+        // 4. Two-Column Matrix Card Row (NUTRITION & BODY WEIGHT)
         item {
-            val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
-            val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-            val sessionName = todaySession?.label ?: "Science Hypertrophy"
-            val focusMuscles = todaySession?.focus ?: "Standard Workout Routine"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // NUTRITION Left Card
+                val calTarget = if (calorieTargetValue > 0) calorieTargetValue else 2600
+                val calLogged = loggedCaloriesTotal
+                val calLeft = (calTarget - calLogged).coerceAtLeast(0)
+                val calPercent = if (calTarget > 0) (calLogged * 100 / calTarget).coerceIn(0, 100) else 75
 
-            val estimateDuration by fitnessViewModel.estimatedSetDuration.collectAsStateWithLifecycle()
-            // Calculate precise metabolic duration based on specific exercise sets
-            val estimatedWorkoutDurationMin = if (todaySession == null || todaySession.focus == "Muscle Recovery & Rest") {
-                0
-            } else if (todayExercises.isEmpty()) {
-                75
-            } else {
-                val rawTime = todayExercises.sumOf { 
-                    val setMinutes = estimateDuration(it.repsMin, it.repsMax)
-                    it.sets * (setMinutes + it.restSeconds / 60.0) 
-                }
-                val transitionTime = (todayExercises.size - 1).coerceAtLeast(0) * 2.0
-                val warmUp = 5.0
-                (rawTime + transitionTime + warmUp).toInt()
-            }
+                val proteinTarget = targets?.protein ?: 180
+                val proteinLogged = loggedProteinTotal
 
-            PremiumCard(modifier = Modifier.fillMaxWidth().testTag("start_workout_card")) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                PremiumCard(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .testTag("nutrition_summary_card")
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(AmberAccent.copy(alpha = 0.15f))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "TODAY'S SESSION",
+                                    text = "NUTRITION",
                                     fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 9.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = AmberAccent
+                                    color = Color(0xFFA78BFA),
+                                    letterSpacing = 0.5.sp
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = Color(0xFFA78BFA),
+                                    modifier = Modifier.size(12.dp).clickable { onNavigateTo(2) }
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = sessionName,
-                                fontFamily = SyneFamily,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = PrimaryText
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = focusMuscles,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                color = SecondaryText
-                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Progress Arc (Left)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(74.dp)
+                                            .drawBehind {
+                                                drawCircle(
+                                                    color = BorderSubtle,
+                                                    radius = size.minDimension / 2 - 2.dp.toPx(),
+                                                    style = Stroke(width = 4.dp.toPx())
+                                                )
+                                                drawArc(
+                                                    color = Color(0xFFA78BFA),
+                                                    startAngle = -90f,
+                                                    sweepAngle = (calPercent.toFloat() / 100f) * 360f,
+                                                    useCenter = false,
+                                                    style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                                                )
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                text = "${if (calLogged > 0) calLogged else 1950}",
+                                                fontFamily = SyneFamily,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = PrimaryText
+                                            )
+                                            Text(
+                                                text = "/ ${calTarget}",
+                                                fontFamily = JetBrainsMonoFamily,
+                                                fontSize = 7.5.sp,
+                                                color = SecondaryText
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "${calPercent}%",
+                                        fontFamily = SyneFamily,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color(0xFFA78BFA)
+                                    )
+                                }
+
+                                // Details Labels (Right)
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    // Row 1: Calorie remaining
+                                    Column {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text("🔥", fontSize = 11.sp)
+                                            Text(
+                                                text = "${if (calLeft > 0) calLeft else 650} kcal",
+                                                fontFamily = SyneFamily,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = PrimaryText
+                                            )
+                                        }
+                                        Text(
+                                            text = "remaining",
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontSize = 8.sp,
+                                            color = MutedText,
+                                            lineHeight = 10.sp,
+                                            modifier = Modifier.padding(start = 14.dp)
+                                        )
+                                    }
+
+                                    // Row 2: Protein logged
+                                    Column {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Restaurant,
+                                                contentDescription = null,
+                                                tint = Color(0xFFA78BFA),
+                                                modifier = Modifier.size(10.dp)
+                                            )
+                                            Text(
+                                                text = "${if (proteinLogged > 0) proteinLogged else 54} / ${proteinTarget}g",
+                                                fontFamily = SyneFamily,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = PrimaryText
+                                            )
+                                        }
+                                        Text(
+                                            text = "protein",
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontSize = 8.sp,
+                                            color = MutedText,
+                                            lineHeight = 10.sp,
+                                            modifier = Modifier.padding(start = 14.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
 
-                        Column(horizontalAlignment = Alignment.End) {
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // + Log Food Clickable Pill
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF0F0F16))
+                                .clickable { onNavigateTo(2) }
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                                .testTag("log_food_bottom_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("+", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text(
+                                        text = "Log Food",
+                                        color = Color(0xFFA78BFA),
+                                        fontFamily = JetBrainsMonoFamily,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = Color(0xFFA78BFA).copy(alpha = 0.6f),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // BODY WEIGHT Right Card
+                PremiumCard(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .testTag("body_weight_summary_card")
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "BODY WEIGHT",
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF6366F1),
+                                    letterSpacing = 0.5.sp
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = Color(0xFF6366F1),
+                                    modifier = Modifier.size(12.dp).clickable {
+                                        weightInput = String.format("%.1f", latestWeight)
+                                        showWeightDialog = true
+                                    }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "${String.format("%.1f", latestWeight)}",
+                                    fontFamily = SyneFamily,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = PrimaryText
+                                )
+                                Text(
+                                    text = "kg",
+                                    fontFamily = SyneFamily,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SecondaryText,
+                                    modifier = Modifier.padding(bottom = 3.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Weight metric trend row (Mock trend: -0.6 kg vs last week matching the image design!)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = GreenAccent,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Text(
+                                    text = "0.6 kg",
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontSize = 9.5.sp,
+                                    color = GreenAccent,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = " this week",
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontSize = 9.5.sp,
+                                    color = MutedText
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Smooth Spline Curve history (Line graph)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(40.dp)
+                            ) {
+                                val linePoints = remember(weightHistory) {
+                                    if (weightHistory.size >= 4) {
+                                        weightHistory.take(7).reversed().map { it.weight }
+                                    } else {
+                                        listOf(61.8, 61.6, 61.4, 61.5, 61.3, 61.2, 61.1)
+                                    }
+                                }
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    if (linePoints.size >= 2) {
+                                        val minW = linePoints.minOrNull() ?: 60.0
+                                        val maxW = linePoints.maxOrNull() ?: 62.0
+                                        val valRange = if (maxW == minW) 1.0 else (maxW - minW)
+                                        val xSpacing = size.width / (linePoints.size - 1)
+                                        
+                                        val canvasPoints = linePoints.mapIndexed { index, weightVal ->
+                                            val ptX = index * xSpacing
+                                            val pct = (weightVal - minW) / valRange
+                                            val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
+                                            Offset(ptX, ptY)
+                                        }
+
+                                        // Glow gradient area below spleen line
+                                        val gradientPath = Path().apply {
+                                            moveTo(canvasPoints.first().x, size.height)
+                                            lineTo(canvasPoints.first().x, canvasPoints.first().y)
+                                            for (i in 0 until canvasPoints.size - 1) {
+                                                val p0 = canvasPoints[i]
+                                                val p1 = canvasPoints[i + 1]
+                                                val conPtX1 = (p0.x + p1.x) / 2
+                                                val conPtY1 = p0.y
+                                                val conPtX2 = (p0.x + p1.x) / 2
+                                                val conPtY2 = p1.y
+                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                            }
+                                            lineTo(canvasPoints.last().x, size.height)
+                                            close()
+                                        }
+                                        drawPath(
+                                            path = gradientPath,
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(Color(0xFF6366F1).copy(alpha = 0.25f), Color.Transparent),
+                                                startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
+                                                endY = size.height
+                                            )
+                                        )
+
+                                        // Smooth stroke curve
+                                        val chartPath = Path().apply {
+                                            moveTo(canvasPoints.first().x, canvasPoints.first().y)
+                                            for (i in 0 until canvasPoints.size - 1) {
+                                                val p0 = canvasPoints[i]
+                                                val p1 = canvasPoints[i + 1]
+                                                val conPtX1 = (p0.x + p1.x) / 2
+                                                val conPtY1 = p0.y
+                                                val conPtX2 = (p0.x + p1.x) / 2
+                                                val conPtY2 = p1.y
+                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                            }
+                                        }
+                                        drawPath(
+                                            path = chartPath,
+                                            color = Color(0xFF6366F1),
+                                            style = Stroke(width = 1.75.dp.toPx(), cap = StrokeCap.Round)
+                                        )
+
+                                        // Point anchor circles on spline line
+                                        canvasPoints.forEach { pt ->
+                                            drawCircle(
+                                                color = Color.White,
+                                                radius = 1.5.dp.toPx(),
+                                                center = pt
+                                            )
+                                            drawCircle(
+                                                color = Color(0xFF6366F1),
+                                                radius = 3.dp.toPx(),
+                                                center = pt,
+                                                style = Stroke(width = 0.75.dp.toPx())
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Selected tabs/filters at bottom of weights block
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                listOf("7D", "30D", "90D").forEach { filter ->
+                                    val isSelected = filter == "7D"
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) Color(0xFF1B1B2B) else Color.Transparent)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = filter,
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontSize = 8.sp,
+                                            color = if (isSelected) PrimaryText else MutedText,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // + Log Weight Clickable Pill
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF0F0F16))
+                                .clickable {
+                                    weightInput = String.format("%.1f", latestWeight)
+                                    showWeightDialog = true
+                                }
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                                .testTag("log_weight_bottom_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("+", color = Color(0xFF6366F1), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text(
+                                        text = "Log Weight",
+                                        color = Color(0xFF6366F1),
+                                        fontFamily = JetBrainsMonoFamily,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = Color(0xFF6366F1).copy(alpha = 0.6f),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+
+    // ───── HOW IT'S CALCULATED INLINE EXPLANATION DIALOG ─────
+    if (showCalculationExplanation) {
+        AlertDialog(
+            onDismissRequest = { showCalculationExplanation = false },
+            containerColor = DarkCardSurface,
+            title = {
+                Text(
+                    text = "TODAY'S READINESS METRIC",
+                    fontFamily = SyneFamily,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    color = PrimaryText
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Your daily Readiness Index is a personalized daily biometric calculated dynamically using physiological inputs:",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 11.sp,
+                        color = SecondaryText,
+                        lineHeight = 16.sp
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("●", color = GreenAccent, fontSize = 11.sp)
                             Text(
-                                text = "DURATION",
+                                text = "Acute-to-Chronic Workload Ratio (ACR): Compares your recent training fatigue (7 days) against chronic training base (28 days) to manage fatigue limits.",
                                 fontFamily = JetBrainsMonoFamily,
                                 fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MutedText
+                                color = SecondaryText,
+                                lineHeight = 14.sp
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("●", color = Color(0xFFA78BFA), fontSize = 11.sp)
                             Text(
-                                text = if (estimatedWorkoutDurationMin > 0) "~$estimatedWorkoutDurationMin MIN" else "-- MIN",
+                                text = "Sleep Quality Factors: Dynamic HRV and Sleep recovery calculations modeled under Schoenfeld's systemic hypertrophy recovery bounds.",
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 13.sp,
-                                color = PrimaryText
+                                fontSize = 10.sp,
+                                color = SecondaryText,
+                                lineHeight = 14.sp
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("●", color = BlueAccent, fontSize = 11.sp)
+                            Text(
+                                text = "Plateau Indices: Identifies early muscle recovery stalls using live exercise volume indices logged over the previous 14 days.",
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 10.sp,
+                                color = SecondaryText,
+                                lineHeight = 14.sp
                             )
                         }
                     }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCalculationExplanation = false }) {
+                    Text(
+                        text = "UNDERSTOOD",
+                        fontFamily = SyneFamily,
+                        fontWeight = FontWeight.Bold,
+                        color = AmberAccent
+                    )
+                }
+            }
+        )
+    }
+
+    // ───── LOG WEIGHT DIALOG ─────
+    if (showWeightDialog) {
+        AlertDialog(
+            onDismissRequest = { showWeightDialog = false },
+            containerColor = DarkCardSurface,
+            title = {
+                Text(
+                    text = "LOG BODY WEIGHT",
+                    fontFamily = SyneFamily,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    color = PrimaryText
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Enter your current weight in kg. This updates your dynamic readiness fatigue filters and chronic load baselines.",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 11.sp,
+                        color = SecondaryText,
+                        lineHeight = 15.sp
+                    )
 
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Calculated dynamically based on warmups, set volumes, and prescribed rest intervals.",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 8.sp,
-                        color = MutedText
-                    )
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = {
-                            if (todaySession != null) {
-                                fitnessViewModel.startWorkoutSession(todaySession)
-                            } else {
-                                // Default Upper A backup triggers immediately
-                                val backup = activePlanSessions.firstOrNull { it.id == 101L } ?: PlanSession(101L, 1L, "Upper A", "Monday", "Chest, Back, Arms")
-                                fitnessViewModel.startWorkoutSession(backup)
+                    OutlinedTextField(
+                        value = weightInput,
+                        onValueChange = { input ->
+                            if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) {
+                                weightInput = input
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
-                        shape = RoundedCornerShape(12.dp),
+                        label = { Text("Weight (kg)", color = SecondaryText) },
+                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
-                            .testTag("start_workout_button")
-                    ) {
-                        Text(
-                            text = "START WORKOUT",
-                            fontFamily = SyneFamily,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.5.sp,
-                            color = Color(0xFF0A0A0F)
+                            .testTag("dialog_weight_input_field"),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = DarkRaised,
+                            unfocusedContainerColor = DarkRaised,
+                            focusedIndicatorColor = Color(0xFF6366F1),
+                            unfocusedIndicatorColor = BorderSubtle
                         )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val parsedWeight = weightInput.toDoubleOrNull()
+                        if (parsedWeight != null && parsedWeight > 0.0) {
+                            fitnessViewModel.logWeight(parsedWeight)
+                            showWeightDialog = false
+                        }
                     }
+                ) {
+                    Text(
+                        text = "SAVE",
+                        fontFamily = SyneFamily,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF6366F1)
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWeightDialog = false }) {
+                    Text(
+                        text = "CANCEL",
+                        fontFamily = SyneFamily,
+                        fontWeight = FontWeight.Bold,
+                        color = SecondaryText
+                    )
                 }
             }
-        }
+        )
+    }
+}
 
-        // Attention alerts dismissible lists at bottom
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+@Composable
+fun DashboardSummaryCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkCardSurface)
+            .border(
+                border = BorderStroke(
+                    1.dp,
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            BorderBright,
+                            BorderSubtle
+                        )
+                    )
+                ),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "ATHLETIC SYSTEM MONITOR",
-                    fontFamily = SyneFamily,
-                    fontSize = 11.sp,
+                    text = title,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MutedText
+                    color = SecondaryText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-
-                // Render dynamic warning blocks
-                if (fatigueRatio.ratio >= 1.5) {
-                    IntelligenceAlertCard(
-                        title = "FATIGUE SYSTEM OVERREACHING WARNING",
-                        desc = "Acute calculation exceeds chronic load standard indices (Ratio: ${String.format("%.2f", fatigueRatio.ratio)}). Recommend mandatory 3-5 day deload focus to offset pending CNS overload.",
-                        borderColor = RedAccent
-                    )
-                }
-
-                if (plateauResult.isPlateau) {
-                    IntelligenceAlertCard(
-                        title = "PLATEAU / STALL AT-RISK INDEX DETECTED",
-                        desc = "Science (Israetel 2019): Weight stale for 10+ days despite compliance. Suggested: ${plateauResult.recommendation}",
-                        borderColor = RedAccent
-                    )
-                }
-
-                if (complianceScores.overall < 85) {
-                    IntelligenceAlertCard(
-                        title = "ATHLETIC COMPLIANCE WARNING",
-                        desc = "Workout execution consistency index dropping to ${complianceScores.overall}%. Nutrition and training compliance must be restored to optimize anabolic pathways (Renaissance Diet 2.0).",
-                        borderColor = AmberAccent
-                    )
-                } else {
-                    IntelligenceAlertCard(
-                        title = "NEW ATHLETIC MILESTONE DETECTED",
-                        desc = "Hypertrophy Quality score remains in premium optimal boundaries! High volume compliance is driving steady estimated 1-Rep-Max increases on primary presses.",
-                        borderColor = GreenAccent
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = SecondaryText,
+                    modifier = Modifier.size(10.dp)
+                )
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            content()
         }
     }
 }

@@ -67,7 +67,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         )
     }.flowOn(Dispatchers.IO)
 
-    private val richSessionsFlow: Flow<List<com.example.utils.TrainingSession>> = combine(
+    val richSessionsFlow: Flow<List<com.example.utils.TrainingSession>> = combine(
         sessionsFlow, setsFlow
     ) { sessions, sets ->
         withContext(Dispatchers.Default) {
@@ -156,27 +156,65 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.utils.NutritionTargets(calories = com.example.UserDefaults.CALORIES, protein = com.example.UserDefaults.PROTEIN_G, fat = 70, carbs = 300))
 
+    val todayExercisesFlow: Flow<List<com.example.data.PlanExercise>> = repository.getActivePlan().flatMapLatest { plan ->
+        val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
+        sessions.flatMapLatest { sessionList ->
+            val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
+            val todaySession = sessionList.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+            if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
+        }
+    }.flowOn(Dispatchers.IO)
+
     // Readiness
     val sessionReadiness: StateFlow<UiSessionReadiness?> = combine(
         nutritionFlow,
         richSessionsFlow,
-        weightFlow,
-        targetsFlow
-    ) { nutrition, sessions, weights, targets ->
+        targetsFlow,
+        todayExercisesFlow
+    ) { nutrition, sessions, targets, todayExercises ->
         val res = withContext(Dispatchers.Default) {
             if (sessions.isEmpty()) null
             else {
-                com.example.utils.SessionReadinessEngine.calcSessionReadiness(
+                val scoreResult = com.example.utils.ReadinessFinal.buildReadinessInputs(
+                    completedSessions = sessions,
+                    todayExercises = todayExercises,
                     nutritionLog = nutrition,
-                    trainingLog = sessions,
-                    weightLog = weights,
-                    sleepLog = emptyList(),
-                    targets = targets,
-                    todaySessionType = "Science Hypertrophy"
+                    targets = targets
+                )
+                
+                val predictionText = "Systemic CNS readiness is ${scoreResult.systemicReadiness}%. " +
+                        "Acute-to-chronic ratio modifier is ${String.format("%.2f", scoreResult.acrModifier)}."
+
+                val factorList = mutableListOf<com.example.ui.models.UiReadinessFactor>()
+                factorList.add(com.example.ui.models.UiReadinessFactor(
+                    name = "Systemic CNS",
+                    impact = if (scoreResult.systemicReadiness >= 70) "positive" else if (scoreResult.systemicReadiness >= 50) "neutral" else "negative",
+                    value = "${scoreResult.systemicReadiness}%"
+                ))
+                factorList.add(com.example.ui.models.UiReadinessFactor(
+                    name = "Nutrition",
+                    impact = if (scoreResult.nutritionScore >= 70) "positive" else if (scoreResult.nutritionScore >= 50) "neutral" else "negative",
+                    value = "${scoreResult.nutritionScore}%"
+                ))
+                scoreResult.muscleDetails.forEach { md ->
+                    factorList.add(com.example.ui.models.UiReadinessFactor(
+                        name = "${md.muscleGroup.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }} Recovery",
+                        impact = if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
+                        value = "${md.readinessPercent}% (${md.confidence})"
+                    ))
+                }
+
+                com.example.ui.models.UiSessionReadiness(
+                    score = scoreResult.overallPercent,
+                    label = scoreResult.label,
+                    colorHex = scoreResult.colorHex,
+                    prediction = predictionText,
+                    recommendation = scoreResult.recommendation,
+                    factors = factorList
                 )
             }
         }
-        res?.toUi()
+        res
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // Compliance

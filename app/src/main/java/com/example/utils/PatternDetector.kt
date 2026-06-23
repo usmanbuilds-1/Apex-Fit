@@ -38,10 +38,14 @@ object PatternDetector {
         val dayGroups = mutableMapOf<Int, MutableList<NutritionEntry>>()
 
         nutritionLog.forEach { entry ->
-            val cal = Calendar.getInstance()
-            cal.time = SimpleDateFormat("yyyy-MM-dd").parse(entry.date) ?: return@forEach
-            val dow = cal.get(Calendar.DAY_OF_WEEK)
-            dayGroups.getOrPut(dow) { mutableListOf() }.add(entry)
+            try {
+                val cal = Calendar.getInstance()
+                cal.time = SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(entry.date) ?: return@forEach
+                val dow = cal.get(Calendar.DAY_OF_WEEK)
+                dayGroups.getOrPut(dow) { mutableListOf() }.add(entry)
+            } catch (e: Exception) {
+                // Ignore parsing errors safely
+            }
         }
 
         val overallAvgCalories = nutritionLog.map { it.calories }.average()

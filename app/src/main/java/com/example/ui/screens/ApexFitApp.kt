@@ -189,14 +189,26 @@ fun ApexFitApp(
             topBar = {
                 CenterAlignedTopAppBar(
                     title = {
-                        Text(
-                            text = "APEX FIT",
-                            fontFamily = SyneFamily,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = PrimaryText,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
                             modifier = Modifier.testTag("app_logo")
-                        )
+                        ) {
+                            Text(
+                                text = "APEX ",
+                                fontFamily = SyneFamily,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "FIT",
+                                fontFamily = SyneFamily,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Black,
+                                color = AmberAccent
+                            )
+                        }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = DarkBackground
@@ -997,10 +1009,11 @@ fun RirSelectorOverlay(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = 540.dp) // Prevents clipping at top/bottom on smaller phone screens
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF0F0F14))
                 .border(BorderStroke(1.dp, AmberAccent.copy(alpha = 0.25f)), RoundedCornerShape(24.dp))
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(remember(isShowingHistory) { ScrollState(0) })
                 .padding(24.dp)
         ) {
             if (!isShowingHistory) {
