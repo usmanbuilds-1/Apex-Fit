@@ -28,5 +28,9 @@ interface FitnessRepository {
     suspend fun getAllWeightEntries(): List<WeightEntry>
     fun getAllNutritionEntriesFlow(): Flow<List<NutritionEntry>>
     suspend fun getSetsForSession(sessionId: String): List<ExerciseSet>
-    suspend fun insertWeeklyReport(report: WeeklyReport)
+    suspend fun getAllCompletedSessions(): List<TrainingSession>
+    suspend fun getAllExerciseSets(): List<ExerciseSet>
+    fun getCalorieTargetFlow(): Flow<Int>
+    fun getGoalFlow(): Flow<String>
+    fun getCurrentWeightFlow(): Flow<Double>
 }

@@ -4,6 +4,7 @@ import com.example.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
@@ -61,6 +62,68 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
             userWeight * 2.205
         }
 
+        // Calculate per-muscle readiness
+        val readinessScore = try {
+            val sessionsRaw = repository.getAllCompletedSessions()
+            val setsRaw = repository.getAllExerciseSets()
+            
+            // Build rich sessions
+            val setsBySession = setsRaw.groupBy { it.sessionId }
+            val completedRichSessions = sessionsRaw.map { sessionObj ->
+                val sessionSets = setsBySession[sessionObj.id.toString()] ?: emptyList()
+                val sessionExercises = sessionSets
+                    .groupBy { it.exerciseId }
+                    .map { (exerciseId, exSets) ->
+                        com.example.utils.ExerciseLog(
+                            id = exerciseId,
+                            name = exSets.first().exerciseName,
+                            muscleGroup = exSets.first().muscleGroup,
+                            sets = exSets.map { s ->
+                                com.example.utils.ExerciseSet(
+                                    weight = s.weight,
+                                    reps = s.reps,
+                                    rpe = s.rpe,
+                                    isWarmup = s.isWarmup,
+                                    completed = s.completed
+                                )
+                            }
+                        )
+                    }
+                com.example.utils.TrainingSession(
+                    date = sessionObj.date,
+                    sessionType = sessionObj.sessionType,
+                    completed = sessionObj.completed,
+                    sessionFeel = sessionObj.sessionFeel,
+                    durationMinutes = sessionObj.durationMinutes,
+                    exercises = sessionExercises
+                )
+            }
+
+            val nutritionLog = repository.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList()
+            val calorieTarget = repository.getCalorieTargetFlow().firstOrNull() ?: com.example.UserDefaults.CALORIES
+            val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.example.UserDefaults.WEIGHT_KG
+            
+            val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250)
+            val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
+            val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
+            val targets = com.example.utils.NutritionTargets(
+                calories = calorieTarget,
+                protein = proteinTarget,
+                carbs = carbsTarget,
+                fat = fatTarget,
+                weeklyTrainingSessions = 4
+            )
+
+            com.example.utils.ReadinessFinal.buildReadinessInputs(
+                completedSessions = completedRichSessions,
+                todayExercises = exercises,
+                nutritionLog = nutritionLog,
+                targets = targets
+            )
+        } catch (e: Exception) {
+            null
+        }
+
         exercises.forEach { ex ->
             val lastSet = repository.getLastSetForExercise(ex.id.toString())
             val exType = com.example.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
@@ -93,12 +156,16 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
                     lastSet.weight * 2.205
                 }
 
+                val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
+                val readinessPercent = muscleReadinessDetail?.readinessPercent
+
                 suggestedLbs = com.example.utils.ProgressionEngine.calculateProgressiveWeight(
                     lastWeight = lastWeightLbs,
                     lastRPE = lastSet.rpe,
                     daysSinceLastSession = daysSince,
                     userBodyWeightLbs = userBodyWeightLbs,
-                    exerciseType = exType
+                    exerciseType = exType,
+                    muscleReadinessPercent = readinessPercent
                 )
 
                 val suggestedPreferred = if (preferredUnits.lowercase() == "lbs") {
@@ -110,7 +177,8 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
 
                 suggestionsMap[ex.id.toString()] = suggestedPreferred
                 lastWeightMap[ex.id.toString()] = lastSet.weight
-                contextLinesMap[ex.id.toString()] = "Last: ${lastSet.weight} $preferredUnits @ RPE ${lastSet.rpe} ($daysSince days ago) → Suggested: $suggestedPreferred $preferredUnits"
+                val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
+                contextLinesMap[ex.id.toString()] = "Last: ${lastSet.weight} $preferredUnits @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $preferredUnits"
             }
         }
 

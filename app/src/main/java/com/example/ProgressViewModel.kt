@@ -106,14 +106,10 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         val thisMonthSessionIds = thisMonthSessions.map { it.id }.toSet()
         val finishedSets = allSets.filter { it.completed && !it.isWarmup && it.sessionId in thisMonthSessionIds }
         
-        val axes = listOf("Chest", "Back", "Shoulders", "Biceps", "Triceps", "Legs")
+        val axes = com.example.utils.MuscleGroups.ALL
         axes.associateWith { axis ->
             finishedSets.count { set ->
-                if (axis == "Legs") {
-                    set.muscleGroup.lowercase() in listOf("quads", "quadriceps", "hamstrings", "calves", "glutes")
-                } else {
-                    set.muscleGroup.lowercase().trim() == axis.lowercase().trim()
-                }
+                set.muscleGroup.lowercase().trim() == axis.lowercase().trim()
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
@@ -199,6 +195,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             "shoulders" -> g in listOf("shoulders", "front delts", "side delts", "rear delts", "side_delt", "rear_delt")
             "back" -> g in listOf("back", "upper back", "lats", "trapezius")
             "quads" -> g in listOf("quads", "quadriceps")
+            "core" -> g in listOf("abs", "core", "obliques")
             "abs" -> g in listOf("abs", "core", "obliques")
             "lower back" -> g in listOf("lower back", "lower_back")
             else -> false
@@ -211,7 +208,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         val allSets = dao.getAllExerciseSets()
         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
         
-        val muscles = listOf("Chest", "Shoulders", "Triceps", "Back", "Biceps", "Quads", "Hamstrings", "Glutes", "Calves", "Abs", "Lower Back")
+        val muscles = com.example.utils.MuscleGroups.ALL
         
         muscles.map { muscle ->
             val matchingSets = allSets.filter { set ->

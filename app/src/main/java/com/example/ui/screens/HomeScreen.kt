@@ -707,13 +707,13 @@ fun HomeScreen(
                                     fontFamily = JetBrainsMonoFamily,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF6366F1),
+                                    color = IndigoAccent,
                                     letterSpacing = 0.5.sp
                                 )
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = Color(0xFF6366F1),
+                                    tint = IndigoAccent,
                                     modifier = Modifier.size(12.dp).clickable {
                                         weightInput = String.format("%.1f", latestWeight)
                                         showWeightDialog = true
@@ -821,7 +821,7 @@ fun HomeScreen(
                                         drawPath(
                                             path = gradientPath,
                                             brush = Brush.verticalGradient(
-                                                colors = listOf(Color(0xFF6366F1).copy(alpha = 0.25f), Color.Transparent),
+                                                colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
                                                 startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
                                                 endY = size.height
                                             )
@@ -842,7 +842,7 @@ fun HomeScreen(
                                         }
                                         drawPath(
                                             path = chartPath,
-                                            color = Color(0xFF6366F1),
+                                            color = IndigoAccent,
                                             style = Stroke(width = 1.75.dp.toPx(), cap = StrokeCap.Round)
                                         )
 
@@ -854,7 +854,7 @@ fun HomeScreen(
                                                 center = pt
                                             )
                                             drawCircle(
-                                                color = Color(0xFF6366F1),
+                                                color = IndigoAccent,
                                                 radius = 3.dp.toPx(),
                                                 center = pt,
                                                 style = Stroke(width = 0.75.dp.toPx())
@@ -916,10 +916,10 @@ fun HomeScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text("+", color = Color(0xFF6366F1), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("+", color = IndigoAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     Text(
                                         text = "Log Weight",
-                                        color = Color(0xFF6366F1),
+                                        color = IndigoAccent,
                                         fontFamily = JetBrainsMonoFamily,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
@@ -928,7 +928,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = Color(0xFF6366F1).copy(alpha = 0.6f),
+                                    tint = IndigoAccent.copy(alpha = 0.6f),
                                     modifier = Modifier.size(11.dp)
                                 )
                             }
@@ -1056,7 +1056,7 @@ fun HomeScreen(
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = DarkRaised,
                             unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = Color(0xFF6366F1),
+                            focusedIndicatorColor = IndigoAccent,
                             unfocusedIndicatorColor = BorderSubtle
                         )
                     )
@@ -1076,7 +1076,7 @@ fun HomeScreen(
                         text = "SAVE",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6366F1)
+                        color = IndigoAccent
                     )
                 }
             },

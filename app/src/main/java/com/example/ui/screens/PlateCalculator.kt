@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.SyneFamily
 import com.example.ui.theme.JetBrainsMonoFamily
+import com.example.ui.theme.IndigoAccent
 
 @Composable
 fun PlateCalculatorCard(
@@ -33,7 +34,7 @@ fun PlateCalculatorCard(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E)),
-        border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, IndigoAccent.copy(alpha = 0.4f)),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -42,7 +43,7 @@ fun PlateCalculatorCard(
                 fontFamily = SyneFamily,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF6366F1),
+                color = IndigoAccent,
                 modifier = Modifier.padding(bottom = 6.dp)
             )
 
@@ -63,7 +64,7 @@ fun PlateCalculatorCard(
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color(0xFF0F0F1A),
                         unfocusedContainerColor = Color(0xFF0F0F1A),
-                        focusedIndicatorColor = Color(0xFF6366F1),
+                        focusedIndicatorColor = IndigoAccent,
                         unfocusedIndicatorColor = Color(0xFF131324)
                     )
                 )

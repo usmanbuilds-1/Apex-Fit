@@ -30,7 +30,6 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     val goal = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Gain Muscle")
     val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.WEIGHT_KG)
     val goalWeight = dataStore.goalWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.WEIGHT_KG)
-    val geminiApiKey = dataStore.geminiApiKeyFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
     val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "kg")
     
     val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.UserDefaults.HEIGHT_CM)
@@ -63,7 +62,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
 
     fun completeOnboarding(username: String, goal: String, currentWeight: Double, goalWeight: Double, apiKey: String, height: Double = com.example.UserDefaults.HEIGHT_CM, age: Int = com.example.UserDefaults.AGE_YEARS, sex: String = "male") {
         viewModelScope.launch {
-            dataStore.saveOnboardingData(username, goal, currentWeight, goalWeight, apiKey, height, age, sex)
+            dataStore.saveOnboardingData(username, goal, currentWeight, goalWeight, height, age, sex)
         }
     }
 
@@ -72,7 +71,6 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
             dataStore.saveUsername(name)
             dataStore.saveGoal(userGoal)
             dataStore.saveUnits(targetUnit)
-            dataStore.saveApiKey(key)
             dataStore.saveEquipment(equipment)
             dataStore.saveBiologicalParameters(height, age, sex)
         }
@@ -95,10 +93,6 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = { _, _ -> 3 }
     )
-
-    // Parsing / scanning loading states
-    private val _isCoachLoading = MutableStateFlow(false)
-    val isCoachLoading: StateFlow<Boolean> = _isCoachLoading.asStateFlow()
 
     // ─────────────────────────────────────────────────────────────────
     // Delegated actions and methods relocated to specialized ViewModels
@@ -251,27 +245,6 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         homeVM.deleteWeight(date)
     }
 
-    fun analyseMealPhotoGemini(
-        bitmapBytes: ByteArray,
-        onComplete: (String, Int, Double, Double, Double) -> Unit,
-        onFailure: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            _isCoachLoading.value = true
-            nutritionVM.analyseMealPhotoGemini(
-                bitmapBytes,
-                onComplete = { name, cal, prot, carb, fat ->
-                    _isCoachLoading.value = false
-                    onComplete(name, cal, prot, carb, fat)
-                },
-                onFailure = { err ->
-                    _isCoachLoading.value = false
-                    onFailure(err)
-                }
-            )
-        }
-    }
-
     fun resetAllData() {
         viewModelScope.launch {
             db.clearAllTables()
@@ -281,27 +254,6 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
 
     fun getCurrentLocalTimeString(): String {
         return java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US).format(java.util.Date())
-    }
-
-    fun uploadPlanTextGemini(
-        rawText: String,
-        onComplete: (WorkoutPlan, List<PlanSession>, List<PlanExercise>) -> Unit,
-        onFailure: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            _isCoachLoading.value = true
-            trainVM.uploadPlanTextGemini(
-                rawText,
-                onComplete = { p, s, e ->
-                    _isCoachLoading.value = false
-                    onComplete(p, s, e)
-                },
-                onFailure = { err ->
-                    _isCoachLoading.value = false
-                    onFailure(err)
-                }
-            )
-        }
     }
 
     fun saveImportedWorkoutPlan(

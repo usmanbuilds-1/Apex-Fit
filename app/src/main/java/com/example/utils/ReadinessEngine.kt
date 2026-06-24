@@ -8,11 +8,18 @@ enum class MuscleSize { SMALL, MEDIUM, LARGE }
 
 object MuscleRecoveryData {
     private val sizeMap = mapOf(
-        "bicep" to MuscleSize.SMALL, "tricep" to MuscleSize.SMALL,
-        "calf" to MuscleSize.SMALL, "forearm" to MuscleSize.SMALL, "abs" to MuscleSize.SMALL,
-        "side_delt" to MuscleSize.MEDIUM, "rear_delt" to MuscleSize.MEDIUM,
-        "front_delt" to MuscleSize.MEDIUM, "hamstring" to MuscleSize.MEDIUM, "glute" to MuscleSize.MEDIUM,
-        "chest" to MuscleSize.LARGE, "back" to MuscleSize.LARGE, "quad" to MuscleSize.LARGE
+        "biceps" to MuscleSize.SMALL,
+        "triceps" to MuscleSize.SMALL,
+        "calves" to MuscleSize.SMALL,
+        "core" to MuscleSize.SMALL,
+        "cardio" to MuscleSize.SMALL,
+        "shoulders" to MuscleSize.MEDIUM,
+        "hamstrings" to MuscleSize.MEDIUM,
+        "glutes" to MuscleSize.MEDIUM,
+        "chest" to MuscleSize.LARGE,
+        "back" to MuscleSize.LARGE,
+        "quads" to MuscleSize.LARGE,
+        "full body" to MuscleSize.LARGE
     )
 
     private val tauDays = mapOf(
@@ -22,22 +29,22 @@ object MuscleRecoveryData {
     )
 
     private val secondaryMap = mapOf(
-        "bench" to listOf("front_delt" to 0.40, "tricep" to 0.30),
-        "incline_bench" to listOf("front_delt" to 0.50, "chest" to 0.30),
-        "barbell_row" to listOf("rear_delt" to 0.35, "bicep" to 0.25),
-        "deadlift" to listOf("hamstring" to 0.50, "back" to 0.30, "glute" to 0.35),
-        "squat" to listOf("hamstring" to 0.40, "glute" to 0.40),
-        "ohp" to listOf("front_delt" to 0.60, "tricep" to 0.50),
-        "pullup" to listOf("rear_delt" to 0.35, "bicep" to 0.60),
-        "dumbbell_row" to listOf("rear_delt" to 0.30, "bicep" to 0.20),
-        "cable_lateral_raise" to listOf("front_delt" to 0.40),
-        "face_pull" to listOf("rear_delt" to 0.70, "bicep" to 0.20),
-        "curl" to listOf("forearm" to 0.30),
-        "leg_press" to listOf("hamstring" to 0.35, "glute" to 0.30),
-        "leg_curl" to listOf("glute" to 0.25)
+        "bench" to listOf("Shoulders" to 0.40, "Triceps" to 0.30),
+        "incline_bench" to listOf("Shoulders" to 0.50, "Chest" to 0.30),
+        "barbell_row" to listOf("Shoulders" to 0.35, "Biceps" to 0.25),
+        "deadlift" to listOf("Hamstrings" to 0.50, "Back" to 0.30, "Glutes" to 0.35),
+        "squat" to listOf("Hamstrings" to 0.40, "Glutes" to 0.40),
+        "ohp" to listOf("Shoulders" to 0.60, "Triceps" to 0.50),
+        "pullup" to listOf("Shoulders" to 0.35, "Biceps" to 0.60),
+        "dumbbell_row" to listOf("Shoulders" to 0.30, "Biceps" to 0.20),
+        "cable_lateral_raise" to listOf("Shoulders" to 0.40),
+        "face_pull" to listOf("Shoulders" to 0.70, "Biceps" to 0.20),
+        "curl" to listOf("Core" to 0.30),
+        "leg_press" to listOf("Hamstrings" to 0.35, "Glutes" to 0.30),
+        "leg_curl" to listOf("Glutes" to 0.25)
     )
 
-    fun tauFor(muscleGroup: String): Double = tauDays[sizeMap[muscleGroup] ?: MuscleSize.MEDIUM] ?: 1.2
+    fun tauFor(muscleGroup: String): Double = tauDays[sizeMap[muscleGroup.lowercase().trim()] ?: MuscleSize.MEDIUM] ?: 1.2
 
     fun getSecondaryMuscles(exerciseName: String): List<Pair<String, Double>> {
         val normalized = exerciseName.lowercase().replace(" ", "_")

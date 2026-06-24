@@ -7,7 +7,7 @@ import java.util.Date
 object PatternDetector {
 
     // ── MASTER PATTERN SCAN ───────────────────────────────────
-    // Run this weekly alongside Gemini report generation
+    // Run this weekly alongside weekly report generation
     // Returns all detected patterns with confidence scores
     fun scanAllPatterns(
         weightLog: List<WeightEntry>,

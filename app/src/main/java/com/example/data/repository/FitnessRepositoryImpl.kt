@@ -40,6 +40,13 @@ class FitnessRepositoryImpl(
     override suspend fun updateWorkoutPlan(plan: WorkoutPlan, sessions: List<PlanSession>, exercises: List<PlanExercise>) {
         dao.deactivateAllPlans()
         dao.insertWorkoutPlan(plan)
+        // Clean up old sessions and their exercises
+        val oldSessions = dao.getSessionsForPlan(plan.id)
+        oldSessions.forEach {
+            dao.deleteExercisesForPlanSession(it.id)
+        }
+        dao.deleteSessionsForPlan(plan.id)
+        // Insert new ones
         sessions.forEach { dao.insertPlanSession(it) }
         exercises.forEach { dao.insertPlanExercise(it) }
     }
@@ -106,7 +113,23 @@ class FitnessRepositoryImpl(
         return dao.getSetsForSession(sessionId)
     }
 
-    override suspend fun insertWeeklyReport(report: WeeklyReport) {
-        dao.insertWeeklyReport(report)
+    override suspend fun getAllCompletedSessions(): List<TrainingSession> {
+        return dao.getAllCompletedSessions()
+    }
+
+    override suspend fun getAllExerciseSets(): List<ExerciseSet> {
+        return dao.getAllExerciseSets()
+    }
+
+    override fun getCalorieTargetFlow(): Flow<Int> {
+        return dataStore.calorieTargetValueFlow
+    }
+
+    override fun getGoalFlow(): Flow<String> {
+        return dataStore.goalFlow
+    }
+
+    override fun getCurrentWeightFlow(): Flow<Double> {
+        return dataStore.currentWeightFlow
     }
 }

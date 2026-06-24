@@ -51,6 +51,9 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allPlanExercises = dao.getAllPlanExercisesFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val selectedDaySession = combine(activePlanSessions, _selectedDayOfWeek) { sessions, day ->
         sessions.firstOrNull { it.day.equals(day, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -611,69 +614,17 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private val geminiService = com.example.network.GeminiService(dataStore, repository)
-
-    fun uploadPlanTextGemini(
-        rawText: String,
-        onComplete: (WorkoutPlan, List<PlanSession>, List<PlanExercise>) -> Unit,
-        onFailure: (String) -> Unit
+    fun saveImportedWorkoutPlan(
+        plan: WorkoutPlan,
+        sessions: List<PlanSession>,
+        exercises: List<PlanExercise>
     ) {
         viewModelScope.launch {
-            try {
-                val result = geminiService.parseWorkoutPlan(rawText)
-                if (result.isSuccess) {
-                    val parsedDays = result.getOrThrow()
-                    val planId = System.currentTimeMillis()
-                    val plan = WorkoutPlan(
-                        id = planId,
-                        name = "AI Imported Split",
-                        goal = "Gain Muscle",
-                        isActive = true,
-                        createdAt = System.currentTimeMillis()
-                    )
-                    val sessions = mutableListOf<PlanSession>()
-                    val exercises = mutableListOf<PlanExercise>()
-
-                    parsedDays.forEachIndexed { sIdx, day ->
-                        val sessionId = planId + 100 + sIdx
-                        sessions.add(
-                            PlanSession(
-                                id = sessionId,
-                                planId = planId,
-                                label = day.label,
-                                day = day.day,
-                                focus = day.label
-                            )
-                        )
-                        day.exercises.forEachIndexed { eIdx, ex ->
-                            val exerciseId = sessionId * 100 + eIdx
-                            exercises.add(
-                                PlanExercise(
-                                    id = exerciseId,
-                                    planSessionId = sessionId,
-                                    name = ex.name,
-                                    muscleGroup = ex.muscleGroup,
-                                    sets = ex.sets,
-                                    repsMin = ex.repsMin,
-                                    repsMax = ex.repsMax,
-                                    weight = 0.0,
-                                    restSeconds = ex.restSeconds,
-                                    notes = ""
-                                )
-                            )
-                        }
-                    }
-                    onComplete(plan, sessions, exercises)
-                } else {
-                    onFailure(result.exceptionOrNull()?.message ?: "Unknown AI analysis failure")
-                }
-            } catch (e: Exception) {
-                onFailure(e.message ?: "Unknown error")
-            }
+            repository.updateWorkoutPlan(plan, sessions, exercises)
         }
     }
 
-    fun saveImportedWorkoutPlan(
+    fun updateWorkoutPlan(
         plan: WorkoutPlan,
         sessions: List<PlanSession>,
         exercises: List<PlanExercise>
@@ -723,7 +674,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
             PlanExercise(id = 10305L, planSessionId = 103L, name = "Hammer Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 10, repsMax = 15, weight = 15.0, restSeconds = 90, notes = "Focus on brachialis and forearm development."),
 
             // Friday - Lower B
-            PlanExercise(id = 10401L, planSessionId = 104L, name = "Conventional Deadlift", muscleGroup = "Core", sets = 3, repsMin = 5, repsMax = 5, weight = 120.0, restSeconds = 180, notes = "Full reset each rep, do not bounce."),
+            PlanExercise(id = 10401L, planSessionId = 104L, name = "Conventional Deadlift", muscleGroup = "Back", sets = 3, repsMin = 5, repsMax = 5, weight = 120.0, restSeconds = 180, notes = "Full reset each rep, do not bounce."),
             PlanExercise(id = 10402L, planSessionId = 104L, name = "Bulgarian Split Squat", muscleGroup = "Quads", sets = 3, repsMin = 8, repsMax = 12, weight = 16.0, restSeconds = 90, notes = "Load front heel, maintain vertical spine."),
             PlanExercise(id = 10403L, planSessionId = 104L, name = "Leg Extension", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 15, weight = 60.0, restSeconds = 90, notes = "Peak contraction at top."),
             PlanExercise(id = 10404L, planSessionId = 104L, name = "Lying Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 12, weight = 40.0, restSeconds = 90, notes = "Keep hips flat against the pad."),

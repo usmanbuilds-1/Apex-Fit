@@ -420,29 +420,6 @@ object AlgorithmEngine {
         return signals
     }
 
-    // ── WEEKLY REPORT FOR GEMINI ──────────────────────────────
-    fun buildGeminiWeeklyPrompt(weightLog: List<WeightEntry>, nutritionLog: List<NutritionEntry>, trainingLog: List<TrainingSession>, targets: NutritionTargets, goal: String): String {
-        val trendWeight = getCurrentTrendWeight(weightLog)
-        val direction = getWeightDirection(weightLog)
-        val tdee = calcAdaptiveTDEE(weightLog, nutritionLog)
-        val compliance = calcComplianceScores(nutritionLog, trainingLog, targets)
-        val fatigue = calcFatigueToFitness(trainingLog)
-        val plateau = detectPlateau(weightLog, nutritionLog, trainingLog)
-        val deload = calcDeloadRecommendation(trainingLog, compliance.overall)
-        return """
-You are a science-based fitness and nutrition coach. Write a personalised weekly check-in in 4 short paragraphs. Be direct, specific, motivating. No generic advice. Cite the mechanism behind every recommendation.
-
-BODY: Trend weight ${trendWeight?.let { "$it kg" } ?: "no data"}, direction: $direction, goal: $goal
-NUTRITION: Calories ${compliance.calories}%, Protein ${compliance.protein}%, Overall ${compliance.overall}%, Weakest day: ${compliance.weakestDay}
-TDEE: ${tdee.tdee?.let { "$it kcal (${tdee.confidence} confidence)" } ?: "insufficient data"}
-FATIGUE: ${fatigue.statusLabel} (ratio: ${fatigue.ratio?.let { "%.2f".format(it) } ?: "N/A"}) — ${fatigue.recommendation}
-PLATEAU: ${if (plateau.plateau) "YES — ${plateau.severity}" else "No"}
-DELOAD: ${deload.recommendation}
-
-Para 1: What went well with specific numbers. Para 2: One nutrition adjustment. Para 3: One training focus. Para 4: Identity statement and next week single priority.
-        """.trimIndent()
-    }
-
     // ── UTILITIES ─────────────────────────────────────────────
     fun getDateDaysAgo(days: Int): String {
         val cal = java.util.Calendar.getInstance()

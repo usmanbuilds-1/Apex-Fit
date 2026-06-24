@@ -123,7 +123,7 @@ fun NutritionScreen(
                                 drawCircle(BorderSubtle, size.minDimension / 2, style = Stroke(6.dp.toPx()))
                                 val progress = (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f)
                                 drawArc(
-                                    color = if (loggedCalories >= calorieTarget) GreenAccent else Color(0xFF6366F1),
+                                    color = if (loggedCalories >= calorieTarget) GreenAccent else IndigoAccent,
                                     startAngle = -90f,
                                     sweepAngle = progress * 360f,
                                     useCenter = false,
@@ -314,42 +314,7 @@ fun AddFoodSheet(
     val computedCalFromMacros = ((inputProt.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputCarb.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputFat.toDoubleOrNull() ?: 0.0) * 9.0)
     val showMacroCalWarning = computedCalFromMacros > 5000.0
 
-    val isScanning by fitnessViewModel.isCoachLoading.collectAsStateWithLifecycle()
-
     val context = LocalContext.current
-
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        if (uri != null) {
-            try {
-                val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-                val bytes = inputStream?.readBytes()
-                if (bytes != null) {
-                    fitnessViewModel.analyseMealPhotoGemini(
-                        bitmapBytes = bytes,
-                        onComplete = { name, cal, prot, carb, fat ->
-                            inputCal = cal.toString()
-                            inputProt = prot.toString()
-                            inputCarb = carb.toString()
-                            inputFat = fat.toString()
-                            querySearch = name
-                            calError = ""
-                            protError = ""
-                            carbError = ""
-                            fatError = ""
-                            Toast.makeText(context, "AI scanned meal and pre-filled macro values!", Toast.LENGTH_SHORT).show()
-                        },
-                        onFailure = { err ->
-                            Toast.makeText(context, err, Toast.LENGTH_LONG).show()
-                        }
-                    )
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("ApexFit", "Error: ${e.message}", e)
-            }
-        }
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -364,29 +329,6 @@ fun AddFoodSheet(
                     color = AmberAccent,
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF201705))
-                        .border(BorderStroke(1.dp, AmberAccent), RoundedCornerShape(10.dp))
-                        .clickable { imagePickerLauncher.launch("image/*") }
-                        .padding(14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.PhotoCamera, contentDescription = "Cam", tint = AmberAccent)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = if (isScanning) "AI ANALYSING PHOTO..." else "VISION SCAN MEAL PHOTO WITH AI",
-                            fontFamily = SyneFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = PrimaryText
-                        )
-                    }
-                }
 
                 OutlinedTextField(
                     value = querySearch,
@@ -705,7 +647,7 @@ fun AdaptiveCalorieTargetCard(
                 Icon(
                     Icons.Default.TrendingUp,
                     contentDescription = "Adaptive",
-                    tint = Color(0xFF6366F1),
+                    tint = IndigoAccent,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -752,7 +694,7 @@ fun AdaptiveCalorieTargetCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(36.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                            colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent)
                         ) {
                             Text(
                                 "ACCEPT TARGET",

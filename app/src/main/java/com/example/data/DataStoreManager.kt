@@ -22,7 +22,6 @@ class DataStoreManager(private val context: Context) {
         val GOAL_KEY = stringPreferencesKey("goal")
         val CURRENT_WEIGHT_KEY = doublePreferencesKey("current_weight")
         val GOAL_WEIGHT_KEY = doublePreferencesKey("goal_weight")
-        val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val UNITS_KEY = stringPreferencesKey("units") // "kg" or "lbs"
         val CALORIE_TARGET_MANUAL_KEY = booleanPreferencesKey("calorie_target_manual")
         val CALORIE_TARGET_VALUE_KEY = intPreferencesKey("calorie_target_value")
@@ -50,10 +49,6 @@ class DataStoreManager(private val context: Context) {
 
     val goalWeightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
         preferences[GOAL_WEIGHT_KEY] ?: com.example.UserDefaults.WEIGHT_KG
-    }
-
-    val geminiApiKeyFlow: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[GEMINI_API_KEY] ?: ""
     }
 
     val unitsFlow: Flow<String> = context.dataStore.data.map { preferences ->
@@ -89,7 +84,6 @@ class DataStoreManager(private val context: Context) {
         goal: String,
         currentWeight: Double,
         goalWeight: Double,
-        apiKey: String,
         height: Double = com.example.UserDefaults.HEIGHT_CM,
         age: Int = com.example.UserDefaults.AGE_YEARS,
         sex: String = "male"
@@ -99,7 +93,6 @@ class DataStoreManager(private val context: Context) {
             preferences[GOAL_KEY] = goal
             preferences[CURRENT_WEIGHT_KEY] = currentWeight
             preferences[GOAL_WEIGHT_KEY] = goalWeight
-            preferences[GEMINI_API_KEY] = apiKey
              preferences[ONBOARDED_KEY] = true
             preferences[HEIGHT_KEY] = height
             preferences[AGE_KEY] = age
@@ -131,12 +124,6 @@ class DataStoreManager(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[CURRENT_WEIGHT_KEY] = current
             preferences[GOAL_WEIGHT_KEY] = goal
-        }
-    }
-
-    suspend fun saveApiKey(key: String) {
-        context.dataStore.edit { preferences ->
-            preferences[GEMINI_API_KEY] = key
         }
     }
 

@@ -54,7 +54,6 @@ abstract class AppDatabase : RoomDatabase() {
                     "apex_fit_database"
                 )
                 .addMigrations(MIGRATION_6_7, MIGRATION_7_8)
-                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance

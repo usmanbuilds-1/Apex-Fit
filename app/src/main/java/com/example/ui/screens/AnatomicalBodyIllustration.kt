@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 // Luxury Wellness Palettes
 val CanvasDarkBg = Color(0xFF0F0F1A)
 val LineColor = Color(0x66F0F0F5)
-val AccentColor = Color(0xFF6366F1)
+val AccentColor = com.example.ui.theme.IndigoAccent
 val SecondaryAccent = Color(0xFFA78BFA)
 
 @Composable

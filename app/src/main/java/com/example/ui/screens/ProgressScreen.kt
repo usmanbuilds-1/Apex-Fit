@@ -44,7 +44,7 @@ import androidx.compose.ui.geometry.Offset
 import kotlin.math.cos
 import kotlin.math.sin
 
-val AccentSecondary = Color(0xFF6366F1) // Indigo Accent for visual hierarchy
+val AccentSecondary = com.example.ui.theme.IndigoAccent // Indigo Accent for visual hierarchy
 
 @Composable
 fun ProgressScreen(

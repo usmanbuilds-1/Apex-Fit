@@ -139,6 +139,9 @@ interface FitnessDao {
     @Query("SELECT * FROM plan_exercises WHERE planSessionId = :planSessionId ORDER BY id ASC")
     fun getExercisesForSessionFlow(planSessionId: Long): Flow<List<PlanExercise>>
 
+    @Query("SELECT * FROM plan_exercises ORDER BY id ASC")
+    fun getAllPlanExercisesFlow(): Flow<List<PlanExercise>>
+
     @Query("SELECT * FROM plan_exercises WHERE planSessionId = :planSessionId ORDER BY id ASC")
     suspend fun getExercisesForSession(planSessionId: Long): List<PlanExercise>
 

@@ -76,7 +76,8 @@ object ProgressionEngine {
         lastRPE: Int,
         daysSinceLastSession: Int,
         userBodyWeightLbs: Double,
-        exerciseType: String
+        exerciseType: String,
+        muscleReadinessPercent: Int? = null
     ): Double {
         
         // Step 1: Base increment by exercise type
@@ -99,12 +100,21 @@ object ProgressionEngine {
             else -> 1.0
         }
         
-        // Step 3: Adjust for recovery (days since last session)
-        val recoveryMultiplier = when {
-            daysSinceLastSession < 2 -> 0.5        // <48 hours: very conservative
-            daysSinceLastSession in 2..3 -> 1.0    // 48-72 hours: normal
-            daysSinceLastSession > 3 -> 1.25       // >72 hours: aggressive
-            else -> 1.0
+        // Step 3: Adjust for recovery (muscle readiness or days since last session)
+        val recoveryMultiplier = if (muscleReadinessPercent != null) {
+            when {
+                muscleReadinessPercent < 50 -> 0.5        // Low readiness: conservative
+                muscleReadinessPercent in 50..79 -> 1.0   // Normal readiness: standard
+                muscleReadinessPercent >= 80 -> 1.25      // High readiness: aggressive
+                else -> 1.0
+            }
+        } else {
+            when {
+                daysSinceLastSession < 2 -> 0.5        // <48 hours: very conservative
+                daysSinceLastSession in 2..3 -> 1.0    // 48-72 hours: normal
+                daysSinceLastSession > 3 -> 1.25       // >72 hours: aggressive
+                else -> 1.0
+            }
         }
         
         // Step 4: Adjust for body weight (relative strength potential)

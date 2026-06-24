@@ -65,9 +65,10 @@ fun TrainScreen(
     fitnessViewModel: FitnessViewModel,
     algorithmViewModel: AlgorithmViewModel,
     trainViewModel: TrainViewModel,
+    onNavigateToPlanBuilder: () -> Unit,
     onNavigateTo: (Int) -> Unit
 ) {
-    TrainTab(fitnessViewModel, algorithmViewModel, trainViewModel)
+    TrainTab(fitnessViewModel, algorithmViewModel, trainViewModel, onNavigateToPlanBuilder)
 }
 
 // TRAIN TAB
@@ -75,7 +76,8 @@ fun TrainScreen(
 fun TrainTab(
     fitnessViewModel: FitnessViewModel,
     algorithmViewModel: AlgorithmViewModel,
-    trainViewModel: TrainViewModel
+    trainViewModel: TrainViewModel,
+    onNavigateToPlanBuilder: () -> Unit
 ) {
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
 
@@ -119,7 +121,7 @@ fun TrainTab(
             when (tab) {
                 0 -> ProgramSubTab(fitnessViewModel, trainViewModel)
                 1 -> WorkoutExecutionSubTab(fitnessViewModel, trainViewModel)
-                2 -> NewPlansSubTab(fitnessViewModel, trainViewModel)
+                2 -> NewPlansSubTab(fitnessViewModel, trainViewModel, onNavigateToPlanBuilder)
             }
         }
     }
@@ -906,7 +908,7 @@ fun WorkoutExecutionSubTab(
                                     1.dp,
                                     when {
                                         setObj.completed -> Color(0xFF2EC46A)
-                                        setObj.isWarmup -> Color(0xFF6366F1).copy(alpha = 0.4f)
+                                        setObj.isWarmup -> IndigoAccent.copy(alpha = 0.4f)
                                         else -> BorderSubtle
                                     }
                                 ),
@@ -926,7 +928,7 @@ fun WorkoutExecutionSubTab(
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(3.dp))
-                                                .background(Color(0xFF6366F1).copy(alpha = 0.2f))
+                                                .background(IndigoAccent.copy(alpha = 0.2f))
                                                 .padding(horizontal = 4.dp, vertical = 2.dp)
                                         ) {
                                             Text(
@@ -1339,95 +1341,43 @@ fun WorkoutExecutionSubTab(
 @Composable
 fun NewPlansSubTab(
     fitnessViewModel: FitnessViewModel,
-    trainViewModel: TrainViewModel
+    trainViewModel: TrainViewModel,
+    onNavigateToPlanBuilder: () -> Unit
 ) {
     val plans by trainViewModel.workoutPlans.collectAsStateWithLifecycle()
     val activePlan by trainViewModel.activePlan.collectAsStateWithLifecycle()
-
-    var pastedText by remember { mutableStateOf("") }
-    var parseError by remember { mutableStateOf("") }
-    val isParsing by fitnessViewModel.isCoachLoading.collectAsStateWithLifecycle()
-
     val context = LocalContext.current
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        // AI Pasted Workout Uploader
         item {
-            PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "AI WORKOUT CO-PILOT PARSER",
-                    fontFamily = SyneFamily,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AmberAccent,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                Text(
-                    text = "Paste any raw program text file (e.g., from Reddit, PDF structure, or coaches) to re-author structured local files instantly with Gemini AI.",
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
-                    color = SecondaryText,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                OutlinedTextField(
-                    value = pastedText,
-                    onValueChange = { pastedText = it },
-                    placeholder = { Text("Paste workout plan, list of reps, weight descriptions...", color = MutedText, fontSize = 11.sp) },
-                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 12.sp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(130.dp)
-                        .testTag("plan_parser_input"),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = DarkRaised,
-                        unfocusedContainerColor = DarkRaised,
-                        focusedIndicatorColor = AmberAccent,
-                        unfocusedIndicatorColor = BorderSubtle
-                    )
-                )
-
-                if (parseError.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(parseError, fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = RedAccent)
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Button(
-                    onClick = {
-                        if (pastedText.trim().isEmpty()) {
-                            Toast.makeText(context, "Paste some text first", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        trainViewModel.uploadPlanTextGemini(
-                            rawText = pastedText,
-                            onComplete = { plan, sessions, exercises ->
-                                if (plan != null) {
-                                    trainViewModel.saveImportedWorkoutPlan(plan, sessions, exercises)
-                                    pastedText = ""
-                                    parseError = ""
-                                    Toast.makeText(context, "AI Workout Plan parsed & loaded as ACTIVE!", Toast.LENGTH_LONG).show()
-                                }
-                            },
-                            onFailure = { err ->
-                                parseError = err
-                            }
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
-                    enabled = !isParsing
+            Button(
+                onClick = onNavigateToPlanBuilder,
+                colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("build_custom_plan_button")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (isParsing) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF0A0A0F), strokeWidth = 2.dp)
-                    } else {
-                        Text("PARSE PROGRAM WITH AI", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A0A0F))
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        "BUILD CUSTOM WORKOUT PLAN",
+                        fontFamily = SyneFamily,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
         }

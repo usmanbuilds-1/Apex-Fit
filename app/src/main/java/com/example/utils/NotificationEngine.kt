@@ -74,7 +74,7 @@ object NotificationEngine {
             triggers.add(NotificationTrigger(
                 id = "weekly_report",
                 title = "Your weekly coaching report is ready",
-                body = "Gemini has analysed your week. See what to adjust for maximum progress.",
+                body = "Your coach has analysed your week. See what to adjust for maximum progress.",
                 triggerHour = 9,
                 priority = "default"
             ))

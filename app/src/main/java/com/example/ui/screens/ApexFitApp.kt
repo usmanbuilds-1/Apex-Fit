@@ -136,7 +136,6 @@ fun ApexFitApp(
     val goal by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val weight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
     val gWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
-    val apiKey by fitnessViewModel.geminiApiKey.collectAsStateWithLifecycle()
     val activeTab by fitnessViewModel.currentTab.collectAsStateWithLifecycle()
 
     var showSettingsSheet by remember { mutableStateOf(false) }
@@ -187,47 +186,51 @@ fun ApexFitApp(
         Scaffold(
             containerColor = DarkBackground,
             topBar = {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.testTag("app_logo")
-                        ) {
-                            Text(
-                                text = "APEX ",
-                                fontFamily = SyneFamily,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "FIT",
-                                fontFamily = SyneFamily,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Black,
-                                color = AmberAccent
-                            )
+                if (currentRoute != "plan_builder") {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.testTag("app_logo")
+                            ) {
+                                Text(
+                                    text = "APEX ",
+                                    fontFamily = SyneFamily,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "FIT",
+                                    fontFamily = SyneFamily,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = AmberAccent
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = DarkBackground
+                        ),
+                        actions = {
+                            IconButton(
+                                onClick = { showSettingsSheet = true },
+                                modifier = Modifier.testTag("settings_button")
+                            ) {
+                                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = PrimaryText)
+                            }
                         }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = DarkBackground
-                    ),
-                    actions = {
-                        IconButton(
-                            onClick = { showSettingsSheet = true },
-                            modifier = Modifier.testTag("settings_button")
-                        ) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = PrimaryText)
-                        }
-                    }
-                )
+                    )
+                }
             },
             bottomBar = {
-                BottomNavBar(
-                    activeTab = activeTab,
-                    onTabSelected = { fitnessViewModel.selectTab(it) }
-                )
+                if (currentRoute != "plan_builder") {
+                    BottomNavBar(
+                        activeTab = activeTab,
+                        onTabSelected = { fitnessViewModel.selectTab(it) }
+                    )
+                }
             },
             modifier = Modifier.fillMaxSize()
         ) { innerPadding ->
@@ -263,8 +266,19 @@ fun ApexFitApp(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             trainViewModel = trainViewModel,
+                            onNavigateToPlanBuilder = {
+                                navController.navigate("plan_builder")
+                            },
                             onNavigateTo = { tabIndex ->
                                 fitnessViewModel.selectTab(tabIndex)
+                            }
+                        )
+                    }
+                    composable("plan_builder") {
+                        PlanBuilderScreen(
+                            trainViewModel = trainViewModel,
+                            onNavigateBack = {
+                                navController.popBackStack()
                             }
                         )
                     }
@@ -345,7 +359,6 @@ fun OnboardingScreen(
     var heightStr by remember { mutableStateOf("175") }
     var ageStr by remember { mutableStateOf("25") }
     var sexChoice by remember { mutableStateOf("Male") }
-    var apiKey by remember { mutableStateOf("") }
 
     val context = LocalContext.current
 
@@ -571,32 +584,6 @@ fun OnboardingScreen(
                     }
                 }
 
-                // API Key Input
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("Gemini API Key (Optional)", color = SecondaryText) },
-                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                        .testTag("onboarding_api_key_input"),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = DarkRaised,
-                        unfocusedContainerColor = DarkRaised,
-                        focusedIndicatorColor = AmberAccent,
-                        unfocusedIndicatorColor = BorderSubtle
-                    )
-                )
-                Text(
-                    text = "Get your free API key at api.studio.google.com to power direct science coaching, plan uploads, and photo estimations.",
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 9.sp,
-                    color = MutedText,
-                    modifier = Modifier.padding(bottom = 24.dp)
-                )
-
                 // Launch CTA Button
                 Button(
                     onClick = {
@@ -608,7 +595,7 @@ fun OnboardingScreen(
                         val gw = goalWeightStr.toDoubleOrNull() ?: com.example.UserDefaults.WEIGHT_KG
                         val ht = heightStr.toDoubleOrNull() ?: com.example.UserDefaults.HEIGHT_CM
                         val ageVal = ageStr.toIntOrNull() ?: com.example.UserDefaults.AGE_YEARS
-                        onComplete(name, goalTarget, cw, gw, apiKey, ht, ageVal, sexChoice.lowercase())
+                        onComplete(name, goalTarget, cw, gw, "", ht, ageVal, sexChoice.lowercase())
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -966,7 +953,7 @@ fun RestTimerOverlay(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isMusicPlaying) Color(0xFF1E1B4B) else DarkRaised
                     ),
-                    border = BorderStroke(1.dp, if (isMusicPlaying) Color(0xFF6366F1) else BorderSubtle),
+                    border = BorderStroke(1.dp, if (isMusicPlaying) IndigoAccent else BorderSubtle),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.weight(1f)
                 ) {
@@ -1072,7 +1059,7 @@ fun RirSelectorOverlay(
                                 .border(
                                     BorderStroke(
                                         1.dp,
-                                        if (isOptionSelected) Color(0xFF6366F1) else if (isSuggested) AmberAccent.copy(alpha = 0.3f) else BorderSubtle.copy(alpha = 0.4f)
+                                        if (isOptionSelected) IndigoAccent else if (isSuggested) AmberAccent.copy(alpha = 0.3f) else BorderSubtle.copy(alpha = 0.4f)
                                     ),
                                     RoundedCornerShape(12.dp)
                                 )

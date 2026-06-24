@@ -153,35 +153,6 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         _waterIntakeToday.value = 0
     }
 
-    private val geminiService = com.example.network.GeminiService(dataStore, repository)
-
-    fun analyseMealPhotoGemini(
-        bitmapBytes: ByteArray,
-        onComplete: (String, Int, Double, Double, Double) -> Unit,
-        onFailure: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            try {
-                val base64 = android.util.Base64.encodeToString(bitmapBytes, android.util.Base64.NO_WRAP)
-                val result = geminiService.parseMealPhoto(base64)
-                if (result.isSuccess) {
-                    val estimate = result.getOrThrow()
-                    onComplete(
-                        "AI Scanned Meal",
-                        estimate.calories,
-                        estimate.protein,
-                        estimate.carbs,
-                        estimate.fat
-                    )
-                } else {
-                    onFailure(result.exceptionOrNull()?.message ?: "Unknown AI analysis failure")
-                }
-            } catch (e: Exception) {
-                onFailure(e.message ?: "Unknown error")
-            }
-        }
-    }
-
     fun getDateDaysAgo(daysAgo: Int): String {
         return com.example.utils.AlgorithmEngine.getDateDaysAgo(daysAgo)
     }

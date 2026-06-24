@@ -35,7 +35,6 @@ fun SettingsScreen(
 ) {
     val username by fitnessViewModel.username.collectAsStateWithLifecycle()
     val goal by fitnessViewModel.goal.collectAsStateWithLifecycle()
-    val latestApiKey by fitnessViewModel.geminiApiKey.collectAsStateWithLifecycle()
     val manualCalorieTarget by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
     val manualCalorieVal by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
     val userHeight by fitnessViewModel.userHeight.collectAsStateWithLifecycle()
@@ -47,7 +46,6 @@ fun SettingsScreen(
 
     var editName by remember(username) { mutableStateOf(username) }
     var editGoal by remember(goal) { mutableStateOf(goal) }
-    var editApiKey by remember(latestApiKey) { mutableStateOf(latestApiKey) }
     var editedManualCalValue by remember(manualCalorieVal) { mutableStateOf(manualCalorieVal.toString()) }
     var editHeight by remember(userHeight) { mutableStateOf(userHeight.toString()) }
     var editAge by remember(userAge) { mutableStateOf(userAge.toString()) }
@@ -190,24 +188,6 @@ fun SettingsScreen(
             }
         }
 
-        // API Key field input
-        OutlinedTextField(
-            value = editApiKey,
-            onValueChange = { editApiKey = it },
-            label = { Text("Gemini Secure API Key string", color = SecondaryText) },
-            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth().testTag("settings_api_key_input"),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = DarkRaised,
-                unfocusedContainerColor = DarkRaised,
-                focusedIndicatorColor = AmberAccent,
-                unfocusedIndicatorColor = BorderSubtle
-            )
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(BorderSubtle))
         Spacer(modifier = Modifier.height(8.dp))
 
         // Save & Dismiss options
@@ -233,7 +213,7 @@ fun SettingsScreen(
                         name = editName,
                         userGoal = editGoal,
                         targetUnit = "kg",
-                        key = editApiKey,
+                        key = "",
                         equipment = equipmentVal,
                         height = hVal,
                         age = aVal,
