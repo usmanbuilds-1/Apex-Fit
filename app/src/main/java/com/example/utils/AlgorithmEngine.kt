@@ -421,11 +421,6 @@ object AlgorithmEngine {
     }
 
     // ── UTILITIES ─────────────────────────────────────────────
-    fun getDateDaysAgo(days: Int): String {
-        val cal = java.util.Calendar.getInstance()
-        cal.add(java.util.Calendar.DAY_OF_YEAR, -days)
-        return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal.time)
-    }
 
     /**
      * Estimates single working set duration (Time Under Tension) based on targeted rep ranges
@@ -441,15 +436,6 @@ object AlgorithmEngine {
             else -> 2.0            // Endurance focus: higher speed metabolic pump reps
         }
         return (avgReps * timePerRepSeconds) / 60.0
-    }
-
-    private fun getWeekKey(dateStr: String): String {
-        return try {
-            val cal = java.util.Calendar.getInstance()
-            cal.time = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(dateStr) ?: return dateStr
-            cal.set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.MONDAY)
-            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal.time)
-        } catch (e: Exception) { dateStr }
     }
 
     private fun linearRegressionSlope(values: List<Double>): Double {

@@ -265,7 +265,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun getDateDaysAgo(daysAgo: Int): String {
-        return com.example.utils.AlgorithmEngine.getDateDaysAgo(daysAgo)
+        return com.example.utils.getDateDaysAgo(daysAgo)
     }
 
     private fun getTodayDateString(): String {

@@ -48,3 +48,41 @@ fun getDateDaysFromNow(dateStr: String, days: Int): String {
         dateStr
     }
 }
+
+fun getDateDaysAgo(days: Int): String {
+    val cal = Calendar.getInstance()
+    cal.add(Calendar.DAY_OF_YEAR, -days)
+    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+}
+
+fun getWeekKey(dateStr: String): String {
+    return try {
+        val cal = Calendar.getInstance()
+        cal.time = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateStr) ?: return dateStr
+        cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+    } catch (e: Exception) { 
+        dateStr 
+    }
+}
+
+/**
+ * Calculates the number of days between two dates, specifically designed for progression calculations.
+ * Returns 2 on parsing error or null dates, and clamps any negative day differences to 2.
+ */
+fun getDaysBetweenClamped(lastDate: String, today: String): Int {
+    return try {
+        val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val last = format.parse(lastDate)
+        val current = format.parse(today)
+        if (last != null && current != null) {
+            val diffInMillis = current.time - last.time
+            val days = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()
+            if (days < 0) 2 else days
+        } else {
+            2
+        }
+    } catch (e: Exception) {
+        2
+    }
+}

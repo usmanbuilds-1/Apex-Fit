@@ -57,7 +57,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         val (height, age, sex) = profile
         
         // Dynamic weeklyWorkouts determination over trailing 28 days
-        val cutoff = com.example.utils.AlgorithmEngine.getDateDaysAgo(28)
+        val cutoff = com.example.utils.getDateDaysAgo(28)
         val sessionsInLast4Weeks = completedSessions.count { it.date >= cutoff && it.completed }
         val avgWorkoutsPerWeek = (sessionsInLast4Weeks / 4.0).coerceIn(0.0, 7.0)
         val workoutsFreq = Math.round(avgWorkoutsPerWeek).toInt().coerceIn(1, 7)
@@ -154,7 +154,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun getDateDaysAgo(daysAgo: Int): String {
-        return com.example.utils.AlgorithmEngine.getDateDaysAgo(daysAgo)
+        return com.example.utils.getDateDaysAgo(daysAgo)
     }
 
     private fun getTodayDateString(): String {

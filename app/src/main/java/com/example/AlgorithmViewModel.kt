@@ -134,7 +134,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         val sessions = args[5] as List<com.example.utils.TrainingSession>
 
         withContext(Dispatchers.Default) {
-            val fourteenDaysAgo = com.example.utils.AlgorithmEngine.getDateDaysAgo(14)
+            val fourteenDaysAgo = com.example.utils.getDateDaysAgo(14)
             val recentSessions = sessions.filter { it.date >= fourteenDaysAgo && it.completed }.size
             val workoutsFreq = Math.round(recentSessions / 2.0).toInt().coerceIn(1, 7)
             

@@ -3,15 +3,18 @@ package com.example.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.Index
+import androidx.room.ColumnInfo
+import androidx.room.ForeignKey
 
-@Entity(tableName = "weight_entries")
+@Entity(tableName = "body_weights")
 data class WeightEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val date: String, // YYYY-MM-DD
     val time: String = "12:00 PM", // hh:mm a
-    val weight: Double
+    val weight: Double,
+    @ColumnInfo(name = "trend_weight_kg") val trendWeightKg: Double? = null
 ) {
-    constructor(date: String, weight: Double) : this(id = 0, date = date, time = "12:00 PM", weight = weight)
+    constructor(date: String, weight: Double) : this(id = 0, date = date, time = "12:00 PM", weight = weight, trendWeightKg = null)
 }
 
 data class TrendPoint(
@@ -24,7 +27,7 @@ data class TrendPoint(
 }
 
 @Entity(
-    tableName = "nutrition_entries",
+    tableName = "nutrition_logs",
     indices = [Index(value = ["date"])]
 )
 data class NutritionEntry(
@@ -50,7 +53,7 @@ data class NutritionEntry(
 }
 
 @Entity(
-    tableName = "training_sessions",
+    tableName = "workout_sessions",
     indices = [Index(value = ["date"])]
 )
 data class TrainingSession(
@@ -59,7 +62,14 @@ data class TrainingSession(
     val sessionType: String, // e.g. "Upper A"
     val completed: Boolean,
     val durationMinutes: Int,
-    val sessionFeel: Int // 1 to 5
+    val sessionFeel: Int, // 1 to 5
+    @ColumnInfo(name = "training_week_id") val trainingWeekId: Long? = null,
+    @ColumnInfo(name = "plan_session_id") val planSessionId: Long? = null,
+    @ColumnInfo(name = "status", defaultValue = "'completed'") val status: String? = "completed",
+    @ColumnInfo(name = "readiness_score_at_start") val readinessScoreAtStart: Int? = null,
+    @ColumnInfo(name = "notes") val notes: String? = null,
+    @ColumnInfo(name = "started_at") val startedAt: Long? = null,
+    @ColumnInfo(name = "completed_at") val completedAt: Long? = null
 )
 
 @Entity(
@@ -161,13 +171,19 @@ data class VolumeData(
     val hypertrophicScore: Double
 )
 
-@Entity(tableName = "workout_plans")
+@Entity(tableName = "workout_programs")
 data class WorkoutPlan(
     @PrimaryKey val id: Long,
     val name: String,
     val goal: String,
     val isActive: Boolean,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "description") val description: String? = null,
+    @ColumnInfo(name = "days_per_week", defaultValue = "4") val daysPerWeek: Int? = 4,
+    @ColumnInfo(name = "is_template", defaultValue = "0") val isTemplate: Int? = 0,
+    @ColumnInfo(name = "source", defaultValue = "'manual'") val source: String? = "manual",
+    @ColumnInfo(name = "import_raw_text") val importRawText: String? = null,
+    @ColumnInfo(name = "activated_at") val activatedAt: Long? = null
 )
 
 @Entity(tableName = "plan_sessions")
@@ -357,6 +373,47 @@ data class RichTrainingSession(
     val sessionFeel: Int = 3,
     val durationMinutes: Int = 0,
     val exercises: List<ExerciseLog> = emptyList()
+)
+
+@Entity(
+    tableName = "exercises",
+    indices = [androidx.room.Index(value = ["name"], unique = true)]
+)
+data class Exercise(
+    @PrimaryKey val id: String,
+    val name: String,
+    val category: String, // e.g., "Barbell", "Dumbbell", "Machine", "Cable", "Bodyweight"
+    @ColumnInfo(name = "primary_muscle") val primaryMuscle: String, // e.g., "Chest", "Back", "Quads"
+    @ColumnInfo(name = "secondary_muscles") val secondaryMuscles: String?, // nullable JSON array of strings
+    @ColumnInfo(name = "equipment_required") val equipmentRequired: String,
+    @ColumnInfo(name = "is_bilateral", defaultValue = "1") val isBilateral: Int = 1,
+    @ColumnInfo(name = "is_user_created", defaultValue = "0") val isUserCreated: Int = 0,
+    @ColumnInfo(name = "is_deleted", defaultValue = "0") val isDeleted: Int = 0,
+    @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "exercise_metadata",
+    foreignKeys = [
+        androidx.room.ForeignKey(
+            entity = Exercise::class,
+            parentColumns = ["id"],
+            childColumns = ["exercise_id"],
+            onDelete = androidx.room.ForeignKey.CASCADE
+        )
+    ]
+)
+data class ExerciseMetadata(
+    @PrimaryKey @ColumnInfo(name = "exercise_id") val exerciseId: String,
+    @ColumnInfo(name = "fatigue_cost_coefficient", defaultValue = "1.0") val fatigueCostCoefficient: Double = 1.0,
+    @ColumnInfo(name = "systemic_multiplier", defaultValue = "1.0") val systemicMultiplier: Double = 1.0,
+    @ColumnInfo(name = "default_progression_increment_kg", defaultValue = "2.5") val defaultProgressionIncrementKg: Double = 2.5,
+    @ColumnInfo(name = "min_reps", defaultValue = "1") val minReps: Int = 1,
+    @ColumnInfo(name = "max_reps", defaultValue = "30") val maxReps: Int = 30,
+    @ColumnInfo(name = "default_rest_seconds", defaultValue = "120") val defaultRestSeconds: Int = 120,
+    @ColumnInfo(name = "force_type", defaultValue = "'push'") val forceType: String = "push",
+    @ColumnInfo(name = "recovery_tau_days", defaultValue = "1.2") val recoveryTauDays: Double = 1.2,
+    @ColumnInfo(name = "notes") val notes: String? = null
 )
 
 

@@ -148,7 +148,7 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
                 lastWeightMap[ex.id.toString()] = suggestedPreferred
                 contextLinesMap[ex.id.toString()] = "First session suggestion (Beginner Base): $suggestedPreferred $preferredUnits"
             } else {
-                val daysSince = com.example.utils.ProgressionEngine.getDaysBetween(lastSet.date, today)
+                val daysSince = com.example.utils.getDaysBetweenClamped(lastSet.date, today)
 
                 val lastWeightLbs = if (preferredUnits.lowercase() == "lbs") {
                     lastSet.weight

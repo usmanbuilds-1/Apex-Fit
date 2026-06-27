@@ -11,51 +11,51 @@ import kotlinx.coroutines.flow.Flow
 interface FitnessDao {
 
     // Weight Entry Queries
-    @Query("SELECT * FROM weight_entries ORDER BY date DESC, time DESC")
+    @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
     fun getAllWeightEntriesFlow(): Flow<List<WeightEntry>>
 
-    @Query("SELECT * FROM weight_entries ORDER BY date DESC, time DESC")
+    @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
     suspend fun getAllWeightEntries(): List<WeightEntry>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWeightEntry(entry: WeightEntry)
 
-    @Query("DELETE FROM weight_entries WHERE id = :id")
+    @Query("DELETE FROM body_weights WHERE id = :id")
     suspend fun deleteWeightEntryById(id: Long)
 
-    @Query("DELETE FROM weight_entries WHERE date = :date")
+    @Query("DELETE FROM body_weights WHERE date = :date")
     suspend fun deleteWeightEntry(date: String)
 
     // Nutrition Queries
-    @Query("SELECT * FROM nutrition_entries ORDER BY date DESC, time DESC")
+    @Query("SELECT * FROM nutrition_logs ORDER BY date DESC, time DESC")
     fun getAllNutritionEntriesFlow(): Flow<List<NutritionEntry>>
 
-    @Query("SELECT * FROM nutrition_entries WHERE date = :date ORDER BY time DESC")
+    @Query("SELECT * FROM nutrition_logs WHERE date = :date ORDER BY time DESC")
     fun getNutritionForDateFlow(date: String): Flow<List<NutritionEntry>>
 
-    @Query("SELECT * FROM nutrition_entries WHERE date = :date ORDER BY time DESC")
+    @Query("SELECT * FROM nutrition_logs WHERE date = :date ORDER BY time DESC")
     suspend fun getNutritionForDate(date: String): List<NutritionEntry>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNutritionEntry(entry: NutritionEntry)
 
-    @Query("DELETE FROM nutrition_entries WHERE id = :id")
+    @Query("DELETE FROM nutrition_logs WHERE id = :id")
     suspend fun deleteNutritionEntryById(id: Long)
 
-    @Query("DELETE FROM nutrition_entries WHERE date = :date")
+    @Query("DELETE FROM nutrition_logs WHERE date = :date")
     suspend fun deleteNutritionEntry(date: String)
 
     // Training Sessions
-    @Query("SELECT * FROM training_sessions ORDER BY date DESC")
+    @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     fun getAllTrainingSessionsFlow(): Flow<List<TrainingSession>>
 
-    @Query("SELECT * FROM training_sessions ORDER BY date DESC")
+    @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     suspend fun getAllTrainingSessions(): List<TrainingSession>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrainingSession(session: TrainingSession)
 
-    @Query("DELETE FROM training_sessions WHERE id = :id")
+    @Query("DELETE FROM workout_sessions WHERE id = :id")
     suspend fun deleteTrainingSession(id: String)
 
     // Exercise Sets
@@ -70,7 +70,7 @@ interface FitnessDao {
 
     @Query("""
         SELECT es.* FROM exercise_sets es
-        INNER JOIN training_sessions ts ON es.sessionId = ts.id
+        INNER JOIN workout_sessions ts ON es.sessionId = ts.id
         WHERE (LOWER(es.exerciseName) = LOWER(:exerciseName) OR LOWER(es.exerciseId) = LOWER(:exerciseName)) AND es.completed = 1
         ORDER BY ts.date DESC, es.id ASC
     """)
@@ -92,28 +92,28 @@ interface FitnessDao {
     suspend fun deleteSetsForSession(sessionId: String)
 
     // Workout Plans
-    @Query("SELECT * FROM workout_plans ORDER BY createdAt DESC")
+    @Query("SELECT * FROM workout_programs ORDER BY createdAt DESC")
     fun getAllPlansFlow(): Flow<List<WorkoutPlan>>
 
-    @Query("SELECT * FROM workout_plans ORDER BY createdAt DESC")
+    @Query("SELECT * FROM workout_programs ORDER BY createdAt DESC")
     suspend fun getAllPlans(): List<WorkoutPlan>
 
-    @Query("SELECT * FROM workout_plans WHERE isActive = 1 LIMIT 1")
+    @Query("SELECT * FROM workout_programs WHERE isActive = 1 LIMIT 1")
     fun getActivePlanFlow(): Flow<WorkoutPlan?>
 
-    @Query("SELECT * FROM workout_plans WHERE isActive = 1 LIMIT 1")
+    @Query("SELECT * FROM workout_programs WHERE isActive = 1 LIMIT 1")
     suspend fun getActivePlan(): WorkoutPlan?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWorkoutPlan(plan: WorkoutPlan)
 
-    @Query("UPDATE workout_plans SET isActive = 0")
+    @Query("UPDATE workout_programs SET isActive = 0")
     suspend fun deactivateAllPlans()
 
-    @Query("UPDATE workout_plans SET isActive = 1 WHERE id = :planId")
+    @Query("UPDATE workout_programs SET isActive = 1 WHERE id = :planId")
     suspend fun activatePlan(planId: Long)
 
-    @Query("DELETE FROM workout_plans WHERE id = :planId")
+    @Query("DELETE FROM workout_programs WHERE id = :planId")
     suspend fun deleteWorkoutPlan(planId: Long)
 
     // Plan Sessions
@@ -134,6 +134,37 @@ interface FitnessDao {
 
     @Query("DELETE FROM plan_sessions WHERE id = :id")
     suspend fun deletePlanSession(id: Long)
+
+    // Exercise Library
+    @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
+    fun getAllExercisesFlow(): Flow<List<Exercise>>
+
+    @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
+    suspend fun getAllExercises(): List<Exercise>
+
+    @Query("SELECT * FROM exercises WHERE is_deleted = 0 AND name LIKE '%' || :query || '%' ORDER BY name ASC")
+    suspend fun searchExercisesByName(query: String): List<Exercise>
+
+    @Query("SELECT * FROM exercises WHERE id = :id LIMIT 1")
+    suspend fun getExerciseById(id: String): Exercise?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExercise(exercise: Exercise)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExercises(exercises: List<Exercise>)
+
+    @Query("SELECT * FROM exercise_metadata WHERE exercise_id = :exerciseId LIMIT 1")
+    suspend fun getMetadataForExercise(exerciseId: String): ExerciseMetadata?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExerciseMetadata(metadata: ExerciseMetadata)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExerciseMetadataList(metadataList: List<ExerciseMetadata>)
+
+    @Query("SELECT COUNT(*) FROM exercises")
+    suspend fun getExerciseCount(): Int
 
     // Plan Exercises
     @Query("SELECT * FROM plan_exercises WHERE planSessionId = :planSessionId ORDER BY id ASC")
@@ -199,7 +230,7 @@ interface FitnessDao {
 
     // --- Required queries for Algorithm Engine ---
 
-    @Query("SELECT * FROM training_sessions WHERE date >= :startDate AND date <= :endDate ORDER BY date DESC")
+    @Query("SELECT * FROM workout_sessions WHERE date >= :startDate AND date <= :endDate ORDER BY date DESC")
     suspend fun getSessionsByDateRange(startDate: String, endDate: String): List<TrainingSession>
 
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId ORDER BY id DESC")
@@ -215,7 +246,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.*, ts.date as date 
         FROM exercise_sets es
-        INNER JOIN training_sessions ts ON es.sessionId = ts.id
+        INNER JOIN workout_sessions ts ON es.sessionId = ts.id
         WHERE es.exerciseId = :exerciseId AND es.completed = 1
         ORDER BY es.id DESC LIMIT 1
     """)
@@ -224,7 +255,7 @@ interface FitnessDao {
     @Query("""
         SELECT COALESCE(SUM(es.weight * es.reps), 0.0)
         FROM exercise_sets es
-        INNER JOIN training_sessions ts ON es.sessionId = ts.id
+        INNER JOIN workout_sessions ts ON es.sessionId = ts.id
         WHERE es.muscleGroup = :muscleGroup
           AND ts.date >= :startDate
           AND ts.date <= :endDate
@@ -238,13 +269,13 @@ interface FitnessDao {
     ): Double
 
     @Query("""
-        SELECT * FROM training_sessions 
+        SELECT * FROM workout_sessions 
         WHERE sessionType = :sessionType AND completed = 1
         ORDER BY date DESC LIMIT 1
     """)
     suspend fun getLatestSessionByType(sessionType: String): TrainingSession?
 
-    @Query("SELECT * FROM training_sessions WHERE completed = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM workout_sessions WHERE completed = 1 ORDER BY date DESC")
     suspend fun getAllCompletedSessions(): List<TrainingSession>
 
     @Query("""
@@ -255,7 +286,7 @@ interface FitnessDao {
     suspend fun getBodyMeasurementsByBodyPart(bodyPart: String): List<BodyMeasurement>
 
     // Flow versions for reactive UI
-    @Query("SELECT * FROM training_sessions WHERE completed = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM workout_sessions WHERE completed = 1 ORDER BY date DESC")
     fun getAllCompletedSessionsFlow(): Flow<List<TrainingSession>>
 
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId AND isWarmup = 0 AND completed = 1 ORDER BY id DESC")
@@ -267,7 +298,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.*, ts.date as date 
         FROM exercise_sets es
-        INNER JOIN training_sessions ts ON es.sessionId = ts.id
+        INNER JOIN workout_sessions ts ON es.sessionId = ts.id
         WHERE es.exerciseId = :exerciseId AND es.rpe = :rpe AND es.completed = 1
         ORDER BY es.id DESC LIMIT :limit
     """)

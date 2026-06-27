@@ -133,23 +133,6 @@ object ProgressionEngine {
         return suggestedWeight.roundToNearest2_5()
     }
 
-    fun getDaysBetween(lastDate: String, today: String): Int {
-        return try {
-            val format = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-            val last = format.parse(lastDate)
-            val current = format.parse(today)
-            if (last != null && current != null) {
-                val diffInMillis = current.time - last.time
-                val days = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()
-                if (days < 0) 2 else days
-            } else {
-                2
-            }
-        } catch (e: Exception) {
-            2 // default fallback
-        }
-    }
-
     fun calculateRestTimeSeconds(
         exerciseType: String,  // "compound_upper", "compound_lower", "isolation", etc.
         rpe: Int               // 5-10

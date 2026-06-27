@@ -29,10 +29,21 @@ class DataStoreManager(private val context: Context) {
         val HEIGHT_KEY = doublePreferencesKey("height")
         val AGE_KEY = intPreferencesKey("age")
         val SEX_KEY = stringPreferencesKey("sex")
+        val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
     }
 
     val isOnboardedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[ONBOARDED_KEY] ?: false
+    }
+
+    val isExercisesSeededFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[EXERCISES_SEEDED_KEY] ?: false
+    }
+
+    suspend fun setExercisesSeeded(seeded: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[EXERCISES_SEEDED_KEY] = seeded
+        }
     }
 
     val usernameFlow: Flow<String> = context.dataStore.data.map { preferences ->
