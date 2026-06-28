@@ -12,16 +12,23 @@ class AlgorithmEngineTest {
 
     @Test
     fun testCalcAdaptiveTDEE_normalInput() {
-        val wLog = listOf(
-            WeightEntry(date = d(14), weight = 80.0),
-            WeightEntry(date = d(7), weight = 79.5),
-            WeightEntry(date = d(0), weight = 79.0)
-        )
-        val nLog = (0..14).map { 
-            NutritionEntry(date = d(it), calories = 2500, protein = 150, carbs = 250, fat = 80) 
+        val wLog = (0..14).map {
+            WeightEntry(date = d(14 - it), weight = 80.0 - 0.1 * it)
+        }
+        val nLog = (0..14).map {
+            NutritionEntry(date = d(it), calories = 2500, protein = 150, carbs = 250, fat = 80)
         }
         val res = AlgorithmEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14)
-        assertTrue(res.tdee!! > 2500)
+
+        val recentWeight = wLog.sortedBy { it.date }
+        val avgCalories = nLog.map { it.calories }.average()
+        val trendData = AlgorithmEngine.calcTrendWeight(recentWeight)
+        val weightChangeKg = trendData.last().trend - trendData.first().trend
+        val daysBetween = getDaysBetween(recentWeight.first().date, recentWeight.last().date).coerceAtLeast(1L)
+        val expectedImbalance = (weightChangeKg * 7700.0) / daysBetween
+        val expectedTdee = (avgCalories - expectedImbalance).toInt()
+
+        assertEquals(expectedTdee, res.tdee)
     }
 
     @Test
@@ -73,20 +80,23 @@ class AlgorithmEngineTest {
     fun testDetectPlateau_normal() {
         val wLog = (0..14).map { WeightEntry(date = d(14 - it), weight = 80.0) }
         val nLog = (0..14).map { NutritionEntry(date = d(14 - it), calories = 2000, protein = 150, carbs = 200, fat = 60) }
-        // We need volumeRecent < volumeEarlier * 0.95 to trigger plateau detection.
-        // Let's create an earlier session with high volume, and a recent session with low volume.
-        val exSetHigh = ExerciseSet(weight = 100.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
-        val exLogHigh = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(exSetHigh, exSetHigh, exSetHigh))
-        val earlierSession = RichTrainingSession(date = d(20), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLogHigh))
 
+        val exSet = ExerciseSet(weight = 100.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
+        val exLog = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(exSet))
+        val earlierSession = RichTrainingSession(date = d(20), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog))
+        val recentSession = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog))
+
+        // Case 1: maintained volume (1000 vs 1000) -> true plateau
+        val resPlateau = AlgorithmEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), windowDays = 14)
+        assertTrue(resPlateau.plateau)
+
+        // Case 2: volume dropped >=5% (500 vs 1000) -> not a plateau
         val exSetLow = ExerciseSet(weight = 50.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
         val exLogLow = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(exSetLow))
-        val recentSession = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLogLow))
+        val recentSessionLow = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLogLow))
 
-        val tLog = listOf(earlierSession, recentSession)
-        
-        val res = AlgorithmEngine.detectPlateau(wLog, nLog, tLog, windowDays = 14)
-        assertTrue(res.plateau)
+        val resNoPlateau = AlgorithmEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), windowDays = 14)
+        assertFalse(resNoPlateau.plateau)
     }
 
     @Test

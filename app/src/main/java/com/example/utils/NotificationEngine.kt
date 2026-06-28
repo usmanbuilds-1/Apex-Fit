@@ -81,7 +81,7 @@ object NotificationEngine {
         }
 
         // TRIGGER 5 — Plateau alert (any time, high priority)
-        val plateau = AlgorithmEngine.detectPlateau(weightLog, nutritionLog, trainingLog)
+        val plateau = AlgorithmEngine.detectPlateau(weightLog, nutritionLog, trainingLog, windowDays = 14)
         if (plateau.plateau && plateau.severity == "confirmed") {
             triggers.add(NotificationTrigger(
                 id = "plateau_confirmed",

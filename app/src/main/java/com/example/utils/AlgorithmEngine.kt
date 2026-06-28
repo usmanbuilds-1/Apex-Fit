@@ -176,7 +176,8 @@ object AlgorithmEngine {
             .filter { !it.isWarmup }
             .sumOf { it.weight * it.reps }
 
-        if (volumeRecent >= volumeEarlier * 0.95) return PlateauResult(false)
+        if (volumeEarlier == 0.0) return PlateauResult(false)
+        if (volumeRecent < volumeEarlier * 0.95) return PlateauResult(false)
 
         return PlateauResult(
             plateau = true,
