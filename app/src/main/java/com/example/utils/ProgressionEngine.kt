@@ -9,11 +9,13 @@ object ProgressionEngine {
         val m = muscleGroup.lowercase()
         
         return when {
-            // Cardio & Core
-            n.contains("run") || n.contains("jog") || n.contains("treadmill") || n.contains("cardio") || n.contains("bike") || n.contains("cycle") || n.contains("elliptical") || n.contains("walk") || m.contains("cardio") || m.contains("core") || n.contains("plank") || n.contains("crunch") -> "cardio"
+            // Cardio
+            n.contains("run") || n.contains("jog") || n.contains("treadmill") || n.contains("cardio") || n.contains("bike") || n.contains("cycle") || n.contains("elliptical") || n.contains("walk") || m.contains("cardio") -> "cardio"
+            // Core / Isolation
+            m.contains("core") || n.contains("plank") || n.contains("crunch") -> "isolation"
 
             // Compound Lower
-            n.contains("squat") && !n.contains("dumbbell") && !n.contains("db") && !n.contains("machine") && !n.contains("smith") -> "compound_lower"
+            n.contains("goblet") || (n.contains("squat") && !n.contains("dumbbell") && !n.contains("db") && !n.contains("machine") && !n.contains("smith")) -> "compound_lower"
             n.contains("deadlift") && !n.contains("dumbbell") && !n.contains("db") -> "compound_lower"
             n.contains("lunge") && !n.contains("dumbbell") && !n.contains("db") -> "compound_lower"
             n.contains("leg press") -> "compound_lower"
@@ -71,66 +73,85 @@ object ProgressionEngine {
         return startWeight.roundToNearest2_5()
     }
 
+enum class OutcomeType { SUCCESS, PROGRESSING, STALLED, PLATEAU }
+
+data class ProgressionResult(
+    val newWeight: Double,
+    val outcome: OutcomeType,
+    val reason: String
+)
+
     fun calculateProgressiveWeight(
-        lastWeight: Double,
-        lastRPE: Int,
-        daysSinceLastSession: Int,
-        userBodyWeightLbs: Double,
+        exerciseId: String,
+        lastSessionSets: List<com.example.ui.models.UiExerciseSet>,
+        repsMin: Int,
+        repsMax: Int,
+        targetSets: Int,
+        recoveryMultiplier: Double,
+        currentWeight: Double,
         exerciseType: String,
-        muscleReadinessPercent: Int? = null
-    ): Double {
+        consecutiveStalledSessions: Int = 0
+    ): ProgressionResult {
         
-        // Step 1: Base increment by exercise type
+        val workingSets = lastSessionSets.filter { !it.isWarmup && it.completed }
+        
+        if (workingSets.isEmpty()) {
+            return ProgressionResult(currentWeight, OutcomeType.STALLED, "No completed sets recorded.")
+        }
+
+        // Unrated RPE handling: If any set is unrated (0), hold progression
+        if (workingSets.any { it.rpe == 0 }) {
+            return ProgressionResult(currentWeight, OutcomeType.STALLED, "Sets have unrated RPE. Please rate your effort to progress.")
+        }
+
+        // Outcome Determination
+        // 1. SUCCESS: All sets >= repsMax AND RPE <= 8
+        val allHitMax = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMax && it.rpe <= 8 }
+        
+        // 2. PROGRESSING: All sets within range [repsMin, repsMax] but not all hit success criteria
+        val allInRepsRange = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMin }
+        
+        // 3. PLATEAU: 2+ consecutive failed sessions (failed to hit repsMin or sets target)
+        val failedTarget = workingSets.size < targetSets || workingSets.any { it.reps < repsMin }
+        
+        val outcome = when {
+            consecutiveStalledSessions >= 1 && failedTarget -> OutcomeType.PLATEAU // current failed + 1 previous = 2 consecutive
+            allHitMax -> OutcomeType.SUCCESS
+            allInRepsRange -> OutcomeType.PROGRESSING
+            else -> OutcomeType.STALLED
+        }
+
+        // Weight Increment Logic
         val baseIncrement = when(exerciseType) {
-            "compound_lower" -> 10.0      // 10 lbs
-            "compound_upper" -> 5.0       // 5 lbs
-            "dumbbell_upper" -> 5.0       // 5 lbs per dumbbell
-            "dumbbell_lower" -> 5.0       // 5 lbs per dumbbell
-            "isolation" -> 2.5            // 2.5 lbs
-            else -> 5.0
+            "compound_lower" -> 5.0
+            "compound_upper" -> 2.5
+            "dumbbell_upper" -> 2.5
+            "dumbbell_lower" -> 2.5
+            "isolation" -> 1.25
+            else -> 2.5
+        }
+
+        val maxRpe = workingSets.map { it.rpe }.maxOrNull() ?: 0
+        val rpeMultiplier = when {
+            maxRpe <= 8.0 -> 1.0
+            maxRpe <= 9.0 -> 0.5
+            else -> 0.0
+        }
+
+        val newWeight = when(outcome) {
+            OutcomeType.SUCCESS -> currentWeight + (baseIncrement * rpeMultiplier * recoveryMultiplier)
+            OutcomeType.PLATEAU -> currentWeight * 0.9 // Deload 10%
+            else -> currentWeight
         }
         
-        // Step 2: Adjust for RPE (progression zone)
-        val rpeMultiplier = when(lastRPE) {
-            in 5..6 -> 0.0        // RPE <7: don't progress, maintain weight
-            7 -> 0.5              // RPE 7: light progression (+50% of base)
-            8 -> 1.0              // RPE 8: SWEET SPOT — full progression
-            9 -> 0.5              // RPE 9: conservative (+50% of base)
-            10 -> 0.0             // RPE 10: maxed out, maintain
-            else -> 1.0
+        val reason = when(outcome) {
+            OutcomeType.SUCCESS -> "Hit all targets at max reps with reserve. Advancing weight."
+            OutcomeType.PROGRESSING -> "All sets within rep range. Hold weight and aim for ${repsMax} reps."
+            OutcomeType.STALLED -> "Failed to hit minimum reps/sets target. Holding weight to retry."
+            OutcomeType.PLATEAU -> "Multiple failed sessions. Deloading 10% to recover and break plateau."
         }
         
-        // Step 3: Adjust for recovery (muscle readiness or days since last session)
-        val recoveryMultiplier = if (muscleReadinessPercent != null) {
-            when {
-                muscleReadinessPercent < 50 -> 0.5        // Low readiness: conservative
-                muscleReadinessPercent in 50..79 -> 1.0   // Normal readiness: standard
-                muscleReadinessPercent >= 80 -> 1.25      // High readiness: aggressive
-                else -> 1.0
-            }
-        } else {
-            when {
-                daysSinceLastSession < 2 -> 0.5        // <48 hours: very conservative
-                daysSinceLastSession in 2..3 -> 1.0    // 48-72 hours: normal
-                daysSinceLastSession > 3 -> 1.25       // >72 hours: aggressive
-                else -> 1.0
-            }
-        }
-        
-        // Step 4: Adjust for body weight (relative strength potential)
-        val bodyWeightAdjustment = when {
-            userBodyWeightLbs < 140.0 -> 0.75    // Light: scale down
-            userBodyWeightLbs >= 140.0 && userBodyWeightLbs <= 200.0 -> 1.0   // Normal: standard
-            userBodyWeightLbs > 200.0 -> 1.25    // Heavy: scale up
-            else -> 1.0
-        }
-        
-        // Step 5: Calculate total increment
-        val totalIncrement = baseIncrement * rpeMultiplier * recoveryMultiplier * bodyWeightAdjustment
-        
-        val suggestedWeight = lastWeight + totalIncrement
-        
-        return suggestedWeight.roundToNearest2_5()
+        return ProgressionResult(newWeight.roundToNearest2_5(), outcome, reason)
     }
 
     fun calculateRestTimeSeconds(
@@ -175,24 +196,6 @@ object ProgressionEngine {
             0 -> 10                    // 0 reps left -> RPE 10
             else -> 8                  // Default to sweet spot RPE 8
         }
-    }
-
-    fun getRIRDescription(repsInReserve: Int): String {
-        return when(repsInReserve) {
-            in 4..Int.MAX_VALUE -> "4 or more (very easy)"
-            3 -> "3 more reps"
-            2 -> "2 more reps (felt good) — Suggested"
-            1 -> "1 more rep"
-            0 -> "0 more reps (maxed out)"
-            else -> "Unknown"
-        }
-    }
-
-    fun suggestRIRFromPreviousSession(
-        exerciseId: String,
-        lastSetRIR: Int?
-    ): Int {
-        return lastSetRIR ?: 2  // Default to sweet spot (2 reps left = RPE 8)
     }
 
     fun calculateEffectiveSetValue(rpe: Int): Double {

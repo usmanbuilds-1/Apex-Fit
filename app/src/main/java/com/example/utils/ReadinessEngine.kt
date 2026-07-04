@@ -30,15 +30,15 @@ object MuscleRecoveryData {
 
     private val secondaryMap = mapOf(
         "bench" to listOf("Shoulders" to 0.40, "Triceps" to 0.30),
-        "incline_bench" to listOf("Shoulders" to 0.50, "Chest" to 0.30),
+        "incline_bench" to listOf("Shoulders" to 0.40, "Chest" to 0.30),
         "barbell_row" to listOf("Shoulders" to 0.35, "Biceps" to 0.25),
-        "deadlift" to listOf("Hamstrings" to 0.50, "Back" to 0.30, "Glutes" to 0.35),
-        "squat" to listOf("Hamstrings" to 0.40, "Glutes" to 0.40),
-        "ohp" to listOf("Shoulders" to 0.60, "Triceps" to 0.50),
-        "pullup" to listOf("Shoulders" to 0.35, "Biceps" to 0.60),
+        "deadlift" to listOf("Quads" to 0.40, "Back" to 0.25, "Hamstrings" to 0.25),
+        "squat" to listOf("Hamstrings" to 0.35, "Glutes" to 0.35),
+        "ohp" to listOf("Shoulders" to 0.40, "Triceps" to 0.40),
+        "pullup" to listOf("Shoulders" to 0.35, "Biceps" to 0.50),
         "dumbbell_row" to listOf("Shoulders" to 0.30, "Biceps" to 0.20),
         "cable_lateral_raise" to listOf("Shoulders" to 0.40),
-        "face_pull" to listOf("Shoulders" to 0.70, "Biceps" to 0.20),
+        "face_pull" to listOf("Shoulders" to 0.50, "Biceps" to 0.20),
         "curl" to listOf("Core" to 0.30),
         "leg_press" to listOf("Hamstrings" to 0.35, "Glutes" to 0.30),
         "leg_curl" to listOf("Glutes" to 0.25)
@@ -184,7 +184,8 @@ object ReadinessFinal {
     ): ReadinessScore {
         val currentDate = getCurrentDate()
         val completedLast30 = completedSessions.filter { session ->
-            session.completed && getDaysBetween(session.date, currentDate) <= 30
+            val days = getDaysBetween(session.date, currentDate)
+            session.completed && days in 0..30
         }
 
         // a) muscleFatigueHistory
@@ -195,13 +196,18 @@ object ReadinessFinal {
                 for (set in exercise.sets) {
                     if (set.isWarmup || !set.completed) continue
                     val dose = FatigueDoseCalculator.doseForSet(set)
-                    val primaryList = muscleFatigueHistory.getOrPut(exercise.muscleGroup) { mutableListOf() }
-                    primaryList.add(MuscleFatigueSnapshot(exercise.muscleGroup, daysAgo, dose))
-                    
                     val secondaries = MuscleRecoveryData.getSecondaryMuscles(exercise.name)
+                    val secondaryTotalPct = secondaries.sumOf { it.second }
+                    val primaryDose = dose * (1.0 - secondaryTotalPct.coerceAtMost(1.0))
+                    
+                    val primaryList = muscleFatigueHistory.getOrPut(exercise.muscleGroup) { mutableListOf() }
+                    primaryList.add(MuscleFatigueSnapshot(exercise.muscleGroup, daysAgo, primaryDose))
+                    
                     for ((secMuscle, pct) in secondaries) {
-                        val secList = muscleFatigueHistory.getOrPut(secMuscle) { mutableListOf() }
-                        secList.add(MuscleFatigueSnapshot(secMuscle, daysAgo, dose * pct))
+                        if (secMuscle != exercise.muscleGroup) {
+                            val secList = muscleFatigueHistory.getOrPut(secMuscle) { mutableListOf() }
+                            secList.add(MuscleFatigueSnapshot(secMuscle, daysAgo, dose * pct))
+                        }
                     }
                 }
             }
@@ -317,9 +323,9 @@ object ReadinessFinal {
             if (sleepScore != null) listOf(0.40, 0.20, 0.20, 0.20)
             else listOf(0.45, 0.25, 0.30, 0.0)
 
-        var combined = avgMuscle * wMuscle + systemicScore * wSystemic +
-                nutritionScore * wNutrition + (sleepScore?.toDouble() ?: 0.0) * wSleep
-        combined *= acrModifier
+        val musclePart = (avgMuscle * wMuscle + systemicScore * wSystemic) * acrModifier
+        val otherPart = nutritionScore * wNutrition + (sleepScore?.toDouble() ?: 0.0) * wSleep
+        val combined = musclePart + otherPart
 
         val finalScore = combined.toInt().coerceIn(0, 100)
 

@@ -10,6 +10,8 @@ import com.example.data.repository.FitnessRepositoryImpl
 import com.example.ui.models.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 class FitnessViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -56,10 +58,6 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         _currentTab.value = tab
     }
 
-    fun setCurrentTab(tab: Int) {
-        selectTab(tab)
-    }
-
     fun completeOnboarding(username: String, goal: String, currentWeight: Double, goalWeight: Double, apiKey: String, height: Double = com.example.UserDefaults.HEIGHT_CM, age: Int = com.example.UserDefaults.AGE_YEARS, sex: String = "male") {
         viewModelScope.launch {
             dataStore.saveOnboardingData(username, goal, currentWeight, goalWeight, height, age, sex)
@@ -82,17 +80,23 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // Delegated properties representing state flows relocated to specialized ViewModels
-    // ─────────────────────────────────────────────────────────────────
+    fun setPreferredUnits(targetUnits: String) {
+        viewModelScope.launch {
+            dataStore.saveUnits(targetUnits)
+        }
+    }
 
-    val estimatedSetDuration: StateFlow<(Int, Int) -> Int> = flowOf { repsMin: Int, repsMax: Int ->
-        com.example.utils.AlgorithmEngine.estimateSetDurationMinutes(repsMin, repsMax).toInt()
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = { _, _ -> 3 }
-    )
+    fun setGoalWeight(value: Double) {
+        viewModelScope.launch {
+            dataStore.saveWeight(currentWeight.value, value)
+        }
+    }
+
+    fun setBodyWeight(value: Double) {
+        viewModelScope.launch {
+            dataStore.saveWeight(value, goalWeight.value)
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────
     // Delegated actions and methods relocated to specialized ViewModels
@@ -113,16 +117,8 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         trainVM.cancelActiveWorkout()
     }
 
-    fun toggleWarmupItem(item: String) {
-        trainVM.toggleWarmupItem(item)
-    }
-
     fun logWorkoutSetState(exerciseId: Long, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int = 0, repsInReserve: Int? = null) {
         trainVM.logWorkoutSetState(exerciseId, setIndex, weight, reps, rpe, completed, restTakenSeconds, repsInReserve)
-    }
-
-    fun addCustomLogSet(exerciseId: Long) {
-        trainVM.addCustomLogSet(exerciseId)
     }
 
     fun openRirSelector(exerciseId: Long, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int) {
@@ -153,35 +149,8 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         trainVM.closeRestTimer()
     }
 
-    fun nextExercise() {
-        trainVM.nextExercise()
-    }
-
-    fun finishWorkoutSession(sessionFeel: Int = 4) {
-        trainVM.finishWorkoutSession(sessionFeel)
-    }
-
     fun dismissSessionComplete() {
         trainVM.dismissSessionComplete()
-    }
-
-    fun skipExercise(sessionFeel: Int = 4) {
-        trainVM.skipExercise(sessionFeel)
-    }
-
-    fun finishWorkoutEarly(sessionFeel: Int = 4) {
-        trainVM.finishWorkoutEarly(sessionFeel)
-    }
-
-    fun savePartialAndExit(sessionFeel: Int) {
-        trainVM.savePartialAndExit(sessionFeel)
-    }
-
-    val hasCompletedSets: Boolean
-        get() = trainVM.hasCompletedSets
-
-    suspend fun getSubstitutionSuggestions(pattern: String, currentEx: String): List<Pair<String, String>> {
-        return trainVM.getSubstitutionSuggestions(pattern, currentEx)
     }
 
     // Weight and measurements methods delegated to HomeViewModel & ProgressViewModel
@@ -210,28 +179,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         nutritionVM.changeNutritionDate(offsetDays)
     }
 
-    fun logWater(ml: Int) {
-        nutritionVM.logWater(ml)
-    }
 
-    fun resetWater() {
-        nutritionVM.resetWater()
-    }
-
-
-
-    // Helpers & Extra Delegators
-    fun discardAndExit() {
-        trainVM.cancelActiveWorkout()
-    }
-
-    fun cancelOrCompleteEmptySession() {
-        if (hasCompletedSets) {
-            savePartialAndExit(4)
-        } else {
-            discardAndExit()
-        }
-    }
 
     fun playMusicSynthNote() {
         com.example.utils.AudioService.playMusicSynthNote()
@@ -245,27 +193,22 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
         homeVM.deleteWeight(date)
     }
 
+    // Database wipes CTA
+    private val _isResetting = MutableStateFlow(false)
+    val isResetting = _isResetting.asStateFlow()
+
     fun resetAllData() {
         viewModelScope.launch {
-            db.clearAllTables()
-            dataStore.clearAllData()
+            _isResetting.value = true
+            withContext(Dispatchers.IO) {
+                db.clearAllTables()
+                dataStore.clearAllData()
+                com.example.utils.SeedService.seed(getApplication())
+                trainVM.seedDefaultWorkoutPlan()
+                dataStore.setExercisesSeeded(true)
+            }
+            _isResetting.value = false
         }
-    }
-
-    fun getCurrentLocalTimeString(): String {
-        return java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US).format(java.util.Date())
-    }
-
-    fun saveImportedWorkoutPlan(
-        plan: WorkoutPlan,
-        sessions: List<PlanSession>,
-        exercises: List<PlanExercise>
-    ) {
-        trainVM.saveImportedWorkoutPlan(plan, sessions, exercises)
-    }
-
-    fun getDateDaysAgo(daysAgo: Int): String {
-        return com.example.utils.getDateDaysAgo(daysAgo)
     }
 
     private fun getTodayDateString(): String {

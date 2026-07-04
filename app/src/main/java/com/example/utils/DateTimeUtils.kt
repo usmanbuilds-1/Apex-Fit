@@ -58,6 +58,8 @@ fun getDateDaysAgo(days: Int): String {
 fun getWeekKey(dateStr: String): String {
     return try {
         val cal = Calendar.getInstance()
+        cal.firstDayOfWeek = Calendar.MONDAY
+        cal.minimalDaysInFirstWeek = 4
         cal.time = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateStr) ?: return dateStr
         cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
         SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)

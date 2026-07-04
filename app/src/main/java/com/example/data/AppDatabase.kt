@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -23,9 +24,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Exercise::class,
         ExerciseMetadata::class
     ],
-    version = 10,
+    version = 12,
     exportSchema = true
 )
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fitnessDao(): FitnessDao
 
@@ -116,6 +118,139 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // PART A: Migration for foreign keys and nullability
+
+                // 1. Recreate Exercises to make secondary_muscles NOT NULL
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercises_new` (
+                        `id` TEXT NOT NULL, 
+                        `name` TEXT NOT NULL, 
+                        `category` TEXT NOT NULL, 
+                        `primary_muscle` TEXT NOT NULL, 
+                        `secondary_muscles` TEXT NOT NULL, 
+                        `equipment_required` TEXT NOT NULL, 
+                        `is_bilateral` INTEGER NOT NULL DEFAULT 1, 
+                        `is_user_created` INTEGER NOT NULL DEFAULT 0, 
+                        `is_deleted` INTEGER NOT NULL DEFAULT 0, 
+                        `created_at` INTEGER NOT NULL, 
+                        PRIMARY KEY(`id`)
+                    )
+                """)
+                database.execSQL("INSERT INTO `exercises_new` SELECT id, name, category, primary_muscle, COALESCE(secondary_muscles, '[]'), equipment_required, is_bilateral, is_user_created, is_deleted, created_at FROM `exercises`")
+                database.execSQL("DROP TABLE `exercises`")
+                database.execSQL("ALTER TABLE `exercises_new` RENAME TO `exercises`")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_exercises_name` ON `exercises` (`name`)")
+
+                // 2. Recreate ExerciseMetadata
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_metadata_new` (
+                        `exercise_id` TEXT NOT NULL, 
+                        `fatigue_cost_coefficient` REAL NOT NULL DEFAULT 1.0, 
+                        `systemic_multiplier` REAL NOT NULL DEFAULT 1.0, 
+                        `default_progression_increment_kg` REAL NOT NULL DEFAULT 2.5, 
+                        `min_reps` INTEGER NOT NULL DEFAULT 1, 
+                        `max_reps` INTEGER NOT NULL DEFAULT 30, 
+                        `default_rest_seconds` INTEGER NOT NULL DEFAULT 120, 
+                        `force_type` TEXT NOT NULL DEFAULT 'push', 
+                        `recovery_tau_days` REAL NOT NULL DEFAULT 1.2, 
+                        `notes` TEXT, 
+                        PRIMARY KEY(`exercise_id`), 
+                        FOREIGN KEY(`exercise_id`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE 
+                    )
+                """)
+                database.execSQL("INSERT INTO `exercise_metadata_new` SELECT * FROM `exercise_metadata`")
+                database.execSQL("DROP TABLE `exercise_metadata`")
+                database.execSQL("ALTER TABLE `exercise_metadata_new` RENAME TO `exercise_metadata`")
+
+                // 3. ExerciseSet
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_sets_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `sessionId` TEXT NOT NULL,
+                        `exerciseId` TEXT NOT NULL,
+                        `exerciseName` TEXT NOT NULL,
+                        `muscleGroup` TEXT NOT NULL,
+                        `weight` REAL NOT NULL,
+                        `reps` INTEGER NOT NULL,
+                        `rpe` INTEGER NOT NULL,
+                        `isWarmup` INTEGER NOT NULL,
+                        `restTaken` INTEGER NOT NULL,
+                        `completed` INTEGER NOT NULL,
+                        `repsInReserve` INTEGER NOT NULL,
+                        `effectiveSetValue` REAL NOT NULL,
+                        FOREIGN KEY(`sessionId`) REFERENCES `workout_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`exerciseId`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """)
+                database.execSQL("INSERT INTO `exercise_sets_new` (id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue) SELECT id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue FROM `exercise_sets`")
+                database.execSQL("DROP TABLE `exercise_sets`")
+                database.execSQL("ALTER TABLE `exercise_sets_new` RENAME TO `exercise_sets`")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_sessionId` ON `exercise_sets` (`sessionId`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId` ON `exercise_sets` (`exerciseId`)")
+
+                // 4. PlanSession
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `plan_sessions_new` (
+                        `id` INTEGER NOT NULL,
+                        `planId` INTEGER NOT NULL,
+                        `label` TEXT NOT NULL,
+                        `day` TEXT NOT NULL,
+                        `focus` TEXT NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`planId`) REFERENCES `workout_programs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """)
+                database.execSQL("INSERT INTO `plan_sessions_new` SELECT * FROM `plan_sessions`")
+                database.execSQL("DROP TABLE `plan_sessions`")
+                database.execSQL("ALTER TABLE `plan_sessions_new` RENAME TO `plan_sessions`")
+
+                // 5. PlanExercise
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `plan_exercises_new` (
+                        `id` INTEGER NOT NULL,
+                        `planSessionId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `muscleGroup` TEXT NOT NULL,
+                        `sets` INTEGER NOT NULL,
+                        `repsMin` INTEGER NOT NULL,
+                        `repsMax` INTEGER NOT NULL,
+                        `weight` REAL NOT NULL,
+                        `restSeconds` INTEGER NOT NULL,
+                        `notes` TEXT NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`planSessionId`) REFERENCES `plan_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """)
+                database.execSQL("INSERT INTO `plan_exercises_new` SELECT * FROM `plan_exercises`")
+                database.execSQL("DROP TABLE `plan_exercises`")
+                database.execSQL("ALTER TABLE `plan_exercises_new` RENAME TO `plan_exercises`")
+
+                // 6. PersonalRecord
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `personal_records_new` (
+                        `id` TEXT NOT NULL,
+                        `exerciseId` TEXT NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `value` REAL NOT NULL,
+                        `date` TEXT NOT NULL,
+                        PRIMARY KEY(`id`),
+                        FOREIGN KEY(`exerciseId`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """)
+                database.execSQL("INSERT INTO `personal_records_new` SELECT * FROM `personal_records`")
+                database.execSQL("DROP TABLE `personal_records`")
+                database.execSQL("ALTER TABLE `personal_records_new` RENAME TO `personal_records`")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("UPDATE exercises SET secondary_muscles = '[]' WHERE secondary_muscles IS NULL")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -123,7 +258,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .build()
                 INSTANCE = instance
                 instance

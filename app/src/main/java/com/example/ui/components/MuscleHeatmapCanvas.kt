@@ -126,27 +126,24 @@ private fun DrawScope.drawFrontView(heatmap: Map<String, HeatmapEntry>) {
     drawOvalMuscle(w * 0.440f, h * 0.476f, w * 0.058f, h * 0.034f, core)
     drawOvalMuscle(w * 0.560f, h * 0.476f, w * 0.058f, h * 0.034f, core)
 
-    // Front delts
-    val frontDelt = heatmap["front_delt"].toColorPair()
-    drawOvalMuscle(w * 0.238f, h * 0.200f, w * 0.062f, h * 0.048f, frontDelt)
-    drawOvalMuscle(w * 0.762f, h * 0.200f, w * 0.062f, h * 0.048f, frontDelt)
-
-    // Side delts — on the shoulder cap
-    val sideDelt = heatmap["side_delt"].toColorPair()
-    drawOvalMuscle(w * 0.172f, h * 0.215f, w * 0.042f, h * 0.062f, sideDelt)
-    drawOvalMuscle(w * 0.828f, h * 0.215f, w * 0.042f, h * 0.062f, sideDelt)
+    // Shoulders (Front + Side delts)
+    val shoulders = heatmap["shoulders"].toColorPair()
+    drawOvalMuscle(w * 0.238f, h * 0.200f, w * 0.062f, h * 0.048f, shoulders)
+    drawOvalMuscle(w * 0.762f, h * 0.200f, w * 0.062f, h * 0.048f, shoulders)
+    drawOvalMuscle(w * 0.172f, h * 0.215f, w * 0.042f, h * 0.062f, shoulders)
+    drawOvalMuscle(w * 0.828f, h * 0.215f, w * 0.042f, h * 0.062f, shoulders)
 
     // Biceps
-    val bicep = heatmap["bicep"].toColorPair()
-    drawOvalMuscle(w * 0.172f, h * 0.318f, w * 0.048f, h * 0.082f, bicep)
-    drawOvalMuscle(w * 0.828f, h * 0.318f, w * 0.048f, h * 0.082f, bicep)
+    val biceps = heatmap["biceps"].toColorPair()
+    drawOvalMuscle(w * 0.172f, h * 0.318f, w * 0.048f, h * 0.082f, biceps)
+    drawOvalMuscle(w * 0.828f, h * 0.318f, w * 0.048f, h * 0.082f, biceps)
 
     // Quads — 2 visible heads per leg
-    val quad = heatmap["quad"].toColorPair()
-    drawOvalMuscle(w * 0.330f, h * 0.645f, w * 0.052f, h * 0.082f, quad)
-    drawOvalMuscle(w * 0.388f, h * 0.638f, w * 0.048f, h * 0.082f, quad)
-    drawOvalMuscle(w * 0.612f, h * 0.638f, w * 0.048f, h * 0.082f, quad)
-    drawOvalMuscle(w * 0.670f, h * 0.645f, w * 0.052f, h * 0.082f, quad)
+    val quads = heatmap["quads"].toColorPair()
+    drawOvalMuscle(w * 0.330f, h * 0.645f, w * 0.052f, h * 0.082f, quads)
+    drawOvalMuscle(w * 0.388f, h * 0.638f, w * 0.048f, h * 0.082f, quads)
+    drawOvalMuscle(w * 0.612f, h * 0.638f, w * 0.048f, h * 0.082f, quads)
+    drawOvalMuscle(w * 0.670f, h * 0.645f, w * 0.052f, h * 0.082f, quads)
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -162,29 +159,28 @@ private fun DrawScope.drawBackView(heatmap: Map<String, HeatmapEntry>) {
     drawLat(w, h, isLeft = true, back)
     drawLat(w, h, isLeft = false, back)
 
-    val rearDelt = heatmap["rear_delt"].toColorPair()
-    drawOvalMuscle(w * 0.238f, h * 0.205f, w * 0.065f, h * 0.046f, rearDelt)
-    drawOvalMuscle(w * 0.762f, h * 0.205f, w * 0.065f, h * 0.046f, rearDelt)
+    // Shoulders
+    val shoulders = heatmap["shoulders"].toColorPair()
+    drawOvalMuscle(w * 0.238f, h * 0.205f, w * 0.065f, h * 0.046f, shoulders)
+    drawOvalMuscle(w * 0.762f, h * 0.205f, w * 0.065f, h * 0.046f, shoulders)
+    drawOvalMuscle(w * 0.172f, h * 0.215f, w * 0.042f, h * 0.062f, shoulders)
+    drawOvalMuscle(w * 0.828f, h * 0.215f, w * 0.042f, h * 0.062f, shoulders)
 
-    val sideDelt = heatmap["side_delt"].toColorPair()
-    drawOvalMuscle(w * 0.172f, h * 0.215f, w * 0.042f, h * 0.062f, sideDelt)
-    drawOvalMuscle(w * 0.828f, h * 0.215f, w * 0.042f, h * 0.062f, sideDelt)
+    val triceps = heatmap["triceps"].toColorPair()
+    drawOvalMuscle(w * 0.172f, h * 0.318f, w * 0.048f, h * 0.082f, triceps)
+    drawOvalMuscle(w * 0.828f, h * 0.318f, w * 0.048f, h * 0.082f, triceps)
 
-    val tricep = heatmap["tricep"].toColorPair()
-    drawOvalMuscle(w * 0.172f, h * 0.318f, w * 0.048f, h * 0.082f, tricep)
-    drawOvalMuscle(w * 0.828f, h * 0.318f, w * 0.048f, h * 0.082f, tricep)
+    val glutes = heatmap["glutes"].toColorPair()
+    drawOvalMuscle(w * 0.378f, h * 0.592f, w * 0.082f, h * 0.068f, glutes)
+    drawOvalMuscle(w * 0.622f, h * 0.592f, w * 0.082f, h * 0.068f, glutes)
 
-    val glute = heatmap["glute"].toColorPair()
-    drawOvalMuscle(w * 0.378f, h * 0.592f, w * 0.082f, h * 0.068f, glute)
-    drawOvalMuscle(w * 0.622f, h * 0.592f, w * 0.082f, h * 0.068f, glute)
+    val hamstrings = heatmap["hamstrings"].toColorPair()
+    drawOvalMuscle(w * 0.370f, h * 0.672f, w * 0.068f, h * 0.085f, hamstrings)
+    drawOvalMuscle(w * 0.630f, h * 0.672f, w * 0.068f, h * 0.085f, hamstrings)
 
-    val hamstring = heatmap["hamstring"].toColorPair()
-    drawOvalMuscle(w * 0.370f, h * 0.672f, w * 0.068f, h * 0.085f, hamstring)
-    drawOvalMuscle(w * 0.630f, h * 0.672f, w * 0.068f, h * 0.085f, hamstring)
-
-    val calf = heatmap["calf"].toColorPair()
-    drawOvalMuscle(w * 0.368f, h * 0.805f, w * 0.055f, h * 0.072f, calf)
-    drawOvalMuscle(w * 0.632f, h * 0.805f, w * 0.055f, h * 0.072f, calf)
+    val calves = heatmap["calves"].toColorPair()
+    drawOvalMuscle(w * 0.368f, h * 0.805f, w * 0.055f, h * 0.072f, calves)
+    drawOvalMuscle(w * 0.632f, h * 0.805f, w * 0.055f, h * 0.072f, calves)
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -514,25 +510,16 @@ private fun DrawScope.drawOvalMuscle(
     drawOval(MUSCLE_STROKE, tl, sz, style = Stroke(1.dp.toPx()))
 }
 
-private fun DrawScope.drawRoundedMuscle(
-    left: Float, top: Float, right: Float, bottom: Float,
-    cp: Pair<Color, Float>
-) {
-    val cr = CornerRadius((right - left) * 0.28f)
-    drawRoundRect(cp.first.copy(alpha = cp.second), Offset(left, top), Size(right - left, bottom - top), cr)
-    drawRoundRect(MUSCLE_STROKE, Offset(left, top), Size(right - left, bottom - top), cr, style = Stroke(1.dp.toPx()))
-}
-
 /** Resolves a HeatmapEntry to (fillColor, alpha) */
 private fun HeatmapEntry?.toColorPair(): Pair<Color, Float> {
     if (this == null || intensity <= 0) return EMPTY_FILL to EMPTY_ALPHA
     return try {
         val parsedColor = Color(AndroidColor.parseColor(colorHex))
-        when (intensity) {
-            3 -> parsedColor to 1.0f                       // Active color at full brightness
-            2 -> parsedColor to 0.30f                      // Recovering color at 30% alpha
-            1 -> Color.Transparent to 0.0f                 // Neutral / transparent
-            else -> parsedColor to ACTIVE_ALPHA
+        when {
+            intensity >= 80 -> parsedColor to 1.0f
+            intensity >= 40 -> parsedColor to 0.75f
+            intensity >= 10 -> parsedColor to 0.50f
+            else -> parsedColor to 0.25f
         }
     } catch (e: Exception) {
         EMPTY_FILL to EMPTY_ALPHA

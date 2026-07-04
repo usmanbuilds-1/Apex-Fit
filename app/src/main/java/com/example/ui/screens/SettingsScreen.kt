@@ -41,6 +41,9 @@ fun SettingsScreen(
     val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()
     val userSex by fitnessViewModel.userSex.collectAsStateWithLifecycle()
     val currentEquipment by fitnessViewModel.equipmentAvailable.collectAsStateWithLifecycle()
+    val currentWeightVal by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
+    val currentGoalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
+    val units by fitnessViewModel.units.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
@@ -50,6 +53,8 @@ fun SettingsScreen(
     var editHeight by remember(userHeight) { mutableStateOf(userHeight.toString()) }
     var editAge by remember(userAge) { mutableStateOf(userAge.toString()) }
     var editSex by remember(userSex) { mutableStateOf(userSex) }
+    var editCurrentWeight by remember(currentWeightVal) { mutableStateOf(currentWeightVal.toString()) }
+    var editGoalWeight by remember(currentGoalWeight) { mutableStateOf(currentGoalWeight.toString()) }
 
     Column(
         modifier = Modifier
@@ -188,6 +193,88 @@ fun SettingsScreen(
             }
         }
 
+        // Units Select
+        Text(
+            text = "UNITS SYSTEM",
+            fontFamily = SyneFamily,
+            fontSize = 11.sp,
+            color = SecondaryText,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val unitOptions = listOf("Metric (kg / cm)" to "kg", "Imperial (lb / in)" to "lb")
+            for ((label, code) in unitOptions) {
+                val isSelected = units == code
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSelected) AmberAccent else DarkRaised)
+                        .border(
+                            border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .clickable { fitnessViewModel.setPreferredUnits(code) }
+                        .padding(vertical = 10.dp)
+                        .testTag("settings_unit_$code"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label.uppercase(),
+                        fontFamily = SyneFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) Color(0xFF0A0A0F) else PrimaryText
+                    )
+                }
+            }
+        }
+
+        // Weight Fields Row
+        Text(
+            text = "WEIGHT METRICS",
+            fontFamily = SyneFamily,
+            fontSize = 11.sp,
+            color = SecondaryText,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = editCurrentWeight,
+                onValueChange = { editCurrentWeight = it },
+                label = { Text("Current Weight ($units)", color = SecondaryText) },
+                textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f).testTag("settings_current_weight_input"),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = DarkRaised,
+                    unfocusedContainerColor = DarkRaised,
+                    focusedIndicatorColor = AmberAccent,
+                    unfocusedIndicatorColor = BorderSubtle
+                )
+            )
+            OutlinedTextField(
+                value = editGoalWeight,
+                onValueChange = { editGoalWeight = it },
+                label = { Text("Goal Weight ($units)", color = SecondaryText) },
+                textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f).testTag("settings_goal_weight_input"),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = DarkRaised,
+                    unfocusedContainerColor = DarkRaised,
+                    focusedIndicatorColor = AmberAccent,
+                    unfocusedIndicatorColor = BorderSubtle
+                )
+            )
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
         // Save & Dismiss options
@@ -212,7 +299,7 @@ fun SettingsScreen(
                     fitnessViewModel.updateProfile(
                         name = editName,
                         userGoal = editGoal,
-                        targetUnit = "kg",
+                        targetUnit = units,
                         key = "",
                         equipment = equipmentVal,
                         height = hVal,
@@ -221,6 +308,12 @@ fun SettingsScreen(
                     )
                     val cInt = editedManualCalValue.toIntOrNull() ?: com.example.UserDefaults.CALORIES
                     fitnessViewModel.setManualCalorieTarget(true, cInt)
+
+                    val gW = editGoalWeight.toDoubleOrNull() ?: currentGoalWeight
+                    val cW = editCurrentWeight.toDoubleOrNull() ?: currentWeightVal
+                    fitnessViewModel.setGoalWeight(gW)
+                    fitnessViewModel.setBodyWeight(cW)
+
                     Toast.makeText(context, "Profile Saved Successfully", Toast.LENGTH_SHORT).show()
                     onNavigateTo(0)
                 },
@@ -234,18 +327,53 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Database wipes CTA
-        Button(
-            onClick = {
-                fitnessViewModel.resetAllData()
-                Toast.makeText(context, "All athlete training logs cleared.", Toast.LENGTH_SHORT).show()
-                onNavigateTo(0)
-            },
-            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("reset_data_button"),
-            colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Text("RESET TOTAL ATHLETE DIRECTORY DATA", fontFamily = SyneFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+    var showResetDialog by remember { mutableStateOf(false) }
+    var hasStartedReset by remember { mutableStateOf(false) }
+    val isResetting by fitnessViewModel.isResetting.collectAsStateWithLifecycle()
+
+    LaunchedEffect(isResetting) {
+        if (hasStartedReset && !isResetting) {
+            onNavigateTo(0)
         }
+    }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isResetting) showResetDialog = false },
+            title = { Text("Reset all data?") },
+            text = { Text("This will permanently delete all your workouts, meals, body weight history, personal records, and profile settings. This cannot be undone. Are you sure?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        hasStartedReset = true
+                        fitnessViewModel.resetAllData()
+                    },
+                    enabled = !isResetting
+                ) {
+                    Text("Reset Everything", color = if (isResetting) Color.Gray else Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showResetDialog = false },
+                    enabled = !isResetting
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Button(
+        onClick = {
+            showResetDialog = true
+        },
+        modifier = Modifier.fillMaxWidth().height(48.dp).testTag("reset_data_button"),
+        colors = ButtonDefaults.buttonColors(containerColor = if (isResetting) Color.Gray else RedAccent),
+        shape = RoundedCornerShape(10.dp),
+        enabled = !isResetting
+    ) {
+        Text(if (isResetting) "RESETTING..." else "RESET TOTAL ATHLETE DIRECTORY DATA", fontFamily = SyneFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+    }
     }
 }

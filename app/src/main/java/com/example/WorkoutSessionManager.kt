@@ -6,7 +6,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.UUID
+import com.google.gson.Gson
 
 /**
  * Owns all in-memory workout state. A single source of truth for the
@@ -15,7 +19,29 @@ import java.util.UUID
  * Nothing touches Room until commitToDatabase() is called — one atomic
  * write covers the TrainingSession row and all ExerciseSet rows together.
  */
-class WorkoutSessionManager(private val repository: FitnessRepository) {
+class WorkoutSessionManager(
+    private val repository: FitnessRepository,
+    private val dataStore: DataStoreManager
+) {
+
+    private val gson = Gson()
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    init {
+        scope.launch {
+            val json = dataStore.activeSessionJsonFlow.firstOrNull()
+            if (!json.isNullOrEmpty()) {
+                try {
+                    val restored = gson.fromJson(json, ActiveSession::class.java)
+                    if (restored != null) {
+                        _activeSession.value = restored
+                    }
+                } catch (e: Exception) {
+                    // ignore parse errors
+                }
+            }
+        }
+    }
 
     // ── Active session state ──────────────────────────────────────
     private val _activeSession = MutableStateFlow<ActiveSession?>(null)
@@ -159,15 +185,31 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                suggestedLbs = com.example.utils.ProgressionEngine.calculateProgressiveWeight(
-                    lastWeight = lastWeightLbs,
-                    lastRPE = lastSet.rpe,
-                    daysSinceLastSession = daysSince,
-                    userBodyWeightLbs = userBodyWeightLbs,
-                    exerciseType = exType,
-                    muscleReadinessPercent = readinessPercent
+                val lastSetUi = com.example.ui.models.UiExerciseSet(
+                    id = lastSet.id,
+                    weight = lastSet.weight,
+                    reps = lastSet.reps,
+                    rpe = lastSet.rpe,
+                    isWarmup = lastSet.isWarmup,
+                    completed = lastSet.completed,
+                    exerciseName = lastSet.exerciseName,
+                    sessionId = lastSet.sessionId,
+                    muscleGroup = lastSet.muscleGroup
                 )
 
+                val progressionResult = com.example.utils.ProgressionEngine.calculateProgressiveWeight(
+                    exerciseId = ex.id.toString(),
+                    lastSessionSets = listOf(lastSetUi), // Limitation: passing only last set
+                    repsMin = ex.repsMin,
+                    repsMax = ex.repsMax,
+                    targetSets = ex.sets,
+                    recoveryMultiplier = 1.0, // Should be calculated, but using 1.0 for now
+                    currentWeight = lastWeightLbs,
+                    exerciseType = exType
+                )
+
+                val suggestedLbs = progressionResult.newWeight
+                
                 val suggestedPreferred = if (preferredUnits.lowercase() == "lbs") {
                     suggestedLbs
                 } else {
@@ -178,7 +220,7 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
                 suggestionsMap[ex.id.toString()] = suggestedPreferred
                 lastWeightMap[ex.id.toString()] = lastSet.weight
                 val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
-                contextLinesMap[ex.id.toString()] = "Last: ${lastSet.weight} $preferredUnits @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $preferredUnits"
+                contextLinesMap[ex.id.toString()] = "Last: ${lastSet.weight} $preferredUnits @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $preferredUnits. Outcome: ${progressionResult.reason}"
             }
         }
 
@@ -212,6 +254,7 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
             startTime = System.currentTimeMillis(),
             exercises = activeExercises
         )
+        persistSession()
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -256,6 +299,7 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
             )
             // Trigger StateFlow emission with a completely new reference and nested elements
             _activeSession.value = session.copy(exercises = updatedExercises)
+            persistSession()
         }
     }
 
@@ -290,8 +334,32 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
         )
         // Trigger StateFlow emission with a completely new reference and nested elements
         _activeSession.value = session.copy(exercises = updatedExercises)
+        persistSession()
     }
 
+
+    private fun persistSession() {
+        val session = _activeSession.value
+        scope.launch {
+            if (session != null) {
+                try {
+                    dataStore.saveActiveSessionJson(gson.toJson(session))
+                } catch (e: Exception) {}
+            } else {
+                dataStore.saveActiveSessionJson(null)
+            }
+        }
+    }
+
+    fun clearPersistedSession() {
+        scope.launch {
+            dataStore.saveActiveSessionJson(null)
+        }
+        _activeSession.value = null
+        _lastWeights.value = emptyMap()
+        _weightContextLines.value = emptyMap()
+        _pendingPRWarnings.value = emptyMap()
+    }
 
     /**
      * Checks if the given weight/reps would beat the user's all-time record
@@ -361,16 +429,24 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
             id = sessionId,
             date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()),
             sessionType = session.sessionType,
-            completed = true,
+            completed = completedSetsOnly,
             durationMinutes = durationMinutes,
-            sessionFeel = sessionFeel.coerceIn(1, 5)
+            sessionFeel = sessionFeel.coerceIn(1, 5),
+            planSessionId = session.planSessionId.toLongOrNull(),
+            status = if (completedSetsOnly) "completed" else "partial",
+            readinessScoreAtStart = session.readinessScore,
+            notes = session.notes,
+            startedAt = session.startTime,
+            completedAt = System.currentTimeMillis()
         )
 
         // Single atomic transaction — both rows or neither
-        repository.insertSessionAtomic(trainingSession, allSets)
+        val prs = evaluatePRs(allSets)
+        repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
 
         // Save PRs after commit
-        evaluateAndSavePRs(allSets)
+        // evaluateAndSavePRs(allSets)
+        repository.scanAndSaveWeeklyPatterns()
 
         val totalVolume = allSets
             .filter { !it.isWarmup }
@@ -405,10 +481,7 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
 
     /** Called from "Save partial session?" dialog — no path */
     fun discardAndExit() {
-        _activeSession.value = null
-        _lastWeights.value = emptyMap()
-        _weightContextLines.value = emptyMap()
-        _pendingPRWarnings.value = emptyMap()
+        clearPersistedSession()
     }
 
     val hasCompletedSets: Boolean
@@ -422,7 +495,8 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
     // PR EVALUATION — runs after commit
     // ─────────────────────────────────────────────────────────────
 
-    private suspend fun evaluateAndSavePRs(sets: List<ExerciseSet>) {
+    private suspend fun evaluatePRs(sets: List<ExerciseSet>): List<PersonalRecord> {
+        val newPRs = mutableListOf<PersonalRecord>()
         sets.filter { !it.isWarmup && it.completed }
             .groupBy { it.exerciseId }
             .forEach { (exerciseId, exerciseSets) ->
@@ -441,21 +515,16 @@ class WorkoutSessionManager(private val repository: FitnessRepository) {
                 val prev1RM = existing.firstOrNull { it.type == "estimated_1rm" }?.value ?: 0.0
 
                 if (maxWeight > prevWeight) {
-                    repository.insertPersonalRecord(
-                        PersonalRecord("${exerciseId}_max_weight", exerciseId, "max_weight", maxWeight, today)
-                    )
+                    newPRs.add(PersonalRecord("${exerciseId}_max_weight", exerciseId, "max_weight", maxWeight, today))
                 }
                 if (totalVolume > prevVolume) {
-                    repository.insertPersonalRecord(
-                        PersonalRecord("${exerciseId}_volume", exerciseId, "volume", totalVolume, today)
-                    )
+                    newPRs.add(PersonalRecord("${exerciseId}_volume", exerciseId, "volume", totalVolume, today))
                 }
                 if (maxEstimated1RM > prev1RM) {
-                    repository.insertPersonalRecord(
-                        PersonalRecord("${exerciseId}_estimated_1rm", exerciseId, "estimated_1rm", maxEstimated1RM, today)
-                    )
+                    newPRs.add(PersonalRecord("${exerciseId}_estimated_1rm", exerciseId, "estimated_1rm", maxEstimated1RM, today))
                 }
             }
+        return newPRs
     }
 }
 

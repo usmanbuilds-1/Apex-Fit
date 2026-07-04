@@ -19,3 +19,18 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep Room entities (Room's consumer rules cover this, but be explicit)
+-keep class com.example.data.** { *; }
+
+# Keep BuildConfig
+-keep class com.example.BuildConfig { *; }
+
+# Keep generic type signatures for reflection
+-keepattributes Signature, *Annotation*
+
+# Keep enum values (used in ProgressionEngine.OutcomeType etc.)
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}

@@ -77,6 +77,20 @@ data class TrainingSession(
     indices = [
         Index(value = ["sessionId"]),
         Index(value = ["exerciseId"])
+    ],
+    foreignKeys = [
+        ForeignKey(
+            entity = TrainingSession::class,
+            parentColumns = ["id"],
+            childColumns = ["sessionId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = Exercise::class,
+            parentColumns = ["id"],
+            childColumns = ["exerciseId"],
+            onDelete = ForeignKey.CASCADE
+        )
     ]
 )
 data class ExerciseSet(
@@ -186,7 +200,17 @@ data class WorkoutPlan(
     @ColumnInfo(name = "activated_at") val activatedAt: Long? = null
 )
 
-@Entity(tableName = "plan_sessions")
+@Entity(
+    tableName = "plan_sessions",
+    foreignKeys = [
+        ForeignKey(
+            entity = WorkoutPlan::class,
+            parentColumns = ["id"],
+            childColumns = ["planId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
 data class PlanSession(
     @PrimaryKey val id: Long,
     val planId: Long,
@@ -195,7 +219,17 @@ data class PlanSession(
     val focus: String // Muscle group description
 )
 
-@Entity(tableName = "plan_exercises")
+@Entity(
+    tableName = "plan_exercises",
+    foreignKeys = [
+        ForeignKey(
+            entity = PlanSession::class,
+            parentColumns = ["id"],
+            childColumns = ["planSessionId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
 data class PlanExercise(
     @PrimaryKey val id: Long,
     val planSessionId: Long,
@@ -209,7 +243,17 @@ data class PlanExercise(
     val notes: String
 )
 
-@Entity(tableName = "personal_records")
+@Entity(
+    tableName = "personal_records",
+    foreignKeys = [
+        ForeignKey(
+            entity = Exercise::class,
+            parentColumns = ["id"],
+            childColumns = ["exerciseId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
 data class PersonalRecord(
     @PrimaryKey val id: String, // exerciseId_type
     val exerciseId: String,
@@ -271,6 +315,8 @@ data class ActiveSession(
     val planSessionId: String,
     val sessionType: String,
     val startTime: Long = System.currentTimeMillis(),
+    val readinessScore: Int? = null,
+    val notes: String? = null,
     val exercises: MutableList<ActiveExercise>
 )
 
@@ -384,7 +430,7 @@ data class Exercise(
     val name: String,
     val category: String, // e.g., "Barbell", "Dumbbell", "Machine", "Cable", "Bodyweight"
     @ColumnInfo(name = "primary_muscle") val primaryMuscle: String, // e.g., "Chest", "Back", "Quads"
-    @ColumnInfo(name = "secondary_muscles") val secondaryMuscles: String?, // nullable JSON array of strings
+    @ColumnInfo(name = "secondary_muscles") val secondaryMuscles: List<String> = emptyList(), // JSON array of strings
     @ColumnInfo(name = "equipment_required") val equipmentRequired: String,
     @ColumnInfo(name = "is_bilateral", defaultValue = "1") val isBilateral: Int = 1,
     @ColumnInfo(name = "is_user_created", defaultValue = "0") val isUserCreated: Int = 0,

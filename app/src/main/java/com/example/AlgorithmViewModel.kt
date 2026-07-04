@@ -52,7 +52,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         weightFlow,
         dataStore.goalFlow
     ) { calorieTarget, weights, goal ->
-        val latestWeight = weights.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
+        val latestWeight = weights.maxByOrNull { it.date }?.weight ?: com.example.UserDefaults.WEIGHT_KG
         // Helms et al. guidance: 1.8g protein per kg total bodyweight for muscle maintenance
         val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250)
         // Fat range: 25% of absolute daily calorie target
@@ -76,12 +76,6 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // SECTION 2 — INTERMEDIATE COMPUTED FLOWS
     // ─────────────────────────────────────────────────────────────────
 
-    private val trendPointsFlow: Flow<List<com.example.utils.TrendPoint>> = weightFlow
-        .map { entries ->
-            withContext(Dispatchers.Default) {
-                com.example.utils.AlgorithmEngine.calcTrendWeight(entries)
-            }
-        }
 
     private val richSessionsFlow: Flow<List<com.example.utils.TrainingSession>> = combine(
         sessionsFlow, setsFlow
@@ -113,7 +107,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 com.example.utils.AlgorithmEngine.getWeightDirection(entries)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Stable")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "insufficient_data")
 
     val tdeeResult: StateFlow<com.example.utils.TDEEResult> = combine(
         weightFlow,
@@ -151,10 +145,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        com.example.utils.TDEEResult(tdee = 2440, confidence = "low (Mifflin-St Jeor)", avgCalories = 0, weightChangeKg = 0.0)
+        com.example.utils.TDEEResult(tdee = 0, confidence = "No Data", avgCalories = 0, weightChangeKg = 0.0)
     )
 
-    val adaptiveTdee: StateFlow<com.example.utils.TDEEResult?> = tdeeResult
 
     val streakResult: StateFlow<com.example.utils.StreakResult> = combine(
         nutritionFlow, richSessionsFlow, targetsFlow
@@ -169,7 +162,6 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         com.example.utils.StreakResult(com.example.utils.StreakInfo(0), com.example.utils.StreakInfo(0))
     )
 
-    val weeklyReportText = MutableStateFlow<String>("")
 
     val complianceScores: StateFlow<UiComplianceResult> = combine(
         nutritionFlow, richSessionsFlow, targetsFlow
@@ -186,7 +178,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     val complianceScore: StateFlow<Int> = complianceScores
         .map { it.overall }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 88)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val plateauResult: StateFlow<UiPlateauResult> = combine(
         weightFlow, nutritionFlow, richSessionsFlow
@@ -237,11 +229,11 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     val fatigueRatio: StateFlow<com.example.data.FatigueRatio> = fatigueResult
         .map { result ->
             com.example.data.FatigueRatio(
-                ratio = result.ratio ?: 1.0,
+                ratio = result.ratio ?: 0.0,
                 riskStatus = result.statusLabel
             )
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.example.data.FatigueRatio(1.1, "Optimal"))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.example.data.FatigueRatio(0.0, "No Data"))
 
     val muscleVolumes: StateFlow<Map<String, Int>> = richSessionsFlow
         .map { sessions ->
@@ -305,14 +297,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
-            mapOf(
-                "chest" to 12, "back" to 14, "front delts" to 6, "side delts" to 8, "rear delts" to 5,
-                "biceps" to 8, "triceps" to 8, "forearms" to 4, "trapezius" to 6, "neck" to 1,
-                "abs" to 6, "obliques" to 4, "transverse abdominis" to 3, "lower back" to 5,
-                "glutes" to 6, "quadriceps" to 10, "hamstrings" to 8, "calves" to 5,
-                "hip abductors" to 4, "hip adductors" to 4, "rotator cuff" to 3,
-                "serratus anterior" to 3, "tibialis anterior" to 2
-            )
+            emptyMap()
         )
 
     val muscleHeatmap: StateFlow<Map<String, HeatmapEntry>> = richSessionsFlow
@@ -327,19 +312,10 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             emptyMap()
         )
 
-    private val _exerciseProgression = MutableStateFlow<List<Pair<String, Double>>>(
-        listOf(
-            "Session 1" to 80.0,
-            "Session 2" to 82.5,
-            "Session 3" to 82.5,
-            "Session 4" to 85.0,
-            "Session 5" to 87.5,
-            "Session 6" to 90.0
-        )
-    )
+    private val _exerciseProgression = MutableStateFlow<List<Pair<String, Double>>>(emptyList())
     val exerciseProgression: StateFlow<List<Pair<String, Double>>> = _exerciseProgression.asStateFlow()
 
-    private val _progressionStatus = MutableStateFlow("PROGRESSING")
+    private val _progressionStatus = MutableStateFlow("No Data")
     val progressionStatus: StateFlow<String> = _progressionStatus.asStateFlow()
 
     val allPRs: StateFlow<List<UiPersonalRecord>> = dao.getAllPRsFlow()
@@ -358,10 +334,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
-            listOf(
-                "High RPE clustering across consecutive sessions",
-                "Acute to chronic volume ratio above 1.5"
-            )
+            emptyList()
         )
 
     val hypertrophyQualityScores: StateFlow<Map<String, Double>> = richSessionsFlow
@@ -373,36 +346,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
-            mapOf(
-                "chest" to 11.5,
-                "back" to 15.0,
-                "side delts" to 8.2,
-                "quads" to 14.5,
-                "hamstrings" to 6.2
-            )
+            emptyMap()
         )
 
-    val effectiveSets: StateFlow<Map<String, Double>> = setsFlow
-        .map { sets ->
-            withContext(Dispatchers.Default) {
-                val algSets = sets
-                    .filter { !it.isWarmup }
-                    .map { com.example.utils.ExerciseSet(it.weight, it.reps, it.rpe, it.isWarmup, it.completed) }
-                com.example.utils.AlgorithmEngine.calcEffectiveSets(
-                    listOf(
-                        com.example.utils.TrainingSession(
-                            date = "",
-                            sessionType = "",
-                            completed = true,
-                            exercises = listOf(
-                                com.example.utils.ExerciseLog("", "", "", algSets)
-                            )
-                        )
-                    )
-                )
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val weeklyVolume: StateFlow<Map<String, List<Pair<String, Double>>>> = richSessionsFlow
         .map { sessions ->
@@ -504,83 +450,6 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // SECTION 4 — COACH CONTEXT STRING
     // ─────────────────────────────────────────────────────────────────
 
-    fun buildCoachContext(): String {
-        val tw = trendWeight.value
-        val dir = weightDirection.value
-        val fatigue = fatigueResult.value
-        val compliance = complianceScores.value
-        val plateau = plateauResult.value
-        val deload = deloadRecommendation.value
-        val readiness = sessionReadiness.value
-        val tdee = tdeeResult.value
-        val injuries = injuryRiskSignals.value
-        val patterns = detectedPatterns.value
-
-        return buildString {
-            appendLine("Current user data:")
-            appendLine("Trend weight ${tw?.let { "%.1f".format(it) } ?: "unknown"} kg moving $dir.")
-            appendLine("Fatigue status ${fatigue.statusLabel} with ratio ${fatigue.ratio?.let { "%.2f".format(it) } ?: "N/A"}.")
-            appendLine("Compliance this week: calories ${compliance.calories}%, protein ${compliance.protein}%, training ${compliance.training}%, overall ${compliance.overall}%.")
-            appendLine("Plateau status: ${if (plateau.isPlateau) "yes" else "no"}.")
-            appendLine("Weakest nutrition day: ${compliance.weakestDay ?: "unknown"}.")
-            appendLine("Deload recommendation: ${deload.recommendation} (urgency: ${deload.urgency}, signals: ${deload.signals}).")
-            appendLine("Injury signals: ${if (injuries.isEmpty()) "none" else injuries.joinToString(", ")}.")
-            appendLine("Session readiness today: ${readiness?.score ?: "N/A"} — ${readiness?.label ?: "insufficient data"}.")
-            appendLine("TDEE estimate: ${tdee.tdee ?: "calculating"} kcal (confidence: ${tdee.confidence}).")
-            appendLine("Detected patterns: ${if (patterns.isEmpty()) "none yet" else patterns.take(3).joinToString(", ") { it.title }}.")
-        }.trim()
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    // SECTION 5 — PRIVATE HELPERS & COMPATIBILITY METHODS
-    // ─────────────────────────────────────────────────────────────────
-
-    fun scanAndSaveWeeklyPatterns() {
-        viewModelScope.launch {
-            val dbWeights = dao.getAllWeightEntries()
-            val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
-                com.example.utils.WeightEntry(date, list.map { it.weight }.average())
-            }.sortedBy { it.date }
-            
-            val dbNutrition = dao.getAllNutritionEntriesFlow().first()
-            val engineNutrition = dbNutrition.groupBy { it.date }.map { (date, list) ->
-                com.example.utils.NutritionEntry(
-                    date = date,
-                    calories = list.sumOf { it.calories },
-                    protein = list.sumOf { it.protein }.toInt(),
-                    carbs = list.sumOf { it.carbs }.toInt(),
-                    fat = list.sumOf { it.fat }.toInt()
-                )
-            }.sortedBy { it.date }
-            
-            val sessions = loadFullTrainingSessions()
-            
-            val latestWeight = engineWeights.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
-            val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250).toDouble()
-
-            val detected = com.example.utils.PatternDetector.scanAllPatterns(
-                weightLog = engineWeights,
-                nutritionLog = engineNutrition,
-                trainingLog = sessions,
-                sleepLog = emptyList(),
-                proteinTarget = proteinTarget
-            )
-            
-            val entities = detected.map { p ->
-                com.example.data.DetectedPatternEntity(
-                    id = p.id,
-                    type = p.type,
-                    title = p.title,
-                    description = p.description,
-                    confidence = p.confidence,
-                    actionable = p.actionable,
-                    detectedAt = p.detectedAt
-                )
-            }
-            dao.clearAllDetectedPatterns()
-            dao.insertDetectedPatterns(entities)
-        }
-    }
 
     private suspend fun loadFullTrainingSessions(): List<com.example.utils.TrainingSession> {
         val dbSessions = dao.getAllCompletedSessions()
@@ -689,18 +558,4 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun calculateTdeeAndMetabolism() {}
-    fun calculateTrendWeight() {}
-    fun calculateFatigueRatio() {}
-    fun calculateCompliance() {}
-    fun calculateSessionReadinessAuto() {}
-    fun calculateSessionReadiness(todaySessionType: String) {}
-    fun detectPlateaus() {}
-    fun updateVolumeLoadProgression() {}
-    fun checkPersonalRecords() {}
-    fun identifyWeakPoints() {}
-    fun scoreHypertrophyQuality() {}
-    fun scanInjuryRisks() {}
-    fun planDeload() {}
-    fun generateWeeklyReport() {}
 }

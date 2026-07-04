@@ -1,3 +1,4 @@
+// name=app/src/main/java/com/example/ui/screens/TrainScreen.kt
 package com.example.ui.screens
 
 import android.widget.Toast
@@ -34,6 +35,8 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -44,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
@@ -132,6 +136,7 @@ fun ProgramSubTab(
     fitnessViewModel: FitnessViewModel,
     trainViewModel: TrainViewModel
 ) {
+    val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val selectedDay by trainViewModel.selectedDayOfWeek.collectAsStateWithLifecycle()
     val selectedDaySessionRaw by trainViewModel.selectedDaySession.collectAsStateWithLifecycle()
@@ -293,7 +298,7 @@ fun ProgramSubTab(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "${ex.sets} Sets x ${ex.repsMin}-${ex.repsMax} Reps • ${ex.weight} kg",
+                                        text = "${ex.sets} Sets x ${ex.repsMin}-${ex.repsMax} Reps • ${ex.weight} $units",
                                         fontFamily = JetBrainsMonoFamily,
                                         fontSize = 11.sp,
                                         color = AmberAccent
@@ -425,28 +430,50 @@ fun WorkoutExecutionSubTab(
     val lastWeights by trainViewModel.lastWeights.collectAsStateWithLifecycle()
     val weightContextLines by trainViewModel.weightContextLines.collectAsStateWithLifecycle()
     val preferredUnits by trainViewModel.units.collectAsStateWithLifecycle()
-
+    val saveError by trainViewModel.saveError.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+    val hapticFeedback = LocalHapticFeedback.current
     var showFinishEarlyDialog by remember { mutableStateOf(false) }
     var showNormalFinishFeelDialog by remember { mutableStateOf(false) }
     var selectedFeelRating by remember { mutableStateOf(4) }
     var showExitDialog by remember { mutableStateOf(false) }
 
+    saveError?.let { err ->
+        AlertDialog(
+            onDismissRequest = { trainViewModel.dismissSaveError() },
+            containerColor = DarkCardSurface,
+            title = { Text("SAVE FAILED", color = Color(0xFFE84A4A), fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
+            text = { Text(err, color = SecondaryText, fontFamily = JetBrainsMonoFamily, fontSize = 12.sp) },
+            confirmButton = {
+                TextButton(onClick = { trainViewModel.finishWorkoutSession(selectedFeelRating) }) {
+                    Text("RETRY FULL", color = AmberAccent)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { trainViewModel.savePartialAndExit(selectedFeelRating) }) {
+                        Text("RETRY PARTIAL", color = AccentSecondary)
+                    }
+                    TextButton(onClick = { trainViewModel.dismissSaveError() }) {
+                        Text("CANCEL", color = MutedText)
+                    }
+                }
+            }
+        )
+    }
+
     BackHandler(enabled = activeSession != null) {
-        if (trainViewModel.hasCompletedSets) {
-            showExitDialog = true
-        } else {
-            trainViewModel.cancelActiveWorkout()
-        }
+        showExitDialog = true
     }
 
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
+            containerColor = DarkCardSurface,
             title = {
                 Text(
-                    text = "SAVE PARTIAL SESSION?",
+                    text = "EXIT WORKOUT?",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -456,7 +483,7 @@ fun WorkoutExecutionSubTab(
             text = {
                 val compSetsCount = loggedSets.values.flatten().count { it.completed }
                 Text(
-                    text = "You have $compSetsCount completed sets. Do you want to save them now or discard and exit?",
+                    text = "You have $compSetsCount completed sets. Do you want to save them now, discard everything, or keep working out?",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
                     color = SecondaryText
@@ -469,17 +496,26 @@ fun WorkoutExecutionSubTab(
                         showFinishEarlyDialog = true
                     }
                 ) {
-                    Text("SAVE", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
+                    Text("SAVE & EXIT", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        showExitDialog = false
-                        trainViewModel.cancelActiveWorkout()
+                Row {
+                    TextButton(
+                        onClick = {
+                            showExitDialog = false
+                            trainViewModel.cancelActiveWorkout()
+                        }
+                    ) {
+                        Text("DISCARD", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFFE84A4A))
                     }
-                ) {
-                    Text("DISCARD", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = MutedText)
+                    TextButton(
+                        onClick = {
+                            showExitDialog = false
+                        }
+                    ) {
+                        Text("KEEP WORKING OUT", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = MutedText)
+                    }
                 }
             }
         )
@@ -727,6 +763,8 @@ fun WorkoutExecutionSubTab(
         }
     } else {
         // active workout runner layout
+        val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
+        val unitSuffix = if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg"
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize()
@@ -841,13 +879,15 @@ fun WorkoutExecutionSubTab(
                         val lastSetWeight = lastCompletedSetObj?.weight ?: 0.0
                         val lastSetReps = lastCompletedSetObj?.reps ?: 0
 
+                        val units by fitnessViewModel.units.collectAsStateWithLifecycle()
                         RealTimeEffectiveSetsCard(
                             exName = ex.name,
                             effData = currEffSetsData,
                             currentSetNum = currentSetNum,
                             totalSetsNum = totalSetsNum,
                             lastSetWeight = lastSetWeight,
-                            lastSetReps = lastSetReps
+                            lastSetReps = lastSetReps,
+                            units = units
                         )
                     }
                 }
@@ -880,12 +920,30 @@ fun WorkoutExecutionSubTab(
                 items(setsList.size) { sIdx ->
                     val setObj = setsList[sIdx]
 
-                    var rawWeight by remember(setObj.weight) { mutableStateOf(setObj.weight.toString()) }
-                    var rawReps by remember(setObj.reps) { mutableStateOf(setObj.reps.toString()) }
-                    var selectedRpe by remember(setObj.rpe) { mutableStateOf(setObj.rpe) }
+                    // Local editing state keyed to stable set id to avoid reset when the session model updates
+                    var rawWeight by remember(setObj.id) { mutableStateOf(setObj.weight.toString()) }
+                    var rawReps by remember(setObj.id) { mutableStateOf(setObj.reps.toString()) }
+                    var selectedRpe by remember(setObj.id) { mutableStateOf(setObj.rpe) }
 
-                    var weightError by remember { mutableStateOf("") }
-                    var repsError by remember { mutableStateOf("") }
+                    // Error strings keyed to set id (and set index)
+                    var weightError by remember(setObj.id, sIdx) { mutableStateOf("") }
+                    var repsError by remember(setObj.id, sIdx) { mutableStateOf("") }
+
+                    // Commit helpers — call when editing finishes (focus loss or explicit commit)
+                    val commitWeight: () -> Unit = {
+                        val w = rawWeight.toDoubleOrNull()
+                        if (w != null && w in 0.25..500.0) {
+                            val r = rawReps.toIntOrNull() ?: setObj.reps
+                            trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
+                        }
+                    }
+                    val commitReps: () -> Unit = {
+                        val r = rawReps.toIntOrNull()
+                        if (r != null && r in 1..50) {
+                            val w = rawWeight.toDoubleOrNull() ?: setObj.weight
+                            trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
+                        }
+                    }
 
                     val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in 0.25..500.0 } ?: false
                     val isRepsValid = rawReps.toIntOrNull()?.let { it in 1..50 } ?: false
@@ -981,33 +1039,34 @@ fun WorkoutExecutionSubTab(
                                             if (dVal != null) {
                                                 if (dVal > 500.0) {
                                                     finalStr = "500.0"
-                                                    error = "Weight: 0.25–500 kg"
+                                                    error = "Weight: 0.25–500 $unitSuffix"
                                                 } else if (dVal < 0.25) {
                                                     val isTypingPrefix = clean == "0" || clean == "0." || clean == "0.2"
                                                     if (!isTypingPrefix) {
                                                         finalStr = "0.25"
                                                     }
-                                                    error = "Weight: 0.25–500 kg"
+                                                    error = "Weight: 0.25–500 $unitSuffix"
                                                 }
                                             } else if (clean.isNotEmpty()) {
-                                                error = "Weight: 0.25–500 kg"
+                                                error = "Weight: 0.25–500 $unitSuffix"
                                             }
 
+                                            // update local buffer only; do NOT push model update on every keystroke
                                             rawWeight = finalStr
                                             weightError = error
-
-                                            val w = finalStr.toDoubleOrNull()
-                                            if (w != null && w in 0.25..500.0) {
-                                                val r = rawReps.toIntOrNull() ?: setObj.reps
-                                                trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
-                                            }
                                         },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 14.sp),
                                         modifier = Modifier
                                             .background(DarkRaised, RoundedCornerShape(4.dp))
                                             .padding(6.dp)
-                                            .fillMaxWidth(),
+                                            .fillMaxWidth()
+                                            // commit to ViewModel when focus is lost
+                                            .onFocusChanged { focusState ->
+                                                if (!focusState.isFocused) {
+                                                    commitWeight()
+                                                }
+                                            },
                                         decorationBox = { innerTextField ->
                                             Box(contentAlignment = Alignment.CenterStart) {
                                                 if (rawWeight.isEmpty()) {
@@ -1072,14 +1131,9 @@ fun WorkoutExecutionSubTab(
                                                 error = "Reps: 1–50"
                                             }
 
+                                            // update local buffer only; do NOT push model update on every keystroke
                                             rawReps = finalStr
                                             repsError = error
-
-                                            val r = finalStr.toIntOrNull()
-                                            if (r != null && r in 1..50) {
-                                                val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                                                trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
-                                            }
                                         },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 14.sp),
@@ -1087,6 +1141,11 @@ fun WorkoutExecutionSubTab(
                                             .background(DarkRaised, RoundedCornerShape(4.dp))
                                             .padding(6.dp)
                                             .fillMaxWidth()
+                                            .onFocusChanged { focusState ->
+                                                if (!focusState.isFocused) {
+                                                    commitReps()
+                                                }
+                                            }
                                     )
                                     if (repsError.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(2.dp))
@@ -1099,11 +1158,11 @@ fun WorkoutExecutionSubTab(
                                         )
                                     }
                                 }
-
-                                // Completion Checkbox
+                                           // Completion Checkbox
                                 IconButton(
                                     enabled = isSetValid,
                                     onClick = {
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                         val newCompleted = !setObj.completed
                                         val w = rawWeight.toDoubleOrNull() ?: setObj.weight
                                         val r = rawReps.toIntOrNull() ?: setObj.reps
@@ -1317,7 +1376,7 @@ fun WorkoutExecutionSubTab(
                         }
                     }
                     Button(
-                        onClick = { trainViewModel.cancelActiveWorkout() },
+                        onClick = { showExitDialog = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B1616)),
                         border = BorderStroke(1.dp, Color(0xFFE84A4A)),
                         shape = RoundedCornerShape(10.dp),
@@ -1466,7 +1525,8 @@ fun RealTimeEffectiveSetsCard(
     currentSetNum: Int,
     totalSetsNum: Int,
     lastSetWeight: Double,
-    lastSetReps: Int
+    lastSetReps: Int,
+    units: String
 ) {
     PremiumCard(
         modifier = Modifier
@@ -1555,7 +1615,7 @@ fun RealTimeEffectiveSetsCard(
                                 Spacer(modifier = Modifier.width(6.dp))
                             }
                             Text(
-                                text = "Last Set: ${if (lastSetWeight > 0) "${lastSetWeight.toInt()} kg " else ""}${if (lastSetReps > 0 && lastSetWeight <= 0) "$lastSetReps reps " else if (lastSetReps > 0) "× $lastSetReps reps " else ""}@ RPE ${effData.lastSetRPE}",
+                                text = "Last Set: ${if (lastSetWeight > 0) "${lastSetWeight.toInt()} $units " else ""}${if (lastSetReps > 0 && lastSetWeight <= 0) "$lastSetReps reps " else if (lastSetReps > 0) "× $lastSetReps reps " else ""}@ RPE ${effData.lastSetRPE}",
                                 fontFamily = JetBrainsMonoFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,

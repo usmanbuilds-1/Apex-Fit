@@ -76,6 +76,7 @@ fun HomeScreen(
     val username by fitnessViewModel.username.collectAsStateWithLifecycle()
     val weight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
     val activePlanSessions by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val units by fitnessViewModel.units.collectAsStateWithLifecycle()
 
     val loggedMeals by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
     val calorieTargetManual by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
@@ -108,7 +109,6 @@ fun HomeScreen(
     val sessionName = todaySession?.label ?: "Upper A"
     val focusMuscles = todaySession?.focus ?: "Chest • Back • Arms"
 
-    val estimateDuration by fitnessViewModel.estimatedSetDuration.collectAsStateWithLifecycle()
     // Calculate precise metabolic duration based on specific exercise sets
     val estimatedWorkoutDurationMin = if (todaySession == null || todaySession.focus == "Muscle Recovery & Rest") {
         0
@@ -116,7 +116,7 @@ fun HomeScreen(
         42
     } else {
         val rawTime = todayExercises.sumOf { 
-            val setMinutes = estimateDuration(it.repsMin, it.repsMax)
+            val setMinutes = com.example.utils.AlgorithmEngine.estimateSetDurationMinutes(it.repsMin, it.repsMax)
             it.sets * (setMinutes + it.restSeconds / 60.0) 
         }
         val transitionTime = (todayExercises.size - 1).coerceAtLeast(0) * 2.0
@@ -126,10 +126,10 @@ fun HomeScreen(
 
     val finalWorkoutDurationMin = if (estimatedWorkoutDurationMin > 0) estimatedWorkoutDurationMin else 42
 
-    // Dialog state for "How it's calculated" explanation
-    var showCalculationExplanation by remember { mutableStateOf(false) }
+
     var showWeightDialog by remember { mutableStateOf(false) }
     var weightInput by remember { mutableStateOf("") }
+    var showCalculationExplanation by remember { mutableStateOf(false) }
 
     val allNutritionHistory by homeViewModel.allNutritionHistory.collectAsStateWithLifecycle()
     val goalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
@@ -238,7 +238,7 @@ fun HomeScreen(
         "Target reached!"
     } else {
         val sign = if (weightDiff > 0) "+" else ""
-        "${sign}${String.format("%.1f", weightDiff)} kg to target"
+        "${sign}${String.format("%.1f", weightDiff)} $units to target"
     }
 
     LazyColumn(
@@ -250,8 +250,15 @@ fun HomeScreen(
         // 1. Welcome Header
         item {
             Column(modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
+                val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                val greeting = when (currentHour) {
+                    in 0..11 -> "Good morning"
+                    in 12..16 -> "Good afternoon"
+                    in 17..21 -> "Good evening"
+                    else -> "Good night"
+                }
                 Text(
-                    text = "Good morning, ${username.ifEmpty { "Usman" }} 👋",
+                    text = "$greeting, ${username.ifEmpty { "Athlete" }} 👋",
                     fontFamily = SyneFamily,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
@@ -281,14 +288,28 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "TODAY'S TRAINING",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AmberAccent,
-                            letterSpacing = 0.5.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "TODAY'S TRAINING",
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AmberAccent,
+                                letterSpacing = 0.5.sp
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "How readiness is calculated",
+                                tint = AmberAccent.copy(alpha = 0.8f),
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clickable { showCalculationExplanation = true }
+                                    .testTag("readiness_info_icon")
+                            )
+                        }
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = null,
@@ -465,7 +486,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "🔥 ${if (streakResult.training.current > 0) streakResult.training.current else 8} DAY STREAK",
+                            text = if (streakResult.training.current > 0) "🔥 ${streakResult.training.current} DAY STREAK" else "Log your first workout to start a streak",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -485,12 +506,12 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // NUTRITION Left Card
-                val calTarget = if (calorieTargetValue > 0) calorieTargetValue else 2600
+                val calTarget = calorieTargetValue.coerceAtLeast(0) // Use 0 if not set
                 val calLogged = loggedCaloriesTotal
-                val calLeft = (calTarget - calLogged).coerceAtLeast(0)
-                val calPercent = if (calTarget > 0) (calLogged * 100 / calTarget).coerceIn(0, 100) else 75
+                val calLeft = (calTarget - calLogged)
+                val calPercent = if (calTarget > 0) (calLogged * 100 / calTarget).coerceIn(0, 100) else 0
 
-                val proteinTarget = targets?.protein ?: 180
+                val proteinTarget = targets?.protein ?: 0
                 val proteinLogged = loggedProteinTotal
 
                 PremiumCard(
@@ -546,26 +567,28 @@ fun HomeScreen(
                                                     radius = size.minDimension / 2 - 2.dp.toPx(),
                                                     style = Stroke(width = 4.dp.toPx())
                                                 )
-                                                drawArc(
-                                                    color = Color(0xFFA78BFA),
-                                                    startAngle = -90f,
-                                                    sweepAngle = (calPercent.toFloat() / 100f) * 360f,
-                                                    useCenter = false,
-                                                    style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-                                                )
+                                                if (calTarget > 0) {
+                                                    drawArc(
+                                                        color = Color(0xFFA78BFA),
+                                                        startAngle = -90f,
+                                                        sweepAngle = (calPercent.toFloat() / 100f) * 360f,
+                                                        useCenter = false,
+                                                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                                                    )
+                                                }
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                             Text(
-                                                text = "${if (calLogged > 0) calLogged else 1950}",
+                                                text = "$calLogged",
                                                 fontFamily = SyneFamily,
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = PrimaryText
                                             )
                                             Text(
-                                                text = "/ ${calTarget}",
+                                                text = "/ ${if (calTarget > 0) calTarget else "---"}",
                                                 fontFamily = JetBrainsMonoFamily,
                                                 fontSize = 7.5.sp,
                                                 color = SecondaryText
@@ -594,7 +617,7 @@ fun HomeScreen(
                                         ) {
                                             Text("🔥", fontSize = 11.sp)
                                             Text(
-                                                text = "${if (calLeft > 0) calLeft else 650} kcal",
+                                                text = "${if (calTarget > 0) calLeft.coerceAtLeast(0) else 0} kcal",
                                                 fontFamily = SyneFamily,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Black,
@@ -624,7 +647,7 @@ fun HomeScreen(
                                                 modifier = Modifier.size(10.dp)
                                             )
                                             Text(
-                                                text = "${if (proteinLogged > 0) proteinLogged else 54} / ${proteinTarget}g",
+                                                text = "$proteinLogged / ${if (proteinTarget > 0) "${proteinTarget}g" else "---"}",
                                                 fontFamily = SyneFamily,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Black,
@@ -759,14 +782,14 @@ fun HomeScreen(
                                     modifier = Modifier.size(11.dp)
                                 )
                                 Text(
-                                    text = "0.6 kg",
+                                    text = if (weightDiff == 0.0) "—" else "${String.format("%.1f", weightDiff)} kg",
                                     fontFamily = JetBrainsMonoFamily,
                                     fontSize = 9.5.sp,
-                                    color = GreenAccent,
+                                    color = if (weightDiff == 0.0) MutedText else GreenAccent,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = " this week",
+                                    text = if (weightDiff == 0.0) " Log weigh-ins to see weekly change" else " this week",
                                     fontFamily = JetBrainsMonoFamily,
                                     fontSize = 9.5.sp,
                                     color = MutedText
@@ -785,80 +808,88 @@ fun HomeScreen(
                                     if (weightHistory.size >= 4) {
                                         weightHistory.take(7).reversed().map { it.weight }
                                     } else {
-                                        listOf(61.8, 61.6, 61.4, 61.5, 61.3, 61.2, 61.1)
+                                        emptyList()
                                     }
                                 }
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    if (linePoints.size >= 2) {
-                                        val minW = linePoints.minOrNull() ?: 60.0
-                                        val maxW = linePoints.maxOrNull() ?: 62.0
-                                        val valRange = if (maxW == minW) 1.0 else (maxW - minW)
-                                        val xSpacing = size.width / (linePoints.size - 1)
-                                        
-                                        val canvasPoints = linePoints.mapIndexed { index, weightVal ->
-                                            val ptX = index * xSpacing
-                                            val pct = (weightVal - minW) / valRange
-                                            val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
-                                            Offset(ptX, ptY)
-                                        }
-
-                                        // Glow gradient area below spleen line
-                                        val gradientPath = Path().apply {
-                                            moveTo(canvasPoints.first().x, size.height)
-                                            lineTo(canvasPoints.first().x, canvasPoints.first().y)
-                                            for (i in 0 until canvasPoints.size - 1) {
-                                                val p0 = canvasPoints[i]
-                                                val p1 = canvasPoints[i + 1]
-                                                val conPtX1 = (p0.x + p1.x) / 2
-                                                val conPtY1 = p0.y
-                                                val conPtX2 = (p0.x + p1.x) / 2
-                                                val conPtY2 = p1.y
-                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                if (linePoints.isEmpty()) {
+                                    Text(
+                                        "No weight history yet. Log your first weigh-in on the Progress tab to see your trend.",
+                                        fontSize = 8.sp,
+                                        color = MutedText
+                                    )
+                                } else {
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        if (linePoints.size >= 2) {
+                                            val minW = linePoints.minOrNull() ?: 60.0
+                                            val maxW = linePoints.maxOrNull() ?: 62.0
+                                            val valRange = if (maxW == minW) 1.0 else (maxW - minW)
+                                            val xSpacing = size.width / (linePoints.size - 1)
+                                            
+                                            val canvasPoints = linePoints.mapIndexed { index, weightVal ->
+                                                val ptX = index * xSpacing
+                                                val pct = (weightVal - minW) / valRange
+                                                val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
+                                                Offset(ptX, ptY)
                                             }
-                                            lineTo(canvasPoints.last().x, size.height)
-                                            close()
-                                        }
-                                        drawPath(
-                                            path = gradientPath,
-                                            brush = Brush.verticalGradient(
-                                                colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
-                                                startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
-                                                endY = size.height
-                                            )
-                                        )
 
-                                        // Smooth stroke curve
-                                        val chartPath = Path().apply {
-                                            moveTo(canvasPoints.first().x, canvasPoints.first().y)
-                                            for (i in 0 until canvasPoints.size - 1) {
-                                                val p0 = canvasPoints[i]
-                                                val p1 = canvasPoints[i + 1]
-                                                val conPtX1 = (p0.x + p1.x) / 2
-                                                val conPtY1 = p0.y
-                                                val conPtX2 = (p0.x + p1.x) / 2
-                                                val conPtY2 = p1.y
-                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                            // Glow gradient area below spleen line
+                                            val gradientPath = Path().apply {
+                                                moveTo(canvasPoints.first().x, size.height)
+                                                lineTo(canvasPoints.first().x, canvasPoints.first().y)
+                                                for (i in 0 until canvasPoints.size - 1) {
+                                                    val p0 = canvasPoints[i]
+                                                    val p1 = canvasPoints[i + 1]
+                                                    val conPtX1 = (p0.x + p1.x) / 2
+                                                    val conPtY1 = p0.y
+                                                    val conPtX2 = (p0.x + p1.x) / 2
+                                                    val conPtY2 = p1.y
+                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                                }
+                                                lineTo(canvasPoints.last().x, size.height)
+                                                close()
                                             }
-                                        }
-                                        drawPath(
-                                            path = chartPath,
-                                            color = IndigoAccent,
-                                            style = Stroke(width = 1.75.dp.toPx(), cap = StrokeCap.Round)
-                                        )
-
-                                        // Point anchor circles on spline line
-                                        canvasPoints.forEach { pt ->
-                                            drawCircle(
-                                                color = Color.White,
-                                                radius = 1.5.dp.toPx(),
-                                                center = pt
+                                            drawPath(
+                                                path = gradientPath,
+                                                brush = Brush.verticalGradient(
+                                                    colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
+                                                    startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
+                                                    endY = size.height
+                                                )
                                             )
-                                            drawCircle(
+
+                                            // Smooth stroke curve
+                                            val chartPath = Path().apply {
+                                                moveTo(canvasPoints.first().x, canvasPoints.first().y)
+                                                for (i in 0 until canvasPoints.size - 1) {
+                                                    val p0 = canvasPoints[i]
+                                                    val p1 = canvasPoints[i + 1]
+                                                    val conPtX1 = (p0.x + p1.x) / 2
+                                                    val conPtY1 = p0.y
+                                                    val conPtX2 = (p0.x + p1.x) / 2
+                                                    val conPtY2 = p1.y
+                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                                }
+                                            }
+                                            drawPath(
+                                                path = chartPath,
                                                 color = IndigoAccent,
-                                                radius = 3.dp.toPx(),
-                                                center = pt,
-                                                style = Stroke(width = 0.75.dp.toPx())
+                                                style = Stroke(width = 1.75.dp.toPx(), cap = StrokeCap.Round)
                                             )
+
+                                            // Point anchor circles on spline line
+                                            canvasPoints.forEach { pt ->
+                                                drawCircle(
+                                                    color = Color.White,
+                                                    radius = 1.5.dp.toPx(),
+                                                    center = pt
+                                                )
+                                                drawCircle(
+                                                    color = IndigoAccent,
+                                                    radius = 3.dp.toPx(),
+                                                    center = pt,
+                                                    style = Stroke(width = 0.75.dp.toPx())
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -940,78 +971,7 @@ fun HomeScreen(
         }
     }
 
-    // ───── HOW IT'S CALCULATED INLINE EXPLANATION DIALOG ─────
-    if (showCalculationExplanation) {
-        AlertDialog(
-            onDismissRequest = { showCalculationExplanation = false },
-            containerColor = DarkCardSurface,
-            title = {
-                Text(
-                    text = "TODAY'S READINESS METRIC",
-                    fontFamily = SyneFamily,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 16.sp,
-                    color = PrimaryText
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = "Your daily Readiness Index is a personalized daily biometric calculated dynamically using physiological inputs:",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 11.sp,
-                        color = SecondaryText,
-                        lineHeight = 16.sp
-                    )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("●", color = GreenAccent, fontSize = 11.sp)
-                            Text(
-                                text = "Acute-to-Chronic Workload Ratio (ACR): Compares your recent training fatigue (7 days) against chronic training base (28 days) to manage fatigue limits.",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
-                                color = SecondaryText,
-                                lineHeight = 14.sp
-                            )
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("●", color = Color(0xFFA78BFA), fontSize = 11.sp)
-                            Text(
-                                text = "Sleep Quality Factors: Dynamic HRV and Sleep recovery calculations modeled under Schoenfeld's systemic hypertrophy recovery bounds.",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
-                                color = SecondaryText,
-                                lineHeight = 14.sp
-                            )
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("●", color = BlueAccent, fontSize = 11.sp)
-                            Text(
-                                text = "Plateau Indices: Identifies early muscle recovery stalls using live exercise volume indices logged over the previous 14 days.",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
-                                color = SecondaryText,
-                                lineHeight = 14.sp
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showCalculationExplanation = false }) {
-                    Text(
-                        text = "UNDERSTOOD",
-                        fontFamily = SyneFamily,
-                        fontWeight = FontWeight.Bold,
-                        color = AmberAccent
-                    )
-                }
-            }
-        )
-    }
 
     // ───── LOG WEIGHT DIALOG ─────
     if (showWeightDialog) {
@@ -1030,7 +990,7 @@ fun HomeScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Enter your current weight in kg. This updates your dynamic readiness fatigue filters and chronic load baselines.",
+                        text = "Enter your current weight in $units. This updates your dynamic readiness fatigue filters and chronic load baselines.",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
                         color = SecondaryText,
@@ -1046,7 +1006,7 @@ fun HomeScreen(
                                 weightInput = input
                             }
                         },
-                        label = { Text("Weight (kg)", color = SecondaryText) },
+                        label = { Text("Weight ($units)", color = SecondaryText) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1092,221 +1052,88 @@ fun HomeScreen(
             }
         )
     }
-}
 
-@Composable
-fun DashboardSummaryCard(
-    title: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {},
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkCardSurface)
-            .border(
-                border = BorderStroke(
-                    1.dp,
-                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                        colors = listOf(
-                            BorderBright,
-                            BorderSubtle
-                        )
-                    )
-                ),
-                shape = RoundedCornerShape(16.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(16.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    if (showCalculationExplanation) {
+        AlertDialog(
+            onDismissRequest = { showCalculationExplanation = false },
+            containerColor = DarkCardSurface,
+            title = {
                 Text(
-                    text = title,
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = SecondaryText,
-                    modifier = Modifier.size(10.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-fun MacroTrackerBar(
-    label: String,
-    current: Double,
-    target: Double,
-    color: Color
-) {
-    val progress = (current / target).toFloat().coerceIn(0f, 1f)
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = label,
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                color = SecondaryText
-            )
-            Text(
-                text = "${current.toInt()}g / ${target.toInt()}g",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryText
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(CircleShape)
-                .background(BorderSubtle)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress)
-                    .fillMaxHeight()
-                    .clip(CircleShape)
-                    .background(color)
-            )
-        }
-    }
-}
-
-@Composable
-fun MetricMiniCard(
-    value: String,
-    label: String,
-    glowColor: Color,
-    subValue: String = ""
-) {
-    Box(
-        modifier = Modifier
-            .width(115.dp)
-            .height(82.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(DarkCardSurface)
-            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-            .padding(8.dp)
-    ) {
-        // Emit visual accent color layer
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    drawCircle(glowColor.copy(alpha = 0.05f), radius = 30.dp.toPx(), center = Offset(size.width, size.height / 2))
-                }
-        )
-
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = label,
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 8.sp,
-                color = SecondaryText,
-                maxLines = 1
-            )
-            Column {
-                Text(
-                    text = value,
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryText,
-                    maxLines = 1
-                )
-                if (subValue.isNotEmpty()) {
-                    Text(
-                        text = subValue,
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 7.sp,
-                        color = MutedText,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun IntelligenceAlertCard(
-    title: String,
-    desc: String,
-    borderColor: Color
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(DarkRaised)
-            .border(BorderStroke(1.dp, BorderBright), RoundedCornerShape(12.dp))
-            .padding(14.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(borderColor.copy(alpha = 0.12f))
-                    .border(BorderStroke(1.dp, borderColor.copy(alpha = 0.25f)), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Warning,
-                    contentDescription = "Alert Indicator",
-                    tint = borderColor,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title.uppercase(),
+                    text = "HOW READINESS IS CALCULATED",
                     fontFamily = SyneFamily,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
                     color = PrimaryText
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = desc,
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 11.sp,
-                    color = SecondaryText,
-                    lineHeight = 15.sp
-                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Daily Recovery Score",
+                            fontFamily = SyneFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = AmberAccent
+                        )
+                        Text(
+                            text = "Readiness is calculated from your training load, nutrition compliance, and sleep (if tracked).",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 11.sp,
+                            color = SecondaryText,
+                            lineHeight = 15.sp
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Muscle Readiness",
+                            fontFamily = SyneFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = AmberAccent
+                        )
+                        Text(
+                            text = "Muscle readiness reflects recovery time needed per muscle group based on training intensity.",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 11.sp,
+                            color = SecondaryText,
+                            lineHeight = 15.sp
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Systemic Readiness",
+                            fontFamily = SyneFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = AmberAccent
+                        )
+                        Text(
+                            text = "Systemic readiness reflects overall CNS fatigue from recent training volume.",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 11.sp,
+                            color = SecondaryText,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showCalculationExplanation = false }
+                ) {
+                    Text(
+                        text = "OK",
+                        fontFamily = SyneFamily,
+                        fontWeight = FontWeight.Bold,
+                        color = AmberAccent
+                    )
+                }
             }
-        }
+        )
     }
 }
+
+

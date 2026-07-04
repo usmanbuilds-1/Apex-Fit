@@ -110,8 +110,7 @@ interface FitnessDao {
     @Query("UPDATE workout_programs SET isActive = 0")
     suspend fun deactivateAllPlans()
 
-    @Query("UPDATE workout_programs SET isActive = 1 WHERE id = :planId")
-    suspend fun activatePlan(planId: Long)
+
 
     @Query("DELETE FROM workout_programs WHERE id = :planId")
     suspend fun deleteWorkoutPlan(planId: Long)
@@ -132,8 +131,7 @@ interface FitnessDao {
     @Query("DELETE FROM plan_sessions WHERE planId = :planId")
     suspend fun deleteSessionsForPlan(planId: Long)
 
-    @Query("DELETE FROM plan_sessions WHERE id = :id")
-    suspend fun deletePlanSession(id: Long)
+
 
     // Exercise Library
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
@@ -148,8 +146,7 @@ interface FitnessDao {
     @Query("SELECT * FROM exercises WHERE id = :id LIMIT 1")
     suspend fun getExerciseById(id: String): Exercise?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExercise(exercise: Exercise)
+
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExercises(exercises: List<Exercise>)
@@ -163,8 +160,7 @@ interface FitnessDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExerciseMetadataList(metadataList: List<ExerciseMetadata>)
 
-    @Query("SELECT COUNT(*) FROM exercises")
-    suspend fun getExerciseCount(): Int
+
 
     // Plan Exercises
     @Query("SELECT * FROM plan_exercises WHERE planSessionId = :planSessionId ORDER BY id ASC")
@@ -185,8 +181,7 @@ interface FitnessDao {
     @Query("DELETE FROM plan_exercises WHERE planSessionId = :planSessionId")
     suspend fun deleteExercisesForPlanSession(planSessionId: Long)
 
-    @Query("DELETE FROM plan_exercises WHERE id = :id")
-    suspend fun deletePlanExercise(id: Long)
+
 
     // Personal Records
     @Query("SELECT * FROM personal_records ORDER BY date DESC")
@@ -194,6 +189,8 @@ interface FitnessDao {
 
     @Query("SELECT * FROM personal_records WHERE exerciseId = :exerciseId")
     suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord>
+
+
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPersonalRecord(record: PersonalRecord)
@@ -217,6 +214,8 @@ interface FitnessDao {
 
     @Query("DELETE FROM body_measurements WHERE id = :id")
     suspend fun deleteBodyMeasurement(id: Long)
+
+
 
     // Detected Patterns
     @Query("SELECT * FROM detected_patterns ORDER BY confidence DESC")
@@ -308,6 +307,15 @@ interface FitnessDao {
     suspend fun insertSessionAtomic(session: TrainingSession, sets: List<ExerciseSet>) {
         insertTrainingSession(session)
         insertExerciseSets(sets)
+    }
+
+    @Transaction
+    suspend fun insertSessionWithPRsAtomic(session: TrainingSession, sets: List<ExerciseSet>, prs: List<PersonalRecord>) {
+        insertTrainingSession(session)
+        insertExerciseSets(sets)
+        for (pr in prs) {
+            insertPersonalRecord(pr)
+        }
     }
 }
 

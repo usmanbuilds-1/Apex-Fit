@@ -3,6 +3,7 @@ package com.example.data.repository
 import com.example.data.*
 import com.example.domain.repository.FitnessRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 
 /**
@@ -97,6 +98,10 @@ class FitnessRepositoryImpl(
         dao.insertSessionAtomic(session, sets)
     }
 
+    override suspend fun insertSessionWithPRsAtomic(session: TrainingSession, sets: List<ExerciseSet>, prs: List<PersonalRecord>) {
+        dao.insertSessionWithPRsAtomic(session, sets, prs)
+    }
+
     override suspend fun insertPersonalRecord(record: PersonalRecord) {
         dao.insertPersonalRecord(record)
     }
@@ -131,5 +136,80 @@ class FitnessRepositoryImpl(
 
     override fun getCurrentWeightFlow(): Flow<Double> {
         return dataStore.currentWeightFlow
+    }
+
+    override suspend fun scanAndSaveWeeklyPatterns() {
+        val dbWeights = dao.getAllWeightEntries()
+        val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
+            com.example.utils.WeightEntry(date, list.map { it.weight }.average())
+        }.sortedBy { it.date }
+        
+        val dbNutrition = dao.getAllNutritionEntriesFlow().first()
+        val engineNutrition = dbNutrition.groupBy { it.date }.map { (date, list) ->
+            com.example.utils.NutritionEntry(
+                date = date,
+                calories = list.sumOf { it.calories },
+                protein = list.sumOf { it.protein }.toInt(),
+                carbs = list.sumOf { it.carbs }.toInt(),
+                fat = list.sumOf { it.fat }.toInt()
+            )
+        }.sortedBy { it.date }
+        
+        val dbSessions = dao.getAllCompletedSessions()
+        val sessions = dbSessions.map { session ->
+            val dbSets = dao.getSetsForSession(session.id)
+            val exerciseLogs = dbSets.groupBy { it.exerciseId }.map { (exId, sets) ->
+                val firstSet = sets.firstOrNull()
+                val name = firstSet?.exerciseName ?: "Exercise"
+                val muscle = firstSet?.muscleGroup ?: "General"
+                com.example.utils.ExerciseLog(
+                    id = exId,
+                    name = name,
+                    muscleGroup = muscle,
+                    sets = sets.map { s ->
+                        com.example.utils.ExerciseSet(
+                            weight = s.weight,
+                            reps = s.reps,
+                            rpe = s.rpe,
+                            isWarmup = s.isWarmup,
+                            completed = s.completed
+                        )
+                    }
+                )
+            }
+            com.example.utils.TrainingSession(
+                date = session.date,
+                sessionType = session.sessionType,
+                completed = session.completed,
+                sessionFeel = session.sessionFeel,
+                durationMinutes = session.durationMinutes,
+                exercises = exerciseLogs
+            )
+        }
+        
+        val latestWeight = engineWeights.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
+        val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250).toDouble()
+
+        val detected = com.example.utils.PatternDetector.scanAllPatterns(
+            weightLog = engineWeights,
+            nutritionLog = engineNutrition,
+            trainingLog = sessions,
+            sleepLog = emptyList(),
+            proteinTarget = proteinTarget
+        )
+        
+        val entities = detected.map { p ->
+            com.example.data.DetectedPatternEntity(
+                id = p.id,
+                type = p.type,
+                title = p.title,
+                description = p.description,
+                confidence = p.confidence,
+                actionable = p.actionable,
+                detectedAt = p.detectedAt
+            )
+        }
+        dao.clearAllDetectedPatterns()
+        dao.insertDetectedPatterns(entities)
     }
 }

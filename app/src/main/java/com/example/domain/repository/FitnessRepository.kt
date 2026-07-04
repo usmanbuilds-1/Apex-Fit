@@ -24,6 +24,7 @@ interface FitnessRepository {
     suspend fun getLastSetForExercise(exerciseId: String): LastSetWithDate?
     suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord>
     suspend fun insertSessionAtomic(session: TrainingSession, sets: List<ExerciseSet>)
+    suspend fun insertSessionWithPRsAtomic(session: TrainingSession, sets: List<ExerciseSet>, prs: List<PersonalRecord>)
     suspend fun insertPersonalRecord(record: PersonalRecord)
     suspend fun getAllWeightEntries(): List<WeightEntry>
     fun getAllNutritionEntriesFlow(): Flow<List<NutritionEntry>>
@@ -33,4 +34,5 @@ interface FitnessRepository {
     fun getCalorieTargetFlow(): Flow<Int>
     fun getGoalFlow(): Flow<String>
     fun getCurrentWeightFlow(): Flow<Double>
+    suspend fun scanAndSaveWeeklyPatterns()
 }

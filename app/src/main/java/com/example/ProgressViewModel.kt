@@ -21,82 +21,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     private val dataStore = DataStoreManager(application)
     private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
 
-    // Base Flows for processing
-    private val weightFlow: Flow<List<com.example.utils.WeightEntry>> = dao.getAllWeightEntriesFlow()
-        .map { list -> list.map { com.example.utils.WeightEntry(it.date, it.weight) } }
-        .flowOn(Dispatchers.IO)
-
-    private val nutritionFlow: Flow<List<com.example.utils.NutritionEntry>> = dao.getAllNutritionEntriesFlow()
-        .map { list ->
-            list.map {
-                com.example.utils.NutritionEntry(
-                    date = it.date,
-                    calories = it.calories,
-                    protein = it.protein.toInt(),
-                    carbs = it.carbs.toInt(),
-                    fat = it.fat.toInt()
-                )
-            }
-        }
-        .flowOn(Dispatchers.IO)
-
-    private val sessionsFlow: Flow<List<com.example.data.TrainingSession>> =
-        dao.getAllCompletedSessionsFlow().flowOn(Dispatchers.IO)
-
-    private val setsFlow: Flow<List<com.example.data.ExerciseSet>> =
-        dao.getAllExerciseSetsFlow().flowOn(Dispatchers.IO)
-
-    private val richSessionsFlow: Flow<List<com.example.utils.TrainingSession>> = combine(
-        sessionsFlow, setsFlow
-    ) { sessions, sets ->
-        withContext(Dispatchers.Default) {
-            val setsBySession = sets.groupBy { it.sessionId }
-            sessions.map { s ->
-                val sSets = setsBySession[s.id.toString()] ?: emptyList()
-                com.example.utils.TrainingSession(
-                    date = s.date,
-                    sessionType = s.sessionType,
-                    completed = s.completed,
-                    sessionFeel = s.sessionFeel,
-                    durationMinutes = s.durationMinutes,
-                    exercises = sSets.groupBy { it.exerciseId }.map { (exId, exSets) ->
-                        com.example.utils.ExerciseLog(
-                            id = exId,
-                            name = exSets.first().exerciseName,
-                            muscleGroup = exSets.first().muscleGroup,
-                            sets = exSets.map { exSet ->
-                                com.example.utils.ExerciseSet(
-                                    weight = exSet.weight,
-                                    reps = exSet.reps,
-                                    rpe = exSet.rpe,
-                                    isWarmup = exSet.isWarmup,
-                                    completed = exSet.completed
-                                )
-                            }
-                        )
-                    }
-                )
-            }
-        }
-    }
-
-    // Weight and measurements history
     val allBodyMeasurements: StateFlow<List<UiBodyMeasurement>> = dao.getAllBodyMeasurementsFlow()
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val weightHistory: StateFlow<List<UiWeightEntry>> = repository.getWeightHistory()
-        .map { entries -> entries.map { it.toUi() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // 1. Trend Weight
-    val trendWeight: StateFlow<Double?> = weightFlow
-        .map { entries ->
-            withContext(Dispatchers.Default) {
-                com.example.utils.AlgorithmEngine.getCurrentTrendWeight(entries)
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // 2. Monthly muscle volumes for radar chart
     val monthlyMuscleVolumes = dao.getAllTrainingSessionsFlow().map { sessions ->
@@ -118,50 +45,6 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     val muscleRecoveryStatuses = dao.getAllTrainingSessionsFlow().map { sessions ->
         calculateMuscleRecovery(sessions)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // 4. Fatigue Analysis
-    val fatigueResult: StateFlow<UiFatigueResult> = richSessionsFlow
-        .map { sessions ->
-            val res = withContext(Dispatchers.Default) {
-                com.example.utils.AlgorithmEngine.calcFatigueToFitness(sessions)
-            }
-            res.toUi()
-        }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            com.example.utils.FatigueResult(
-                ratio = null,
-                status = "unknown",
-                statusLabel = "No Data",
-                recommendation = "Log workouts to activate fatigue tracking",
-                acuteLoad = 0.0,
-                chronicLoad = 0.0
-            ).toUi()
-        )
-
-    val fatigueRatio: StateFlow<com.example.data.FatigueRatio> = fatigueResult
-        .map { result ->
-            com.example.data.FatigueRatio(
-                ratio = result.ratio ?: 1.0,
-                riskStatus = result.statusLabel
-            )
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.data.FatigueRatio(1.1, "Optimal"))
-
-    // 5. Plateau Analysis
-    val plateauResult: StateFlow<UiPlateauResult> = combine(
-        weightFlow, nutritionFlow, richSessionsFlow
-    ) { weights, nutrition, sessions ->
-        val res = withContext(Dispatchers.Default) {
-            com.example.utils.AlgorithmEngine.detectPlateau(weights, nutrition, sessions)
-        }
-        res.toUi()
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
-        com.example.data.PlateauResult(isPlateaued = false).toUi()
-    )
 
     // Log & delete measurements
     fun logBodyMeasurement(bodyPart: String, value: Double, unit: String, date: String = getTodayDateString()) {

@@ -7,23 +7,42 @@ import kotlinx.coroutines.*
 
 object AudioService {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+@Volatile
     private var audioTrack: AudioTrack? = null
 
     fun playBeep() {
-        playSynthesizedAudioTone(880.0, 150)
+        playSynthesizedAudioTone(880.0, 150, android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
 
-    fun playRestTimerComplete() {
-        playSynthesizedAudioTone(1100.0, 350)
+    fun playRestTimerComplete(context: android.content.Context) {
+        vibrate(context, 500)
+        playSynthesizedAudioTone(1100.0, 350, android.media.AudioAttributes.USAGE_NOTIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+    }
+
+    private fun vibrate(context: android.content.Context, durationMs: Long) {
+        val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(durationMs)
+        }
     }
 
     fun playMusicSynthNote() {
         val notes = listOf(130.81, 164.81, 196.00, 220.00) // C3, E3, G3, A3
         val randomNote = notes.random()
-        playSynthesizedAudioTone(randomNote, 80)
+        playSynthesizedAudioTone(randomNote, 80, android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
 
-    fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int) {
+    fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int, usage: Int = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType: Int = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION) {
         scope.launch {
             try {
                 val sampleRate = 8000
@@ -32,7 +51,18 @@ object AudioService {
                 val generatedSnd = ShortArray(numSamples)
 
                 for (i in 0 until numSamples) {
-                    sample[i] = Math.sin(2 * Math.PI * i / (sampleRate / frequencyHz))
+                    val angle = 2.0 * Math.PI * i / (sampleRate / frequencyHz)
+                    var amplitude = Math.sin(angle)
+                    
+                    // Add linear envelope to prevent popping (fade in/out)
+                    val fadeSamples = (sampleRate * 0.01).toInt().coerceAtMost(numSamples / 2) // 10ms fade
+                    if (i < fadeSamples) {
+                        amplitude *= (i.toDouble() / fadeSamples)
+                    } else if (i > numSamples - fadeSamples) {
+                        amplitude *= ((numSamples - i).toDouble() / fadeSamples)
+                    }
+                    
+                    sample[i] = amplitude
                 }
                 var idx = 0
                 for (dVal in sample) {
@@ -44,8 +74,8 @@ object AudioService {
                     AudioTrack.Builder()
                         .setAudioAttributes(
                             android.media.AudioAttributes.Builder()
-                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .setUsage(usage)
+                                .setContentType(contentType)
                                 .build()
                         )
                         .setAudioFormat(

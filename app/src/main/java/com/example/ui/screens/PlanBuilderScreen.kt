@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -40,31 +42,31 @@ fun PlanBuilderScreen(
     val dbSessions by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val dbExercises by trainViewModel.allPlanExercises.collectAsStateWithLifecycle()
     val activePlan by trainViewModel.activePlan.collectAsStateWithLifecycle()
+    
+    val sessionsList by trainViewModel.planBuilderSessions.collectAsStateWithLifecycle()
+    val exercisesList by trainViewModel.planBuilderExercises.collectAsStateWithLifecycle()
 
-    var isInitialized by remember { mutableStateOf(false) }
-
-    // Screen local states
-    var planName by remember { mutableStateOf("") }
-    var planGoal by remember { mutableStateOf("") }
-    val sessionsList = remember { mutableStateListOf<PlanSession>() }
-    val exercisesList = remember { mutableStateListOf<PlanExercise>() }
+    var planName by rememberSaveable { mutableStateOf("") }
+    var planGoal by rememberSaveable { mutableStateOf("") }
+    var isInitialized by rememberSaveable { mutableStateOf(false) }
 
     // Dialog trigger states
-    var showAddDayDialog by remember { mutableStateOf(false) }
-    var showAddExerciseDialog by remember { mutableStateOf(false) }
-    var selectedSessionIdForExercise by remember { mutableStateOf<Long?>(null) }
-    var editingSession by remember { mutableStateOf<PlanSession?>(null) }
-    var editingExercise by remember { mutableStateOf<PlanExercise?>(null) }
+    var showAddDayDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddExerciseDialog by rememberSaveable { mutableStateOf(false) }
+    var selectedSessionIdForExercise by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(activePlan, dbSessions, dbExercises) {
-        if (!isInitialized) {
+        if (!isInitialized && activePlan != null) {
             planName = activePlan?.name ?: "My Custom Plan"
             planGoal = activePlan?.goal ?: "Gain Muscle"
-            sessionsList.clear()
-            sessionsList.addAll(dbSessions)
-            exercisesList.clear()
-            val sessionIds = dbSessions.map { it.id }.toSet()
-            exercisesList.addAll(dbExercises.filter { it.planSessionId in sessionIds })
+            
+            trainViewModel.initializePlanBuilder(
+                activePlan,
+                dbSessions,
+                dbExercises
+            )
             isInitialized = true
         }
     }
@@ -223,7 +225,7 @@ fun PlanBuilderScreen(
                     
                     Button(
                         onClick = {
-                            editingSession = null
+                            editingSessionId = null
                             showAddDayDialog = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent),
@@ -324,11 +326,7 @@ fun PlanBuilderScreen(
                                     // Move Up
                                     IconButton(
                                         onClick = {
-                                            if (index > 0) {
-                                                val temp = sessionsList[index]
-                                                sessionsList[index] = sessionsList[index - 1]
-                                                sessionsList[index - 1] = temp
-                                            }
+                                            trainViewModel.reorderSession(index, true)
                                         },
                                         enabled = index > 0,
                                         modifier = Modifier.size(28.dp)
@@ -344,11 +342,7 @@ fun PlanBuilderScreen(
                                     // Move Down
                                     IconButton(
                                         onClick = {
-                                            if (index < sessionsList.size - 1) {
-                                                val temp = sessionsList[index]
-                                                sessionsList[index] = sessionsList[index + 1]
-                                                sessionsList[index + 1] = temp
-                                            }
+                                            trainViewModel.reorderSession(index, false)
                                         },
                                         enabled = index < sessionsList.size - 1,
                                         modifier = Modifier.size(28.dp)
@@ -364,7 +358,7 @@ fun PlanBuilderScreen(
                                     // Edit Day
                                     IconButton(
                                         onClick = {
-                                            editingSession = session
+                                            editingSessionId = session.id
                                             showAddDayDialog = true
                                         },
                                         modifier = Modifier.size(28.dp)
@@ -380,8 +374,7 @@ fun PlanBuilderScreen(
                                     // Delete Day
                                     IconButton(
                                         onClick = {
-                                            sessionsList.removeAt(index)
-                                            exercisesList.removeAll { it.planSessionId == session.id }
+                                            trainViewModel.deleteSession(session.id)
                                         },
                                         modifier = Modifier.size(28.dp)
                                     ) {
@@ -477,7 +470,7 @@ fun PlanBuilderScreen(
                                                 IconButton(
                                                     onClick = {
                                                         selectedSessionIdForExercise = session.id
-                                                        editingExercise = exercise
+                                                        editingExerciseId = exercise.id
                                                         showAddExerciseDialog = true
                                                     },
                                                     modifier = Modifier.size(28.dp)
@@ -492,7 +485,7 @@ fun PlanBuilderScreen(
 
                                                 IconButton(
                                                     onClick = {
-                                                        exercisesList.remove(exercise)
+                                                        trainViewModel.deleteExercise(exercise.id)
                                                     },
                                                     modifier = Modifier.size(28.dp)
                                                 ) {
@@ -513,7 +506,7 @@ fun PlanBuilderScreen(
                             OutlinedButton(
                                 onClick = {
                                     selectedSessionIdForExercise = session.id
-                                    editingExercise = null
+                                    editingExerciseId = null
                                     showAddExerciseDialog = true
                                 },
                                 modifier = Modifier
@@ -549,8 +542,9 @@ fun PlanBuilderScreen(
 
     // Add / Edit Day Dialog
     if (showAddDayDialog) {
-        var dayLabel by remember { mutableStateOf(editingSession?.label ?: "") }
-        var selectedDayOfWeek by remember { mutableStateOf(editingSession?.day ?: "Monday") }
+        val session = editingSessionId?.let { trainViewModel.getSessionById(it) }
+        var dayLabel by remember { mutableStateOf(session?.label ?: "") }
+        var selectedDayOfWeek by remember { mutableStateOf(session?.day ?: "Monday") }
         
         val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -559,7 +553,7 @@ fun PlanBuilderScreen(
             containerColor = DarkRaised,
             title = {
                 Text(
-                    text = if (editingSession == null) "ADD TRAINING DAY" else "EDIT TRAINING DAY",
+                    text = if (editingSessionId == null) "ADD TRAINING DAY" else "EDIT TRAINING DAY",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -631,9 +625,9 @@ fun PlanBuilderScreen(
                             return@Button
                         }
                         
-                        if (editingSession == null) {
+                        if (editingSessionId == null) {
                             val newId = System.currentTimeMillis() + kotlin.random.Random.nextInt(100)
-                            sessionsList.add(
+                            trainViewModel.addSession(
                                 PlanSession(
                                     id = newId,
                                     planId = activePlan?.id ?: 1L,
@@ -643,11 +637,13 @@ fun PlanBuilderScreen(
                                 )
                             )
                         } else {
-                            val index = sessionsList.indexOfFirst { it.id == editingSession!!.id }
-                            if (index != -1) {
-                                sessionsList[index] = sessionsList[index].copy(
-                                    label = dayLabel.trim(),
-                                    day = selectedDayOfWeek
+                            val session = trainViewModel.getSessionById(editingSessionId!!)
+                            if (session != null) {
+                                trainViewModel.updateSession(
+                                    session.copy(
+                                        label = dayLabel.trim(),
+                                        day = selectedDayOfWeek
+                                    )
                                 )
                             }
                         }
@@ -669,13 +665,14 @@ fun PlanBuilderScreen(
 
     // Add / Edit Exercise Dialog
     if (showAddExerciseDialog) {
-        var exName by remember { mutableStateOf(editingExercise?.name ?: "") }
-        var selectedMuscle by remember { mutableStateOf(editingExercise?.muscleGroup ?: MuscleGroups.ALL.first()) }
-        var setsText by remember { mutableStateOf(editingExercise?.sets?.toString() ?: "3") }
-        var repsMinText by remember { mutableStateOf(editingExercise?.repsMin?.toString() ?: "8") }
-        var repsMaxText by remember { mutableStateOf(editingExercise?.repsMax?.toString() ?: "12") }
-        var restText by remember { mutableStateOf(editingExercise?.restSeconds?.toString() ?: "90") }
-        var notesText by remember { mutableStateOf(editingExercise?.notes ?: "") }
+        val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
+        var exName by remember { mutableStateOf(exercise?.name ?: "") }
+        var selectedMuscle by remember { mutableStateOf(exercise?.muscleGroup ?: MuscleGroups.ALL.first()) }
+        var setsText by remember { mutableStateOf(exercise?.sets?.toString() ?: "3") }
+        var repsMinText by remember { mutableStateOf(exercise?.repsMin?.toString() ?: "8") }
+        var repsMaxText by remember { mutableStateOf(exercise?.repsMax?.toString() ?: "12") }
+        var restText by remember { mutableStateOf(exercise?.restSeconds?.toString() ?: "90") }
+        var notesText by remember { mutableStateOf(exercise?.notes ?: "") }
 
         var showMuscleDropdown by remember { mutableStateOf(false) }
 
@@ -684,7 +681,7 @@ fun PlanBuilderScreen(
             containerColor = DarkRaised,
             title = {
                 Text(
-                    text = if (editingExercise == null) "ADD EXERCISE" else "EDIT EXERCISE",
+                    text = if (editingExerciseId == null) "ADD EXERCISE" else "EDIT EXERCISE",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -865,9 +862,9 @@ fun PlanBuilderScreen(
 
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 
-                        if (editingExercise == null) {
+                        if (editingExerciseId == null) {
                             val newId = System.currentTimeMillis() + kotlin.random.Random.nextInt(100)
-                            exercisesList.add(
+                            trainViewModel.addExercise(
                                 PlanExercise(
                                     id = newId,
                                     planSessionId = targetSessionId,
@@ -882,16 +879,18 @@ fun PlanBuilderScreen(
                                 )
                             )
                         } else {
-                            val index = exercisesList.indexOfFirst { it.id == editingExercise!!.id }
-                            if (index != -1) {
-                                exercisesList[index] = exercisesList[index].copy(
-                                    name = exName.trim(),
-                                    muscleGroup = selectedMuscle,
-                                    sets = setsVal,
-                                    repsMin = minRepsVal,
-                                    repsMax = maxRepsVal,
-                                    restSeconds = restVal,
-                                    notes = notesText.trim()
+                            val exercise = trainViewModel.getExerciseById(editingExerciseId!!)
+                            if (exercise != null) {
+                                trainViewModel.updateExercise(
+                                    exercise.copy(
+                                        name = exName.trim(),
+                                        muscleGroup = selectedMuscle,
+                                        sets = setsVal,
+                                        repsMin = minRepsVal,
+                                        repsMax = maxRepsVal,
+                                        restSeconds = restVal,
+                                        notes = notesText.trim()
+                                    )
                                 )
                             }
                         }

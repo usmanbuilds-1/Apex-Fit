@@ -30,6 +30,7 @@ class DataStoreManager(private val context: Context) {
         val AGE_KEY = intPreferencesKey("age")
         val SEX_KEY = stringPreferencesKey("sex")
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
+        val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
     }
 
     val isOnboardedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -88,6 +89,20 @@ class DataStoreManager(private val context: Context) {
 
     val equipmentFlow: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[EQUIPMENT_KEY] ?: "Barbell,Dumbbell,Cable,Machine"
+    }
+
+    val activeSessionJsonFlow: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[ACTIVE_SESSION_JSON_KEY]
+    }
+
+    suspend fun saveActiveSessionJson(json: String?) {
+        context.dataStore.edit { preferences ->
+            if (json == null) {
+                preferences.remove(ACTIVE_SESSION_JSON_KEY)
+            } else {
+                preferences[ACTIVE_SESSION_JSON_KEY] = json
+            }
+        }
     }
 
     suspend fun saveOnboardingData(

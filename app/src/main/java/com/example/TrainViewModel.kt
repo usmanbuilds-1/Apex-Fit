@@ -20,7 +20,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = db.fitnessDao()
     private val dataStore = DataStoreManager(application)
     private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
-    val sessionManager = WorkoutSessionManager(repository)
+    val sessionManager = WorkoutSessionManager(repository, dataStore)
 
     init {
         viewModelScope.launch {
@@ -43,6 +43,63 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     // Training State (Plans, Sessions)
     val workoutPlans = repository.getWorkoutPlans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val activePlan = repository.getActivePlan().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Plan Builder Editing State
+    val planBuilderSessions = MutableStateFlow<List<PlanSession>>(emptyList())
+    val planBuilderExercises = MutableStateFlow<List<PlanExercise>>(emptyList())
+    var isInitialized = false
+
+    fun initializePlanBuilder(plan: WorkoutPlan?, sessions: List<PlanSession>, exercises: List<PlanExercise>) {
+        if (!isInitialized) {
+            planBuilderSessions.value = sessions
+            planBuilderExercises.value = exercises
+            isInitialized = true
+        }
+    }
+
+    fun addSession(session: PlanSession) {
+        planBuilderSessions.value = planBuilderSessions.value + session
+    }
+
+    fun updateSession(session: PlanSession) {
+        planBuilderSessions.value = planBuilderSessions.value.map { if (it.id == session.id) session else it }
+    }
+
+    fun deleteSession(sessionId: Long) {
+        planBuilderSessions.value = planBuilderSessions.value.filter { it.id != sessionId }
+        planBuilderExercises.value = planBuilderExercises.value.filter { it.planSessionId != sessionId }
+    }
+
+    fun addExercise(exercise: PlanExercise) {
+        planBuilderExercises.value = planBuilderExercises.value + exercise
+    }
+
+    fun updateExercise(exercise: PlanExercise) {
+        planBuilderExercises.value = planBuilderExercises.value.map { if (it.id == exercise.id) exercise else it }
+    }
+
+    fun deleteExercise(exerciseId: Long) {
+        planBuilderExercises.value = planBuilderExercises.value.filter { it.id != exerciseId }
+    }
+
+    fun getSessionById(id: Long): PlanSession? {
+        return planBuilderSessions.value.find { it.id == id }
+    }
+
+    fun getExerciseById(id: Long): PlanExercise? {
+        return planBuilderExercises.value.find { it.id == id }
+    }
+
+    fun reorderSession(index: Int, moveUp: Boolean) {
+        val list = planBuilderSessions.value.toMutableList()
+        val swapIndex = if (moveUp) index - 1 else index + 1
+        if (swapIndex in list.indices) {
+            val temp = list[index]
+            list[index] = list[swapIndex]
+            list[swapIndex] = temp
+            planBuilderSessions.value = list
+        }
+    }
 
     private val _selectedDayOfWeek = MutableStateFlow("Monday")
     val selectedDayOfWeek: StateFlow<String> = _selectedDayOfWeek.asStateFlow()
@@ -224,6 +281,13 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isShowingRirHistory = MutableStateFlow(false)
     val isShowingRirHistory: StateFlow<Boolean> = _isShowingRirHistory.asStateFlow()
+
+    private val _saveError = MutableStateFlow<String?>(null)
+    val saveError: StateFlow<String?> = _saveError.asStateFlow()
+
+    fun dismissSaveError() {
+        _saveError.value = null
+    }
 
     private val _rirSelectorExerciseId = MutableStateFlow(0L)
     val rirSelectorExerciseId: StateFlow<Long> = _rirSelectorExerciseId.asStateFlow()
@@ -447,7 +511,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 if (remaining in 1..3) {
                     AudioService.playBeep()
                 } else if (remaining == 0) {
-                    AudioService.playRestTimerComplete()
+                    AudioService.playRestTimerComplete(getApplication<Application>().applicationContext)
                 }
             }
             if (_isRestTimerActive.value) {
@@ -476,6 +540,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun finishWorkoutSession(sessionFeel: Int = 4) {
         viewModelScope.launch {
+            _saveError.value = null
             val session = sessionManager.activeSession.value
             val completedSets = mutableListOf<UiExerciseSet>()
             session?.exercises?.forEach { ex ->
@@ -497,17 +562,22 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            _lastCompletedSessionSets.value = completedSets
-            val result = sessionManager.commitToDatabase(sessionFeel)
-            _completedStats.value = result.durationMinutes to (result.totalVolumeTonnes * 1000.0)
+            try {
+                _lastCompletedSessionSets.value = completedSets
+                val result = sessionManager.commitToDatabase(sessionFeel)
+                sessionManager.clearPersistedSession()
+                _completedStats.value = result.durationMinutes to (result.totalVolumeTonnes * 1000.0)
 
-            _completedPRsBroken.value = result.confirmedPRs.map { exerciseId ->
-                val exerciseName = session?.exercises?.find { it.exerciseId == exerciseId }?.exerciseName ?: "Exercise"
-                "$exerciseName PR Conquered!"
+                _completedPRsBroken.value = result.confirmedPRs.map { exerciseId ->
+                    val exerciseName = session?.exercises?.find { it.exerciseId == exerciseId }?.exerciseName ?: "Exercise"
+                    "$exerciseName PR Conquered!"
+                }
+
+                generateWorkoutSessionHypertrophyQualityScore(completedSets)
+                _showSessionCompleteScreen.value = true
+            } catch (e: Exception) {
+                _saveError.value = "Failed to save workout: ${e.localizedMessage}"
             }
-
-            generateWorkoutSessionHypertrophyQualityScore(completedSets)
-            _showSessionCompleteScreen.value = true
         }
     }
 
@@ -555,6 +625,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun savePartialAndExit(sessionFeel: Int) {
         viewModelScope.launch {
+            _saveError.value = null
             val session = sessionManager.activeSession.value
             val completedSets = mutableListOf<UiExerciseSet>()
             session?.exercises?.forEach { ex ->
@@ -576,17 +647,22 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            _lastCompletedSessionSets.value = completedSets
-            val result = sessionManager.savePartialAndExit(sessionFeel)
-            _completedStats.value = result.durationMinutes to (result.totalVolumeTonnes * 1000.0)
-            
-            _completedPRsBroken.value = result.confirmedPRs.map { exerciseId ->
-                val exerciseName = session?.exercises?.find { it.exerciseId == exerciseId }?.exerciseName ?: "Exercise"
-                "$exerciseName PR Conquered!"
-            }
+            try {
+                _lastCompletedSessionSets.value = completedSets
+                val result = sessionManager.savePartialAndExit(sessionFeel)
+                sessionManager.clearPersistedSession()
+                _completedStats.value = result.durationMinutes to (result.totalVolumeTonnes * 1000.0)
+                
+                _completedPRsBroken.value = result.confirmedPRs.map { exerciseId ->
+                    val exerciseName = session?.exercises?.find { it.exerciseId == exerciseId }?.exerciseName ?: "Exercise"
+                    "$exerciseName PR Conquered!"
+                }
 
-            generateWorkoutSessionHypertrophyQualityScore(completedSets)
-            _showSessionCompleteScreen.value = true
+                generateWorkoutSessionHypertrophyQualityScore(completedSets)
+                _showSessionCompleteScreen.value = true
+            } catch (e: Exception) {
+                _saveError.value = "Failed to save partial workout: ${e.localizedMessage}"
+            }
         }
     }
 
@@ -634,7 +710,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun seedDefaultWorkoutPlan() {
+    suspend fun seedDefaultWorkoutPlan() {
         val planId = 1L
         val plan = WorkoutPlan(
             id = planId,

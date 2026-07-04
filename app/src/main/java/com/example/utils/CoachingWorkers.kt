@@ -2,6 +2,8 @@ package com.example.utils
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -39,12 +41,28 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
             notificationManager.createNotificationChannel(channel)
         }
 
+        val deepLink = when (id) {
+            "weekly_report", "plateau_confirmed" -> "apexfit://screen/progress"
+            "streak_at_risk" -> "apexfit://screen/train"
+            "midday_protein_check" -> "apexfit://screen/nutrition"
+            else -> "apexfit://screen/home"
+        }
+        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(deepLink))
+        intent.setClass(applicationContext, com.example.MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            applicationContext,
+            id.hashCode(),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(applicationContext, channelId)
-            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setSmallIcon(com.example.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
             .build()
 
         notificationManager.notify(id.hashCode(), notification)
@@ -107,10 +125,17 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             )
         }
 
-        val calTarget = dataStore.calorieTargetValueFlow.first()
-        val dbWeightsForCoaching = dao.getAllWeightEntries()
-        val latestWeightForCoaching = dbWeightsForCoaching.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
-        val proteinTarget = (latestWeightForCoaching * 1.8).toInt().coerceIn(100, 250)
+        val isManual = dataStore.calorieTargetManualFlow.first()
+        val manualValue = dataStore.calorieTargetValueFlow.first()
+        val userGoal = dataStore.goalFlow.first()
+        val latestWeightForCoaching = engineWeights.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
+        val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
+        
+        val tdeeResult = AlgorithmEngine.calcAdaptiveTDEE(engineWeights, allNutrition)
+        val suggestedCal = AlgorithmEngine.suggestCaloricTarget(tdeeResult.tdee ?: com.example.UserDefaults.CALORIES, userGoal)
+        
+        val calTarget = if (isManual) manualValue else suggestedCal
+        val proteinTarget = (latestTrend * 2.0).toInt().coerceIn(100, 250) // 2.0g/kg for athletes
         val fatTarget = (calTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
         val carbsTarget = ((calTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
 
@@ -134,25 +159,28 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             }
         }
 
-        val workManager = try {
-            WorkManager.getInstance(applicationContext)
-        } catch (e: Throwable) {
-            try {
-                val config = androidx.work.Configuration.Builder()
-                    .setMinimumLoggingLevel(android.util.Log.INFO)
-                    .build()
-                WorkManager.initialize(applicationContext, config)
-                WorkManager.getInstance(applicationContext)
-            } catch (innerEx: Throwable) {
-                android.util.Log.e("DailyCoachingWorker", "Could not initialize WorkManager manually", innerEx)
-                null
-            }
-        }
+        val workManager = WorkManager.getInstance(applicationContext)
 
         // Evaluate triggers for each key hour of the day
-        val keyHours = listOf(7, 12, 17, 20, 22)
+        val keyHours = listOf(7, 9, 12, 20)
+        
+        val repository = com.example.data.repository.FitnessRepositoryImpl(dao, dataStore)
+        repository.scanAndSaveWeeklyPatterns()
+
+        val plateau = AlgorithmEngine.detectPlateau(engineWeights, allNutrition, completedSessions, windowDays = 14)
         
         val allTriggers = mutableListOf<NotificationEngine.NotificationTrigger>()
+        
+        if (plateau.plateau && plateau.severity == "confirmed") {
+            allTriggers.add(NotificationEngine.NotificationTrigger(
+                id = "plateau_confirmed",
+                title = "Weight plateau confirmed — 14 days",
+                body = "Your trend weight has not moved despite consistent logging. Your coach has a specific intervention ready.",
+                triggerHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+                priority = "urgent"
+            ))
+        }
+
         keyHours.forEach { hour ->
             val triggersAtHour = NotificationEngine.evaluateDailyTriggers(
                 nutritionLog = allNutrition,
@@ -177,7 +205,11 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
                 .setInitialDelay(delayHours.toLong(), TimeUnit.HOURS)
                 .setInputData(inputData)
                 .build()
-            workManager?.enqueue(delayedRequest)
+            workManager?.enqueueUniqueWork(
+                "delayed_${trigger.id}",
+                androidx.work.ExistingWorkPolicy.REPLACE,
+                delayedRequest
+            )
         }
 
         return Result.success()
@@ -203,22 +235,9 @@ object CoachingScheduler {
             .build()
             
         try {
-            val wm = try {
-                WorkManager.getInstance(context)
-            } catch (e: Throwable) {
-                try {
-                    val config = androidx.work.Configuration.Builder()
-                        .setMinimumLoggingLevel(android.util.Log.INFO)
-                        .build()
-                    WorkManager.initialize(context, config)
-                    WorkManager.getInstance(context)
-                } catch (innerEx: Throwable) {
-                    android.util.Log.e("CoachingScheduler", "Could not initialize WorkManager manually", innerEx)
-                    null
-                }
-            }
+            val wm = WorkManager.getInstance(context)
             
-            wm?.enqueueUniquePeriodicWork(
+            wm.enqueueUniquePeriodicWork(
                 "daily_coaching_notifications",
                 ExistingPeriodicWorkPolicy.UPDATE,
                 dailyWorkRequest

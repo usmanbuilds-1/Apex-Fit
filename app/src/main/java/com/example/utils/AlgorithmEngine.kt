@@ -1,5 +1,7 @@
 package com.example.utils
 
+import com.example.data.*
+
 object AlgorithmEngine {
 
     // ── TREND WEIGHT ──────────────────────────────────────────
@@ -52,7 +54,7 @@ object AlgorithmEngine {
         biologicalSex: String = "male",
         weeklyWorkouts: Int = 4
     ): TDEEResult {
-        val latestWeight = weightLog.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
+        val latestWeight = weightLog.maxByOrNull { it.date }?.weight ?: com.example.UserDefaults.WEIGHT_KG
         
         // Mifflin-St Jeor Equation (Mifflin MD, et al. 1990)
         // Males: REE = (10 * weight_kg) + (6.25 * height_cm) - (5 * age_years) + 5
@@ -170,7 +172,7 @@ object AlgorithmEngine {
             .sumOf { it.weight * it.reps }
 
         val volumeEarlier = trainingLog.filter { it.completed && it.date < cutoff }
-            .take(windowDays)
+            .sortedByDescending { it.date }.take(windowDays)
             .flatMap { it.exercises }
             .flatMap { it.sets }
             .filter { !it.isWarmup }
@@ -214,12 +216,11 @@ object AlgorithmEngine {
         }
 
         val sessionLoads = completed.map { session ->
-            val totalVolume = session.exercises.flatMap { it.sets }
-                .filter { !it.isWarmup }
-                .sumOf { it.weight * it.reps }
-            val avgRPE = session.exercises.flatMap { it.sets }.map { it.rpe }.average().takeIf { !it.isNaN() } ?: 7.0
-            val feelModifier = session.sessionFeel / 3.0
-            Pair(session.date, totalVolume * (avgRPE / 7.0) * feelModifier)
+            val totalSets = session.exercises.flatMap { it.sets }
+                .count { !it.isWarmup && it.completed }
+            val avgRPE = session.exercises.flatMap { it.sets }.filter { !it.isWarmup && it.completed }.map { it.rpe }.average().takeIf { !it.isNaN() } ?: 7.0
+            val feelModifier = if (session.sessionFeel == 0) 1.0 else (session.sessionFeel * 0.5)
+            Pair(session.date, totalSets.toDouble() * (avgRPE / 7.0) * feelModifier)
         }.sortedBy { it.first }
 
         val chronicCutoff = getDateDaysAgo(28)
@@ -240,61 +241,6 @@ object AlgorithmEngine {
             else -> { status = "danger"; statusLabel = "Overreaching"; recommendation = "Reduce load significantly — injury risk elevated" }
         }
         return FatigueResult(ratio, status, statusLabel, recommendation, acuteLoad, chronicLoad)
-    }
-
-    // ── PERSONAL RECORDS ──────────────────────────────────────
-    fun checkPersonalRecords(trainingLog: List<TrainingSession>, exerciseId: String): PRResult {
-        val sessions = trainingLog.filter { s -> s.completed && s.exercises.any { it.id == exerciseId } }.sortedBy { it.date }
-        if (sessions.size < 2) return PRResult(false)
-
-        var prevMaxWeight = 0.0
-        var prevMaxVolume = 0.0
-        var prevMax1RM = 0.0
-
-        sessions.dropLast(1).forEach { session ->
-            val ex = session.exercises.find { it.id == exerciseId } ?: return@forEach
-            val working = ex.sets.filter { !it.isWarmup && it.completed }
-            prevMaxWeight = maxOf(prevMaxWeight, working.maxOfOrNull { it.weight } ?: 0.0)
-            prevMaxVolume = maxOf(prevMaxVolume, working.sumOf { it.weight * it.reps })
-            prevMax1RM = maxOf(prevMax1RM, working.filter { it.reps <= 12 }.maxOfOrNull { it.weight * (1 + it.reps / 30.0) } ?: 0.0)
-        }
-
-        val latest = sessions.last().exercises.find { it.id == exerciseId } ?: return PRResult(false)
-        val latestWorking = latest.sets.filter { !it.isWarmup && it.completed }
-        val latestWeight = latestWorking.maxOfOrNull { it.weight } ?: 0.0
-        val latestVolume = latestWorking.sumOf { it.weight * it.reps }
-        val latest1RM = latestWorking.filter { it.reps <= 12 }.maxOfOrNull { it.weight * (1 + it.reps / 30.0) } ?: 0.0
-
-        val newPRs = mutableListOf<PREntry>()
-        if (latestWeight > prevMaxWeight) newPRs.add(PREntry("weight", "Weight PR", "${latestWeight}kg", "${prevMaxWeight}kg"))
-        if (latestVolume > prevMaxVolume) newPRs.add(PREntry("volume", "Volume PR", "${latestVolume.toInt()}kg", "${prevMaxVolume.toInt()}kg"))
-        if (latest1RM > prevMax1RM + 0.5) newPRs.add(PREntry("estimated_1rm", "Estimated 1RM PR", "${"%.1f".format(latest1RM)}kg", "${"%.1f".format(prevMax1RM)}kg"))
-
-        return PRResult(newPRs.isNotEmpty(), newPRs)
-    }
-
-    // ── DIMINISHING RETURNS ───────────────────────────────────
-    fun detectDiminishingReturns(trainingLog: List<TrainingSession>, exerciseId: String): DiminishingResult {
-        val sessions = trainingLog.filter { s -> s.completed && s.exercises.any { it.id == exerciseId } }.sortedBy { it.date }
-        if (sessions.size < 4) return DiminishingResult("insufficient_data", "Need 4+ sessions")
-
-        val weights = sessions.takeLast(6).mapNotNull { session ->
-            session.exercises.find { it.id == exerciseId }?.sets?.filter { !it.isWarmup }?.maxOfOrNull { it.weight }
-        }
-        if (weights.size < 3) return DiminishingResult("insufficient_data", "Need more data")
-
-        val slope = linearRegressionSlope(weights)
-        val last3Variance = (weights.takeLast(3).maxOrNull() ?: 0.0) - (weights.takeLast(3).minOrNull() ?: 0.0)
-        val avgRPERecent = sessions.takeLast(3).flatMap { s -> s.exercises.find { it.id == exerciseId }?.sets?.map { it.rpe } ?: emptyList() }.average()
-        val avgRPEEarlier = sessions.take(3).flatMap { s -> s.exercises.find { it.id == exerciseId }?.sets?.map { it.rpe } ?: emptyList() }.average()
-        val rpeIncreasing = avgRPERecent > avgRPEEarlier + 0.5
-
-        return when {
-            slope > 0.5 -> DiminishingResult("progressing", "Gaining ~${"%.1f".format(slope)}kg per session — keep going")
-            slope > 0.1 -> DiminishingResult("slowing", "Progress slowing — consider a rep focus phase", listOf("Drop weight 10%, push for more reps", "Add a fourth set"))
-            last3Variance < 1.25 && rpeIncreasing -> DiminishingResult("stalled_with_fatigue", "Weight stalled and getting harder — fatigue likely", listOf("Mini deload 5-7 days then retest", "Check sleep and nutrition on training days"))
-            else -> DiminishingResult("plateau", "No progress in recent sessions — change stimulus", listOf("Change rep range", "Switch to a variation", "Add tempo manipulation — 4-sec eccentric", "Increase frequency"))
-        }
     }
 
     // ── VOLUME LOAD ───────────────────────────────────────────
@@ -323,12 +269,13 @@ object AlgorithmEngine {
         val muscleVolume = mutableMapOf<String, Double>()
         recent.forEach { session ->
             session.exercises.forEach { exercise ->
+                val canonicalMuscle = com.example.utils.MuscleAliases.getCanonical(exercise.muscleGroup)
                 val volume = exercise.sets.filter { !it.isWarmup }.sumOf { it.weight * it.reps }
-                muscleVolume[exercise.muscleGroup] = (muscleVolume[exercise.muscleGroup] ?: 0.0) + volume
+                muscleVolume[canonicalMuscle] = (muscleVolume[canonicalMuscle] ?: 0.0) + volume
             }
         }
         val maxVolume = muscleVolume.values.maxOrNull() ?: 1.0
-        val allMuscles = listOf("chest","back","side_delt","rear_delt","front_delt","bicep","tricep","quad","hamstring","glute","calf","core")
+        val allMuscles = listOf("chest","back","shoulders","biceps","triceps","quads","hamstrings","glutes","calves","core","forearms","lower_back")
         return allMuscles.associateWith { muscle ->
             val vol = muscleVolume[muscle] ?: 0.0
             val intensity = ((vol / maxVolume) * 100).toInt()
@@ -356,21 +303,6 @@ object AlgorithmEngine {
             signals == 2 -> DeloadResult("deload_soon", "this_week", signals, listOf("Reduce to 2-3 sets per exercise", "Stay well within RIR"))
             else -> DeloadResult("continue", "none", signals)
         }
-    }
-
-    // ── SMART REST TIME ───────────────────────────────────────
-    fun calcSmartRestTime(rpe: Int, exerciseId: String, defaultRestSeconds: Int): Int {
-        var adjusted = defaultRestSeconds
-        adjusted = when {
-            rpe >= 9 -> (adjusted * 1.3).toInt()
-            rpe <= 6 -> (adjusted * 0.8).toInt()
-            else -> adjusted
-        }
-        val heavyCompounds = listOf("squat","deadlift","ohp","bent-over-row")
-        val isolationExercises = listOf("cable-lateral-raise","face-pull","incline-db-curl","calf-raise")
-        if (exerciseId in heavyCompounds) adjusted = maxOf(adjusted, 90)
-        if (exerciseId in isolationExercises) adjusted = minOf(adjusted, 90)
-        return adjusted
     }
 
     // ── HYPERTROPHY QUALITY SCORE ─────────────────────────────
@@ -402,21 +334,24 @@ object AlgorithmEngine {
         val signals = mutableListOf<String>()
         val recent = trainingLog.filter { it.completed }.sortedByDescending { it.date }.take(6)
 
-        val highRPESets = recent.flatMap { it.exercises }.flatMap { it.sets }.count { it.rpe >= 9 }
-        if (highRPESets >= 6) signals.add("High intensity clustering — connective tissue recovery may be lagging")
+        val highRPEDays = recent.filter { session ->
+            session.exercises.flatMap { it.sets }.any { it.rpe >= 9 }
+        }.map { it.date }.distinct().count()
+        
+        if (highRPEDays >= 4) signals.add("High intensity clustering — heavy RPE sets performed on $highRPEDays distinct days recently")
 
         val fatigue = calcFatigueToFitness(trainingLog)
         if ((fatigue.ratio ?: 0.0) >= 1.5) signals.add("Volume load too high relative to baseline — back off this week")
 
-        val muscleFrequency = mutableMapOf<String, Int>()
+        val muscleDays = mutableMapOf<String, MutableSet<String>>()
         val cutoff = getDateDaysAgo(7)
         trainingLog.filter { it.completed && it.date >= cutoff }.forEach { session ->
             session.exercises.forEach { exercise ->
-                muscleFrequency[exercise.muscleGroup] = (muscleFrequency[exercise.muscleGroup] ?: 0) + 1
+                muscleDays.getOrPut(exercise.muscleGroup) { mutableSetOf() }.add(session.date)
             }
         }
-        muscleFrequency.entries.filter { it.value > 4 }.forEach { (muscle, count) ->
-            signals.add("$muscle trained $count times this week — add rest before next session")
+        muscleDays.entries.filter { it.value.size > 4 }.forEach { (muscle, dates) ->
+            signals.add("$muscle trained ${dates.size} days this week — add rest before next session")
         }
         return signals
     }
@@ -480,10 +415,92 @@ object AlgorithmEngine {
                 break
             }
         }
+
+        // Training Streak Implementation: 1 rest day per rolling 7-day window allowed
+        val completedDates = trainingLog.filter { it.completed }.map { it.date }.toSet()
+        var trainingStreak = 0
+        
+        if (completedDates.isNotEmpty()) {
+            val today = getCurrentDate()
+            val yesterday = getPreviousDate(today)
+            val sortedDates = completedDates.toList().sortedDescending()
+            val mostRecent = sortedDates.first()
+            
+            // Streak is active if we trained today or yesterday
+            if (mostRecent == today || mostRecent == yesterday) {
+                var currentDate = mostRecent
+                var restDaysInWindow = 0
+                val windowSize = 7
+                val history = mutableListOf<Boolean>() // true = trained, false = rest
+                
+                // Initial backward crawl to establish streak
+                while (true) {
+                    val trained = completedDates.contains(currentDate)
+                    if (trained) {
+                        trainingStreak++
+                        history.add(true)
+                    } else {
+                        // Check if we can afford a rest day: 
+                        // At most 1 rest day in any rolling 7-day window
+                        val recentRestDays = history.takeLast(windowSize - 1).count { !it }
+                        if (recentRestDays == 0) {
+                            trainingStreak++
+                            history.add(false)
+                        } else {
+                            break // Streak broken
+                        }
+                    }
+                    currentDate = getPreviousDate(currentDate)
+                    if (history.size > 1000) break // Safety break
+                }
+                
+                // If the streak ends on a rest day, trim it
+                while (history.isNotEmpty() && !history.last()) {
+                    history.removeAt(history.size - 1)
+                    trainingStreak--
+                }
+            }
+        }
         
         return StreakResult(
             nutrition = StreakInfo(currentStreak),
-            training = StreakInfo(0)
+            training = StreakInfo(trainingStreak)
+        )
+    }
+
+    fun checkPersonalRecords(log: List<RichTrainingSession>, exerciseId: String): PRResult {
+        val exerciseSessions = log.filter { it.completed }
+            .flatMap { session ->
+                session.exercises.filter { it.id == exerciseId }.map { log -> Pair(session.date, log) }
+            }
+            .sortedBy { it.first }
+
+        if (exerciseSessions.isEmpty()) {
+            return PRResult(hasPR = false)
+        }
+
+        val lastSession = exerciseSessions.last()
+        val prevSessions = exerciseSessions.dropLast(1)
+
+        val lastMaxWeight = lastSession.second.sets.filter { it.completed && !it.isWarmup }.maxOfOrNull { it.weight } ?: 0.0
+        val prevMaxWeight = prevSessions.flatMap { it.second.sets }.filter { it.completed && !it.isWarmup }.maxOfOrNull { it.weight } ?: 0.0
+
+        val hasNewWeightPR = lastMaxWeight > 0.0 && (prevSessions.isEmpty() || lastMaxWeight > prevMaxWeight)
+
+        val newPRs = mutableListOf<PREntry>()
+        if (hasNewWeightPR) {
+            newPRs.add(PREntry(type = "weight", label = "Weight PR", value = "$lastMaxWeight kg", previous = if (prevMaxWeight > 0.0) "$prevMaxWeight kg" else "None"))
+        }
+
+        return PRResult(
+            hasPR = hasNewWeightPR,
+            newPRs = newPRs,
+            exerciseId = exerciseId,
+            type = if (hasNewWeightPR) "weight" else "",
+            previousValue = prevMaxWeight,
+            newValue = lastMaxWeight,
+            isNewRecord = hasNewWeightPR
         )
     }
 }
+

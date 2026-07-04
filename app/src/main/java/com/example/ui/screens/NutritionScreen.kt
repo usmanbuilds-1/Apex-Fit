@@ -33,8 +33,11 @@ import com.example.NutritionViewModel
 import com.example.AlgorithmViewModel
 import com.example.ui.theme.*
 import java.io.InputStream
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun NutritionScreen(
     fitnessViewModel: FitnessViewModel,
@@ -51,19 +54,53 @@ fun NutritionScreen(
 
     val calorieTarget = if (calorieTargetManual) calorieTargetValue else 2650
 
-    val loggedCalories = loggedMeals.sumOf { it.calories }
-    val loggedProtein = loggedMeals.sumOf { it.protein }
-    val loggedCarbs = loggedMeals.sumOf { it.carbs }
-    val loggedFat = loggedMeals.sumOf { it.fat }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val pendingDeletions = remember { mutableStateMapOf<Long, Job>() }
+
+    val visibleMeals = loggedMeals.filter { it.id !in pendingDeletions.keys }
+
+    val loggedCalories = visibleMeals.sumOf { it.calories }
+    val loggedProtein = visibleMeals.sumOf { it.protein }
+    val loggedCarbs = visibleMeals.sumOf { it.carbs }
+    val loggedFat = visibleMeals.sumOf { it.fat }
 
     var showAddFoodModal by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    fun triggerPendingDeletion(meal: com.example.ui.models.UiNutritionEntry) {
+        if (pendingDeletions.containsKey(meal.id)) return
+
+        val job = coroutineScope.launch {
+            delay(4000)
+            fitnessViewModel.deleteNutritionEntryById(meal.id)
+            pendingDeletions.remove(meal.id)
+        }
+        pendingDeletions[meal.id] = job
+
+        coroutineScope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = "Meal deleted",
+                actionLabel = "UNDO",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                pendingDeletions[meal.id]?.cancel()
+                pendingDeletions.remove(meal.id)
+            }
+        }
+    }
+
+    Scaffold(
+        containerColor = DarkBackground,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         // Date picker swiping bar
         item {
             Row(
@@ -122,8 +159,28 @@ fun NutritionScreen(
                             .drawBehind {
                                 drawCircle(BorderSubtle, size.minDimension / 2, style = Stroke(6.dp.toPx()))
                                 val progress = (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f)
+                                
+                                val ringColor = when {
+                                    userGoal.lowercase().contains("cut") -> {
+                                        if (loggedCalories <= calorieTarget * 1.05) GreenAccent
+                                        else if (loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B) // Amber
+                                        else RedAccent
+                                    }
+                                    userGoal.lowercase().contains("bulk") -> {
+                                        if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) GreenAccent
+                                        else if (loggedCalories < calorieTarget * 0.85) RedAccent // Under-eating on bulk
+                                        else Color(0xFFF59E0B) // Significantly over
+                                    }
+                                    userGoal.lowercase().contains("maintain") -> {
+                                        if (loggedCalories >= calorieTarget * 0.95 && loggedCalories <= calorieTarget * 1.05) GreenAccent
+                                        else if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B)
+                                        else RedAccent
+                                    }
+                                    else -> if (loggedCalories >= calorieTarget) GreenAccent else IndigoAccent
+                                }
+
                                 drawArc(
-                                    color = if (loggedCalories >= calorieTarget) GreenAccent else IndigoAccent,
+                                    color = ringColor,
                                     startAngle = -90f,
                                     sweepAngle = progress * 360f,
                                     useCenter = false,
@@ -178,7 +235,7 @@ fun NutritionScreen(
                     color = MutedText
                 )
 
-                if (loggedMeals.isEmpty()) {
+                if (visibleMeals.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -188,38 +245,77 @@ fun NutritionScreen(
                         Text("No meals logged for this file index.", fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
                     }
                 } else {
-                    loggedMeals.forEach { meal ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(DarkCardSurface)
-                                .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(10.dp))
-                                .combinedClickable(
-                                    onLongClick = { fitnessViewModel.deleteNutritionEntryById(meal.id) },
-                                    onClick = {}
-                                )
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text("LOGGED AT ${meal.time}", fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
-                                    Text(meal.name.ifEmpty { "Logged Meal" }, fontFamily = SyneFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-                                    Text(
-                                        text = "${meal.calories} kcal • P: ${meal.protein.toInt()}g C: ${meal.carbs.toInt()}g F: ${meal.fat.toInt()}g",
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 11.sp,
-                                        color = SecondaryText
-                                    )
+                    visibleMeals.forEach { meal ->
+                        key(meal.id) {
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { dismissValue ->
+                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
+                                        triggerPendingDeletion(meal)
+                                        true
+                                    } else {
+                                        false
+                                    }
                                 }
-                                IconButton(onClick = { fitnessViewModel.deleteNutritionEntryById(meal.id) }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete entry", tint = MutedText)
+                            )
+
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp)),
+                                backgroundContent = {
+                                    val color = when (dismissState.targetValue) {
+                                        SwipeToDismissBoxValue.EndToStart -> RedAccent.copy(alpha = 0.8f)
+                                        SwipeToDismissBoxValue.StartToEnd -> RedAccent.copy(alpha = 0.8f)
+                                        SwipeToDismissBoxValue.Settled -> Color.Transparent
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(color)
+                                            .padding(horizontal = 20.dp),
+                                        contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Delete,
+                                            contentDescription = "Delete",
+                                            tint = Color.White
+                                        )
+                                    }
+                                },
+                                content = {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(DarkCardSurface)
+                                            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(10.dp))
+                                            .clickable(onClick = {})
+                                            .padding(12.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text("LOGGED AT ${meal.time}", fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
+                                                Text(meal.name.ifEmpty { "Logged Meal" }, fontFamily = SyneFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+                                                Text(
+                                                    text = "${meal.calories} kcal • P: ${meal.protein.toInt()}g C: ${meal.carbs.toInt()}g F: ${meal.fat.toInt()}g",
+                                                    fontFamily = JetBrainsMonoFamily,
+                                                    fontSize = 11.sp,
+                                                    color = SecondaryText
+                                                )
+                                            }
+                                            IconButton(onClick = { triggerPendingDeletion(meal) }) {
+                                                Icon(Icons.Filled.Delete, contentDescription = "Delete entry", tint = MutedText)
+                                            }
+                                        }
+                                    }
                                 }
-                            }
+                            )
                         }
                     }
                 }
@@ -272,10 +368,12 @@ fun NutritionScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+}
 
     if (showAddFoodModal) {
         AddFoodSheet(
             fitnessViewModel = fitnessViewModel,
+            selectedDate = selectedDate,
             onDismiss = { showAddFoodModal = false }
         )
     }
@@ -293,23 +391,24 @@ fun MacroStatMini(label: String, value: String, color: Color) {
 @Composable
 fun AddFoodSheet(
     fitnessViewModel: FitnessViewModel,
+    selectedDate: String,
     onDismiss: () -> Unit
 ) {
     var querySearch by remember { mutableStateOf("") }
-    var inputCal by remember { mutableStateOf("350") }
-    var inputProt by remember { mutableStateOf("25") }
-    var inputCarb by remember { mutableStateOf("30") }
-    var inputFat by remember { mutableStateOf("8") }
+    var inputCal by remember { mutableStateOf("") }
+    var inputProt by remember { mutableStateOf("") }
+    var inputCarb by remember { mutableStateOf("") }
+    var inputFat by remember { mutableStateOf("") }
 
     var calError by remember { mutableStateOf("") }
     var protError by remember { mutableStateOf("") }
     var carbError by remember { mutableStateOf("") }
     var fatError by remember { mutableStateOf("") }
 
-    val isCalValid = inputCal.toIntOrNull()?.let { it in 0..5000 } ?: false
-    val isProtValid = inputProt.toDoubleOrNull()?.let { it in 0.0..300.0 } ?: false
-    val isCarbValid = inputCarb.toDoubleOrNull()?.let { it in 0.0..300.0 } ?: false
-    val isFatValid = inputFat.toDoubleOrNull()?.let { it in 0.0..300.0 } ?: false
+    val isCalValid = inputCal.isNotEmpty() && inputCal.toIntOrNull()?.let { it in 0..5000 } == true
+    val isProtValid = inputProt.isNotEmpty() && inputProt.toDoubleOrNull()?.let { it in 0.0..500.0 } == true
+    val isCarbValid = inputCarb.isNotEmpty() && inputCarb.toDoubleOrNull()?.let { it in 0.0..500.0 } == true
+    val isFatValid = inputFat.isNotEmpty() && inputFat.toDoubleOrNull()?.let { it in 0.0..500.0 } == true
 
     val computedCalFromMacros = ((inputProt.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputCarb.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputFat.toDoubleOrNull() ?: 0.0) * 9.0)
     val showMacroCalWarning = computedCalFromMacros > 5000.0
@@ -323,7 +422,7 @@ fun AddFoodSheet(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "STATUS: Auto-tracking local time (${fitnessViewModel.getCurrentLocalTimeString()})",
+                    text = "STATUS: Auto-tracking local time (${java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US).format(java.util.Date())})",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 10.sp,
                     color = AmberAccent,
@@ -597,7 +696,7 @@ fun AddFoodSheet(
                     val carb = inputCarb.toDoubleOrNull() ?: 0.0
                     val fat = inputFat.toDoubleOrNull() ?: 0.0
                     val mealName = querySearch.trim().ifEmpty { "Logged Meal" }
-                    fitnessViewModel.logNutrition(cal, prot, carb, fat, name = mealName)
+                    fitnessViewModel.logNutrition(cal, prot, carb, fat, date = selectedDate, name = mealName)
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(

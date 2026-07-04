@@ -80,18 +80,6 @@ object NotificationEngine {
             ))
         }
 
-        // TRIGGER 5 — Plateau alert (any time, high priority)
-        val plateau = AlgorithmEngine.detectPlateau(weightLog, nutritionLog, trainingLog, windowDays = 14)
-        if (plateau.plateau && plateau.severity == "confirmed") {
-            triggers.add(NotificationTrigger(
-                id = "plateau_confirmed",
-                title = "Weight plateau confirmed — 14 days",
-                body = "Your trend weight has not moved despite consistent logging. Your coach has a specific intervention ready.",
-                triggerHour = currentHour,
-                priority = "urgent"
-            ))
-        }
-
         return triggers
     }
 }

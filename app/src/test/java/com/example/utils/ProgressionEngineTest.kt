@@ -1,50 +1,38 @@
 package com.example.utils
 
 import org.junit.Assert.*
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProgressionEngineTest {
 
     @Test
     fun testCalculateProgressiveWeight_normal() {
-        val lastWeight = 100.0
-        val lastRPE = 8
-        val daysSinceLastSession = 3
-        val bodyWeightLbs = 180.0
-        val exerciseType = "compound_lower"
-        val res = ProgressionEngine.calculateProgressiveWeight(lastWeight, lastRPE, daysSinceLastSession, bodyWeightLbs, exerciseType)
-        // Base inc = 10.0
-        // RPE 8 -> 1.0
-        // Days 3 -> 1.0
-        // BW 180 -> 1.0
-        // Total inc = 10.0 * 1.0 * 1.0 * 1.0 = 10.0
-        // Output = 110.0
-        assertEquals(110.0, res, 0.01)
+        // Need to create dummy sets
+        val sets = listOf(com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 5, rpe = 8, completed = true))
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 5, 5, 1, 1.0, 100.0, "compound_lower")
+        // Base inc = 5.0 (for compound_lower)
+        // RPE 8 -> 1.0 multiplier
+        // Total inc = 5.0 * 1.0 * 1.0 = 5.0
+        // Output = 105.0
+        assertEquals(105.0, res.newWeight, 0.01)
     }
 
     @Test
     fun testCalculateProgressiveWeight_edgeCase_zero() {
-        val res = ProgressionEngine.calculateProgressiveWeight(0.0, 0, 0, 0.0, "isolation")
-        // Base inc = 2.5
-        // RPE 0 -> 1.0 (else branch)
-        // Days 0 -> 0.5
-        // BW 0 -> 0.75
-        // Total inc = 2.5 * 1.0 * 0.5 * 0.75 = 0.9375
-        // Nearest 2.5 of 0.9375 -> 0.0! Wait, let's trace:
-        // (0.9375 / 2.5) = 0.375 -> round = 0
-        // 0 * 2.5 = 0.0
-        assertEquals(0.0, res, 0.01)
+        val sets = listOf(com.example.ui.models.UiExerciseSet(weight = 0.0, reps = 0, rpe = 0))
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 5, 5, 1, 1.0, 0.0, "isolation")
+        assertEquals(0.0, res.newWeight, 0.01)
     }
 
     @Test
     fun testCalculateProgressiveWeight_boundary_RPE7() {
-        val res = ProgressionEngine.calculateProgressiveWeight(100.0, 7, 3, 180.0, "compound_upper")
-        // Base inc = 5.0
-        // RPE 7 -> 0.5
-        // Days 3 -> 1.0
-        // BW 180 -> 1.0
-        // Total inc = 2.5. 100 + 2.5 = 102.5
-        assertEquals(102.5, res, 0.01)
+        val sets = listOf(com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 5, rpe = 7, completed = true))
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 5, 5, 1, 1.0, 100.0, "compound_upper")
+        // Base inc = 2.5 (for compound_upper)
+        // RPE 7 -> 1.0 multiplier
+        // Total inc = 2.5 * 1.0 * 1.0 = 2.5. 100 + 2.5 = 102.5.
+        assertEquals(102.5, res.newWeight, 0.01)
     }
 
     @Test
@@ -82,7 +70,83 @@ class ProgressionEngineTest {
     }
 
     @Test
-    fun testCalculateEffectiveSetValue_boundary_RPE7() {
-        assertEquals(0.5, ProgressionEngine.calculateEffectiveSetValue(7), 0.01)
+    fun test_SUCCESS_AdvancesWeight() {
+        val sets = listOf(
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 7, completed = true),
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true)
+        )
+        // targetSets = 3, repsMax = 12. All hit. RPE <= 8.
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 8, 12, 3, 1.0, 100.0, "compound_upper")
+        // Base inc for compound_upper = 2.5. RPE 8 (max) -> multiplier 1.0. 
+        // Total inc = 2.5. 100 + 2.5 = 102.5.
+        assertEquals(102.5, res.newWeight, 0.01)
+        assertEquals(ProgressionEngine.OutcomeType.SUCCESS, res.outcome)
+    }
+
+    @Test
+    fun test_PROGRESSING_HoldsOnRPE9() {
+        val sets = listOf(
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 9, completed = true),
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 7, completed = true)
+        )
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 8, 12, 2, 1.0, 100.0, "compound_upper")
+        // RPE 9 -> not SUCCESS (must be <= 8)
+        // All sets within reps range [8, 12] -> PROGRESSING
+        assertEquals(100.0, res.newWeight, 0.01)
+        assertEquals(ProgressionEngine.OutcomeType.PROGRESSING, res.outcome)
+    }
+
+    @Test
+    fun test_STALLED_RepsBelowMin_HoldsWeight() {
+        val sets = listOf(
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 7, rpe = 9, completed = true), // Below repsMin 8
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 8, rpe = 9, completed = true),
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 8, rpe = 9, completed = true)
+        )
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 8, 12, 3, 1.0, 100.0, "compound_upper")
+        assertEquals(100.0, res.newWeight, 0.01)
+        assertEquals(ProgressionEngine.OutcomeType.STALLED, res.outcome)
+    }
+
+    @Test
+    fun test_PLATEAU_ConsecutiveStalls_Deloads() {
+        val sets = listOf(
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 7, rpe = 9, completed = true), // Failed target
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 8, rpe = 9, completed = true)
+        )
+        // targetSets 3, only 2 completed -> failedTarget = true
+        // consecutiveStalledSessions = 1 (meaning the session BEFORE this one was also stalled)
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 8, 12, 3, 1.0, 100.0, "compound_upper", consecutiveStalledSessions = 1)
+        // outcome should be PLATEAU -> 10% deload
+        assertEquals(90.0, res.newWeight, 0.01)
+        assertEquals(ProgressionEngine.OutcomeType.PLATEAU, res.outcome)
+    }
+
+    @Test
+    fun test_UnratedRPE_HoldsWeight() {
+        val sets = listOf(
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 0, completed = true), // RPE 0 = Unrated
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true)
+        )
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 8, 12, 2, 1.0, 100.0, "compound_upper")
+        assertEquals(100.0, res.newWeight, 0.01)
+        assertEquals(ProgressionEngine.OutcomeType.STALLED, res.outcome)
+        assertTrue(res.reason.contains("unrated RPE"))
+    }
+
+    @Test
+    fun testCalculateProgressiveWeight_maxRpe_stallsOnSingleHighSet() {
+        // 3 sets: two easy, one grinder (RPE 10)
+        val sets = listOf(
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 5, rpe = 6, completed = true),
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 5, rpe = 6, completed = true),
+            com.example.ui.models.UiExerciseSet(weight = 100.0, reps = 5, rpe = 10, completed = true)
+        )
+        val res = ProgressionEngine.calculateProgressiveWeight("ex1", sets, 5, 5, 3, 1.0, 100.0, "compound_lower")
+        // maxRpe is 10 -> rpeMultiplier should be 0.0
+        // Resulting weight should be 100.0 (no advance)
+        assertEquals(100.0, res.newWeight, 0.01)
+        assertTrue("Should not be SUCCESS due to RPE 10", res.outcome != ProgressionEngine.OutcomeType.SUCCESS)
     }
 }
