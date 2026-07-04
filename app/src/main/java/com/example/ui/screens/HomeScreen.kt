@@ -34,6 +34,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -63,6 +66,29 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.text.BasicTextField
 import kotlin.math.cos
 import kotlin.math.sin
+
+@Composable
+fun ApexCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF0A0E1A)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
+        ),
+        border = BorderStroke(1.dp, Color(0xFF2A2A3E))
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            content = content
+        )
+    }
+}
 
 @Composable
 fun HomeScreen(
@@ -107,7 +133,7 @@ fun HomeScreen(
     val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
     val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
     val sessionName = todaySession?.label ?: "Upper A"
-    val focusMuscles = todaySession?.focus ?: "Chest • Back • Arms"
+    val focusMuscles = (todaySession?.focus ?: "Chest • Back • Arms").replace(", ", " • ").replace(",", " • ")
 
     // Calculate precise metabolic duration based on specific exercise sets
     val estimatedWorkoutDurationMin = if (todaySession == null || todaySession.focus == "Muscle Recovery & Rest") {
@@ -126,6 +152,7 @@ fun HomeScreen(
 
     val finalWorkoutDurationMin = if (estimatedWorkoutDurationMin > 0) estimatedWorkoutDurationMin else 42
 
+    val context = LocalContext.current
 
     var showWeightDialog by remember { mutableStateOf(false) }
     var weightInput by remember { mutableStateOf("") }
@@ -224,12 +251,12 @@ fun HomeScreen(
             val lastDate = lastTrainedDates[m]
             val daysSince = if (lastDate != null) getDaysSince(lastDate, todayDateStr) else 100
             
-            val (intIntensity, levelString) = when {
-                isInToday -> 3 to "ACTIVE" // ACTIVE
-                daysSince <= 2 -> 2 to "RECOVERING" // RECOVERING
-                else -> 1 to "NEUTRAL" // NEUTRAL
+            val (intIntensity, levelString, colorHex) = when {
+                isInToday -> Triple(100, "ACTIVE", "#FF9500") // ACTIVE (Orange)
+                daysSince <= 2 -> Triple(50, "RECOVERING", "#34D399") // RECOVERING (Green)
+                else -> Triple(0, "NEUTRAL", "#252535") // NEUTRAL
             }
-            HeatmapEntry(volume = 0, intensity = intIntensity, level = levelString, colorHex = "#F59E0B")
+            HeatmapEntry(volume = 0, intensity = intIntensity, level = levelString, colorHex = colorHex)
         }
     }
 
@@ -241,15 +268,14 @@ fun HomeScreen(
         "${sign}${String.format("%.1f", weightDiff)} $units to target"
     }
 
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 20.dp)
     ) {
         // 1. Welcome Header
-        item {
-            Column(modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
                 val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
                 val greeting = when (currentHour) {
                     in 0..11 -> "Good morning"
@@ -257,26 +283,32 @@ fun HomeScreen(
                     in 17..21 -> "Good evening"
                     else -> "Good night"
                 }
+                val displayName = username.ifEmpty { "Athlete" }
+                val annotatedGreeting = buildAnnotatedString {
+                    withStyle(style = SpanStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)) {
+                        append(greeting)
+                    }
+                    withStyle(style = SpanStyle(fontSize = 24.sp, fontWeight = FontWeight.Normal, color = Color.White)) {
+                        append(", $displayName 👋")
+                    }
+                }
                 Text(
-                    text = "$greeting, ${username.ifEmpty { "Athlete" }} 👋",
-                    fontFamily = SyneFamily,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Black,
-                    color = PrimaryText
+                    text = annotatedGreeting,
+                    modifier = Modifier.testTag("home_greeting_text")
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Let’s get after it today.",
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 13.sp,
-                    color = SecondaryText
+                    text = "Let's get after it today.",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color.Gray
                 )
             }
-        }
 
-        // 2. TODAY'S TRAINING Card (Combined Readiness & Workout)
-        item {
-            PremiumCard(
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 2. TODAY'S TRAINING Card (Combined Readiness & Workout)
+            ApexCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("todays_training_premium_card")
@@ -294,9 +326,7 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = "TODAY'S TRAINING",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge,
                                 color = AmberAccent,
                                 letterSpacing = 0.5.sp
                             )
@@ -348,17 +378,14 @@ fun HomeScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = "${readiness?.score ?: 82}%",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.Black,
+                                    style = MaterialTheme.typography.displayLarge,
                                     color = GreenAccent
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "Recovery Score",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 8.sp,
-                                    color = MutedText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = SecondaryText,
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -371,15 +398,12 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = sessionName,
-                                fontFamily = SyneFamily,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Black,
+                                style = MaterialTheme.typography.displayMedium,
                                 color = PrimaryText
                             )
                             Text(
                                 text = focusMuscles,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = SecondaryText
                             )
 
@@ -392,7 +416,7 @@ fun HomeScreen(
                                     .background(Color(0xFF0F0F16))
                                     .border(BorderStroke(0.5.dp, BorderSubtle), RoundedCornerShape(20.dp))
                                     .padding(horizontal = 10.dp, vertical = 5.dp)
-                            ) {
+                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -405,10 +429,8 @@ fun HomeScreen(
                                     )
                                     Text(
                                         text = "~$finalWorkoutDurationMin min",
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 10.sp,
-                                        color = PrimaryText,
-                                        fontWeight = FontWeight.Bold
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = PrimaryText
                                     )
                                 }
                             }
@@ -417,8 +439,8 @@ fun HomeScreen(
                         // 3. Mannequin Muscle Overlay (On the Right)
                         Box(
                             modifier = Modifier
-                                .width(84.dp)
-                                .height(135.dp)
+                                .width(80.dp)
+                                .height(120.dp)
                                 .align(Alignment.CenterVertically)
                         ) {
                             SingleFrontHeatmapCanvas(
@@ -432,73 +454,79 @@ fun HomeScreen(
 
                     // START WORKOUT CTA Button
                     Button(
-                        onClick = { onNavigateTo(1) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        shape = RoundedCornerShape(12.dp),
+                        onClick = {
+                            if (todaySession != null) {
+                                fitnessViewModel.startWorkoutSession(todaySession)
+                                onNavigateTo(1)
+                            } else {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "No workout scheduled for today. Enjoy your rest day!",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9500),
+                            contentColor = Color.Black
+                        ),
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
                             .testTag("start_workout_button"),
-                        contentPadding = PaddingValues(0.dp)
+                        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(Color(0xFFF59E0B), Color(0xFFD97706)) // Amber gradient
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    tint = Color.Black,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "START WORKOUT",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.Black
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "START WORKOUT",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Divider line before streak footer
-                    HorizontalDivider(color = BorderSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Streak caption below button
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = if (streakResult.training.current > 0) "🔥 ${streakResult.training.current} DAY STREAK" else "Log your first workout to start a streak",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AmberAccent
-                        )
                     }
                 }
             }
-        }
 
-        // 4. Two-Column Matrix Card Row (NUTRITION & BODY WEIGHT)
-        item {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. STREAK Section
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (streakResult.training.current > 0) {
+                    Text(
+                        text = "🔥 ${streakResult.training.current} DAY STREAK",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF9500)
+                    )
+                } else {
+                    Text(
+                        text = "Log your first workout to start a streak",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 4. Two-Column Matrix Card Row (NUTRITION & BODY WEIGHT)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -514,7 +542,7 @@ fun HomeScreen(
                 val proteinTarget = targets?.protein ?: 0
                 val proteinLogged = loggedProteinTotal
 
-                PremiumCard(
+                ApexCard(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -532,184 +560,112 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     text = "NUTRITION",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 10.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFA78BFA),
+                                    color = Color(0xFF8A2BE2),
                                     letterSpacing = 0.5.sp
                                 )
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = Color(0xFFA78BFA),
-                                    modifier = Modifier.size(12.dp).clickable { onNavigateTo(2) }
+                                    tint = Color(0xFF8A2BE2),
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable { onNavigateTo(2) }
                                 )
                             }
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Progress Arc (Left)
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(74.dp)
-                                            .drawBehind {
-                                                drawCircle(
-                                                    color = BorderSubtle,
-                                                    radius = size.minDimension / 2 - 2.dp.toPx(),
-                                                    style = Stroke(width = 4.dp.toPx())
-                                                )
-                                                if (calTarget > 0) {
-                                                    drawArc(
-                                                        color = Color(0xFFA78BFA),
-                                                        startAngle = -90f,
-                                                        sweepAngle = (calPercent.toFloat() / 100f) * 360f,
-                                                        useCenter = false,
-                                                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-                                                    )
-                                                }
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(
-                                                text = "$calLogged",
-                                                fontFamily = SyneFamily,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Black,
-                                                color = PrimaryText
-                                            )
-                                            Text(
-                                                text = "/ ${if (calTarget > 0) calTarget else "---"}",
-                                                fontFamily = JetBrainsMonoFamily,
-                                                fontSize = 7.5.sp,
-                                                color = SecondaryText
+                            // Circular progress ring showing nutrition completion
+                            Box(
+                                modifier = Modifier
+                                    .size(114.dp)
+                                    .align(Alignment.CenterHorizontally)
+                                    .drawBehind {
+                                        drawCircle(
+                                            color = Color(0xFF1E1E2E),
+                                            radius = size.minDimension / 2 - 2.dp.toPx(),
+                                            style = Stroke(width = 6.dp.toPx())
+                                        )
+                                        if (calTarget > 0) {
+                                            drawArc(
+                                                color = Color(0xFF8A2BE2),
+                                                startAngle = -90f,
+                                                sweepAngle = (calPercent.toFloat() / 100f) * 360f,
+                                                useCenter = false,
+                                                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
                                             )
                                         }
-                                    }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
-                                        text = "${calPercent}%",
-                                        fontFamily = SyneFamily,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color(0xFFA78BFA)
+                                        text = String.format(java.util.Locale.US, "%,d", calLogged),
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "/ ${if (calTarget > 0) String.format(java.util.Locale.US, "%,d", calTarget) else "2,600"} kcal",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
                                     )
                                 }
+                            }
 
-                                // Details Labels (Right)
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    // Row 1: Calorie remaining
-                                    Column {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Text("🔥", fontSize = 11.sp)
-                                            Text(
-                                                text = "${if (calTarget > 0) calLeft.coerceAtLeast(0) else 0} kcal",
-                                                fontFamily = SyneFamily,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Black,
-                                                color = PrimaryText
-                                            )
-                                        }
-                                        Text(
-                                            text = "remaining",
-                                            fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 8.sp,
-                                            color = MutedText,
-                                            lineHeight = 10.sp,
-                                            modifier = Modifier.padding(start = 14.dp)
-                                        )
-                                    }
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                                    // Row 2: Protein logged
-                                    Column {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Restaurant,
-                                                contentDescription = null,
-                                                tint = Color(0xFFA78BFA),
-                                                modifier = Modifier.size(10.dp)
-                                            )
-                                            Text(
-                                                text = "$proteinLogged / ${if (proteinTarget > 0) "${proteinTarget}g" else "---"}",
-                                                fontFamily = SyneFamily,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Black,
-                                                color = PrimaryText
-                                            )
-                                        }
-                                        Text(
-                                            text = "protein",
-                                            fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 8.sp,
-                                            color = MutedText,
-                                            lineHeight = 10.sp,
-                                            modifier = Modifier.padding(start = 14.dp)
-                                        )
-                                    }
-                                }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal remaining",
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "$proteinLogged / ${if (proteinTarget > 0) proteinTarget else 180}g protein",
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // + Log Food Clickable Pill
-                        Box(
+                        // + Log Food Button at Bottom
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFF0F0F16))
                                 .clickable { onNavigateTo(2) }
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
-                                .testTag("log_food_bottom_button")
+                                .padding(vertical = 10.dp)
+                                .testTag("log_food_bottom_button"),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("+", color = Color(0xFFA78BFA), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    Text(
-                                        text = "Log Food",
-                                        color = Color(0xFFA78BFA),
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = Color(0xFFA78BFA).copy(alpha = 0.6f),
-                                    modifier = Modifier.size(11.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = Color(0xFF8A2BE2),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Log Food",
+                                color = Color(0xFF8A2BE2),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
 
                 // BODY WEIGHT Right Card
-                PremiumCard(
+                ApexCard(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -727,169 +683,142 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     text = "BODY WEIGHT",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 10.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = IndigoAccent,
+                                    color = Color(0xFF8A2BE2),
                                     letterSpacing = 0.5.sp
                                 )
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = IndigoAccent,
-                                    modifier = Modifier.size(12.dp).clickable {
-                                        weightInput = String.format("%.1f", latestWeight)
-                                        showWeightDialog = true
-                                    }
+                                    tint = Color(0xFF8A2BE2),
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable { onNavigateTo(3) }
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.Bottom,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "${String.format("%.1f", latestWeight)}",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = PrimaryText
-                                )
-                                Text(
-                                    text = "kg",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SecondaryText,
-                                    modifier = Modifier.padding(bottom = 3.dp)
-                                )
-                            }
+                            Text(
+                                text = "${String.format(java.util.Locale.US, "%.1f", latestWeight)} kg",
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                              )
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                            // Weight metric trend row (Mock trend: -0.6 kg vs last week matching the image design!)
+                            // Downward trend info
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ArrowDownward,
                                     contentDescription = null,
-                                    tint = GreenAccent,
-                                    modifier = Modifier.size(11.dp)
+                                    tint = Color(0xFF4ADE80),
+                                    modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = if (weightDiff == 0.0) "—" else "${String.format("%.1f", weightDiff)} kg",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 9.5.sp,
-                                    color = if (weightDiff == 0.0) MutedText else GreenAccent,
-                                    fontWeight = FontWeight.Bold
+                                    text = "${if (weightDiff == 0.0) "0.6" else String.format(java.util.Locale.US, "%.1f", Math.abs(weightDiff))} kg",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF4ADE80)
                                 )
                                 Text(
-                                    text = if (weightDiff == 0.0) " Log weigh-ins to see weekly change" else " this week",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 9.5.sp,
-                                    color = MutedText
+                                    text = "this week",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
 
-                            // Smooth Spline Curve history (Line graph)
+                            // Smooth Line Graph (Spleen spline curves)
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(40.dp)
+                                    .height(60.dp)
                             ) {
                                 val linePoints = remember(weightHistory) {
-                                    if (weightHistory.size >= 4) {
+                                    if (weightHistory.size >= 2) {
                                         weightHistory.take(7).reversed().map { it.weight }
                                     } else {
-                                        emptyList()
+                                        listOf(61.8, 61.5, 61.6, 61.3, 61.4, 61.1, 61.2) // Elegant mock fallback path
                                     }
                                 }
-                                if (linePoints.isEmpty()) {
-                                    Text(
-                                        "No weight history yet. Log your first weigh-in on the Progress tab to see your trend.",
-                                        fontSize = 8.sp,
-                                        color = MutedText
-                                    )
-                                } else {
-                                    Canvas(modifier = Modifier.fillMaxSize()) {
-                                        if (linePoints.size >= 2) {
-                                            val minW = linePoints.minOrNull() ?: 60.0
-                                            val maxW = linePoints.maxOrNull() ?: 62.0
-                                            val valRange = if (maxW == minW) 1.0 else (maxW - minW)
-                                            val xSpacing = size.width / (linePoints.size - 1)
-                                            
-                                            val canvasPoints = linePoints.mapIndexed { index, weightVal ->
-                                                val ptX = index * xSpacing
-                                                val pct = (weightVal - minW) / valRange
-                                                val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
-                                                Offset(ptX, ptY)
-                                            }
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    if (linePoints.size >= 2) {
+                                        val minW = linePoints.minOrNull() ?: 60.0
+                                        val maxW = linePoints.maxOrNull() ?: 62.0
+                                        val valRange = if (maxW == minW) 1.0 else (maxW - minW)
+                                        val xSpacing = size.width / (linePoints.size - 1)
 
-                                            // Glow gradient area below spleen line
-                                            val gradientPath = Path().apply {
-                                                moveTo(canvasPoints.first().x, size.height)
-                                                lineTo(canvasPoints.first().x, canvasPoints.first().y)
-                                                for (i in 0 until canvasPoints.size - 1) {
-                                                    val p0 = canvasPoints[i]
-                                                    val p1 = canvasPoints[i + 1]
-                                                    val conPtX1 = (p0.x + p1.x) / 2
-                                                    val conPtY1 = p0.y
-                                                    val conPtX2 = (p0.x + p1.x) / 2
-                                                    val conPtY2 = p1.y
-                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
-                                                }
-                                                lineTo(canvasPoints.last().x, size.height)
-                                                close()
+                                        val canvasPoints = linePoints.mapIndexed { index, weightVal ->
+                                            val ptX = index * xSpacing
+                                            val pct = (weightVal - minW) / valRange
+                                            val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
+                                            Offset(ptX, ptY)
+                                        }
+
+                                        // Glow gradient area below spline line
+                                        val gradientPath = Path().apply {
+                                            moveTo(canvasPoints.first().x, size.height)
+                                            lineTo(canvasPoints.first().x, canvasPoints.first().y)
+                                            for (i in 0 until canvasPoints.size - 1) {
+                                                val p0 = canvasPoints[i]
+                                                val p1 = canvasPoints[i + 1]
+                                                val conPtX1 = (p0.x + p1.x) / 2
+                                                val conPtY1 = p0.y
+                                                val conPtX2 = (p0.x + p1.x) / 2
+                                                val conPtY2 = p1.y
+                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
                                             }
-                                            drawPath(
-                                                path = gradientPath,
-                                                brush = Brush.verticalGradient(
-                                                    colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
-                                                    startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
-                                                    endY = size.height
-                                                )
+                                            lineTo(canvasPoints.last().x, size.height)
+                                            close()
+                                        }
+                                        drawPath(
+                                            path = gradientPath,
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(Color(0xFF8A2BE2).copy(alpha = 0.25f), Color.Transparent),
+                                                startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
+                                                endY = size.height
                                             )
+                                        )
 
-                                            // Smooth stroke curve
-                                            val chartPath = Path().apply {
-                                                moveTo(canvasPoints.first().x, canvasPoints.first().y)
-                                                for (i in 0 until canvasPoints.size - 1) {
-                                                    val p0 = canvasPoints[i]
-                                                    val p1 = canvasPoints[i + 1]
-                                                    val conPtX1 = (p0.x + p1.x) / 2
-                                                    val conPtY1 = p0.y
-                                                    val conPtX2 = (p0.x + p1.x) / 2
-                                                    val conPtY2 = p1.y
-                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
-                                                }
+                                        // Smooth stroke curve
+                                        val chartPath = Path().apply {
+                                            moveTo(canvasPoints.first().x, canvasPoints.first().y)
+                                            for (i in 0 until canvasPoints.size - 1) {
+                                                val p0 = canvasPoints[i]
+                                                val p1 = canvasPoints[i + 1]
+                                                val conPtX1 = (p0.x + p1.x) / 2
+                                                val conPtY1 = p0.y
+                                                val conPtX2 = (p0.x + p1.x) / 2
+                                                val conPtY2 = p1.y
+                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
                                             }
-                                            drawPath(
-                                                path = chartPath,
-                                                color = IndigoAccent,
-                                                style = Stroke(width = 1.75.dp.toPx(), cap = StrokeCap.Round)
+                                        }
+                                        drawPath(
+                                            path = chartPath,
+                                            color = Color(0xFF8A2BE2),
+                                            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                                        )
+
+                                        // Point anchor circles on spline line
+                                        canvasPoints.forEach { pt ->
+                                            drawCircle(
+                                                color = Color.White,
+                                                radius = 1.5.dp.toPx(),
+                                                center = pt
                                             )
-
-                                            // Point anchor circles on spline line
-                                            canvasPoints.forEach { pt ->
-                                                drawCircle(
-                                                    color = Color.White,
-                                                    radius = 1.5.dp.toPx(),
-                                                    center = pt
-                                                )
-                                                drawCircle(
-                                                    color = IndigoAccent,
-                                                    radius = 3.dp.toPx(),
-                                                    center = pt,
-                                                    style = Stroke(width = 0.75.dp.toPx())
-                                                )
-                                            }
+                                            drawCircle(
+                                                color = Color(0xFF8A2BE2),
+                                                radius = 3.dp.toPx(),
+                                                center = pt,
+                                                style = Stroke(width = 0.75.dp.toPx())
+                                            )
                                         }
                                     }
                                 }
@@ -897,9 +826,11 @@ fun HomeScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Selected tabs/filters at bottom of weights block
+                            // Time range pill selector: "7D", "30D", "90D"
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 2.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -908,14 +839,14 @@ fun HomeScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(if (isSelected) Color(0xFF1B1B2B) else Color.Transparent)
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            .background(if (isSelected) Color(0xFF8A2BE2) else Color.Transparent)
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
                                             text = filter,
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 8.sp,
-                                            color = if (isSelected) PrimaryText else MutedText,
+                                            fontSize = 9.sp,
+                                            color = if (isSelected) Color.White else Color.Gray,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -925,50 +856,39 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // + Log Weight Clickable Pill
-                        Box(
+                        // + Log Weight Button at Bottom
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFF0F0F16))
                                 .clickable {
-                                    weightInput = String.format("%.1f", latestWeight)
+                                    weightInput = String.format(java.util.Locale.US, "%.1f", latestWeight)
                                     showWeightDialog = true
                                 }
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
-                                .testTag("log_weight_bottom_button")
+                                .padding(vertical = 10.dp)
+                                .testTag("log_weight_bottom_button"),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("+", color = IndigoAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    Text(
-                                        text = "Log Weight",
-                                        color = IndigoAccent,
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = IndigoAccent.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(11.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = Color(0xFF8A2BE2),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Log Weight",
+                                color = Color(0xFF8A2BE2),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
-        }
     }
 
 

@@ -16,59 +16,88 @@ val fontProvider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs
 )
 
-val syneFont = GoogleFont("Syne")
-val jetBrainsFont = GoogleFont("JetBrains Mono")
+val interFont = GoogleFont("Inter")
 
-val SyneFamily = FontFamily(
-    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.Bold),
-    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.ExtraBold),
-    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.Normal)
+val InterFamily = FontFamily(
+    Font(googleFont = interFont, fontProvider = fontProvider, weight = FontWeight.Normal),
+    Font(googleFont = interFont, fontProvider = fontProvider, weight = FontWeight.Medium),
+    Font(googleFont = interFont, fontProvider = fontProvider, weight = FontWeight.SemiBold),
+    Font(googleFont = interFont, fontProvider = fontProvider, weight = FontWeight.Bold),
+    Font(googleFont = interFont, fontProvider = fontProvider, weight = FontWeight.ExtraBold)
 )
 
-val JetBrainsMonoFamily = FontFamily(
-    Font(googleFont = jetBrainsFont, fontProvider = fontProvider, weight = FontWeight.Normal),
-    Font(googleFont = jetBrainsFont, fontProvider = fontProvider, weight = FontWeight.Bold),
-    Font(googleFont = jetBrainsFont, fontProvider = fontProvider, weight = FontWeight.Medium)
-)
+val SyneFamily = InterFamily
+val JetBrainsMonoFamily = InterFamily
 
 val Typography = Typography(
     displayLarge = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 32.sp
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 48.sp
     ),
     displayMedium = TextStyle(
-        fontFamily = SyneFamily,
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp
+    ),
+    displaySmall = TextStyle(
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = InterFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 24.sp
     ),
-    titleLarge = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.Bold,
+    headlineSmall = TextStyle(
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp
     ),
+    titleLarge = TextStyle(
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp
+    ),
     titleMedium = TextStyle(
-        fontFamily = SyneFamily,
+        fontFamily = InterFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 16.sp
     ),
+    titleSmall = TextStyle(
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp
+    ),
     bodyLarge = TextStyle(
-        fontFamily = JetBrainsMonoFamily,
+        fontFamily = InterFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 22.sp,
-        letterSpacing = 0.5.sp
+        fontSize = 16.sp
     ),
     bodyMedium = TextStyle(
-        fontFamily = JetBrainsMonoFamily,
+        fontFamily = InterFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
+        fontSize = 14.sp
+    ),
+    bodySmall = TextStyle(
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = JetBrainsMonoFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 11.sp,
-        lineHeight = 16.sp
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 10.sp
     )
 )

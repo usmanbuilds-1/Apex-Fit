@@ -6,13 +6,29 @@ import androidx.compose.runtime.Composable
 
 private val ApexDarkColorScheme = darkColorScheme(
     primary = AmberAccent,
+    onPrimary = DarkBackground,
+    primaryContainer = DarkRaised,
+    onPrimaryContainer = PrimaryText,
     secondary = SecondaryText,
+    onSecondary = DarkBackground,
+    secondaryContainer = DarkCardSurface,
+    onSecondaryContainer = SecondaryText,
     tertiary = GreenAccent,
+    onTertiary = DarkBackground,
+    tertiaryContainer = DarkRaised,
+    onTertiaryContainer = GreenAccent,
     background = DarkBackground,
-    surface = DarkCardSurface,
     onBackground = PrimaryText,
+    surface = DarkCardSurface,
     onSurface = PrimaryText,
-    error = RedAccent
+    surfaceVariant = DarkRaised,
+    onSurfaceVariant = SecondaryText,
+    error = RedAccent,
+    onError = DarkBackground,
+    errorContainer = DarkRaised,
+    onErrorContainer = RedAccent,
+    outline = BorderSubtle,
+    outlineVariant = BorderBright
 )
 
 @Composable

@@ -250,6 +250,7 @@ fun ApexFitApp(
             topBar = {
                 if (currentRoute != "plan_builder") {
                     CenterAlignedTopAppBar(
+                        modifier = Modifier.padding(top = 16.dp),
                         title = {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -676,7 +677,10 @@ fun OnboardingScreen(
 
 @Composable
 fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
-    NavigationBar(containerColor = DarkCardSurface) {
+    NavigationBar(
+        modifier = Modifier.height(64.dp).padding(top = 8.dp),
+        containerColor = DarkCardSurface
+    ) {
         NavigationBarItem(
             selected = activeTab == 0,
             onClick = { onTabSelected(0) },
