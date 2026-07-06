@@ -19,7 +19,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val dao = db.fitnessDao()
     private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
     val sessionManager = WorkoutSessionManager(repository, dataStore)
 
     init {

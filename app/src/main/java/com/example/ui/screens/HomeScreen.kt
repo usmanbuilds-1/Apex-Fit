@@ -127,6 +127,8 @@ fun HomeScreen(
     val fatigueRatio by algorithmViewModel.fatigueRatio.collectAsStateWithLifecycle()
     val allPRs by algorithmViewModel.allPRs.collectAsStateWithLifecycle()
 
+    var selectedFilter by remember { mutableStateOf("7D") }
+
     // Aggregate meal stats
     val latestWeight = weightHistory.firstOrNull()?.weight ?: weight ?: com.example.UserDefaults.WEIGHT_KG
 
@@ -368,7 +370,7 @@ fun HomeScreen(
                                     drawArc(
                                         color = GreenAccent,
                                         startAngle = -90f,
-                                        sweepAngle = (readiness?.score ?: 82).toFloat() / 100f * 360f,
+                                        sweepAngle = if (readiness != null) readiness!!.score.toFloat() / 100f * 360f else 0f,
                                         useCenter = false,
                                         style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
                                     )
@@ -377,7 +379,7 @@ fun HomeScreen(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = "${readiness?.score ?: 82}%",
+                                    text = if (readiness != null) "${readiness!!.score}%" else "—",
                                     style = MaterialTheme.typography.displayLarge,
                                     color = GreenAccent
                                 )
@@ -608,7 +610,7 @@ fun HomeScreen(
                                         color = Color.White
                                     )
                                     Text(
-                                        text = "/ ${if (calTarget > 0) String.format(java.util.Locale.US, "%,d", calTarget) else "2,600"} kcal",
+                                        text = if (calTarget > 0) "/ ${String.format(java.util.Locale.US, "%,d", calTarget)} kcal" else "/ Set target in Settings",
                                         fontSize = 12.sp,
                                         color = Color.Gray
                                     )
@@ -618,14 +620,23 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(14.dp))
 
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (calTarget > 0) {
+                                    Text(
+                                        text = "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal remaining",
+                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Calorie target not set",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                                 Text(
-                                    text = "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal remaining",
-                                    fontSize = 14.sp,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "$proteinLogged / ${if (proteinTarget > 0) proteinTarget else 180}g protein",
+                                    text = if (proteinTarget > 0) "$proteinLogged / ${proteinTarget}g protein" else "$proteinLogged / — protein",
                                     fontSize = 14.sp,
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold
@@ -710,24 +721,42 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(6.dp))
 
                             // Downward trend info
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDownward,
-                                    contentDescription = null,
-                                    tint = Color(0xFF4ADE80),
-                                    modifier = Modifier.size(16.dp)
-                                )
+                            if (weightHistory.size >= 2) {
+                                val change = weightHistory.first().weight - weightHistory[1].weight
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    if (change < 0) {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDownward,
+                                            contentDescription = null,
+                                            tint = Color(0xFF4ADE80),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    } else if (change > 0) {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowUpward,
+                                            contentDescription = null,
+                                            tint = Color(0xFFE84040),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "${String.format(java.util.Locale.US, "%.1f", Math.abs(change))} $units",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (change <= 0) Color(0xFF4ADE80) else Color(0xFFE84040)
+                                    )
+                                    Text(
+                                        text = "this week",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+                            } else {
                                 Text(
-                                    text = "${if (weightDiff == 0.0) "0.6" else String.format(java.util.Locale.US, "%.1f", Math.abs(weightDiff))} kg",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF4ADE80)
-                                )
-                                Text(
-                                    text = "this week",
+                                    text = "Log weigh-ins to see weekly change",
                                     fontSize = 12.sp,
                                     color = Color.Gray
                                 )
@@ -739,88 +768,100 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(60.dp)
+                                    .height(60.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                val linePoints = remember(weightHistory) {
-                                    if (weightHistory.size >= 2) {
-                                        weightHistory.take(7).reversed().map { it.weight }
-                                    } else {
-                                        listOf(61.8, 61.5, 61.6, 61.3, 61.4, 61.1, 61.2) // Elegant mock fallback path
+                                if (weightHistory.size >= 2) {
+                                    val linePoints = remember(weightHistory, selectedFilter) {
+                                        val takeCount = when (selectedFilter) {
+                                            "7D" -> 7
+                                            "30D" -> 30
+                                            "90D" -> 90
+                                            else -> 7
+                                        }
+                                        weightHistory.take(takeCount).reversed().map { it.weight }
                                     }
-                                }
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    if (linePoints.size >= 2) {
-                                        val minW = linePoints.minOrNull() ?: 60.0
-                                        val maxW = linePoints.maxOrNull() ?: 62.0
-                                        val valRange = if (maxW == minW) 1.0 else (maxW - minW)
-                                        val xSpacing = size.width / (linePoints.size - 1)
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        if (linePoints.size >= 2) {
+                                            val minW = linePoints.minOrNull() ?: 60.0
+                                            val maxW = linePoints.maxOrNull() ?: 62.0
+                                            val valRange = if (maxW == minW) 1.0 else (maxW - minW)
+                                            val xSpacing = size.width / (linePoints.size - 1)
 
-                                        val canvasPoints = linePoints.mapIndexed { index, weightVal ->
-                                            val ptX = index * xSpacing
-                                            val pct = (weightVal - minW) / valRange
-                                            val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
-                                            Offset(ptX, ptY)
-                                        }
-
-                                        // Glow gradient area below spline line
-                                        val gradientPath = Path().apply {
-                                            moveTo(canvasPoints.first().x, size.height)
-                                            lineTo(canvasPoints.first().x, canvasPoints.first().y)
-                                            for (i in 0 until canvasPoints.size - 1) {
-                                                val p0 = canvasPoints[i]
-                                                val p1 = canvasPoints[i + 1]
-                                                val conPtX1 = (p0.x + p1.x) / 2
-                                                val conPtY1 = p0.y
-                                                val conPtX2 = (p0.x + p1.x) / 2
-                                                val conPtY2 = p1.y
-                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                            val canvasPoints = linePoints.mapIndexed { index, weightVal ->
+                                                val ptX = index * xSpacing
+                                                val pct = (weightVal - minW) / valRange
+                                                val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
+                                                Offset(ptX, ptY)
                                             }
-                                            lineTo(canvasPoints.last().x, size.height)
-                                            close()
-                                        }
-                                        drawPath(
-                                            path = gradientPath,
-                                            brush = Brush.verticalGradient(
-                                                colors = listOf(Color(0xFF8A2BE2).copy(alpha = 0.25f), Color.Transparent),
-                                                startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
-                                                endY = size.height
-                                            )
-                                        )
 
-                                        // Smooth stroke curve
-                                        val chartPath = Path().apply {
-                                            moveTo(canvasPoints.first().x, canvasPoints.first().y)
-                                            for (i in 0 until canvasPoints.size - 1) {
-                                                val p0 = canvasPoints[i]
-                                                val p1 = canvasPoints[i + 1]
-                                                val conPtX1 = (p0.x + p1.x) / 2
-                                                val conPtY1 = p0.y
-                                                val conPtX2 = (p0.x + p1.x) / 2
-                                                val conPtY2 = p1.y
-                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                            // Glow gradient area below spline line
+                                            val gradientPath = Path().apply {
+                                                moveTo(canvasPoints.first().x, size.height)
+                                                lineTo(canvasPoints.first().x, canvasPoints.first().y)
+                                                for (i in 0 until canvasPoints.size - 1) {
+                                                    val p0 = canvasPoints[i]
+                                                    val p1 = canvasPoints[i + 1]
+                                                    val conPtX1 = (p0.x + p1.x) / 2
+                                                    val conPtY1 = p0.y
+                                                    val conPtX2 = (p0.x + p1.x) / 2
+                                                    val conPtY2 = p1.y
+                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                                }
+                                                lineTo(canvasPoints.last().x, size.height)
+                                                close()
                                             }
-                                        }
-                                        drawPath(
-                                            path = chartPath,
-                                            color = Color(0xFF8A2BE2),
-                                            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-                                        )
-
-                                        // Point anchor circles on spline line
-                                        canvasPoints.forEach { pt ->
-                                            drawCircle(
-                                                color = Color.White,
-                                                radius = 1.5.dp.toPx(),
-                                                center = pt
+                                            drawPath(
+                                                path = gradientPath,
+                                                brush = Brush.verticalGradient(
+                                                    colors = listOf(Color(0xFF8A2BE2).copy(alpha = 0.25f), Color.Transparent),
+                                                    startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
+                                                    endY = size.height
+                                                )
                                             )
-                                            drawCircle(
+
+                                            // Smooth stroke curve
+                                            val chartPath = Path().apply {
+                                                moveTo(canvasPoints.first().x, canvasPoints.first().y)
+                                                for (i in 0 until canvasPoints.size - 1) {
+                                                    val p0 = canvasPoints[i]
+                                                    val p1 = canvasPoints[i + 1]
+                                                    val conPtX1 = (p0.x + p1.x) / 2
+                                                    val conPtY1 = p0.y
+                                                    val conPtX2 = (p0.x + p1.x) / 2
+                                                    val conPtY2 = p1.y
+                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                                }
+                                            }
+                                            drawPath(
+                                                path = chartPath,
                                                 color = Color(0xFF8A2BE2),
-                                                radius = 3.dp.toPx(),
-                                                center = pt,
-                                                style = Stroke(width = 0.75.dp.toPx())
+                                                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
                                             )
+
+                                            // Point anchor circles on spline line
+                                            canvasPoints.forEach { pt ->
+                                                drawCircle(
+                                                    color = Color.White,
+                                                    radius = 1.5.dp.toPx(),
+                                                    center = pt
+                                                )
+                                                drawCircle(
+                                                    color = Color(0xFF8A2BE2),
+                                                    radius = 3.dp.toPx(),
+                                                    center = pt,
+                                                    style = Stroke(width = 0.75.dp.toPx())
+                                                )
+                                            }
                                         }
                                     }
+                                } else {
+                                    Text(
+                                        text = "No weight history yet",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             }
 
@@ -835,12 +876,13 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 listOf("7D", "30D", "90D").forEach { filter ->
-                                    val isSelected = filter == "7D"
+                                    val isSelected = filter == selectedFilter
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(if (isSelected) Color(0xFF8A2BE2) else Color.Transparent)
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            .clickable { selectedFilter = filter }
                                     ) {
                                         Text(
                                             text = filter,
@@ -936,7 +978,7 @@ fun HomeScreen(
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = DarkRaised,
                             unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = IndigoAccent,
+                            focusedIndicatorColor = OrangeAccent,
                             unfocusedIndicatorColor = BorderSubtle
                         )
                     )
@@ -956,7 +998,7 @@ fun HomeScreen(
                         text = "SAVE",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
-                        color = IndigoAccent
+                        color = OrangeAccent
                     )
                 }
             },

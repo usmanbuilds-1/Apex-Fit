@@ -21,20 +21,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.SyneFamily
 import com.example.ui.theme.JetBrainsMonoFamily
-import com.example.ui.theme.IndigoAccent
+import com.example.ui.theme.OrangeAccent
 
 @Composable
 fun PlateCalculatorCard(
     initialWeight: Double,
+    units: String = "kg",
     modifier: Modifier = Modifier
 ) {
     var targetWeightStr by remember(initialWeight) { mutableStateOf(initialWeight.toString()) }
     var targetWeight by remember(initialWeight) { mutableStateOf(initialWeight) }
 
+    val isKg = units.lowercase() == "kg"
+    val barWeight = if (isKg) 20.0 else 45.0
+    val presets = if (isKg) listOf(25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25) else listOf(45.0, 35.0, 25.0, 10.0, 5.0, 2.5)
+    val suffix = if (isKg) "kg" else "lb"
+    val presetValues = if (isKg) listOf(40.0, 60.0, 80.0, 100.0) else listOf(95.0, 135.0, 185.0, 225.0)
+
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E)),
-        border = BorderStroke(1.dp, IndigoAccent.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, OrangeAccent.copy(alpha = 0.4f)),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -43,7 +50,7 @@ fun PlateCalculatorCard(
                 fontFamily = SyneFamily,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = IndigoAccent,
+                color = OrangeAccent,
                 modifier = Modifier.padding(bottom = 6.dp)
             )
 
@@ -55,16 +62,16 @@ fun PlateCalculatorCard(
                     value = targetWeightStr,
                     onValueChange = {
                         targetWeightStr = it
-                        targetWeight = it.toDoubleOrNull() ?: 20.0
+                        targetWeight = it.toDoubleOrNull() ?: barWeight
                     },
-                    label = { Text("Weight Target (kg)", color = Color(0xFF8A8A9A), fontSize = 9.sp) },
+                    label = { Text("Weight Target ($suffix)", color = Color(0xFF8A8A9A), fontSize = 9.sp) },
                     textStyle = TextStyle(color = Color(0xFFF0F0F5), fontFamily = JetBrainsMonoFamily, fontSize = 12.sp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(0.4f),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color(0xFF0F0F1A),
                         unfocusedContainerColor = Color(0xFF0F0F1A),
-                        focusedIndicatorColor = IndigoAccent,
+                        focusedIndicatorColor = OrangeAccent,
                         unfocusedIndicatorColor = Color(0xFF131324)
                     )
                 )
@@ -75,7 +82,7 @@ fun PlateCalculatorCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    listOf(40.0, 60.0, 80.0, 100.0).forEach { preset ->
+                    presetValues.forEach { preset ->
                         Button(
                             onClick = {
                                 targetWeight = preset
@@ -85,7 +92,7 @@ fun PlateCalculatorCard(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F1A)),
                             modifier = Modifier.height(30.dp)
                         ) {
-                            Text("${preset.toInt()}kg", color = Color(0xFFF0F0F5), fontSize = 9.sp, fontFamily = JetBrainsMonoFamily)
+                            Text("${preset.toInt()}$suffix", color = Color(0xFFF0F0F5), fontSize = 9.sp, fontFamily = JetBrainsMonoFamily)
                         }
                     }
                 }
@@ -94,11 +101,10 @@ fun PlateCalculatorCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Plate calculation logic
-            val barWeight = 20.0
             val remains = targetWeight - barWeight
             val sideWeight = if (remains > 0) remains / 2.0 else 0.0
 
-            val plateTypes = listOf(
+            val plateTypes = if (isKg) listOf(
                 PlateDesignInfo(25.0, Color(0xFFEF4444), "25"),   // Red
                 PlateDesignInfo(20.0, Color(0xFF3B82F6), "20"),   // Blue
                 PlateDesignInfo(15.0, Color(0xFFFBBF24), "15"),   // Yellow
@@ -106,11 +112,18 @@ fun PlateCalculatorCard(
                 PlateDesignInfo(5.0, Color(0xFFF3F4F6), "5", textColor = Color.Black), // White
                 PlateDesignInfo(2.5, Color(0xFF1F2937), "2.5"),   // Black
                 PlateDesignInfo(1.25, Color(0xFF9CA3AF), "1.25", textColor = Color.Black) // Grey
+            ) else listOf(
+                PlateDesignInfo(45.0, Color(0xFFEF4444), "45"),   // Red
+                PlateDesignInfo(35.0, Color(0xFF3B82F6), "35"),   // Blue
+                PlateDesignInfo(25.0, Color(0xFFFBBF24), "25"),   // Yellow
+                PlateDesignInfo(10.0, Color(0xFF10B981), "10"),   // Green
+                PlateDesignInfo(5.0, Color(0xFFF3F4F6), "5", textColor = Color.Black), // White
+                PlateDesignInfo(2.5, Color(0xFF1F2937), "2.5")    // Black
             )
 
             val loadedPlates = mutableListOf<PlateDesignInfo>()
             var temp = sideWeight
-            while (temp >= 1.25) {
+            while (temp >= (if (isKg) 1.25 else 2.5)) {
                 val matched = plateTypes.firstOrNull { it.weight <= temp }
                 if (matched != null) {
                     loadedPlates.add(matched)
@@ -121,7 +134,7 @@ fun PlateCalculatorCard(
             }
 
             Text(
-                text = "SLEEVE LOADOUT PER SIDE: (Barbell: 20kg • Load/side: ${"%.2f".format(sideWeight)}kg)",
+                text = "Plates per side: (Barbell: $barWeight$suffix • Load/side: ${"%.2f".format(sideWeight)}$suffix)",
                 fontFamily = JetBrainsMonoFamily,
                 fontSize = 8.sp,
                 color = Color(0xFF8A8A9A),

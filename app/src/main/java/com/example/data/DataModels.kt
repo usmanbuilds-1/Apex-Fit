@@ -273,10 +273,9 @@ data class BodyMeasurement(
 
 data class MuscleRecoveryStatus(
     val muscleGroup: String,
-    val recoveryPercentage: Int, // 0 to 100
-    val lastExercise: String,
-    val lastTrainingDate: String?,
-    val requiredHours: Int
+    val hoursRemaining: Int,
+    val recoveryFraction: Float, // 0.0 to 1.0
+    val lastTrainedDate: String
 )
 
 @Entity(tableName = "detected_patterns")

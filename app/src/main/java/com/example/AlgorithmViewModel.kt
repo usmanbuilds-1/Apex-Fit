@@ -367,7 +367,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val repository: com.example.domain.repository.FitnessRepository by lazy {
-        com.example.data.repository.FitnessRepositoryImpl(dao, dataStore)
+        com.example.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
     }
 
     val todayExercisesFlow: Flow<List<com.example.data.PlanExercise>> = repository.getActivePlan().flatMapLatest { plan ->

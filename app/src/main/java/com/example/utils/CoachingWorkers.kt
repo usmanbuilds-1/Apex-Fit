@@ -164,7 +164,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         // Evaluate triggers for each key hour of the day
         val keyHours = listOf(7, 9, 12, 20)
         
-        val repository = com.example.data.repository.FitnessRepositoryImpl(dao, dataStore)
+        val repository = com.example.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         repository.scanAndSaveWeeklyPatterns()
 
         val plateau = AlgorithmEngine.detectPlateau(engineWeights, allNutrition, completedSessions, windowDays = 14)

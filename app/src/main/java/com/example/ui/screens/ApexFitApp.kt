@@ -456,7 +456,7 @@ fun OnboardingScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             Text(
-                text = "ELITE TRAINING & METABOLIC ENGINEERING",
+                text = "Welcome to Apex Fit",
                 fontFamily = JetBrainsMonoFamily,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -466,7 +466,7 @@ fun OnboardingScreen(
 
             PremiumCard(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "INITIALIZE ATHLETE PROFILE",
+                    text = "Set Up Your Profile",
                     fontFamily = SyneFamily,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -478,7 +478,7 @@ fun OnboardingScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("What is your name?", color = SecondaryText) },
+                    label = { Text("Your Name", color = SecondaryText) },
                     textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -496,7 +496,7 @@ fun OnboardingScreen(
 
                 // Goal Selectors
                 Text(
-                    text = "TRAINING OBJECTIVE",
+                    text = "Your Goal",
                     fontFamily = SyneFamily,
                     fontSize = 12.sp,
                     color = SecondaryText,
@@ -663,7 +663,7 @@ fun OnboardingScreen(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        "ENTER THE ARENA",
+                        "Get Started",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0A0A0F),

@@ -21,7 +21,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val dao = db.fitnessDao()
     private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
 
     // Raw database/preference flows
     private val weightFlow: Flow<List<com.example.utils.WeightEntry>> = dao.getAllWeightEntriesFlow()

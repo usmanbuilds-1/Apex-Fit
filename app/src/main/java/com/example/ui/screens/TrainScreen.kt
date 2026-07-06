@@ -231,7 +231,7 @@ fun ProgramSubTab(
 
                         // Fast Warmup Checklist preview
                         Text(
-                            text = "PRE-SESSION MOVEMENT WARMUP",
+                            text = "Warmup",
                             fontFamily = SyneFamily,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -377,7 +377,7 @@ fun ProgramSubTab(
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Text(
-                                            text = "INTELLIGENCE SUBSTITUTES FOR THIS BIOMECHANIC",
+                                            text = "Suggested Substitutions",
                                             fontFamily = SyneFamily,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
@@ -752,7 +752,7 @@ fun WorkoutExecutionSubTab(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Go to 'PROGRAM' or select a standard list day to start logging working target sets.",
+                    text = "Select a day above to start your workout.",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 10.sp,
                     color = SecondaryText,
@@ -845,7 +845,7 @@ fun WorkoutExecutionSubTab(
                         
                         if (showPlateCalc) {
                             Spacer(modifier = Modifier.height(10.dp))
-                            PlateCalculatorCard(initialWeight = ex.weight)
+                            PlateCalculatorCard(initialWeight = ex.weight, units = unitSuffix)
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -892,29 +892,6 @@ fun WorkoutExecutionSubTab(
                     }
                 }
 
-                // PR ATTEMPT badge warning row if applicable
-                item {
-                    // Symmetrical visual PR layout
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF231707))
-                            .border(BorderStroke(1.dp, Color(0xFFE8A020)), RoundedCornerShape(8.dp))
-                            .padding(10.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Star, contentDescription = "PR Alert", tint = AmberAccent, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                "PR ATTEMPT SIGNAL: Log maximum focus on reps to override historic weight file indices!",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
-                                color = PrimaryText
-                            )
-                        }
-                    }
-                }
 
                 // Row of sets logger inputs
                 items(setsList.size) { sIdx ->
@@ -966,7 +943,7 @@ fun WorkoutExecutionSubTab(
                                     1.dp,
                                     when {
                                         setObj.completed -> Color(0xFF2EC46A)
-                                        setObj.isWarmup -> IndigoAccent.copy(alpha = 0.4f)
+                                        setObj.isWarmup -> OrangeAccent.copy(alpha = 0.4f)
                                         else -> BorderSubtle
                                     }
                                 ),
@@ -986,7 +963,7 @@ fun WorkoutExecutionSubTab(
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(3.dp))
-                                                .background(IndigoAccent.copy(alpha = 0.2f))
+                                                .background(OrangeAccent.copy(alpha = 0.2f))
                                                 .padding(horizontal = 4.dp, vertical = 2.dp)
                                         ) {
                                             Text(
@@ -1414,7 +1391,7 @@ fun NewPlansSubTab(
         item {
             Button(
                 onClick = onNavigateToPlanBuilder,
-                colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()

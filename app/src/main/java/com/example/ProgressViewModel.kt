@@ -19,11 +19,18 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     private val db = AppDatabase.getDatabase(application)
     private val dao = db.fitnessDao()
     private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
 
     val allBodyMeasurements: StateFlow<List<UiBodyMeasurement>> = dao.getAllBodyMeasurementsFlow()
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "kg")
+
+    fun measurementsForBodyPart(bodyPart: String): Flow<List<UiBodyMeasurement>> {
+        return dao.getBodyMeasurementsForPartFlow(bodyPart)
+            .map { entries -> entries.map { it.toUi() } }
+    }
 
     // 2. Monthly muscle volumes for radar chart
     val monthlyMuscleVolumes = dao.getAllTrainingSessionsFlow().map { sessions ->
@@ -47,6 +54,11 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Log & delete measurements
+    fun logMeasurement(bodyPart: String, value: Double) {
+        val unit = "cm" // Or kg? The UI implies it's length.
+        logBodyMeasurement(bodyPart, value, unit)
+    }
+
     fun logBodyMeasurement(bodyPart: String, value: Double, unit: String, date: String = getTodayDateString()) {
         viewModelScope.launch {
             dao.insertBodyMeasurement(
@@ -101,10 +113,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             if (matchingSets.isEmpty()) {
                 MuscleRecoveryStatus(
                     muscleGroup = muscle,
-                    recoveryPercentage = 100,
-                    lastExercise = "No recent exercises",
-                    lastTrainingDate = null,
-                    requiredHours = 48
+                    hoursRemaining = 0,
+                    recoveryFraction = 1.0f,
+                    lastTrainedDate = ""
                 )
             } else {
                 val setsWithSessionsAndDates = matchingSets.mapNotNull { set ->
@@ -115,10 +126,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                 if (setsWithSessionsAndDates.isEmpty()) {
                     MuscleRecoveryStatus(
                         muscleGroup = muscle,
-                        recoveryPercentage = 100,
-                        lastExercise = "No recent exercises",
-                        lastTrainingDate = null,
-                        requiredHours = 48
+                        hoursRemaining = 0,
+                        recoveryFraction = 1.0f,
+                        lastTrainedDate = ""
                     )
                 } else {
                     val (lastSet, lastSession) = setsWithSessionsAndDates.first()
@@ -153,10 +163,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                     
                     MuscleRecoveryStatus(
                         muscleGroup = muscle,
-                        recoveryPercentage = pct,
-                        lastExercise = lastSet.exerciseName,
-                        lastTrainingDate = lastDateStr,
-                        requiredHours = requiredHours
+                        hoursRemaining = maxOf(0, requiredHours - elapsedHours),
+                        recoveryFraction = pct / 100f,
+                        lastTrainedDate = lastDateStr
                     )
                 }
             }

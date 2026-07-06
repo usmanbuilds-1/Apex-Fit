@@ -17,6 +17,7 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "ap
 class DataStoreManager(private val context: Context) {
 
     companion object {
+        fun getInstance(context: Context): DataStoreManager = DataStoreManager(context)
         val ONBOARDED_KEY = booleanPreferencesKey("onboarded")
         val USER_NAME_KEY = stringPreferencesKey("username")
         val GOAL_KEY = stringPreferencesKey("goal")

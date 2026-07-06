@@ -18,7 +18,7 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     private val db = AppDatabase.getDatabase(application)
     private val dao = db.fitnessDao()
     private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
 
     // Specialized ViewModels linked from outside
     lateinit var homeVM: HomeViewModel

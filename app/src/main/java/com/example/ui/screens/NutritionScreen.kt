@@ -140,7 +140,7 @@ fun NutritionScreen(
         item {
             PremiumCard(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "MACRONUTRIENT RATIO PROFILE",
+                    text = "Nutrition",
                     fontFamily = SyneFamily,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -176,7 +176,7 @@ fun NutritionScreen(
                                         else if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B)
                                         else RedAccent
                                     }
-                                    else -> if (loggedCalories >= calorieTarget) GreenAccent else IndigoAccent
+                                    else -> if (loggedCalories >= calorieTarget) GreenAccent else OrangeAccent
                                 }
 
                                 drawArc(
@@ -220,7 +220,7 @@ fun NutritionScreen(
                     .height(48.dp)
                     .testTag("add_nutrition_button")
             ) {
-                Text("+ LOG INGREDIENT / MEAL FILE", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A0A0F))
+                Text("+ Log Meal", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A0A0F))
             }
         }
 
@@ -228,7 +228,7 @@ fun NutritionScreen(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "TODAY'S INGESTED FILES",
+                    text = "Today's Meals",
                     fontFamily = SyneFamily,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -242,7 +242,7 @@ fun NutritionScreen(
                             .height(80.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No meals logged for this file index.", fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+                        Text("No meals logged yet.", fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
                     }
                 } else {
                     visibleMeals.forEach { meal ->
@@ -746,7 +746,7 @@ fun AdaptiveCalorieTargetCard(
                 Icon(
                     Icons.Default.TrendingUp,
                     contentDescription = "Adaptive",
-                    tint = IndigoAccent,
+                    tint = OrangeAccent,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -793,7 +793,7 @@ fun AdaptiveCalorieTargetCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(36.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent)
+                            colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent)
                         ) {
                             Text(
                                 "ACCEPT TARGET",

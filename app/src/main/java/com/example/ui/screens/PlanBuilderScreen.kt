@@ -56,6 +56,8 @@ fun PlanBuilderScreen(
     var selectedSessionIdForExercise by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var sessionToDelete by rememberSaveable { mutableStateOf<PlanSession?>(null) }
+    var exerciseToDelete by rememberSaveable { mutableStateOf<PlanExercise?>(null) }
 
     LaunchedEffect(activePlan, dbSessions, dbExercises) {
         if (!isInitialized && activePlan != null) {
@@ -133,7 +135,7 @@ fun PlanBuilderScreen(
                             "SAVE",
                             fontFamily = SyneFamily,
                             fontWeight = FontWeight.Bold,
-                            color = IndigoAccent,
+                            color = AmberAccent,
                             fontSize = 14.sp
                         )
                     }
@@ -170,7 +172,7 @@ fun PlanBuilderScreen(
                             fontFamily = SyneFamily,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = IndigoAccent
+                            color = OrangeAccent
                         )
 
                         OutlinedTextField(
@@ -182,9 +184,9 @@ fun PlanBuilderScreen(
                                 .fillMaxWidth()
                                 .testTag("plan_name_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = IndigoAccent,
+                                focusedBorderColor = OrangeAccent,
                                 unfocusedBorderColor = BorderSubtle,
-                                cursorColor = IndigoAccent
+                                cursorColor = OrangeAccent
                             ),
                             singleLine = true
                         )
@@ -198,9 +200,9 @@ fun PlanBuilderScreen(
                                 .fillMaxWidth()
                                 .testTag("plan_goal_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = IndigoAccent,
+                                focusedBorderColor = OrangeAccent,
                                 unfocusedBorderColor = BorderSubtle,
-                                cursorColor = IndigoAccent
+                                cursorColor = OrangeAccent
                             ),
                             singleLine = true
                         )
@@ -228,7 +230,7 @@ fun PlanBuilderScreen(
                             editingSessionId = null
                             showAddDayDialog = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.testTag("add_day_button")
                     ) {
@@ -374,7 +376,7 @@ fun PlanBuilderScreen(
                                     // Delete Day
                                     IconButton(
                                         onClick = {
-                                            trainViewModel.deleteSession(session.id)
+                                            sessionToDelete = session
                                         },
                                         modifier = Modifier.size(28.dp)
                                     ) {
@@ -425,7 +427,7 @@ fun PlanBuilderScreen(
                                                     Box(
                                                         modifier = Modifier
                                                             .clip(RoundedCornerShape(4.dp))
-                                                            .background(IndigoAccent.copy(alpha = 0.15f))
+                                                            .background(OrangeAccent.copy(alpha = 0.15f))
                                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                                     ) {
                                                         Text(
@@ -433,7 +435,7 @@ fun PlanBuilderScreen(
                                                             fontFamily = JetBrainsMonoFamily,
                                                             fontSize = 9.sp,
                                                             fontWeight = FontWeight.Bold,
-                                                            color = IndigoAccent
+                                                            color = OrangeAccent
                                                         )
                                                     }
                                                     Spacer(modifier = Modifier.width(8.dp))
@@ -485,7 +487,7 @@ fun PlanBuilderScreen(
 
                                                 IconButton(
                                                     onClick = {
-                                                        trainViewModel.deleteExercise(exercise.id)
+                                                        exerciseToDelete = exercise
                                                     },
                                                     modifier = Modifier.size(28.dp)
                                                 ) {
@@ -512,9 +514,9 @@ fun PlanBuilderScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("add_exercise_button_${session.id}"),
-                                border = BorderStroke(1.dp, IndigoAccent.copy(alpha = 0.4f)),
+                                border = BorderStroke(1.dp, OrangeAccent.copy(alpha = 0.4f)),
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = IndigoAccent)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = OrangeAccent)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -574,9 +576,9 @@ fun PlanBuilderScreen(
                             .fillMaxWidth()
                             .testTag("day_name_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = IndigoAccent,
+                            focusedBorderColor = OrangeAccent,
                             unfocusedBorderColor = BorderSubtle,
-                            cursorColor = IndigoAccent
+                            cursorColor = OrangeAccent
                         ),
                         singleLine = true
                     )
@@ -600,8 +602,8 @@ fun PlanBuilderScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) IndigoAccent else DarkBackground)
-                                    .border(BorderStroke(1.dp, if (isSelected) IndigoAccent else BorderSubtle), RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) OrangeAccent else DarkBackground)
+                                    .border(BorderStroke(1.dp, if (isSelected) OrangeAccent else BorderSubtle), RoundedCornerShape(8.dp))
                                     .clickable { selectedDayOfWeek = day }
                                     .padding(horizontal = 12.dp, vertical = 8.dp)
                             ) {
@@ -649,7 +651,7 @@ fun PlanBuilderScreen(
                         }
                         showAddDayDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                     modifier = Modifier.testTag("save_day_confirm_button")
                 ) {
                     Text("SAVE", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
@@ -704,9 +706,9 @@ fun PlanBuilderScreen(
                             .fillMaxWidth()
                             .testTag("exercise_name_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = IndigoAccent,
+                            focusedBorderColor = OrangeAccent,
                             unfocusedBorderColor = BorderSubtle,
-                            cursorColor = IndigoAccent
+                            cursorColor = OrangeAccent
                         ),
                         singleLine = true
                     )
@@ -771,7 +773,7 @@ fun PlanBuilderScreen(
                                 .weight(1f)
                                 .testTag("exercise_sets_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = IndigoAccent,
+                                focusedBorderColor = OrangeAccent,
                                 unfocusedBorderColor = BorderSubtle
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -787,7 +789,7 @@ fun PlanBuilderScreen(
                                 .weight(1.1f)
                                 .testTag("exercise_reps_min_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = IndigoAccent,
+                                focusedBorderColor = OrangeAccent,
                                 unfocusedBorderColor = BorderSubtle
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -803,7 +805,7 @@ fun PlanBuilderScreen(
                                 .weight(1.1f)
                                 .testTag("exercise_reps_max_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = IndigoAccent,
+                                focusedBorderColor = OrangeAccent,
                                 unfocusedBorderColor = BorderSubtle
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -820,7 +822,7 @@ fun PlanBuilderScreen(
                             .fillMaxWidth()
                             .testTag("exercise_rest_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = IndigoAccent,
+                            focusedBorderColor = OrangeAccent,
                             unfocusedBorderColor = BorderSubtle
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -836,7 +838,7 @@ fun PlanBuilderScreen(
                             .fillMaxWidth()
                             .testTag("exercise_notes_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = IndigoAccent,
+                            focusedBorderColor = OrangeAccent,
                             unfocusedBorderColor = BorderSubtle
                         ),
                         maxLines = 3
@@ -896,7 +898,7 @@ fun PlanBuilderScreen(
                         }
                         showAddExerciseDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                     modifier = Modifier.testTag("save_exercise_confirm_button")
                 ) {
                     Text("SAVE", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
@@ -905,6 +907,86 @@ fun PlanBuilderScreen(
             dismissButton = {
                 TextButton(onClick = { showAddExerciseDialog = false }) {
                     Text("CANCEL", fontFamily = SyneFamily, color = SecondaryText)
+                }
+            }
+        )
+    }
+
+    // Session Deletion Dialog
+    if (sessionToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { sessionToDelete = null },
+            containerColor = DarkRaised,
+            title = {
+                Text(
+                    text = "Delete Session?",
+                    fontFamily = SyneFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete '${sessionToDelete?.label}'? This cannot be undone.",
+                    fontFamily = JetBrainsMonoFamily,
+                    color = SecondaryText,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        trainViewModel.deleteSession(sessionToDelete!!.id)
+                        sessionToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = RedAccent, fontFamily = SyneFamily, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToDelete = null }) {
+                    Text("Cancel", fontFamily = SyneFamily, color = SecondaryText)
+                }
+            }
+        )
+    }
+
+    // Exercise Deletion Dialog
+    if (exerciseToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { exerciseToDelete = null },
+            containerColor = DarkRaised,
+            title = {
+                Text(
+                    text = "Delete Exercise?",
+                    fontFamily = SyneFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete '${exerciseToDelete?.name}'? This cannot be undone.",
+                    fontFamily = JetBrainsMonoFamily,
+                    color = SecondaryText,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        trainViewModel.deleteExercise(exerciseToDelete!!.id)
+                        exerciseToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = RedAccent, fontFamily = SyneFamily, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { exerciseToDelete = null }) {
+                    Text("Cancel", fontFamily = SyneFamily, color = SecondaryText)
                 }
             }
         )

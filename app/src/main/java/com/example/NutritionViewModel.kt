@@ -17,7 +17,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     private val db = AppDatabase.getDatabase(application)
     private val dao = db.fitnessDao()
     private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(dao, dataStore)
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
 
     private val _selectedNutritionDate = MutableStateFlow(getTodayDateString())
     val selectedNutritionDate: StateFlow<String> = _selectedNutritionDate.asStateFlow()
@@ -63,6 +63,13 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
                 val cal = java.util.Calendar.getInstance()
                 cal.time = dateObj
                 cal.add(java.util.Calendar.DAY_OF_YEAR, offsetDays)
+
+                // Clamp to today (no future dates)
+                val today = java.util.Calendar.getInstance()
+                if (cal.after(today)) {
+                    cal.time = today.time
+                }
+
                 _selectedNutritionDate.value = sdf.format(cal.time)
             } catch (e: Exception) {
                 android.util.Log.e("ApexFit", "Error in changeNutritionDate: ${e.message}", e)

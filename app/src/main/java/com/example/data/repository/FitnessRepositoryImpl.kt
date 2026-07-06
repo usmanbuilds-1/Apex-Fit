@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import com.example.data.*
 import com.example.domain.repository.FitnessRepository
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.flowOf
  * FitnessRepositoryImpl provides clean, centralized data access delegating to the local database and datastore.
  */
 class FitnessRepositoryImpl(
+    private val db: AppDatabase,
     private val dao: FitnessDao,
     private val dataStore: DataStoreManager
 ) : FitnessRepository {
@@ -38,7 +40,7 @@ class FitnessRepositoryImpl(
         return dao.getExercisesForSessionFlow(sessionId)
     }
 
-    override suspend fun updateWorkoutPlan(plan: WorkoutPlan, sessions: List<PlanSession>, exercises: List<PlanExercise>) {
+    override suspend fun updateWorkoutPlan(plan: WorkoutPlan, sessions: List<PlanSession>, exercises: List<PlanExercise>) = db.withTransaction {
         dao.deactivateAllPlans()
         dao.insertWorkoutPlan(plan)
         // Clean up old sessions and their exercises

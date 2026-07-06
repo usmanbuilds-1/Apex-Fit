@@ -58,7 +58,7 @@ object NotificationEngine {
                 val streaks = AlgorithmEngine.calcStreaks(nutritionLog, trainingLog, targets)
                 if (streaks.nutrition.current >= 3) {
                     triggers.add(NotificationTrigger(
-                        id = "streak_risk",
+                        id = "streak_at_risk",
                         title = "Your ${streaks.nutrition.current}-day streak ends at midnight",
                         body = "You have not logged nutrition today. 2 minutes of logging preserves your streak.",
                         triggerHour = 20,

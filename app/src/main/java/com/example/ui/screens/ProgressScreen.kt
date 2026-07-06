@@ -47,7 +47,7 @@ import androidx.compose.ui.geometry.Offset
 import kotlin.math.cos
 import kotlin.math.sin
 
-val AccentSecondary = com.example.ui.theme.IndigoAccent // Indigo Accent for visual hierarchy
+val AccentSecondary = com.example.ui.theme.OrangeAccent // Indigo Accent for visual hierarchy
 
 @Composable
 fun ProgressScreen(
@@ -68,7 +68,6 @@ fun ProgressScreen(
         when (screen) {
             "muscle_recovery" -> {
                 MuscleRecoveryScreen(
-                    fitnessViewModel = fitnessViewModel,
                     progressViewModel = progressViewModel,
                     onBack = { subScreen = "main" }
                 )
@@ -76,8 +75,8 @@ fun ProgressScreen(
             "measurement_detail" -> {
                 selectedPart?.let { part ->
                     BodyMeasurementDetailScreen(
-                        bodyPart = part,
                         progressViewModel = progressViewModel,
+                        bodyPart = part,
                         onBack = { subScreen = "main" }
                     )
                 }
@@ -120,14 +119,14 @@ fun MonthlyVolumeRadarChart(
             ) {
                 Column {
                     Text(
-                        text = "HYPERTROPHY VOLUME RADAR",
+                        text = "Muscle Volume",
                         fontFamily = SyneFamily,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = PrimaryText
                     )
                     Text(
-                        text = "30-Day set distribution across primary kinetic chains",
+                        text = "Sets per muscle group (last 30 days)",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 9.sp,
                         color = SecondaryText
@@ -259,7 +258,7 @@ fun MonthlyVolumeRadarChart(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "ANALYZE KINETIC RECOVERY MAP",
+                    text = "View Recovery Map",
                     fontFamily = SyneFamily,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -285,14 +284,14 @@ fun BodyMeasurementsTrackerPanel(
     ) {
         Column {
             Text(
-                text = "BIOMETRIC SYMMETRY TRACKER",
+                text = "Body Measurements",
                 fontFamily = SyneFamily,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = PrimaryText
             )
             Text(
-                text = "Click any dimension to log changes or view progressive structural trends",
+                text = "Tap a measurement to log or view trends",
                 fontFamily = JetBrainsMonoFamily,
                 fontSize = 9.sp,
                 color = SecondaryText,
@@ -421,8 +420,8 @@ fun ProgressMainTabContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val tabs = listOf(
-                    Triple(0, "FIBER INDEX", Icons.Filled.FitnessCenter),
-                    Triple(1, "BIO RECOVERY", Icons.Filled.CheckCircle),
+                    Triple(0, "Muscle Volume", Icons.Filled.FitnessCenter),
+                    Triple(1, "Recovery", Icons.Filled.CheckCircle),
                     Triple(2, "BODY METRICS", Icons.Filled.BarChart)
                 )
                 tabs.forEach { (index, title, icon) ->
@@ -468,7 +467,7 @@ fun ProgressMainTabContent(
 
                 PremiumCard(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
                     Text(
-                        text = "BODY MASS REGISTER",
+                        text = "Weight Log",
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -600,7 +599,7 @@ fun ProgressMainTabContent(
 
                 PremiumCard(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "FATIGUE RECOVERY INDEX DIAL",
+                        text = "Fatigue Index",
                         fontFamily = SyneFamily,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,

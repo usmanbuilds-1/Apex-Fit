@@ -170,9 +170,9 @@ class WorkoutSessionManager(
                     com.example.utils.ProgressionEngine.run { converted.roundToNearest2_5() }
                 }
 
-                suggestionsMap[ex.id.toString()] = suggestedPreferred
-                lastWeightMap[ex.id.toString()] = suggestedPreferred
-                contextLinesMap[ex.id.toString()] = "First session suggestion (Beginner Base): $suggestedPreferred $preferredUnits"
+                suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
+                lastWeightMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
+                contextLinesMap[exerciseNameToSlug(ex.name)] = "First session suggestion (Beginner Base): $suggestedPreferred $preferredUnits"
             } else {
                 val daysSince = com.example.utils.getDaysBetweenClamped(lastSet.date, today)
 
@@ -198,7 +198,7 @@ class WorkoutSessionManager(
                 )
 
                 val progressionResult = com.example.utils.ProgressionEngine.calculateProgressiveWeight(
-                    exerciseId = ex.id.toString(),
+                    exerciseId = exerciseNameToSlug(ex.name),
                     lastSessionSets = listOf(lastSetUi), // Limitation: passing only last set
                     repsMin = ex.repsMin,
                     repsMax = ex.repsMax,
@@ -217,10 +217,10 @@ class WorkoutSessionManager(
                     com.example.utils.ProgressionEngine.run { converted.roundToNearest2_5() }
                 }
 
-                suggestionsMap[ex.id.toString()] = suggestedPreferred
-                lastWeightMap[ex.id.toString()] = lastSet.weight
+                suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
+                lastWeightMap[exerciseNameToSlug(ex.name)] = lastSet.weight
                 val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
-                contextLinesMap[ex.id.toString()] = "Last: ${lastSet.weight} $preferredUnits @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $preferredUnits. Outcome: ${progressionResult.reason}"
+                contextLinesMap[exerciseNameToSlug(ex.name)] = "Last: ${lastSet.weight} $preferredUnits @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $preferredUnits. Outcome: ${progressionResult.reason}"
             }
         }
 
@@ -229,9 +229,9 @@ class WorkoutSessionManager(
 
         // Build the in-memory session with pre-filled sets
         val activeExercises = exercises.map { ex ->
-            val suggestedWeight = suggestionsMap[ex.id.toString()] ?: ex.weight
+            val suggestedWeight = suggestionsMap[exerciseNameToSlug(ex.name)] ?: ex.weight
             ActiveExercise(
-                exerciseId = ex.id.toString(),
+                exerciseId = exerciseNameToSlug(ex.name),
                 exerciseName = ex.name,
                 muscleGroup = ex.muscleGroup,
                 sets = (1..ex.sets).map { setNum ->
@@ -525,6 +525,13 @@ class WorkoutSessionManager(
                 }
             }
         return newPRs
+    }
+
+    private fun exerciseNameToSlug(name: String): String {
+        return name.lowercase()
+            .replace(Regex("[^a-z0-9\\s-]"), "")
+            .replace(Regex("\\s+"), "-")
+            .trim()
     }
 }
 
