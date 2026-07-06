@@ -677,33 +677,68 @@ fun OnboardingScreen(
 
 @Composable
 fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
-    NavigationBar(
-        modifier = Modifier.height(64.dp).padding(top = 8.dp),
-        containerColor = DarkCardSurface
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
+        color = DarkCardSurface
     ) {
-        NavigationBarItem(
-            selected = activeTab == 0,
-            onClick = { onTabSelected(0) },
-            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-            label = { Text("Home", fontFamily = SyneFamily) }
-        )
-        NavigationBarItem(
-            selected = activeTab == 1,
-            onClick = { onTabSelected(1) },
-            icon = { Icon(Icons.Default.FitnessCenter, contentDescription = "Train") },
-            label = { Text("Train", fontFamily = SyneFamily) }
-        )
-        NavigationBarItem(
-            selected = activeTab == 2,
-            onClick = { onTabSelected(2) },
-            icon = { Icon(Icons.Default.RestaurantMenu, contentDescription = "Nutrition") },
-            label = { Text("Nutrition", fontFamily = SyneFamily) }
-        )
-        NavigationBarItem(
-            selected = activeTab == 3,
-            onClick = { onTabSelected(3) },
-            icon = { Icon(Icons.Default.Insights, contentDescription = "Progress") },
-            label = { Text("Progress", fontFamily = SyneFamily) }
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding(),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val tabs = listOf(
+                Triple("Home", Icons.Default.Home, 0),
+                Triple("Train", Icons.Default.FitnessCenter, 1),
+                Triple("Nutrition", Icons.Default.RestaurantMenu, 2),
+                Triple("Progress", Icons.Default.Insights, 3)
+            )
+
+            tabs.forEach { (label, icon, index) ->
+                val isSelected = activeTab == index
+                val tintColor = if (isSelected) OrangeAccent else Color(0xFF9CA3AF) // Brighter MutedText/SecondaryText for contrast
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable { onTabSelected(index) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    // Active indicator: 3dp tall bar ABOVE icon, 24dp wide, OrangeAccent, rounded
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.5.dp))
+                            .background(if (isSelected) OrangeAccent else Color.Transparent)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = tintColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = label,
+                        fontFamily = SyneFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = tintColor
+                    )
+                }
+            }
+        }
     }
 }

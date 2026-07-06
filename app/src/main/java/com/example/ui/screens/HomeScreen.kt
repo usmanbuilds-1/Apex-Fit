@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,21 +71,21 @@ import kotlin.math.sin
 @Composable
 fun ApexCard(
     modifier: Modifier = Modifier,
+    elevation: Dp = 4.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0A0E1A)
+            containerColor = DarkCardSurface
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        ),
-        border = BorderStroke(1.dp, Color(0xFF2A2A3E))
+            defaultElevation = elevation
+        )
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(24.dp),
             content = content
         )
     }
@@ -274,7 +275,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 20.dp)
+            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp)
     ) {
         // 1. Welcome Header
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -298,7 +299,7 @@ fun HomeScreen(
                     text = annotatedGreeting,
                     modifier = Modifier.testTag("home_greeting_text")
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "Let's get after it today.",
                     fontSize = 14.sp,
@@ -307,10 +308,11 @@ fun HomeScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // 2. TODAY'S TRAINING Card (Combined Readiness & Workout)
             ApexCard(
+                elevation = 6.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("todays_training_premium_card")
@@ -328,7 +330,8 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = "TODAY'S TRAINING",
-                                style = MaterialTheme.typography.titleLarge,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = AmberAccent,
                                 letterSpacing = 0.5.sp
                             )
@@ -360,19 +363,29 @@ fun HomeScreen(
                         // 1. Circular Progress Indicator (Left side)
                         Box(
                             modifier = Modifier
-                                .size(108.dp)
+                                .size(80.dp)
                                 .drawBehind {
+                                    val strokeWidthPx = 6.dp.toPx()
+                                    val diameter = size.minDimension - strokeWidthPx
+                                    val topLeftOffset = androidx.compose.ui.geometry.Offset(
+                                        x = (size.width - diameter) / 2,
+                                        y = (size.height - diameter) / 2
+                                    )
+                                    val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
+
                                     drawCircle(
-                                        color = BorderSubtle,
-                                        radius = size.minDimension / 2 - 3.dp.toPx(),
-                                        style = Stroke(width = 6.dp.toPx())
+                                        color = DarkRaised,
+                                        radius = diameter / 2,
+                                        style = Stroke(width = strokeWidthPx)
                                     )
                                     drawArc(
                                         color = GreenAccent,
                                         startAngle = -90f,
                                         sweepAngle = if (readiness != null) readiness!!.score.toFloat() / 100f * 360f else 0f,
                                         useCenter = false,
-                                        style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                                        topLeft = topLeftOffset,
+                                        size = arcSize,
+                                        style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                                     )
                                 },
                             contentAlignment = Alignment.Center
@@ -380,14 +393,16 @@ fun HomeScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = if (readiness != null) "${readiness!!.score}%" else "—",
-                                    style = MaterialTheme.typography.displayLarge,
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.Black,
                                     color = GreenAccent
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "Recovery Score",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = SecondaryText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = MutedText,
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -400,12 +415,14 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = sessionName,
-                                style = MaterialTheme.typography.displayMedium,
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = PrimaryText
                             )
                             Text(
                                 text = focusMuscles,
-                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
                                 color = SecondaryText
                             )
 
@@ -415,7 +432,7 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(20.dp))
-                                    .background(Color(0xFF0F0F16))
+                                    .background(DarkCardSurface)
                                     .border(BorderStroke(0.5.dp, BorderSubtle), RoundedCornerShape(20.dp))
                                     .padding(horizontal = 10.dp, vertical = 5.dp)
                              ) {
@@ -431,7 +448,8 @@ fun HomeScreen(
                                     )
                                     Text(
                                         text = "~$finalWorkoutDurationMin min",
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Normal,
                                         color = PrimaryText
                                     )
                                 }
@@ -469,14 +487,15 @@ fun HomeScreen(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFF9500),
+                            containerColor = OrangeAccent,
                             contentColor = Color.Black
                         ),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(56.dp)
                             .testTag("start_workout_button"),
-                        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp)
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -486,12 +505,12 @@ fun HomeScreen(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = null,
                                 tint = Color.Black,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(24.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "START WORKOUT",
-                                fontSize = 14.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black
                             )
@@ -514,7 +533,7 @@ fun HomeScreen(
                         text = "🔥 ${streakResult.training.current} DAY STREAK",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFF9500)
+                        color = OrangeAccent
                     )
                 } else {
                     Text(
@@ -526,14 +545,14 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // 4. Two-Column Matrix Card Row (NUTRITION & BODY WEIGHT)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // NUTRITION Left Card
                 val calTarget = calorieTargetValue.coerceAtLeast(0) // Use 0 if not set
@@ -562,15 +581,15 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     text = "NUTRITION",
-                                    fontSize = 16.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF8A2BE2),
+                                    color = IndigoAccent,
                                     letterSpacing = 0.5.sp
                                 )
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = Color(0xFF8A2BE2),
+                                    tint = IndigoAccent,
                                     modifier = Modifier
                                         .size(16.dp)
                                         .clickable { onNavigateTo(2) }
@@ -586,13 +605,13 @@ fun HomeScreen(
                                     .align(Alignment.CenterHorizontally)
                                     .drawBehind {
                                         drawCircle(
-                                            color = Color(0xFF1E1E2E),
+                                            color = DarkRaised,
                                             radius = size.minDimension / 2 - 2.dp.toPx(),
                                             style = Stroke(width = 6.dp.toPx())
                                         )
                                         if (calTarget > 0) {
                                             drawArc(
-                                                color = Color(0xFF8A2BE2),
+                                                color = IndigoAccent,
                                                 startAngle = -90f,
                                                 sweepAngle = (calPercent.toFloat() / 100f) * 360f,
                                                 useCenter = false,
@@ -606,12 +625,13 @@ fun HomeScreen(
                                     Text(
                                         text = String.format(java.util.Locale.US, "%,d", calLogged),
                                         fontSize = 32.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = FontWeight.Black,
                                         color = Color.White
                                     )
                                     Text(
                                         text = if (calTarget > 0) "/ ${String.format(java.util.Locale.US, "%,d", calTarget)} kcal" else "/ Set target in Settings",
                                         fontSize = 12.sp,
+                                        fontWeight = FontWeight.Normal,
                                         color = Color.Gray
                                     )
                                 }
@@ -625,7 +645,7 @@ fun HomeScreen(
                                         text = "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal remaining",
                                         fontSize = 14.sp,
                                         color = Color.White,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Normal
                                     )
                                 } else {
                                     Text(
@@ -639,7 +659,7 @@ fun HomeScreen(
                                     text = if (proteinTarget > 0) "$proteinLogged / ${proteinTarget}g protein" else "$proteinLogged / — protein",
                                     fontSize = 14.sp,
                                     color = Color.White,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Normal
                                 )
                             }
                         }
@@ -651,7 +671,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF0F0F16))
+                                .background(DarkCardSurface)
                                 .clickable { onNavigateTo(2) }
                                 .padding(vertical = 10.dp)
                                 .testTag("log_food_bottom_button"),
@@ -661,13 +681,13 @@ fun HomeScreen(
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = null,
-                                tint = Color(0xFF8A2BE2),
+                                tint = IndigoAccent,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Log Food",
-                                color = Color(0xFF8A2BE2),
+                                color = IndigoAccent,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -694,15 +714,15 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     text = "BODY WEIGHT",
-                                    fontSize = 16.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF8A2BE2),
+                                    color = IndigoAccent,
                                     letterSpacing = 0.5.sp
                                 )
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = Color(0xFF8A2BE2),
+                                    tint = IndigoAccent,
                                     modifier = Modifier
                                         .size(16.dp)
                                         .clickable { onNavigateTo(3) }
@@ -731,26 +751,27 @@ fun HomeScreen(
                                         Icon(
                                             imageVector = Icons.Default.ArrowDownward,
                                             contentDescription = null,
-                                            tint = Color(0xFF4ADE80),
+                                            tint = GreenAccent,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     } else if (change > 0) {
                                         Icon(
                                             imageVector = Icons.Default.ArrowUpward,
                                             contentDescription = null,
-                                            tint = Color(0xFFE84040),
+                                            tint = RedAccent,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
                                     Text(
                                         text = "${String.format(java.util.Locale.US, "%.1f", Math.abs(change))} $units",
                                         fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (change <= 0) Color(0xFF4ADE80) else Color(0xFFE84040)
+                                        fontWeight = FontWeight.Normal,
+                                        color = if (change <= 0) GreenAccent else RedAccent
                                     )
                                     Text(
                                         text = "this week",
                                         fontSize = 12.sp,
+                                        fontWeight = FontWeight.Normal,
                                         color = Color.Gray
                                     )
                                 }
@@ -814,7 +835,7 @@ fun HomeScreen(
                                             drawPath(
                                                 path = gradientPath,
                                                 brush = Brush.verticalGradient(
-                                                    colors = listOf(Color(0xFF8A2BE2).copy(alpha = 0.25f), Color.Transparent),
+                                                    colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
                                                     startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
                                                     endY = size.height
                                                 )
@@ -835,7 +856,7 @@ fun HomeScreen(
                                             }
                                             drawPath(
                                                 path = chartPath,
-                                                color = Color(0xFF8A2BE2),
+                                                color = IndigoAccent,
                                                 style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
                                             )
 
@@ -847,7 +868,7 @@ fun HomeScreen(
                                                     center = pt
                                                 )
                                                 drawCircle(
-                                                    color = Color(0xFF8A2BE2),
+                                                    color = IndigoAccent,
                                                     radius = 3.dp.toPx(),
                                                     center = pt,
                                                     style = Stroke(width = 0.75.dp.toPx())
@@ -880,7 +901,7 @@ fun HomeScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(if (isSelected) Color(0xFF8A2BE2) else Color.Transparent)
+                                            .background(if (isSelected) IndigoAccent else Color.Transparent)
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                             .clickable { selectedFilter = filter }
                                     ) {
@@ -903,7 +924,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF0F0F16))
+                                .background(DarkCardSurface)
                                 .clickable {
                                     weightInput = String.format(java.util.Locale.US, "%.1f", latestWeight)
                                     showWeightDialog = true
@@ -916,13 +937,13 @@ fun HomeScreen(
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = null,
-                                tint = Color(0xFF8A2BE2),
+                                tint = IndigoAccent,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Log Weight",
-                                color = Color(0xFF8A2BE2),
+                                color = IndigoAccent,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
