@@ -358,11 +358,6 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    val weeklyReport: StateFlow<String?> = dao.getAllWeeklyReportsFlow()
-        .map { reports -> reports.firstOrNull()?.geminiResponse }
-        .flowOn(Dispatchers.IO)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
     val targets: StateFlow<com.example.utils.NutritionTargets?> = targetsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -396,7 +391,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 )
                 
                 val predictionText = "Systemic CNS readiness is ${scoreResult.systemicReadiness}%. " +
-                        "Acute-to-chronic ratio modifier is ${String.format("%.2f", scoreResult.acrModifier)}."
+                        "Acute-to-chronic ratio modifier is ${String.format(java.util.Locale.US, "%.2f", scoreResult.acrModifier)}."
 
                 val factorList = mutableListOf<com.example.ui.models.UiReadinessFactor>()
                 factorList.add(com.example.ui.models.UiReadinessFactor(

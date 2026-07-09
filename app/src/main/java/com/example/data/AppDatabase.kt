@@ -18,13 +18,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlanSession::class,
         PlanExercise::class,
         PersonalRecord::class,
-        WeeklyReport::class,
         BodyMeasurement::class,
         DetectedPatternEntity::class,
         Exercise::class,
         ExerciseMetadata::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -160,7 +159,7 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(`exercise_id`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE 
                     )
                 """)
-                database.execSQL("INSERT INTO `exercise_metadata_new` SELECT * FROM `exercise_metadata`")
+                database.execSQL("INSERT INTO `exercise_metadata_new` (exercise_id, fatigue_cost_coefficient, systemic_multiplier, default_progression_increment_kg, min_reps, max_reps, default_rest_seconds, force_type, recovery_tau_days, notes) SELECT exercise_id, fatigue_cost_coefficient, systemic_multiplier, default_progression_increment_kg, min_reps, max_reps, default_rest_seconds, force_type, recovery_tau_days, notes FROM `exercise_metadata`")
                 database.execSQL("DROP TABLE `exercise_metadata`")
                 database.execSQL("ALTER TABLE `exercise_metadata_new` RENAME TO `exercise_metadata`")
 
@@ -202,7 +201,7 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(`planId`) REFERENCES `workout_programs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                 """)
-                database.execSQL("INSERT INTO `plan_sessions_new` SELECT * FROM `plan_sessions`")
+                database.execSQL("INSERT INTO `plan_sessions_new` (id, planId, label, day, focus) SELECT id, planId, label, day, focus FROM `plan_sessions`")
                 database.execSQL("DROP TABLE `plan_sessions`")
                 database.execSQL("ALTER TABLE `plan_sessions_new` RENAME TO `plan_sessions`")
 
@@ -223,7 +222,7 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(`planSessionId`) REFERENCES `plan_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                 """)
-                database.execSQL("INSERT INTO `plan_exercises_new` SELECT * FROM `plan_exercises`")
+                database.execSQL("INSERT INTO `plan_exercises_new` (id, planSessionId, name, muscleGroup, sets, repsMin, repsMax, weight, restSeconds, notes) SELECT id, planSessionId, name, muscleGroup, sets, repsMin, repsMax, weight, restSeconds, notes FROM `plan_exercises`")
                 database.execSQL("DROP TABLE `plan_exercises`")
                 database.execSQL("ALTER TABLE `plan_exercises_new` RENAME TO `plan_exercises`")
 
@@ -239,7 +238,7 @@ abstract class AppDatabase : RoomDatabase() {
                         FOREIGN KEY(`exerciseId`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                     )
                 """)
-                database.execSQL("INSERT INTO `personal_records_new` SELECT * FROM `personal_records`")
+                database.execSQL("INSERT INTO `personal_records_new` (id, exerciseId, type, value, date) SELECT id, exerciseId, type, value, date FROM `personal_records`")
                 database.execSQL("DROP TABLE `personal_records`")
                 database.execSQL("ALTER TABLE `personal_records_new` RENAME TO `personal_records`")
             }
@@ -251,6 +250,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS `weekly_reports`")
+            }
+        }
+
+        fun setTestDatabase(db: AppDatabase?) {
+            INSTANCE = db
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -258,7 +267,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance

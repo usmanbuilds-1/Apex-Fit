@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+
 data class UiWeightEntry(
     val id: Long = 0,
     val weight: Double,
@@ -26,10 +27,16 @@ data class UiNutritionEntry(
         ""
     }
     val time: String get() = try {
-        java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US).format(java.util.Date(timestamp))
+        java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(timestamp))
     } catch(e: Exception) {
-        "12:00 PM"
+        "12:00"
     }
+}
+
+sealed class UiState<out T> {
+    object Loading : UiState<Nothing>()
+    data class Success<T>(val data: T) : UiState<T>()
+    data class Error(val message: String) : UiState<Nothing>()
 }
 
 data class UiExerciseSet(
@@ -41,14 +48,16 @@ data class UiExerciseSet(
     val completed: Boolean = true,
     val exerciseName: String = "",
     val sessionId: String = "",
-    val muscleGroup: String = ""
-) {
-    val effectiveSetValue: Double get() = try {
+    val muscleGroup: String = "",
+    val exerciseId: String = "",
+    val repsInReserve: Int = 2,
+    val effectiveSetValue: Double = try {
         com.example.utils.ProgressionEngine.calculateEffectiveSetValue(rpe)
     } catch(e: Exception) {
         0.0
-    }
-}
+    },
+    val restTaken: Int = 0
+)
 
 data class UiTrainingSession(
     val id: String = "",
@@ -80,7 +89,9 @@ data class UiPersonalRecord(
 data class UiPlateauResult(
     val isPlateau: Boolean,
     val daysStalled: Int,
-    val recommendation: String
+    val recommendation: String,
+    val severity: String = "",
+    val interventions: List<String> = emptyList()
 )
 
 // Data -> Ui conversions
@@ -95,7 +106,7 @@ fun com.example.data.NutritionEntry.toUi(): UiNutritionEntry {
     val dateStr = this.date
     val timeStr = this.time
     val ts = try {
-        val format = SimpleDateFormat("yyyy-MM-dd hh:mm a", Locale.US)
+        val format = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
         format.parse("$dateStr $timeStr")?.time ?: 0L
     } catch (e: Exception) {
         0L
@@ -120,7 +131,11 @@ fun com.example.data.ExerciseSet.toUi(): UiExerciseSet = UiExerciseSet(
     completed = this.completed,
     exerciseName = this.exerciseName,
     sessionId = this.sessionId,
-    muscleGroup = this.muscleGroup
+    muscleGroup = this.muscleGroup,
+    exerciseId = this.exerciseId,
+    repsInReserve = this.repsInReserve,
+    effectiveSetValue = this.effectiveSetValue,
+    restTaken = this.restTaken
 )
 
 fun com.example.data.TrainingSession.toUi(): UiTrainingSession = UiTrainingSession(
@@ -159,8 +174,10 @@ fun com.example.data.PersonalRecord.toUi(): UiPersonalRecord {
 
 fun com.example.data.PlateauResult.toUi(): UiPlateauResult = UiPlateauResult(
     isPlateau = this.plateau,
-    daysStalled = 0,
-    recommendation = this.interventionRecommendation.ifBlank { this.interventions.joinToString(". ") }
+    daysStalled = this.daysStalled,
+    recommendation = this.interventionRecommendation.ifBlank { this.interventions.joinToString(". ") },
+    severity = this.severity,
+    interventions = this.interventions
 )
 
 // Ui -> Data conversions (for saving back)
@@ -174,11 +191,11 @@ fun UiWeightEntry.toData(): com.example.data.WeightEntry = com.example.data.Weig
 fun UiNutritionEntry.toData(): com.example.data.NutritionEntry {
     val (dateStr, timeStr) = try {
         val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val sdfTime = SimpleDateFormat("hh:mm a", Locale.US)
+        val sdfTime = SimpleDateFormat("HH:mm", Locale.US)
         val d = Date(this.timestamp)
         Pair(sdfDate.format(d), sdfTime.format(d))
     } catch(e: Exception) {
-        Pair("", "12:00 PM")
+        Pair("", "12:00")
     }
     return com.example.data.NutritionEntry(
         id = this.id,
@@ -195,16 +212,17 @@ fun UiNutritionEntry.toData(): com.example.data.NutritionEntry {
 fun UiExerciseSet.toData(): com.example.data.ExerciseSet = com.example.data.ExerciseSet(
     id = this.id,
     sessionId = this.sessionId,
-    exerciseId = "",
+    exerciseId = this.exerciseId,
     exerciseName = this.exerciseName,
     muscleGroup = this.muscleGroup,
     weight = this.weight,
     reps = this.reps,
     rpe = this.rpe,
     isWarmup = this.isWarmup,
+    restTaken = this.restTaken,
     completed = this.completed,
-    repsInReserve = 2,
-    effectiveSetValue = 0.0
+    repsInReserve = this.repsInReserve,
+    effectiveSetValue = this.effectiveSetValue
 )
 
 fun UiTrainingSession.toData(): com.example.data.TrainingSession = com.example.data.TrainingSession(
@@ -240,8 +258,9 @@ fun UiPlateauResult.toData(): com.example.data.PlateauResult = com.example.data.
     isPlateaued = this.isPlateau,
     interventionRecommendation = this.recommendation,
     plateau = this.isPlateau,
-    severity = "",
-    interventions = emptyList()
+    severity = this.severity,
+    interventions = this.interventions,
+    daysStalled = this.daysStalled
 )
 
 data class UiComplianceResult(

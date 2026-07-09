@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Apex Fit (ES)</string>
+    <string name="home_weight">Peso (%1$s)</string>
+    <string name="settings_athlete_nickname">Apodo de atleta</string>
+    <string name="settings_height_cm">Altura (cm)</string>
+    <string name="settings_age_yrs">Edad (años)</string>
+    <string name="settings_cancel">CANCELAR</string>
+    <string name="settings_save_profile">GUARDAR PERFIL</string>
+    <string name="train_start_current_workout_run">INICIAR ENTRENAMIENTO ACTUAL</string>
+    <string name="train_form_guide">Guía de forma</string>
+    <string name="train_substitute">Sustituir</string>
+    <string name="train_cancel">CANCELAR</string>
+    <string name="train_save_exit">GUARDAR Y SALIR</string>
+    <string name="train_discard">DESCARTAR</string>
+    <string name="train_keep_working_out">SEGUIR ENTRENANDO</string>
+    <string name="progress_detail_dimension_value">Valor de dimensión (%1$s)</string>
+    <string name="plan_builder_training_days">DÍAS DE ENTRENAMIENTO (%1$s)</string>
+    <string name="plate_calc_weight_target">Objetivo de peso (%1$s)</string>
+    <string name="onboarding_current_wt">Peso actual (%1$s)</string>
+    <string name="onboarding_goal_wt">Peso objetivo (%1$s)</string>
+    <string name="train_rpe">RPE: %1$s</string>
+    <string name="home_failed_to_load">Error al cargar: %1$s</string>
+    <string name="nutrition_based_on_tdeeresult_weightchan">Basado en un cambio de %1$s kg con una ingesta diaria promedio de %2$s.</string>
+</resources>

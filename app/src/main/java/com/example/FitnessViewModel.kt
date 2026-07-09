@@ -4,6 +4,7 @@ package com.example
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.example.data.*
 import com.example.domain.repository.FitnessRepository
 import com.example.data.repository.FitnessRepositoryImpl
@@ -21,10 +22,10 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
 
     // Specialized ViewModels linked from outside
-    lateinit var homeVM: HomeViewModel
-    lateinit var trainVM: TrainViewModel
-    lateinit var progressVM: ProgressViewModel
-    lateinit var nutritionVM: NutritionViewModel
+    val homeVM: HomeViewModel = HomeViewModel(application)
+    val trainVM: TrainViewModel = TrainViewModel(application)
+    val progressVM: ProgressViewModel = ProgressViewModel(application)
+    val nutritionVM: NutritionViewModel = NutritionViewModel(application)
 
     // User preferences & onboarding State (Expose from preferences)
     val isOnboarded = dataStore.isOnboardedFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -182,7 +183,9 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
 
 
     fun playMusicSynthNote() {
-        com.example.utils.AudioService.playMusicSynthNote()
+        viewModelScope.launch {
+            com.example.utils.AudioService.playMusicSynthNote()
+        }
     }
 
     fun deleteWeightById(id: Long) {
@@ -200,8 +203,11 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     fun resetAllData() {
         viewModelScope.launch {
             _isResetting.value = true
+            trainVM.cancelActiveWorkout()
             withContext(Dispatchers.IO) {
-                db.clearAllTables()
+                db.withTransaction {
+                    db.clearAllTables()
+                }
                 dataStore.clearAllData()
                 com.example.utils.SeedService.seed(getApplication())
                 trainVM.seedDefaultWorkoutPlan()

@@ -115,6 +115,9 @@ interface FitnessDao {
     @Query("DELETE FROM workout_programs WHERE id = :planId")
     suspend fun deleteWorkoutPlan(planId: Long)
 
+    @Query("DELETE FROM workout_programs")
+    suspend fun deleteAllPlans()
+
     // Plan Sessions
     @Query("SELECT * FROM plan_sessions WHERE planId = :planId ORDER BY id ASC")
     fun getSessionsForPlanFlow(planId: Long): Flow<List<PlanSession>>
@@ -194,13 +197,6 @@ interface FitnessDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPersonalRecord(record: PersonalRecord)
-
-    // Weekly Reports
-    @Query("SELECT * FROM weekly_reports ORDER BY weekStart DESC")
-    fun getAllWeeklyReportsFlow(): Flow<List<WeeklyReport>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertWeeklyReport(report: WeeklyReport)
 
     // Body Measurements
     @Query("SELECT * FROM body_measurements ORDER BY date DESC, id DESC")

@@ -134,7 +134,7 @@ object PatternDetector {
                     id = "protein_performance_correlation",
                     type = "nutrition_performance",
                     title = "Your training is better after high protein days",
-                    description = "When you hit protein targets the day before, your session feel averages ${"%.1f".format(highAvgFeel)}/5 vs ${"%.1f".format(lowAvgFeel)}/5 after low protein days. That is a ${((highAvgFeel - lowAvgFeel) / lowAvgFeel * 100).toInt()}% performance difference.",
+                    description = "When you hit protein targets the day before, your session feel averages ${String.format(java.util.Locale.US, "%.1f", highAvgFeel)}/5 vs ${String.format(java.util.Locale.US, "%.1f", lowAvgFeel)}/5 after low protein days. That is a ${((highAvgFeel - lowAvgFeel) / lowAvgFeel * 100).toInt()}% performance difference.",
                     confidence = minOf(1.0f, pairs.size / 20.0f),
                     actionable = "Prioritise hitting protein the day before your heaviest sessions — Upper A and Lower B specifically.",
                     detectedAt = getCurrentDate()
@@ -180,8 +180,8 @@ object PatternDetector {
                 patterns.add(DetectedPattern(
                     id = "carb_water_retention",
                     type = "weight_nutrition",
-                    title = "High carb days add ${String.format("%.1f",highCarbWeightImpact)}kg to your scale weight",
-                    description = "Your scale weight rises ${String.format("%.2f", highCarbWeightImpact)}kg two days after high carb days (350g+) versus ${String.format("%.2f", lowCarbWeightImpact)}kg after low carb days. This is glycogen-bound water — not fat. Science: Olsson and Saltin 1970 showed each gram of stored glycogen binds 3-4g of water.",
+                    title = "High carb days add ${String.format(java.util.Locale.US, "%.1f", highCarbWeightImpact)}kg to your scale weight",
+                    description = "Your scale weight rises ${String.format(java.util.Locale.US, "%.2f", highCarbWeightImpact)}kg two days after high carb days (350g+) versus ${String.format(java.util.Locale.US, "%.2f", lowCarbWeightImpact)}kg after low carb days. This is glycogen-bound water — not fat. Science: Olsson and Saltin 1970 showed each gram of stored glycogen binds 3-4g of water.",
                     confidence = 0.85f,
                     actionable = "Do not panic when the scale rises after high carb training days. Your trend weight is the truth — not the daily number.",
                     detectedAt = getCurrentDate()
@@ -224,7 +224,7 @@ object PatternDetector {
                     id = "optimal_recovery_window",
                     type = "recovery",
                     title = "You perform best with $days day${if (days > 1) "s" else ""} between sessions",
-                    description = "Your session feel score averages ${"%.1f".format(avgFeel)}/5 when you have $days day${if (days > 1) "s" else ""} of rest before training. This is your personal optimal recovery window.",
+                    description = "Your session feel score averages ${String.format(java.util.Locale.US, "%.1f", avgFeel)}/5 when you have $days day${if (days > 1) "s" else ""} of rest before training. This is your personal optimal recovery window.",
                     confidence = minOf(1.0f, sessions.size / 8.0f),
                     actionable = "Try to schedule your hardest sessions with at least $days rest day${if (days > 1) "s" else ""} before them.",
                     detectedAt = getCurrentDate()
@@ -269,7 +269,7 @@ object PatternDetector {
                         id = "sleep_performance",
                         type = "sleep",
                         title = "Sleep under 6.5 hours tanks your training",
-                        description = "Your session feel drops from ${"%.1f".format(goodAvg)}/5 after good sleep to ${"%.1f".format(poorAvg)}/5 after poor sleep. Science: Dattilo et al 2011 — sleep deprivation reduces anabolic hormone production by up to 24% and directly impairs muscle protein synthesis.",
+                        description = "Your session feel drops from ${String.format(java.util.Locale.US, "%.1f", goodAvg)}/5 after good sleep to ${String.format(java.util.Locale.US, "%.1f", poorAvg)}/5 after poor sleep. Science: Dattilo et al 2011 — sleep deprivation reduces anabolic hormone production by up to 24% and directly impairs muscle protein synthesis.",
                         confidence = 0.9f,
                         actionable = "On nights before Upper B and Lower B — your hardest sessions — prioritise 7.5+ hours above everything else.",
                         detectedAt = getCurrentDate()

@@ -12,7 +12,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -77,7 +80,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = editName,
             onValueChange = { editName = it },
-            label = { Text("Athlete Nickname", color = SecondaryText) },
+            label = { Text(stringResource(R.string.settings_athlete_nickname), color = SecondaryText) },
             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
             modifier = Modifier.fillMaxWidth().testTag("settings_name_input"),
             colors = TextFieldDefaults.colors(
@@ -92,7 +95,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = editGoal,
             onValueChange = { editGoal = it },
-            label = { Text("Goal objective profile", color = SecondaryText) },
+            label = { Text(stringResource(R.string.settings_goal_objective_profile), color = SecondaryText) },
             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
             modifier = Modifier.fillMaxWidth().testTag("settings_goal_input"),
             colors = TextFieldDefaults.colors(
@@ -107,7 +110,7 @@ fun SettingsScreen(
         OutlinedTextField(
             value = editedManualCalValue,
             onValueChange = { editedManualCalValue = it },
-            label = { Text("Manual Calorie Target limit", color = SecondaryText) },
+            label = { Text(stringResource(R.string.settings_manual_calorie_target_limit), color = SecondaryText) },
             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
@@ -126,10 +129,10 @@ fun SettingsScreen(
         ) {
             OutlinedTextField(
                 value = editHeight,
-                onValueChange = { editHeight = it },
-                label = { Text("Height (cm)", color = SecondaryText) },
+                onValueChange = { editHeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                label = { Text(stringResource(R.string.settings_height_cm), color = SecondaryText) },
                 textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f).testTag("settings_height_input"),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = DarkRaised,
@@ -141,7 +144,7 @@ fun SettingsScreen(
             OutlinedTextField(
                 value = editAge,
                 onValueChange = { editAge = it },
-                label = { Text("Age (yrs)", color = SecondaryText) },
+                label = { Text(stringResource(R.string.settings_age_yrs), color = SecondaryText) },
                 textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f).testTag("settings_age_input"),
@@ -178,7 +181,8 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(10.dp)
                         )
                         .clickable { editSex = sex.lowercase() }
-                        .padding(vertical = 10.dp)
+                        .padding(vertical = 12.dp)
+                        .heightIn(min = 48.dp)
                         .testTag("settings_sex_${sex.lowercase()}"),
                     contentAlignment = Alignment.Center
                 ) {
@@ -218,7 +222,8 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(10.dp)
                         )
                         .clickable { fitnessViewModel.setPreferredUnits(code) }
-                        .padding(vertical = 10.dp)
+                        .padding(vertical = 12.dp)
+                        .heightIn(min = 48.dp)
                         .testTag("settings_unit_$code"),
                     contentAlignment = Alignment.Center
                 ) {
@@ -247,8 +252,8 @@ fun SettingsScreen(
         ) {
             OutlinedTextField(
                 value = editCurrentWeight,
-                onValueChange = { editCurrentWeight = it },
-                label = { Text("Current Weight ($units)", color = SecondaryText) },
+                onValueChange = { editCurrentWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                label = { Text(stringResource(R.string.settings_current_weight, units), color = SecondaryText) },
                 textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f).testTag("settings_current_weight_input"),
@@ -261,8 +266,8 @@ fun SettingsScreen(
             )
             OutlinedTextField(
                 value = editGoalWeight,
-                onValueChange = { editGoalWeight = it },
-                label = { Text("Goal Weight ($units)", color = SecondaryText) },
+                onValueChange = { editGoalWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                label = { Text(stringResource(R.string.settings_goal_weight, units), color = SecondaryText) },
                 textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f).testTag("settings_goal_weight_input"),
@@ -288,7 +293,7 @@ fun SettingsScreen(
                 border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier.weight(1f).height(48.dp)
             ) {
-                Text("CANCEL", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = PrimaryText)
+                Text(stringResource(R.string.settings_cancel), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = PrimaryText)
             }
 
             Button(
@@ -314,21 +319,21 @@ fun SettingsScreen(
                     fitnessViewModel.setGoalWeight(gW)
                     fitnessViewModel.setBodyWeight(cW)
 
-                    Toast.makeText(context, "Profile Saved Successfully", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.settings_profile_saved_successfully), Toast.LENGTH_SHORT).show()
                     onNavigateTo(0)
                 },
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
                 modifier = Modifier.weight(1f).height(48.dp)
             ) {
-                Text("SAVE PROFILE", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0F))
+                Text(stringResource(R.string.settings_save_profile), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0F))
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-    var showResetDialog by remember { mutableStateOf(false) }
-    var hasStartedReset by remember { mutableStateOf(false) }
+    var showResetDialog by rememberSaveable { mutableStateOf(false) }
+    var hasStartedReset by rememberSaveable { mutableStateOf(false) }
     val isResetting by fitnessViewModel.isResetting.collectAsStateWithLifecycle()
 
     LaunchedEffect(isResetting) {
@@ -340,8 +345,8 @@ fun SettingsScreen(
     if (showResetDialog) {
         AlertDialog(
             onDismissRequest = { if (!isResetting) showResetDialog = false },
-            title = { Text("Reset all data?") },
-            text = { Text("This will permanently delete all your workouts, meals, body weight history, personal records, and profile settings. This cannot be undone. Are you sure?") },
+            title = { Text(stringResource(R.string.settings_reset_all_data)) },
+            text = { Text(stringResource(R.string.settings_this_will_permanently_delete_a)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -350,7 +355,7 @@ fun SettingsScreen(
                     },
                     enabled = !isResetting
                 ) {
-                    Text("Reset Everything", color = if (isResetting) Color.Gray else Color.Red)
+                    Text(stringResource(R.string.settings_reset_everything), color = if (isResetting) Color.Gray else Color.Red)
                 }
             },
             dismissButton = {
@@ -358,7 +363,7 @@ fun SettingsScreen(
                     onClick = { showResetDialog = false },
                     enabled = !isResetting
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.settings_cancel_1))
                 }
             }
         )

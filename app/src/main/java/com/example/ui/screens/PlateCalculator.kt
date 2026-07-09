@@ -9,7 +9,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -60,11 +63,12 @@ fun PlateCalculatorCard(
             ) {
                 OutlinedTextField(
                     value = targetWeightStr,
-                    onValueChange = {
-                        targetWeightStr = it
-                        targetWeight = it.toDoubleOrNull() ?: barWeight
+                    onValueChange = { input ->
+                        val normalized = input.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                        targetWeightStr = normalized
+                        targetWeight = normalized.toDoubleOrNull() ?: barWeight
                     },
-                    label = { Text("Weight Target ($suffix)", color = Color(0xFF8A8A9A), fontSize = 9.sp) },
+                    label = { Text(stringResource(R.string.plate_calc_weight_target, suffix), color = Color(0xFF8A8A9A), fontSize = 9.sp) },
                     textStyle = TextStyle(color = Color(0xFFF0F0F5), fontFamily = JetBrainsMonoFamily, fontSize = 12.sp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(0.4f),
@@ -90,9 +94,9 @@ fun PlateCalculatorCard(
                             },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F1A)),
-                            modifier = Modifier.height(30.dp)
+                            modifier = Modifier.height(48.dp)
                         ) {
-                            Text("${preset.toInt()}$suffix", color = Color(0xFFF0F0F5), fontSize = 9.sp, fontFamily = JetBrainsMonoFamily)
+                            Text(stringResource(R.string.plate_calc_fmt_str, preset.toInt(), suffix), color = Color(0xFFF0F0F5), fontSize = 9.sp, fontFamily = JetBrainsMonoFamily)
                         }
                     }
                 }
@@ -134,7 +138,7 @@ fun PlateCalculatorCard(
             }
 
             Text(
-                text = "Plates per side: (Barbell: $barWeight$suffix • Load/side: ${"%.2f".format(sideWeight)}$suffix)",
+                text = "Plates per side: (Barbell: $barWeight$suffix • Load/side: ${String.format(java.util.Locale.US, "%.2f", sideWeight)}$suffix)",
                 fontFamily = JetBrainsMonoFamily,
                 fontSize = 8.sp,
                 color = Color(0xFF8A8A9A),

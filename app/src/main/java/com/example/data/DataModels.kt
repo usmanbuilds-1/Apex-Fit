@@ -10,11 +10,11 @@ import androidx.room.ForeignKey
 data class WeightEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val date: String, // YYYY-MM-DD
-    val time: String = "12:00 PM", // hh:mm a
+    val time: String = "12:00", // HH:mm
     val weight: Double,
     @ColumnInfo(name = "trend_weight_kg") val trendWeightKg: Double? = null
 ) {
-    constructor(date: String, weight: Double) : this(id = 0, date = date, time = "12:00 PM", weight = weight, trendWeightKg = null)
+    constructor(date: String, weight: Double) : this(id = 0, date = date, time = "12:00", weight = weight, trendWeightKg = null)
 }
 
 data class TrendPoint(
@@ -34,7 +34,7 @@ data class NutritionEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val date: String, // YYYY-MM-DD
     val name: String = "Logged Meal", // Food/meal name description
-    val time: String = "12:00 PM", // hh:mm a
+    val time: String = "12:00", // HH:mm
     val calories: Int,
     val protein: Double,
     val carbs: Double,
@@ -44,7 +44,7 @@ data class NutritionEntry(
         id = 0,
         date = date,
         name = "Logged Meal",
-        time = "12:00 PM",
+        time = "12:00",
         calories = calories,
         protein = protein.toDouble(),
         carbs = carbs.toDouble(),
@@ -143,7 +143,8 @@ data class PlateauResult(
     val interventionRecommendation: String = "", // Deload Week, Rep Range Shift, Exercise Swap, Volume Increase
     val plateau: Boolean = isPlateaued,
     val severity: String = "",
-    val interventions: List<String> = emptyList()
+    val interventions: List<String> = emptyList(),
+    val daysStalled: Int = 0
 )
 
 data class FatigueRatio(

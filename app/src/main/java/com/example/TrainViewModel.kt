@@ -13,6 +13,12 @@ import com.example.utils.ProgressionEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.room.withTransaction
+import android.content.Intent
+import androidx.core.content.ContextCompat
+import com.example.utils.RestTimerService
 
 class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -33,6 +39,33 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 android.util.Log.e("TrainViewModel", "Failed to seed default plan: ${e.message}", e)
             }
         }
+        viewModelScope.launch {
+            RestTimerService.secondsRemaining.collect { remaining ->
+                val prev = _restTimerSeconds.value
+                _restTimerSeconds.value = remaining
+                if (remaining < prev && remaining >= 0) {
+                    val elapsed = _restTimerTotal.value - remaining
+                    lastCompletedSetPointer?.let { (exId, sIdx) ->
+                        updateSetRestTaken(exId, sIdx, elapsed)
+                    }
+                    if (remaining in 1..3) {
+                        viewModelScope.launch { AudioService.playBeep() }
+                    } else if (remaining == 0 && prev > 0) {
+                        viewModelScope.launch { AudioService.playRestTimerComplete(getApplication()) }
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            RestTimerService.isRunning.collect { running ->
+                _isRestTimerActive.value = running
+                if (running) {
+                    _showRestOverlay.value = true
+                } else {
+                    _showRestOverlay.value = false
+                }
+            }
+        }
     }
 
     // User weight from preferences for relative calculations
@@ -42,7 +75,20 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Training State (Plans, Sessions)
     val workoutPlans = repository.getWorkoutPlans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val activePlan = repository.getActivePlan().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    private val baseActivePlan = repository.getActivePlan()
+    private val baseActivePlanSessions = baseActivePlan.flatMapLatest { plan ->
+        if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
+    }
+
+    val activePlan: StateFlow<UiState<WorkoutPlan?>> = baseActivePlan
+        .map { UiState.Success(it) as UiState<WorkoutPlan?> }
+        .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
+
+    val activePlanSessions: StateFlow<UiState<List<PlanSession>>> = baseActivePlanSessions
+        .map { UiState.Success(it) as UiState<List<PlanSession>> }
+        .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     // Plan Builder Editing State
     val planBuilderSessions = MutableStateFlow<List<PlanSession>>(emptyList())
@@ -72,6 +118,36 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addExercise(exercise: PlanExercise) {
         planBuilderExercises.value = planBuilderExercises.value + exercise
+    }
+
+    fun addCustomExercise(planExercise: PlanExercise) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val slug = planExercise.name.lowercase()
+                    .replace(Regex("[^a-z0-9\\s-]"), "")
+                    .replace(Regex("\\s+"), "-")
+                    .trim()
+                val existing = dao.getExerciseById(slug)
+                if (existing == null) {
+                    dao.insertExercises(listOf(
+                        Exercise(
+                            id = slug,
+                            name = planExercise.name,
+                            category = "User Created",
+                            primaryMuscle = planExercise.muscleGroup,
+                            secondaryMuscles = emptyList(),
+                            equipmentRequired = "Unknown",
+                            isBilateral = 1,
+                            isUserCreated = 1,
+                            isDeleted = 0,
+                            createdAt = System.currentTimeMillis()
+                        )
+                    ))
+                    dao.insertExerciseMetadata(ExerciseMetadata(exerciseId = slug))
+                }
+                addExercise(planExercise)
+            }
+        }
     }
 
     fun updateExercise(exercise: PlanExercise) {
@@ -104,14 +180,10 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedDayOfWeek = MutableStateFlow("Monday")
     val selectedDayOfWeek: StateFlow<String> = _selectedDayOfWeek.asStateFlow()
 
-    val activePlanSessions = activePlan.flatMapLatest { plan ->
-        if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     val allPlanExercises = dao.getAllPlanExercisesFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val selectedDaySession = combine(activePlanSessions, _selectedDayOfWeek) { sessions, day ->
+    val selectedDaySession = combine(baseActivePlanSessions, _selectedDayOfWeek) { sessions, day ->
         sessions.firstOrNull { it.day.equals(day, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -119,11 +191,14 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         if (session != null) repository.getExercisesForSession(session.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val todayExercises = activePlanSessions.flatMapLatest { sessions ->
+    val todayExercises: StateFlow<UiState<List<PlanExercise>>> = baseActivePlanSessions.flatMapLatest { sessions ->
         val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
         val todaySession = sessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
         if (todaySession != null) repository.getExercisesForSession(todaySession.id) else flowOf(emptyList())
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+    .map { UiState.Success(it) as UiState<List<PlanExercise>> }
+    .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     fun selectDay(day: String) {
         _selectedDayOfWeek.value = day
@@ -496,38 +571,27 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         _showRestOverlay.value = true
         _isRestTimerActive.value = true
 
-        viewModelScope.launch {
-            var elapsed = 0
-            while (_restTimerSeconds.value > 0 && _isRestTimerActive.value) {
-                delay(1000)
-                _restTimerSeconds.value -= 1
-                elapsed += 1
-
-                lastCompletedSetPointer?.let { (exId, sIdx) ->
-                    updateSetRestTaken(exId, sIdx, elapsed)
-                }
-
-                val remaining = _restTimerSeconds.value
-                if (remaining in 1..3) {
-                    AudioService.playBeep()
-                } else if (remaining == 0) {
-                    AudioService.playRestTimerComplete(getApplication<Application>().applicationContext)
-                }
-            }
-            if (_isRestTimerActive.value) {
-                closeRestTimer()
-            }
+        val intent = Intent(getApplication(), RestTimerService::class.java).apply {
+            putExtra(RestTimerService.EXTRA_SECONDS, restSeconds)
+            putExtra(RestTimerService.EXTRA_EXERCISE, exerciseName)
         }
+        ContextCompat.startForegroundService(getApplication(), intent)
     }
 
     fun addRestTimerSeconds(secs: Int) {
-        _restTimerSeconds.value += secs
+        val newSeconds = _restTimerSeconds.value + secs
         _restTimerTotal.value += secs
+        val intent = Intent(getApplication(), RestTimerService::class.java).apply {
+            putExtra(RestTimerService.EXTRA_SECONDS, newSeconds)
+            putExtra(RestTimerService.EXTRA_EXERCISE, "Rest")
+        }
+        ContextCompat.startForegroundService(getApplication(), intent)
     }
 
     fun closeRestTimer() {
         _isRestTimerActive.value = false
         _showRestOverlay.value = false
+        getApplication<Application>().stopService(Intent(getApplication(), RestTimerService::class.java))
     }
 
     fun nextExercise() {
@@ -710,6 +774,18 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun activatePlan(planId: Long) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                db.withTransaction {
+                    dao.deactivateAllPlans()
+                    val plan = dao.getAllPlans().firstOrNull { it.id == planId } ?: return@withTransaction
+                    dao.insertWorkoutPlan(plan.copy(isActive = true))
+                }
+            }
+        }
+    }
+
     suspend fun seedDefaultWorkoutPlan() {
         val planId = 1L
         val plan = WorkoutPlan(
@@ -757,7 +833,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
             PlanExercise(id = 10405L, planSessionId = 104L, name = "Seated Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 40.0, restSeconds = 60, notes = "Slow stretch at bottom range.")
         )
 
-        dao.deactivateAllPlans()
+        dao.deleteAllPlans()  // cascades to plan_sessions and plan_exercises via FK
         dao.insertWorkoutPlan(plan)
         dao.insertPlanSessions(sessions)
         dao.insertPlanExercises(exercises)

@@ -103,10 +103,6 @@ class MainActivity : ComponentActivity() {
         // Enforce Edge to Edge insets
         enableEdgeToEdge()
 
-        // Request notification permission on startup (Android 13+). You may choose to move
-        // this to a more appropriate UX moment (e.g., when user enables notifications).
-        maybeRequestNotificationPermission()
-
         handleDeepLink(intent)
 
         setContent {

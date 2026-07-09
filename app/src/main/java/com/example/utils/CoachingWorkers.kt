@@ -195,7 +195,17 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
 
         // Schedule triggers with relative offsets
         allTriggers.distinctBy { it.id }.forEach { trigger ->
-            val delayHours = (trigger.triggerHour - 6).coerceAtLeast(0)
+            val now = java.util.Calendar.getInstance()
+            val target = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, trigger.triggerHour)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+                if (timeInMillis <= now.timeInMillis) {
+                    add(java.util.Calendar.DAY_OF_YEAR, 1)
+                }
+            }
+            val delayHours = ((target.timeInMillis - now.timeInMillis) / (1000 * 60 * 60)).coerceAtLeast(0L).toInt()
             val inputData = workDataOf(
                 "id" to trigger.id,
                 "title" to trigger.title,

@@ -181,6 +181,17 @@ object AlgorithmEngine {
         if (volumeEarlier == 0.0) return PlateauResult(false)
         if (volumeRecent < volumeEarlier * 0.95) return PlateauResult(false)
 
+        var daysStalled = 0
+        if (trend.isNotEmpty()) {
+            val currentTrend = trend.last().trend
+            val lastChangeIndex = trend.indexOfLast { Math.abs(currentTrend - it.trend) > 0.1 }
+            if (lastChangeIndex != -1) {
+                daysStalled = getDaysBetween(trend[lastChangeIndex].date, trend.last().date).toInt()
+            } else {
+                daysStalled = getDaysBetween(trend.first().date, trend.last().date).toInt()
+            }
+        }
+
         return PlateauResult(
             plateau = true,
             severity = if (windowDays >= 14) "confirmed" else "early",
@@ -189,7 +200,8 @@ object AlgorithmEngine {
                 "Add one Zone 2 cardio session",
                 "Try a 1-day refeed at maintenance calories",
                 "Weigh food for 3 days to recheck portions"
-            )
+            ),
+            daysStalled = daysStalled
         )
     }
 

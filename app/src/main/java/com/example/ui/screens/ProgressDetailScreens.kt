@@ -9,7 +9,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.ui.models.UiState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +32,23 @@ fun MuscleRecoveryScreen(
     progressViewModel: ProgressViewModel,
     onBack: () -> Unit
 ) {
-    val statuses by progressViewModel.muscleRecoveryStatuses.collectAsStateWithLifecycle()
+    val statusesState by progressViewModel.muscleRecoveryStatuses.collectAsStateWithLifecycle()
+    
+    if (statusesState is UiState.Loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = BlueAccent)
+        }
+        return
+    }
+
+    if (statusesState is UiState.Error) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.progress_detail_error_loading_recovery_statuse), color = Color.White)
+        }
+        return
+    }
+
+    val statuses: List<com.example.data.MuscleRecoveryStatus> = (statusesState as? UiState.Success)?.data ?: emptyList()
 
     Column(
         modifier = Modifier
@@ -158,8 +178,8 @@ fun BodyMeasurementDetailScreen(
     onBack: () -> Unit
 ) {
     val measurements by progressViewModel.measurementsForBodyPart(bodyPart).collectAsStateWithLifecycle(initialValue = emptyList())
-    var newValue by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf("") }
+    var newValue by rememberSaveable { mutableStateOf("") }
+    var error by rememberSaveable { mutableStateOf("") }
     val units by progressViewModel.units.collectAsStateWithLifecycle()
     val lengthUnit = if (units == "kg") "cm" else "in"
 
@@ -205,10 +225,10 @@ fun BodyMeasurementDetailScreen(
                 OutlinedTextField(
                     value = newValue,
                     onValueChange = {
-                        newValue = it
+                        newValue = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
                         error = ""
                     },
-                    label = { Text("Dimension value ($lengthUnit)") },
+                    label = { Text(stringResource(R.string.progress_detail_dimension_value, lengthUnit)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -233,11 +253,11 @@ fun BodyMeasurementDetailScreen(
                             newValue = ""
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("SAVE MEASUREMENT", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.progress_detail_save_measurement), color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -277,7 +297,7 @@ fun BodyMeasurementDetailScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(m.date, color = SecondaryText, fontSize = 13.sp)
-                            Text("${m.value} $lengthUnit", color = PrimaryText, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.progress_detail_fmt_str, m.value, lengthUnit), color = PrimaryText, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

@@ -89,6 +89,7 @@ class AlgorithmEngineTest {
         // Case 1: maintained volume (1000 vs 1000) -> true plateau
         val resPlateau = AlgorithmEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), windowDays = 14)
         assertTrue(resPlateau.plateau)
+        assertEquals(14, resPlateau.daysStalled)
 
         // Case 2: volume dropped >=5% (500 vs 1000) -> not a plateau
         val exSetLow = ExerciseSet(weight = 50.0, reps = 10, rpe = 8, isWarmup = false, completed = true)

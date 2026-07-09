@@ -9,6 +9,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import java.util.UUID
 import com.google.gson.Gson
 
@@ -26,6 +28,7 @@ class WorkoutSessionManager(
 
     private val gson = Gson()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val persistJob = MutableStateFlow<kotlinx.coroutines.Job?>(null)
 
     init {
         scope.launch {
@@ -340,13 +343,17 @@ class WorkoutSessionManager(
 
     private fun persistSession() {
         val session = _activeSession.value
-        scope.launch {
-            if (session != null) {
-                try {
+        persistJob.value?.cancel()
+        persistJob.value = scope.launch {
+            delay(500)
+            try {
+                if (session != null) {
                     dataStore.saveActiveSessionJson(gson.toJson(session))
-                } catch (e: Exception) {}
-            } else {
-                dataStore.saveActiveSessionJson(null)
+                } else {
+                    dataStore.saveActiveSessionJson(null)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutSessionManager", "persistSession failed", e)
             }
         }
     }
@@ -444,21 +451,26 @@ class WorkoutSessionManager(
         val prs = evaluatePRs(allSets)
         repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
 
-        // Save PRs after commit
-        // evaluateAndSavePRs(allSets)
-        repository.scanAndSaveWeeklyPatterns()
+        // Pattern scan is best-effort — never let it fail the commit
+        try {
+            repository.scanAndSaveWeeklyPatterns()
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Pattern scan failed (non-fatal)", e)
+        }
 
         val totalVolume = allSets
             .filter { !it.isWarmup }
             .sumOf { it.weight * it.reps }
 
-        val confirmedPRs = _pendingPRWarnings.value.keys.toList()
+        // Use ACTUAL new PRs from evaluatePRs, not the preview warnings
+        val confirmedPRs = prs.map { it.exerciseId }.distinct()
 
-        // Clear state
+        // Clear state — ALWAYS runs after successful insert
         _activeSession.value = null
         _lastWeights.value = emptyMap()
         _weightContextLines.value = emptyMap()
         _pendingPRWarnings.value = emptyMap()
+        dataStore.saveActiveSessionJson(null)
 
         SessionCommitResult(
             sessionId = sessionId,

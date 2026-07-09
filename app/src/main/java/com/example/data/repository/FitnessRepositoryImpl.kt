@@ -41,7 +41,9 @@ class FitnessRepositoryImpl(
     }
 
     override suspend fun updateWorkoutPlan(plan: WorkoutPlan, sessions: List<PlanSession>, exercises: List<PlanExercise>) = db.withTransaction {
-        dao.deactivateAllPlans()
+        if (plan.isActive) {
+            dao.deactivateAllPlans()
+        }
         dao.insertWorkoutPlan(plan)
         // Clean up old sessions and their exercises
         val oldSessions = dao.getSessionsForPlan(plan.id)

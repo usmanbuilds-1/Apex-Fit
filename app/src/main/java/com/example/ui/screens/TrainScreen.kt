@@ -1,5 +1,6 @@
 // name=app/src/main/java/com/example/ui/screens/TrainScreen.kt
 package com.example.ui.screens
+import com.example.ui.models.UiState
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -20,7 +21,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -107,7 +111,8 @@ fun TrainTab(
                         .clip(RoundedCornerShape(9.dp))
                         .background(if (isSelected) AmberAccent else Color.Transparent)
                         .clickable { fitnessViewModel.setTrainSubTab(index) }
-                        .padding(vertical = 10.dp),
+                        .padding(vertical = 12.dp)
+                        .heightIn(min = 48.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -256,8 +261,7 @@ fun ProgramSubTab(
                             colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text(
-                                "START CURRENT WORKOUT RUN",
+                            Text(stringResource(R.string.train_start_current_workout_run),
                                 fontFamily = SyneFamily,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -271,7 +275,7 @@ fun ProgramSubTab(
                 items(exercises.size) { index ->
                     val ex = exercises[index]
 
-                    var isExpanded by remember { mutableStateOf(false) }
+                    var isExpanded by rememberSaveable { mutableStateOf(false) }
 
                     Box(
                         modifier = Modifier
@@ -340,13 +344,13 @@ fun ProgramSubTab(
                                     // Form Guide button
                                     Button(
                                         onClick = {
-                                            Toast.makeText(context, "${ex.name}: Focus on compound control, locking joint stabilizers at end of concentric contraction.", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, context.getString(R.string.train_focus_on_compound_control_lock, ex.name), Toast.LENGTH_LONG).show()
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Form Guide", fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
+                                        Text(stringResource(R.string.train_form_guide), fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
                                     }
 
                                     // Replace Exercise button suggestion
@@ -361,7 +365,7 @@ fun ProgramSubTab(
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Substitute", fontFamily = SyneFamily, fontSize = 11.sp, color = AmberAccent)
+                                        Text(stringResource(R.string.train_substitute), fontFamily = SyneFamily, fontSize = 11.sp, color = AmberAccent)
                                     }
                                 }
 
@@ -434,29 +438,29 @@ fun WorkoutExecutionSubTab(
 
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
-    var showFinishEarlyDialog by remember { mutableStateOf(false) }
-    var showNormalFinishFeelDialog by remember { mutableStateOf(false) }
-    var selectedFeelRating by remember { mutableStateOf(4) }
-    var showExitDialog by remember { mutableStateOf(false) }
+    var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
+    var showNormalFinishFeelDialog by rememberSaveable { mutableStateOf(false) }
+    var selectedFeelRating by rememberSaveable { mutableStateOf(4) }
+    var showExitDialog by rememberSaveable { mutableStateOf(false) }
 
     saveError?.let { err ->
         AlertDialog(
             onDismissRequest = { trainViewModel.dismissSaveError() },
             containerColor = DarkCardSurface,
-            title = { Text("SAVE FAILED", color = Color(0xFFE84A4A), fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.train_save_failed), color = Color(0xFFE84A4A), fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
             text = { Text(err, color = SecondaryText, fontFamily = JetBrainsMonoFamily, fontSize = 12.sp) },
             confirmButton = {
                 TextButton(onClick = { trainViewModel.finishWorkoutSession(selectedFeelRating) }) {
-                    Text("RETRY FULL", color = AmberAccent)
+                    Text(stringResource(R.string.train_retry_full), color = AmberAccent)
                 }
             },
             dismissButton = {
                 Row {
                     TextButton(onClick = { trainViewModel.savePartialAndExit(selectedFeelRating) }) {
-                        Text("RETRY PARTIAL", color = AccentSecondary)
+                        Text(stringResource(R.string.train_retry_partial), color = AccentSecondary)
                     }
                     TextButton(onClick = { trainViewModel.dismissSaveError() }) {
-                        Text("CANCEL", color = MutedText)
+                        Text(stringResource(R.string.train_cancel), color = MutedText)
                     }
                 }
             }
@@ -496,7 +500,7 @@ fun WorkoutExecutionSubTab(
                         showFinishEarlyDialog = true
                     }
                 ) {
-                    Text("SAVE & EXIT", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
+                    Text(stringResource(R.string.train_save_exit), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
                 }
             },
             dismissButton = {
@@ -507,14 +511,14 @@ fun WorkoutExecutionSubTab(
                             trainViewModel.cancelActiveWorkout()
                         }
                     ) {
-                        Text("DISCARD", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFFE84A4A))
+                        Text(stringResource(R.string.train_discard), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFFE84A4A))
                     }
                     TextButton(
                         onClick = {
                             showExitDialog = false
                         }
                     ) {
-                        Text("KEEP WORKING OUT", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = MutedText)
+                        Text(stringResource(R.string.train_keep_working_out), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = MutedText)
                     }
                 }
             }
@@ -560,7 +564,7 @@ fun WorkoutExecutionSubTab(
                             IconButton(
                                 onClick = { selectedFeelRating = rate },
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(48.dp)
                                     .background(
                                         if (isSelected) AmberAccent else DarkRaised,
                                         CircleShape
@@ -664,7 +668,7 @@ fun WorkoutExecutionSubTab(
                             IconButton(
                                 onClick = { selectedFeelRating = rate },
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(48.dp)
                                     .background(
                                         if (isSelected) AmberAccent else DarkRaised,
                                         CircleShape
@@ -813,7 +817,7 @@ fun WorkoutExecutionSubTab(
                 val setsList = loggedSets[ex.id] ?: emptyList()
 
                 item {
-                    var showPlateCalc by remember { mutableStateOf(false) }
+                    var showPlateCalc by rememberSaveable { mutableStateOf(false) }
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Text(
@@ -830,7 +834,7 @@ fun WorkoutExecutionSubTab(
                                         .clickable { showPlateCalc = !showPlateCalc }
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
-                                    Text("🧮 PLATE CALC", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = AmberAccent)
+                                    Text(stringResource(R.string.train_plate_calc), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = AmberAccent)
                                 }
                                 Box(
                                     modifier = Modifier
@@ -998,11 +1002,12 @@ fun WorkoutExecutionSubTab(
 
                                 // Weight textfield
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("WEIGHT", fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
+                                    Text(stringResource(R.string.train_weight), fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
                                     BasicTextField(
                                         value = rawWeight,
                                         onValueChange = { input ->
-                                            val filtered = input.filter { it.isDigit() || it == '.' }
+                                            val normalizedInput = input.replace(',', '.')
+                                            val filtered = normalizedInput.filter { it.isDigit() || it == '.' }
                                             val clean = if (filtered.count { it == '.' } > 1) {
                                                 val firstDot = filtered.indexOf('.')
                                                 filtered.substring(0, firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
@@ -1088,7 +1093,7 @@ fun WorkoutExecutionSubTab(
 
                                 // Reps textfield
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("REPS", fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
+                                    Text(stringResource(R.string.train_reps), fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
                                     BasicTextField(
                                         value = rawReps,
                                         onValueChange = { input ->
@@ -1174,7 +1179,7 @@ fun WorkoutExecutionSubTab(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             // Custom Segmented Button select row for RPE (1 to 10)
-                            Text("RPE: $selectedRpe", fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
+                            Text(stringResource(R.string.train_rpe, selectedRpe), fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(
                                 modifier = Modifier
@@ -1241,7 +1246,7 @@ fun WorkoutExecutionSubTab(
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("+ ADD EXTRA SET", fontFamily = SyneFamily, fontSize = 11.sp, color = if (canAddSet) PrimaryText else MutedText)
+                                Text(stringResource(R.string.train_add_extra_set), fontFamily = SyneFamily, fontSize = 11.sp, color = if (canAddSet) PrimaryText else MutedText)
                             }
 
                             Button(
@@ -1285,7 +1290,7 @@ fun WorkoutExecutionSubTab(
                                     showNormalFinishFeelDialog = true
                                 } else {
                                     trainViewModel.skipExercise()
-                                    Toast.makeText(context, "Exercise skipped: ${ex.name}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.train_exercise_skipped, ex.name), Toast.LENGTH_SHORT).show()
                                 }
                             },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
@@ -1327,8 +1332,7 @@ fun WorkoutExecutionSubTab(
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().height(48.dp)
                         ) {
-                            Text(
-                                "COMPLETE RECOVERY SESSION",
+                            Text(stringResource(R.string.train_complete_recovery_session),
                                 fontFamily = SyneFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1343,8 +1347,7 @@ fun WorkoutExecutionSubTab(
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("finish_early_button")
                         ) {
-                            Text(
-                                "FINISH WORKOUT EARLY & SAVE PROGRESS",
+                            Text(stringResource(R.string.train_finish_workout_early_save_prog),
                                 fontFamily = SyneFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1359,8 +1362,7 @@ fun WorkoutExecutionSubTab(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        Text(
-                            "CANCEL CURRENT WORKOUT RUN",
+                        Text(stringResource(R.string.train_cancel_current_workout_run),
                             fontFamily = SyneFamily,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -1381,7 +1383,16 @@ fun NewPlansSubTab(
     onNavigateToPlanBuilder: () -> Unit
 ) {
     val plans by trainViewModel.workoutPlans.collectAsStateWithLifecycle()
-    val activePlan by trainViewModel.activePlan.collectAsStateWithLifecycle()
+    val activePlanState by trainViewModel.activePlan.collectAsStateWithLifecycle()
+    
+    if (activePlanState is UiState.Loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = OrangeAccent)
+        }
+        return
+    }
+    
+    val activePlan: com.example.data.WorkoutPlan? = (activePlanState as? UiState.Success)?.data
     val context = LocalContext.current
 
     LazyColumn(
@@ -1407,8 +1418,7 @@ fun NewPlansSubTab(
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
-                    Text(
-                        "BUILD CUSTOM WORKOUT PLAN",
+                    Text(stringResource(R.string.train_build_custom_workout_plan),
                         fontFamily = SyneFamily,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -1461,7 +1471,7 @@ fun NewPlansSubTab(
                                         .background(Color(0xFF2E6A41))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
-                                    Text("ACTIVE", fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = PrimaryText)
+                                    Text(stringResource(R.string.train_active), fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = PrimaryText)
                                 }
                             }
                         }
@@ -1477,12 +1487,13 @@ fun NewPlansSubTab(
                     if (!isActive) {
                         Button(
                             onClick = {
-                                Toast.makeText(context, "Activating structural files...", Toast.LENGTH_SHORT).show()
+                                trainViewModel.activatePlan(plan.id)
+                                Toast.makeText(context, context.getString(R.string.train_plan_activated), Toast.LENGTH_SHORT).show()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Activate", fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
+                            Text(stringResource(R.string.train_activate), fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
                         }
                     }
                 }
@@ -1527,7 +1538,7 @@ fun RealTimeEffectiveSetsCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Effective Sets: ${String.format("%.2f", effData.currentEffectiveSets)} / ${String.format("%.2f", effData.targetEffectiveSets)}",
+                    text = "Effective Sets: ${String.format(java.util.Locale.US, "%.2f", effData.currentEffectiveSets)} / ${String.format(java.util.Locale.US, "%.2f", effData.targetEffectiveSets)}",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
@@ -1601,7 +1612,7 @@ fun RealTimeEffectiveSetsCard(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Quality: ${String.format("%.2f", effData.lastSetEffectiveness)} effective sets (${effectivenessPct} effective — ${effectivenessZone.uppercase()})",
+                            text = "Quality: ${String.format(java.util.Locale.US, "%.2f", effData.lastSetEffectiveness)} effective sets (${effectivenessPct} effective — ${effectivenessZone.uppercase()})",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = if (effData.lastSetRPE == 8) AmberAccent else SecondaryText

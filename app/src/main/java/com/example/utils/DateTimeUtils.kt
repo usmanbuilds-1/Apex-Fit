@@ -88,3 +88,19 @@ fun getDaysBetweenClamped(lastDate: String, today: String): Int {
         2
     }
 }
+
+fun formatTimeForDisplay(context: android.content.Context, timeStr: String): String {
+    if (timeStr.isEmpty()) return ""
+    return try {
+        val parser = SimpleDateFormat("HH:mm", Locale.US)
+        val date = parser.parse(timeStr)
+        if (date != null) {
+            android.text.format.DateFormat.getTimeFormat(context).format(date)
+        } else {
+            timeStr
+        }
+    } catch (e: Exception) {
+        timeStr
+    }
+}
+

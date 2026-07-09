@@ -1,5 +1,6 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.example.ui.screens
+import com.example.ui.models.UiState
 
 import android.widget.Toast
 import androidx.compose.foundation.*
@@ -12,7 +13,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -39,9 +43,26 @@ fun PlanBuilderScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val dbSessions by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val dbSessionsState by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val dbExercises by trainViewModel.allPlanExercises.collectAsStateWithLifecycle()
-    val activePlan by trainViewModel.activePlan.collectAsStateWithLifecycle()
+    val activePlanState by trainViewModel.activePlan.collectAsStateWithLifecycle()
+    
+    if (dbSessionsState is UiState.Loading || activePlanState is UiState.Loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = OrangeAccent)
+        }
+        return
+    }
+
+    if (dbSessionsState is UiState.Error || activePlanState is UiState.Error) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.plan_builder_error_loading_plan_data), color = Color.White)
+        }
+        return
+    }
+
+    val dbSessions: List<com.example.data.PlanSession> = (dbSessionsState as? UiState.Success)?.data ?: emptyList()
+    val activePlan: com.example.data.WorkoutPlan? = (activePlanState as? UiState.Success)?.data
     
     val sessionsList by trainViewModel.planBuilderSessions.collectAsStateWithLifecycle()
     val exercisesList by trainViewModel.planBuilderExercises.collectAsStateWithLifecycle()
@@ -78,8 +99,7 @@ fun PlanBuilderScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(
-                        "CUSTOM PLAN BUILDER",
+                    Text(stringResource(R.string.plan_builder_custom_plan_builder),
                         fontFamily = SyneFamily,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
@@ -99,7 +119,7 @@ fun PlanBuilderScreen(
                     TextButton(
                         onClick = {
                             if (planName.isBlank()) {
-                                Toast.makeText(context, "Plan name cannot be empty", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.plan_builder_plan_name_cannot_be_empty), Toast.LENGTH_SHORT).show()
                                 return@TextButton
                             }
                             val planId = activePlan?.id ?: 1L
@@ -126,13 +146,12 @@ fun PlanBuilderScreen(
                             }
 
                             trainViewModel.updateWorkoutPlan(finalPlan, updatedSessions, updatedExercises)
-                            Toast.makeText(context, "Workout plan updated successfully!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.plan_builder_workout_plan_updated_successfu), Toast.LENGTH_SHORT).show()
                             onNavigateBack()
                         },
                         modifier = Modifier.testTag("save_plan_button")
                     ) {
-                        Text(
-                            "SAVE",
+                        Text(stringResource(R.string.plan_builder_save),
                             fontFamily = SyneFamily,
                             fontWeight = FontWeight.Bold,
                             color = AmberAccent,
@@ -167,8 +186,7 @@ fun PlanBuilderScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            "PLAN DETAILS",
+                        Text(stringResource(R.string.plan_builder_plan_details),
                             fontFamily = SyneFamily,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -178,7 +196,7 @@ fun PlanBuilderScreen(
                         OutlinedTextField(
                             value = planName,
                             onValueChange = { planName = it },
-                            label = { Text("Plan Name", color = SecondaryText) },
+                            label = { Text(stringResource(R.string.plan_builder_plan_name), color = SecondaryText) },
                             textStyle = LocalTextStyle.current.copy(color = PrimaryText),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -194,7 +212,7 @@ fun PlanBuilderScreen(
                         OutlinedTextField(
                             value = planGoal,
                             onValueChange = { planGoal = it },
-                            label = { Text("Plan Goal (e.g. Gain Muscle)", color = SecondaryText) },
+                            label = { Text(stringResource(R.string.plan_builder_plan_goal_e_g_gain_muscle), color = SecondaryText) },
                             textStyle = LocalTextStyle.current.copy(color = PrimaryText),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -217,8 +235,7 @@ fun PlanBuilderScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "TRAINING DAYS (${sessionsList.size})",
+                    Text(stringResource(R.string.plan_builder_training_days, sessionsList.size),
                         fontFamily = SyneFamily,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
@@ -239,7 +256,7 @@ fun PlanBuilderScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text("ADD DAY", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.plan_builder_add_day), fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -266,15 +283,13 @@ fun PlanBuilderScreen(
                                 tint = MutedText,
                                 modifier = Modifier.size(48.dp)
                             )
-                            Text(
-                                "No training days added yet.",
+                            Text(stringResource(R.string.plan_builder_no_training_days_added_yet),
                                 fontFamily = SyneFamily,
                                 fontSize = 13.sp,
                                 color = SecondaryText,
                                 textAlign = TextAlign.Center
                             )
-                            Text(
-                                "Click 'ADD DAY' to construct your split.",
+                            Text(stringResource(R.string.plan_builder_click_add_day_to_construct_you),
                                 fontFamily = JetBrainsMonoFamily,
                                 fontSize = 11.sp,
                                 color = MutedText,
@@ -331,13 +346,13 @@ fun PlanBuilderScreen(
                                             trainViewModel.reorderSession(index, true)
                                         },
                                         enabled = index > 0,
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.ArrowUpward,
                                             contentDescription = "Move Up",
                                             tint = if (index > 0) Color.White else MutedText,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
 
@@ -347,13 +362,13 @@ fun PlanBuilderScreen(
                                             trainViewModel.reorderSession(index, false)
                                         },
                                         enabled = index < sessionsList.size - 1,
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.ArrowDownward,
                                             contentDescription = "Move Down",
                                             tint = if (index < sessionsList.size - 1) Color.White else MutedText,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
 
@@ -363,13 +378,13 @@ fun PlanBuilderScreen(
                                             editingSessionId = session.id
                                             showAddDayDialog = true
                                         },
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Edit,
                                             contentDescription = "Edit Day",
                                             tint = SecondaryText,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
 
@@ -378,13 +393,13 @@ fun PlanBuilderScreen(
                                         onClick = {
                                             sessionToDelete = session
                                         },
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
                                             contentDescription = "Delete Day",
                                             tint = RedAccent,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 }
@@ -400,8 +415,7 @@ fun PlanBuilderScreen(
                                         .padding(12.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        "No exercises. Tap 'Add Exercise' to populate.",
+                                    Text(stringResource(R.string.plan_builder_no_exercises_tap_add_exercise_),
                                         fontFamily = JetBrainsMonoFamily,
                                         fontSize = 11.sp,
                                         color = MutedText
@@ -475,13 +489,13 @@ fun PlanBuilderScreen(
                                                         editingExerciseId = exercise.id
                                                         showAddExerciseDialog = true
                                                     },
-                                                    modifier = Modifier.size(28.dp)
+                                                    modifier = Modifier.size(48.dp)
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.Edit,
                                                         contentDescription = "Edit Exercise",
                                                         tint = SecondaryText,
-                                                        modifier = Modifier.size(14.dp)
+                                                        modifier = Modifier.size(20.dp)
                                                     )
                                                 }
 
@@ -489,13 +503,13 @@ fun PlanBuilderScreen(
                                                     onClick = {
                                                         exerciseToDelete = exercise
                                                     },
-                                                    modifier = Modifier.size(28.dp)
+                                                    modifier = Modifier.size(48.dp)
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.Close,
                                                         contentDescription = "Delete Exercise",
                                                         tint = RedAccent.copy(alpha = 0.8f),
-                                                        modifier = Modifier.size(14.dp)
+                                                        modifier = Modifier.size(20.dp)
                                                     )
                                                 }
                                             }
@@ -523,8 +537,7 @@ fun PlanBuilderScreen(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Text(
-                                        "ADD EXERCISE",
+                                    Text(stringResource(R.string.plan_builder_add_exercise),
                                         fontFamily = SyneFamily,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
@@ -545,8 +558,8 @@ fun PlanBuilderScreen(
     // Add / Edit Day Dialog
     if (showAddDayDialog) {
         val session = editingSessionId?.let { trainViewModel.getSessionById(it) }
-        var dayLabel by remember { mutableStateOf(session?.label ?: "") }
-        var selectedDayOfWeek by remember { mutableStateOf(session?.day ?: "Monday") }
+        var dayLabel by rememberSaveable { mutableStateOf(session?.label ?: "") }
+        var selectedDayOfWeek by rememberSaveable { mutableStateOf(session?.day ?: "Monday") }
         
         val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -570,7 +583,7 @@ fun PlanBuilderScreen(
                     OutlinedTextField(
                         value = dayLabel,
                         onValueChange = { dayLabel = it },
-                        label = { Text("Session Name (e.g. Upper A)", color = SecondaryText) },
+                        label = { Text(stringResource(R.string.plan_builder_session_name_e_g_upper_a), color = SecondaryText) },
                         textStyle = LocalTextStyle.current.copy(color = Color.White),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -583,8 +596,7 @@ fun PlanBuilderScreen(
                         singleLine = true
                     )
 
-                    Text(
-                        "DAY OF THE WEEK",
+                    Text(stringResource(R.string.plan_builder_day_of_the_week),
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -623,12 +635,12 @@ fun PlanBuilderScreen(
                 Button(
                     onClick = {
                         if (dayLabel.isBlank()) {
-                            Toast.makeText(context, "Session name is required", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.plan_builder_session_name_is_required), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         
                         if (editingSessionId == null) {
-                            val newId = System.currentTimeMillis() + kotlin.random.Random.nextInt(100)
+                            val newId = java.util.UUID.randomUUID().hashCode().toLong().let { if (it < 0) -it else it }
                             trainViewModel.addSession(
                                 PlanSession(
                                     id = newId,
@@ -654,12 +666,12 @@ fun PlanBuilderScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                     modifier = Modifier.testTag("save_day_confirm_button")
                 ) {
-                    Text("SAVE", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.plan_builder_save), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showAddDayDialog = false }) {
-                    Text("CANCEL", fontFamily = SyneFamily, color = SecondaryText)
+                    Text(stringResource(R.string.plan_builder_cancel), fontFamily = SyneFamily, color = SecondaryText)
                 }
             }
         )
@@ -668,15 +680,15 @@ fun PlanBuilderScreen(
     // Add / Edit Exercise Dialog
     if (showAddExerciseDialog) {
         val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
-        var exName by remember { mutableStateOf(exercise?.name ?: "") }
-        var selectedMuscle by remember { mutableStateOf(exercise?.muscleGroup ?: MuscleGroups.ALL.first()) }
-        var setsText by remember { mutableStateOf(exercise?.sets?.toString() ?: "3") }
-        var repsMinText by remember { mutableStateOf(exercise?.repsMin?.toString() ?: "8") }
-        var repsMaxText by remember { mutableStateOf(exercise?.repsMax?.toString() ?: "12") }
-        var restText by remember { mutableStateOf(exercise?.restSeconds?.toString() ?: "90") }
-        var notesText by remember { mutableStateOf(exercise?.notes ?: "") }
+        var exName by rememberSaveable { mutableStateOf(exercise?.name ?: "") }
+        var selectedMuscle by rememberSaveable { mutableStateOf(exercise?.muscleGroup ?: MuscleGroups.ALL.first()) }
+        var setsText by rememberSaveable { mutableStateOf(exercise?.sets?.toString() ?: "3") }
+        var repsMinText by rememberSaveable { mutableStateOf(exercise?.repsMin?.toString() ?: "8") }
+        var repsMaxText by rememberSaveable { mutableStateOf(exercise?.repsMax?.toString() ?: "12") }
+        var restText by rememberSaveable { mutableStateOf(exercise?.restSeconds?.toString() ?: "90") }
+        var notesText by rememberSaveable { mutableStateOf(exercise?.notes ?: "") }
 
-        var showMuscleDropdown by remember { mutableStateOf(false) }
+        var showMuscleDropdown by rememberSaveable { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = { showAddExerciseDialog = false },
@@ -700,7 +712,7 @@ fun PlanBuilderScreen(
                     OutlinedTextField(
                         value = exName,
                         onValueChange = { exName = it },
-                        label = { Text("Exercise Name", color = SecondaryText) },
+                        label = { Text(stringResource(R.string.plan_builder_exercise_name), color = SecondaryText) },
                         textStyle = LocalTextStyle.current.copy(color = Color.White),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -713,8 +725,7 @@ fun PlanBuilderScreen(
                         singleLine = true
                     )
 
-                    Text(
-                        "MUSCLE GROUP",
+                    Text(stringResource(R.string.plan_builder_muscle_group),
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -767,7 +778,7 @@ fun PlanBuilderScreen(
                         OutlinedTextField(
                             value = setsText,
                             onValueChange = { setsText = it },
-                            label = { Text("Sets", color = SecondaryText, fontSize = 10.sp) },
+                            label = { Text(stringResource(R.string.plan_builder_sets), color = SecondaryText, fontSize = 10.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
                                 .weight(1f)
@@ -783,7 +794,7 @@ fun PlanBuilderScreen(
                         OutlinedTextField(
                             value = repsMinText,
                             onValueChange = { repsMinText = it },
-                            label = { Text("Min Reps", color = SecondaryText, fontSize = 10.sp) },
+                            label = { Text(stringResource(R.string.plan_builder_min_reps), color = SecondaryText, fontSize = 10.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
                                 .weight(1.1f)
@@ -799,7 +810,7 @@ fun PlanBuilderScreen(
                         OutlinedTextField(
                             value = repsMaxText,
                             onValueChange = { repsMaxText = it },
-                            label = { Text("Max Reps", color = SecondaryText, fontSize = 10.sp) },
+                            label = { Text(stringResource(R.string.plan_builder_max_reps), color = SecondaryText, fontSize = 10.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
                                 .weight(1.1f)
@@ -816,7 +827,7 @@ fun PlanBuilderScreen(
                     OutlinedTextField(
                         value = restText,
                         onValueChange = { restText = it },
-                        label = { Text("Rest (seconds)", color = SecondaryText) },
+                        label = { Text(stringResource(R.string.plan_builder_rest_seconds), color = SecondaryText) },
                         textStyle = LocalTextStyle.current.copy(color = Color.White),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -832,7 +843,7 @@ fun PlanBuilderScreen(
                     OutlinedTextField(
                         value = notesText,
                         onValueChange = { notesText = it },
-                        label = { Text("Optional Notes", color = SecondaryText) },
+                        label = { Text(stringResource(R.string.plan_builder_optional_notes), color = SecondaryText) },
                         textStyle = LocalTextStyle.current.copy(color = Color.White),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -849,7 +860,7 @@ fun PlanBuilderScreen(
                 Button(
                     onClick = {
                         if (exName.isBlank()) {
-                            Toast.makeText(context, "Exercise name is required", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.plan_builder_exercise_name_is_required), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         val setsVal = setsText.toIntOrNull() ?: 3
@@ -858,15 +869,15 @@ fun PlanBuilderScreen(
                         val restVal = restText.toIntOrNull() ?: 90
 
                         if (setsVal <= 0 || minRepsVal <= 0 || maxRepsVal <= 0 || restVal < 0) {
-                            Toast.makeText(context, "Numeric values must be valid", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.plan_builder_numeric_values_must_be_valid), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
 
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 
                         if (editingExerciseId == null) {
-                            val newId = System.currentTimeMillis() + kotlin.random.Random.nextInt(100)
-                            trainViewModel.addExercise(
+                            val newId = java.util.UUID.randomUUID().hashCode().toLong().let { if (it < 0) -it else it }
+                            trainViewModel.addCustomExercise(
                                 PlanExercise(
                                     id = newId,
                                     planSessionId = targetSessionId,
@@ -901,12 +912,12 @@ fun PlanBuilderScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                     modifier = Modifier.testTag("save_exercise_confirm_button")
                 ) {
-                    Text("SAVE", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.plan_builder_save), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showAddExerciseDialog = false }) {
-                    Text("CANCEL", fontFamily = SyneFamily, color = SecondaryText)
+                    Text(stringResource(R.string.plan_builder_cancel), fontFamily = SyneFamily, color = SecondaryText)
                 }
             }
         )
@@ -941,12 +952,12 @@ fun PlanBuilderScreen(
                         sessionToDelete = null
                     }
                 ) {
-                    Text("Delete", color = RedAccent, fontFamily = SyneFamily, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.plan_builder_delete), color = RedAccent, fontFamily = SyneFamily, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { sessionToDelete = null }) {
-                    Text("Cancel", fontFamily = SyneFamily, color = SecondaryText)
+                    Text(stringResource(R.string.plan_builder_cancel_1), fontFamily = SyneFamily, color = SecondaryText)
                 }
             }
         )
@@ -981,12 +992,12 @@ fun PlanBuilderScreen(
                         exerciseToDelete = null
                     }
                 ) {
-                    Text("Delete", color = RedAccent, fontFamily = SyneFamily, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.plan_builder_delete), color = RedAccent, fontFamily = SyneFamily, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { exerciseToDelete = null }) {
-                    Text("Cancel", fontFamily = SyneFamily, color = SecondaryText)
+                    Text(stringResource(R.string.plan_builder_cancel_1), fontFamily = SyneFamily, color = SecondaryText)
                 }
             }
         )

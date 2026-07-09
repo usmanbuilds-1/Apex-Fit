@@ -204,7 +204,7 @@ object ReadinessFinal {
                     primaryList.add(MuscleFatigueSnapshot(exercise.muscleGroup, daysAgo, primaryDose))
                     
                     for ((secMuscle, pct) in secondaries) {
-                        if (secMuscle != exercise.muscleGroup) {
+                        if (com.example.utils.MuscleAliases.getCanonical(secMuscle) != com.example.utils.MuscleAliases.getCanonical(exercise.muscleGroup)) {
                             val secList = muscleFatigueHistory.getOrPut(secMuscle) { mutableListOf() }
                             secList.add(MuscleFatigueSnapshot(secMuscle, daysAgo, dose * pct))
                         }
@@ -261,14 +261,14 @@ object ReadinessFinal {
         val todaysMuscleGroups = todayExercises.map { it.muscleGroup }.distinct()
 
         // f) nutritionScore
-        val compliance = AlgorithmEngine.calcComplianceScores(nutritionLog, completedSessions, targets)
+        val compliance = AlgorithmEngine.calcComplianceScores(nutritionLog, completedLast30, targets)
         val nutritionScore = (compliance.calories + compliance.protein) / 2
 
         // g) sleepScore
         val sleepScore: Int? = null
 
         // h) acuteLoad and chronicLoad
-        val fatigueResult = AlgorithmEngine.calcFatigueToFitness(completedSessions)
+        val fatigueResult = AlgorithmEngine.calcFatigueToFitness(completedLast30)
         val acuteLoad = fatigueResult.acuteLoad
         val chronicLoad = fatigueResult.chronicLoad
 

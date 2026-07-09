@@ -13,7 +13,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.ui.models.UiState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -46,7 +50,22 @@ fun NutritionScreen(
     onNavigateTo: (Int) -> Unit
 ) {
     val selectedDate by nutritionViewModel.selectedNutritionDate.collectAsStateWithLifecycle()
-    val loggedMeals by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
+    val loggedMealsState by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
+    
+    if (loggedMealsState is UiState.Loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = GreenAccent)
+        }
+        return
+    }
+    if (loggedMealsState is UiState.Error) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.nutrition_error_loading_meals), color = Color.White)
+        }
+        return
+    }
+    
+    val loggedMeals: List<com.example.ui.models.UiNutritionEntry> = (loggedMealsState as? UiState.Success)?.data ?: emptyList()
     val calorieTargetManual by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
@@ -65,7 +84,7 @@ fun NutritionScreen(
     val loggedCarbs = visibleMeals.sumOf { it.carbs }
     val loggedFat = visibleMeals.sumOf { it.fat }
 
-    var showAddFoodModal by remember { mutableStateOf(false) }
+    var showAddFoodModal by rememberSaveable { mutableStateOf(false) }
 
     fun triggerPendingDeletion(meal: com.example.ui.models.UiNutritionEntry) {
         if (pendingDeletions.containsKey(meal.id)) return
@@ -190,15 +209,15 @@ fun NutritionScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("${(loggedCalories * 100 / calorieTarget).coerceIn(0, 100)}%", fontFamily = JetBrainsMonoFamily, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-                            Text("KCAL", fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = SecondaryText)
+                            Text(stringResource(R.string.nutrition_fmt_str, (loggedCalories * 100 / calorieTarget).coerceIn(0, 100)), fontFamily = JetBrainsMonoFamily, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+                            Text(stringResource(R.string.nutrition_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = SecondaryText)
                         }
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))
 
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("TARGET: $calorieTarget KCAL • LOGGED: $loggedCalories KCAL", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories), fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = PrimaryText)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             MacroStatMini(label = "Prot:", value = "${loggedProtein.toInt()}g", color = Color(0xFFA78BFA))
                             MacroStatMini(label = "Carb:", value = "${loggedCarbs.toInt()}g", color = BlueAccent)
@@ -220,7 +239,7 @@ fun NutritionScreen(
                     .height(48.dp)
                     .testTag("add_nutrition_button")
             ) {
-                Text("+ Log Meal", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A0A0F))
+                Text(stringResource(R.string.nutrition_log_meal), fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A0A0F))
             }
         }
 
@@ -242,7 +261,7 @@ fun NutritionScreen(
                             .height(80.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No meals logged yet.", fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+                        Text(stringResource(R.string.nutrition_no_meals_logged_yet), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
                     }
                 } else {
                     visibleMeals.forEach { meal ->
@@ -300,7 +319,7 @@ fun NutritionScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column {
-                                                Text("LOGGED AT ${meal.time}", fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
+                                                Text(stringResource(R.string.nutrition_logged_at, com.example.utils.formatTimeForDisplay(LocalContext.current, meal.time)), fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
                                                 Text(meal.name.ifEmpty { "Logged Meal" }, fontFamily = SyneFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
                                                 Text(
                                                     text = "${meal.calories} kcal • P: ${meal.protein.toInt()}g C: ${meal.carbs.toInt()}g F: ${meal.fat.toInt()}g",
@@ -384,7 +403,7 @@ fun MacroStatMini(label: String, value: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
         Spacer(modifier = Modifier.width(4.dp))
-        Text("$label $value", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = SecondaryText)
+        Text(stringResource(R.string.nutrition_fmt_str_1, label, value), fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = SecondaryText)
     }
 }
 
@@ -394,16 +413,16 @@ fun AddFoodSheet(
     selectedDate: String,
     onDismiss: () -> Unit
 ) {
-    var querySearch by remember { mutableStateOf("") }
-    var inputCal by remember { mutableStateOf("") }
-    var inputProt by remember { mutableStateOf("") }
-    var inputCarb by remember { mutableStateOf("") }
-    var inputFat by remember { mutableStateOf("") }
+    var querySearch by rememberSaveable { mutableStateOf("") }
+    var inputCal by rememberSaveable { mutableStateOf("") }
+    var inputProt by rememberSaveable { mutableStateOf("") }
+    var inputCarb by rememberSaveable { mutableStateOf("") }
+    var inputFat by rememberSaveable { mutableStateOf("") }
 
-    var calError by remember { mutableStateOf("") }
-    var protError by remember { mutableStateOf("") }
-    var carbError by remember { mutableStateOf("") }
-    var fatError by remember { mutableStateOf("") }
+    var calError by rememberSaveable { mutableStateOf("") }
+    var protError by rememberSaveable { mutableStateOf("") }
+    var carbError by rememberSaveable { mutableStateOf("") }
+    var fatError by rememberSaveable { mutableStateOf("") }
 
     val isCalValid = inputCal.isNotEmpty() && inputCal.toIntOrNull()?.let { it in 0..5000 } == true
     val isProtValid = inputProt.isNotEmpty() && inputProt.toDoubleOrNull()?.let { it in 0.0..500.0 } == true
@@ -417,12 +436,12 @@ fun AddFoodSheet(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Log Food Intake", fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.nutrition_log_food_intake), fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
         containerColor = DarkCardSurface,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "STATUS: Auto-tracking local time (${java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US).format(java.util.Date())})",
+                    text = "STATUS: Auto-tracking local time (${java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())})",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 10.sp,
                     color = AmberAccent,
@@ -432,7 +451,7 @@ fun AddFoodSheet(
                 OutlinedTextField(
                     value = querySearch,
                     onValueChange = { querySearch = it },
-                    label = { Text("Ingredient or Food Name", color = SecondaryText) },
+                    label = { Text(stringResource(R.string.nutrition_ingredient_or_food_name), color = SecondaryText) },
                     textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                     modifier = Modifier.fillMaxWidth().testTag("add_food_name_input"),
                     colors = TextFieldDefaults.colors(
@@ -465,7 +484,7 @@ fun AddFoodSheet(
                             inputCal = finalStr
                             calError = error
                         },
-                        label = { Text("Calories", color = SecondaryText, fontSize = 10.sp) },
+                        label = { Text(stringResource(R.string.nutrition_calories), color = SecondaryText, fontSize = 10.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f).testTag("add_food_calories_input"),
@@ -504,7 +523,7 @@ fun AddFoodSheet(
                             inputProt = finalStr
                             protError = error
                         },
-                        label = { Text("Protein (g)", color = SecondaryText, fontSize = 10.sp) },
+                        label = { Text(stringResource(R.string.nutrition_protein_g), color = SecondaryText, fontSize = 10.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_protein_input"),
@@ -546,7 +565,7 @@ fun AddFoodSheet(
                             inputCarb = finalStr
                             carbError = error
                         },
-                        label = { Text("Carbs (g)", color = SecondaryText, fontSize = 10.sp) },
+                        label = { Text(stringResource(R.string.nutrition_carbs_g), color = SecondaryText, fontSize = 10.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_carbs_input"),
@@ -585,7 +604,7 @@ fun AddFoodSheet(
                             inputFat = finalStr
                             fatError = error
                         },
-                        label = { Text("Fat (g)", color = SecondaryText, fontSize = 10.sp) },
+                        label = { Text(stringResource(R.string.nutrition_fat_g), color = SecondaryText, fontSize = 10.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_fat_input"),
@@ -598,7 +617,7 @@ fun AddFoodSheet(
                     )
                 }
 
-                Text("QUICK ADD", fontFamily = SyneFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AmberAccent)
+                Text(stringResource(R.string.nutrition_quick_add), fontFamily = SyneFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AmberAccent)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -615,7 +634,7 @@ fun AddFoodSheet(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text("+100 kcal", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_100_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
                     }
 
                     OutlinedButton(
@@ -630,7 +649,7 @@ fun AddFoodSheet(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text("+10g Prot", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_10g_prot), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
                     }
 
                     OutlinedButton(
@@ -645,7 +664,7 @@ fun AddFoodSheet(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text("+10g Carbs", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_10g_carbs), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
                     }
 
                     OutlinedButton(
@@ -660,7 +679,7 @@ fun AddFoodSheet(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text("+5g Fat", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_5g_fat), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
                     }
                 }
 
@@ -714,7 +733,7 @@ fun AddFoodSheet(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = SecondaryText)
+                Text(stringResource(R.string.nutrition_cancel), color = SecondaryText)
             }
         }
     )
@@ -727,7 +746,7 @@ fun AdaptiveCalorieTargetCard(
     fitnessViewModel: FitnessViewModel,
     modifier: Modifier = Modifier
 ) {
-    var showAcceptDialog by remember { mutableStateOf(false) }
+    var showAcceptDialog by rememberSaveable { mutableStateOf(false) }
 
     PremiumCard(modifier = modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -736,8 +755,7 @@ fun AdaptiveCalorieTargetCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    "ADAPTIVE CALORIE TARGET",
+                Text(stringResource(R.string.nutrition_adaptive_calorie_target),
                     fontFamily = SyneFamily,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -767,21 +785,18 @@ fun AdaptiveCalorieTargetCard(
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            "Your real calorie burn this week: ${tdeeResult.tdee} kcal",
+                        Text(stringResource(R.string.nutrition_your_real_calorie_burn_this_we, tdeeResult.tdee),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = Color(0xFF34D399),
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            "Suggested target for $goalLabel: $targetCals kcal",
+                        Text(stringResource(R.string.nutrition_suggested_target_for_kcal, goalLabel, targetCals),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = PrimaryText
                         )
-                        Text(
-                            "Based on ${tdeeResult.weightChangeKg.let { "%.2f".format(it) }} kg change across ${tdeeResult.avgCalories} avg daily intake.",
+                        Text(stringResource(R.string.nutrition_based_on_tdeeresult_weightchan, tdeeResult.weightChangeKg, tdeeResult.avgCalories),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 9.sp,
                             color = SecondaryText,
@@ -795,8 +810,7 @@ fun AdaptiveCalorieTargetCard(
                                 .height(36.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent)
                         ) {
-                            Text(
-                                "ACCEPT TARGET",
+                            Text(stringResource(R.string.nutrition_accept_target),
                                 fontFamily = SyneFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -807,19 +821,19 @@ fun AdaptiveCalorieTargetCard(
                         if (showAcceptDialog) {
                             AlertDialog(
                                 onDismissRequest = { showAcceptDialog = false },
-                                title = { Text("Update Calorie Target?") },
-                                text = { Text("Your new daily target will be $targetCals kcal for $goalLabel.") },
+                                title = { Text(stringResource(R.string.nutrition_update_calorie_target)) },
+                                text = { Text(stringResource(R.string.nutrition_your_new_daily_target_will_be_, targetCals, goalLabel)) },
                                 confirmButton = {
                                     TextButton(onClick = {
                                         fitnessViewModel.setManualCalorieTarget(true, targetCals)
                                         showAcceptDialog = false
                                     }) {
-                                        Text("Confirm")
+                                        Text(stringResource(R.string.nutrition_confirm))
                                     }
                                 },
                                 dismissButton = {
                                     TextButton(onClick = { showAcceptDialog = false }) {
-                                        Text("Cancel")
+                                        Text(stringResource(R.string.nutrition_cancel))
                                     }
                                 }
                             )
@@ -830,22 +844,19 @@ fun AdaptiveCalorieTargetCard(
                 // ─ MEDIUM CONFIDENCE ───────────────────────────────────
                 tdeeResult.confidence == "medium" -> {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            "Estimated burn: ~${tdeeResult.tdee ?: tdeeResult.avgCalories} kcal",
+                        Text(stringResource(R.string.nutrition_estimated_burn_kcal, tdeeResult.tdee ?: tdeeResult.avgCalories),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = PrimaryText,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            "Accuracy improving — keep logging daily",
+                        Text(stringResource(R.string.nutrition_accuracy_improving_keep_loggin),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 10.sp,
                             color = Color(0xFFF97316),
                             fontWeight = FontWeight.Medium
                         )
-                        Text(
-                            "You have 4–6 days of data. A precise target will unlock in 7–10 days.",
+                        Text(stringResource(R.string.nutrition_you_have_4_6_days_of_data_a_pr),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 9.sp,
                             color = SecondaryText,
@@ -857,22 +868,19 @@ fun AdaptiveCalorieTargetCard(
                 // ─ LOW CONFIDENCE ──────────────────────────────────────
                 else -> {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            "Calculating your personal TDEE",
+                        Text(stringResource(R.string.nutrition_calculating_your_personal_tdee),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = PrimaryText,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            "Log 7 more days to activate adaptive targeting",
+                        Text(stringResource(R.string.nutrition_log_7_more_days_to_activate_ad),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 10.sp,
                             color = Color(0xFF8A8A9A),
                             fontWeight = FontWeight.Medium
                         )
-                        Text(
-                            "The system learns your metabolic rate from daily weight + nutrition logs. Once you hit 14 days of history, precise targets unlock.",
+                        Text(stringResource(R.string.nutrition_the_system_learns_your_metabol),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 9.sp,
                             color = SecondaryText,

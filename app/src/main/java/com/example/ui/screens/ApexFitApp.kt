@@ -24,7 +24,10 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -43,6 +46,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -120,17 +125,11 @@ fun PremiumCard(
 fun ApexFitApp(
     fitnessViewModel: FitnessViewModel = viewModel(),
     algorithmViewModel: AlgorithmViewModel = viewModel(),
-    homeViewModel: HomeViewModel = viewModel(),
-    trainViewModel: TrainViewModel = viewModel(),
-    progressViewModel: ProgressViewModel = viewModel(),
-    nutritionViewModel: NutritionViewModel = viewModel()
+    homeViewModel: HomeViewModel = fitnessViewModel.homeVM,
+    trainViewModel: TrainViewModel = fitnessViewModel.trainVM,
+    progressViewModel: ProgressViewModel = fitnessViewModel.progressVM,
+    nutritionViewModel: NutritionViewModel = fitnessViewModel.nutritionVM
 ) {
-    // Link specialized ViewModels to fitnessViewModel
-    fitnessViewModel.homeVM = homeViewModel
-    fitnessViewModel.trainVM = trainViewModel
-    fitnessViewModel.progressVM = progressViewModel
-    fitnessViewModel.nutritionVM = nutritionViewModel
-
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -143,7 +142,15 @@ fun ApexFitApp(
 
     val activeSession by trainViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     var hasPromptedResume by rememberSaveable { mutableStateOf(false) }
-    var showResumeDialog by remember { mutableStateOf(false) }
+    var showResumeDialog by rememberSaveable { mutableStateOf(false) }
+
+    var showNotificationRationale by rememberSaveable { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        // Handle result
+    }
 
     LaunchedEffect(activeSession, isOnboarded) {
         if (isOnboarded && activeSession != null && !hasPromptedResume) {
@@ -180,7 +187,7 @@ fun ApexFitApp(
                         fitnessViewModel.selectTab(1) // navigate to Train tab
                     }
                 ) {
-                    Text("RESUME", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
+                    Text(stringResource(R.string.onboarding_resume), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
                 }
             },
             dismissButton = {
@@ -190,13 +197,31 @@ fun ApexFitApp(
                         trainViewModel.cancelActiveWorkout()
                     }
                 ) {
-                    Text("DISCARD", fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFFE84A4A))
+                    Text(stringResource(R.string.onboarding_discard), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFFE84A4A))
                 }
             }
         )
     }
 
-    var showSettingsSheet by remember { mutableStateOf(false) }
+    if (showNotificationRationale) {
+        NotificationRationaleDialog(
+            onAllow = {
+                showNotificationRationale = false
+                val prefs = context.getSharedPreferences("apex_prefs", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("notifications_requested", true).apply()
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            onSkip = {
+                showNotificationRationale = false
+                val prefs = context.getSharedPreferences("apex_prefs", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("notifications_requested", true).apply()
+            }
+        )
+    }
+
+    var showSettingsSheet by rememberSaveable { mutableStateOf(false) }
 
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
@@ -242,6 +267,7 @@ fun ApexFitApp(
             preferredUnits = preferredUnits,
             onComplete = { name, selectedGoal, currW, goalW, key, height, age, sex ->
                 fitnessViewModel.completeOnboarding(name, selectedGoal, currW, goalW, key, height, age, sex)
+                showNotificationRationale = true
             }
         )
     } else {
@@ -477,8 +503,14 @@ fun OnboardingScreen(
                 // Name field
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Your Name", color = SecondaryText) },
+                    onValueChange = { newName ->
+                        name = newName.take(40).filter { !it.isISOControl() }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Next
+                    ),
+                    label = { Text(stringResource(R.string.onboarding_your_name), color = SecondaryText) },
                     textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -543,8 +575,8 @@ fun OnboardingScreen(
                 ) {
                     OutlinedTextField(
                         value = currentWeightStr,
-                        onValueChange = { currentWeightStr = it },
-                        label = { Text("Current Wt ($unitLabel)", color = SecondaryText) },
+                        onValueChange = { currentWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                        label = { Text(stringResource(R.string.onboarding_current_wt, unitLabel), color = SecondaryText) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier
@@ -559,8 +591,8 @@ fun OnboardingScreen(
                     )
                     OutlinedTextField(
                         value = goalWeightStr,
-                        onValueChange = { goalWeightStr = it },
-                        label = { Text("Goal Wt ($unitLabel)", color = SecondaryText) },
+                        onValueChange = { goalWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                        label = { Text(stringResource(R.string.onboarding_goal_wt, unitLabel), color = SecondaryText) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier
@@ -584,8 +616,8 @@ fun OnboardingScreen(
                 ) {
                     OutlinedTextField(
                         value = heightStr,
-                        onValueChange = { heightStr = it },
-                        label = { Text("Height (cm)", color = SecondaryText) },
+                        onValueChange = { heightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                        label = { Text(stringResource(R.string.onboarding_height_cm), color = SecondaryText) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f),
@@ -599,7 +631,7 @@ fun OnboardingScreen(
                     OutlinedTextField(
                         value = ageStr,
                         onValueChange = { ageStr = it },
-                        label = { Text("Age (yrs)", color = SecondaryText) },
+                        label = { Text(stringResource(R.string.onboarding_age_yrs), color = SecondaryText) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
@@ -653,20 +685,26 @@ fun OnboardingScreen(
                         val gw = goalWeightStr.toDoubleOrNull() ?: com.example.UserDefaults.WEIGHT_KG
                         val ht = heightStr.toDoubleOrNull() ?: com.example.UserDefaults.HEIGHT_CM
                         val ag = ageStr.toIntOrNull() ?: com.example.UserDefaults.AGE_YEARS
-                        onComplete(name, goalTarget, cw, gw, "", ht, ag, sexChoice.lowercase())
+                        onComplete(name.trim(), goalTarget, cw, gw, "", ht, ag, sexChoice.lowercase())
                     },
+                    enabled = name.trim().length in 2..40 &&
+                            currentWeightStr.isNotBlank() && goalWeightStr.isNotBlank() &&
+                            heightStr.isNotBlank() && ageStr.isNotBlank(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
                         .testTag("onboarding_complete_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AmberAccent,
+                        contentColor = Color(0xFF0A0A0F),
+                        disabledContainerColor = DarkRaised,
+                        disabledContentColor = SecondaryText
+                    ),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text(
-                        "Get Started",
+                    Text(stringResource(R.string.onboarding_get_started),
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0A0A0F),
                         fontSize = 14.sp
                     )
                 }
@@ -680,15 +718,18 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(72.dp)
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
-        color = DarkCardSurface
+            .navigationBarsPadding(),
+        color = DarkBackground
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding(),
-            horizontalArrangement = Arrangement.SpaceAround,
+                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .background(DarkCardSurface)
+                .border(0.5.dp, BorderSubtle, RoundedCornerShape(32.dp)),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             val tabs = listOf(
@@ -700,45 +741,75 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
 
             tabs.forEach { (label, icon, index) ->
                 val isSelected = activeTab == index
-                val tintColor = if (isSelected) OrangeAccent else Color(0xFF9CA3AF) // Brighter MutedText/SecondaryText for contrast
+                val labelColor = if (isSelected) OrangeAccent else Color(0xFF9CA3AF)
 
-                Column(
+                Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clickable { onTabSelected(index) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onTabSelected(index) },
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Active indicator: 3dp tall bar ABOVE icon, 24dp wide, OrangeAccent, rounded
-                    Box(
-                        modifier = Modifier
-                            .width(24.dp)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(if (isSelected) OrangeAccent else Color.Transparent)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = tintColor,
-                        modifier = Modifier.size(24.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = label,
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = tintColor
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            tint = labelColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = label.uppercase(),
+                            fontFamily = SyneFamily,
+                            fontSize = 10.sp,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                            color = labelColor,
+                            letterSpacing = 0.8.sp
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+fun NotificationRationaleDialog(onAllow: () -> Unit, onSkip: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onSkip,
+        containerColor = DarkCardSurface,
+        title = {
+            Text(
+                text = "Stay on Track with Apex Fit",
+                fontFamily = SyneFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = PrimaryText
+            )
+        },
+        text = {
+            Text(
+                text = "Apex Fit sends you a daily readiness report, pre-workout nudges, and protein reminders. Allow notifications to get the most out of your training?",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 13.sp,
+                color = SecondaryText
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onAllow) {
+                Text(stringResource(R.string.onboarding_allow), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onSkip) {
+                Text(stringResource(R.string.onboarding_not_now), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = SecondaryText)
+            }
+        }
+    )
 }

@@ -4,17 +4,22 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import kotlinx.coroutines.*
+import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 object AudioService {
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-@Volatile
+    @OptIn(ObsoleteCoroutinesApi::class)
+    private val scope = CoroutineScope(newSingleThreadContext("audio"))
+    private val audioMutex = Mutex()
+    @Volatile
     private var audioTrack: AudioTrack? = null
 
-    fun playBeep() {
+    suspend fun playBeep() {
         playSynthesizedAudioTone(880.0, 150, android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
 
-    fun playRestTimerComplete(context: android.content.Context) {
+    suspend fun playRestTimerComplete(context: android.content.Context) {
         vibrate(context, 500)
         playSynthesizedAudioTone(1100.0, 350, android.media.AudioAttributes.USAGE_NOTIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
@@ -36,14 +41,14 @@ object AudioService {
         }
     }
 
-    fun playMusicSynthNote() {
+    suspend fun playMusicSynthNote() {
         val notes = listOf(130.81, 164.81, 196.00, 220.00) // C3, E3, G3, A3
         val randomNote = notes.random()
         playSynthesizedAudioTone(randomNote, 80, android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
 
-    fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int, usage: Int = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType: Int = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION) {
-        scope.launch {
+    suspend fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int, usage: Int = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType: Int = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION) {
+        audioMutex.withLock {
             try {
                 val sampleRate = 8000
                 val numSamples = durationMs * sampleRate / 1000

@@ -22,9 +22,12 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     private val _selectedNutritionDate = MutableStateFlow(getTodayDateString())
     val selectedNutritionDate: StateFlow<String> = _selectedNutritionDate.asStateFlow()
 
-    val loggedMeals: StateFlow<List<UiNutritionEntry>> = _selectedNutritionDate.flatMapLatest { date ->
+    val loggedMeals: StateFlow<UiState<List<UiNutritionEntry>>> = _selectedNutritionDate.flatMapLatest { date ->
         repository.getNutritionEntries(date).map { list -> list.map { it.toUi() } }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+    .map { UiState.Success(it) as UiState<List<UiNutritionEntry>> }
+    .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     // Log meal and delete meal
     fun logNutrition(
@@ -84,6 +87,6 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun getCurrentLocalTimeString(): String {
-        return java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US).format(java.util.Date())
+        return android.text.format.DateFormat.getTimeFormat(getApplication()).format(java.util.Date())
     }
 }

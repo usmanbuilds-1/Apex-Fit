@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.ui.models.UiState
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -16,8 +17,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -31,6 +36,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -71,12 +77,12 @@ import kotlin.math.sin
 @Composable
 fun ApexCard(
     modifier: Modifier = Modifier,
-    elevation: Dp = 4.dp,
+    elevation: Dp = 1.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = DarkCardSurface
         ),
@@ -102,21 +108,49 @@ fun HomeScreen(
 ) {
     val username by fitnessViewModel.username.collectAsStateWithLifecycle()
     val weight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
-    val activePlanSessions by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val activePlanSessionsState by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val activePlanSessions: List<com.example.data.PlanSession> = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
 
-    val loggedMeals by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
+    val loggedMealsState by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
+    val loggedMeals: List<com.example.ui.models.UiNutritionEntry> = (loggedMealsState as? UiState.Success)?.data ?: emptyList()
     val calorieTargetManual by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
 
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
     val streakResult by algorithmViewModel.streakResult.collectAsStateWithLifecycle()
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
-    val todayExercises by trainViewModel.todayExercises.collectAsStateWithLifecycle()
-    val weightHistory by homeViewModel.weightHistory.collectAsStateWithLifecycle()
+    val todayExercisesState by trainViewModel.todayExercises.collectAsStateWithLifecycle()
+    val weightHistoryState by homeViewModel.weightHistory.collectAsStateWithLifecycle()
+    val macroTargetsState by homeViewModel.macroTargets.collectAsStateWithLifecycle()
     val plateauResult by algorithmViewModel.plateauResult.collectAsStateWithLifecycle()
-    val targets by algorithmViewModel.targets.collectAsStateWithLifecycle()
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
+    val targets = (macroTargetsState as? UiState.Success)?.data
+
+    if (todayExercisesState is UiState.Loading || weightHistoryState is UiState.Loading || macroTargetsState is UiState.Loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = IndigoAccent)
+        }
+        return
+    }
+
+    if (todayExercisesState is UiState.Error || weightHistoryState is UiState.Error || macroTargetsState is UiState.Error) {
+        val msg = (todayExercisesState as? UiState.Error)?.message
+            ?: (weightHistoryState as? UiState.Error)?.message
+            ?: (macroTargetsState as? UiState.Error)?.message ?: "Unknown error"
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(stringResource(R.string.home_failed_to_load, msg), color = Color.White)
+        }
+        return
+    }
+
+    val todayExercises = (todayExercisesState as UiState.Success).data
+    val weightHistory = (weightHistoryState as UiState.Success).data
+    val macroTargets = (macroTargetsState as UiState.Success).data
 
     val userHeight by fitnessViewModel.userHeight.collectAsStateWithLifecycle()
     val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()
@@ -128,7 +162,7 @@ fun HomeScreen(
     val fatigueRatio by algorithmViewModel.fatigueRatio.collectAsStateWithLifecycle()
     val allPRs by algorithmViewModel.allPRs.collectAsStateWithLifecycle()
 
-    var selectedFilter by remember { mutableStateOf("7D") }
+    var selectedFilter by rememberSaveable { mutableStateOf("7D") }
 
     // Aggregate meal stats
     val latestWeight = weightHistory.firstOrNull()?.weight ?: weight ?: com.example.UserDefaults.WEIGHT_KG
@@ -157,9 +191,9 @@ fun HomeScreen(
 
     val context = LocalContext.current
 
-    var showWeightDialog by remember { mutableStateOf(false) }
-    var weightInput by remember { mutableStateOf("") }
-    var showCalculationExplanation by remember { mutableStateOf(false) }
+    var showWeightDialog by rememberSaveable { mutableStateOf(false) }
+    var weightInput by rememberSaveable { mutableStateOf("") }
+    var showCalculationExplanation by rememberSaveable { mutableStateOf(false) }
 
     val allNutritionHistory by homeViewModel.allNutritionHistory.collectAsStateWithLifecycle()
     val goalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
@@ -268,284 +302,289 @@ fun HomeScreen(
         "Target reached!"
     } else {
         val sign = if (weightDiff > 0) "+" else ""
-        "${sign}${String.format("%.1f", weightDiff)} $units to target"
+        "${sign}${String.format(java.util.Locale.US, "%.1f", weightDiff)} $units to target"
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         // 1. Welcome Header
         Column(modifier = Modifier.fillMaxWidth()) {
-                val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-                val greeting = when (currentHour) {
-                    in 0..11 -> "Good morning"
-                    in 12..16 -> "Good afternoon"
-                    in 17..21 -> "Good evening"
-                    else -> "Good night"
+            val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+            val greeting = when (currentHour) {
+                in 0..11 -> "Good morning"
+                in 12..16 -> "Good afternoon"
+                in 17..21 -> "Good evening"
+                else -> "Good night"
+            }
+            val displayName = username.ifEmpty { "Athlete" }
+            val annotatedGreeting = buildAnnotatedString {
+                withStyle(style = SpanStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)) {
+                    append(greeting)
                 }
-                val displayName = username.ifEmpty { "Athlete" }
-                val annotatedGreeting = buildAnnotatedString {
-                    withStyle(style = SpanStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)) {
-                        append(greeting)
-                    }
-                    withStyle(style = SpanStyle(fontSize = 24.sp, fontWeight = FontWeight.Normal, color = Color.White)) {
-                        append(", $displayName 👋")
+                withStyle(style = SpanStyle(fontSize = 24.sp, fontWeight = FontWeight.Normal, color = Color.White)) {
+                    append(", $displayName 👋")
+                }
+            }
+            Text(
+                text = annotatedGreeting,
+                modifier = Modifier.testTag("home_greeting_text")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Let's get after it today.",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color.Gray
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 2. TODAY'S TRAINING Card (Combined Readiness & Workout)
+        ApexCard(
+            elevation = 2.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("todays_training_premium_card")
+        ) {
+            Column {
+                // Header Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "TODAY'S TRAINING",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = AmberAccent,
+                            letterSpacing = 1.5.sp
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "How readiness is calculated",
+                            tint = AmberAccent.copy(alpha = 0.8f),
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable { showCalculationExplanation = true }
+                                .testTag("readiness_info_icon")
+                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 1. Details Column (Left side)
+                    Column(
+                        modifier = Modifier.weight(1.2f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = sessionName,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryText,
+                            lineHeight = 30.sp
+                        )
+                        Text(
+                            text = focusMuscles,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = SecondaryText,
+                            lineHeight = 18.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Time Badge Pill
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(DarkRaised)
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = AmberAccent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "~$finalWorkoutDurationMin min",
+                                fontSize = 11.sp,
+                                fontFamily = JetBrainsMonoFamily,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryText
+                            )
+                        }
+                    }
+
+                    // 2. Circular Progress Indicator (Center)
+                    Box(
+                        modifier = Modifier
+                            .size(88.dp)
+                            .drawBehind {
+                                val strokeWidthPx = 10.dp.toPx()
+                                val diameter = size.minDimension - strokeWidthPx
+                                val topLeftOffset = Offset(
+                                    x = (size.width - diameter) / 2,
+                                    y = (size.height - diameter) / 2
+                                )
+                                val arcSize = Size(diameter, diameter)
+
+                                drawCircle(
+                                    color = DarkRaised,
+                                    radius = diameter / 2,
+                                    style = Stroke(width = strokeWidthPx)
+                                )
+                                drawCircle(
+                                    color = BorderSubtle.copy(alpha = 0.25f),
+                                    radius = (diameter / 2) + 6.dp.toPx(),
+                                    style = Stroke(width = 1.dp.toPx())
+                                )
+                                drawArc(
+                                    color = GreenAccent,
+                                    startAngle = -90f,
+                                    sweepAngle = if (readiness != null) readiness!!.score.toFloat() / 100f * 360f else 0f,
+                                    useCenter = false,
+                                    topLeft = topLeftOffset,
+                                    size = arcSize,
+                                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = if (readiness != null) "${readiness!!.score}%" else "—",
+                                fontSize = 24.sp,
+                                fontFamily = JetBrainsMonoFamily,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = PrimaryText
+                            )
+                            Text(
+                                text = "RECOVERY",
+                                fontSize = 10.sp,
+                                fontFamily = SyneFamily,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = GreenAccent,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+
+                    // 3. Mannequin Muscle Overlay (On the Right)
+                    Box(
+                        modifier = Modifier
+                            .width(72.dp)
+                            .height(120.dp)
+                            .align(Alignment.CenterVertically)
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        Image(
+                            painter = painterResource(id = com.example.R.drawable.img_muscle_figure),
+                            contentDescription = "Trained muscles",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .alpha(0.45f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // START WORKOUT CTA Button
+                Button(
+                    onClick = {
+                        if (todaySession != null) {
+                            fitnessViewModel.startWorkoutSession(todaySession)
+                            onNavigateTo(1)
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                "No workout scheduled for today. Enjoy your rest day!",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = OrangeAccent,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .testTag("start_workout_button"),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "START WORKOUT",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.Black,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 3. STREAK Section
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (streakResult.training.current > 0) {
                 Text(
-                    text = annotatedGreeting,
-                    modifier = Modifier.testTag("home_greeting_text")
+                    text = "🔥 ${streakResult.training.current} DAY STREAK",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = OrangeAccent
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+            } else {
                 Text(
-                    text = "Let's get after it today.",
+                    text = "Log your first workout to start a streak",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Normal,
                     color = Color.Gray
                 )
             }
+        }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 2. TODAY'S TRAINING Card (Combined Readiness & Workout)
-            ApexCard(
-                elevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("todays_training_premium_card")
-            ) {
-                Column {
-                    // Header Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "TODAY'S TRAINING",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AmberAccent,
-                                letterSpacing = 0.5.sp
-                            )
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = "How readiness is calculated",
-                                tint = AmberAccent.copy(alpha = 0.8f),
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .clickable { showCalculationExplanation = true }
-                                    .testTag("readiness_info_icon")
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = AmberAccent,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 1. Circular Progress Indicator (Left side)
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .drawBehind {
-                                    val strokeWidthPx = 6.dp.toPx()
-                                    val diameter = size.minDimension - strokeWidthPx
-                                    val topLeftOffset = androidx.compose.ui.geometry.Offset(
-                                        x = (size.width - diameter) / 2,
-                                        y = (size.height - diameter) / 2
-                                    )
-                                    val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
-
-                                    drawCircle(
-                                        color = DarkRaised,
-                                        radius = diameter / 2,
-                                        style = Stroke(width = strokeWidthPx)
-                                    )
-                                    drawArc(
-                                        color = GreenAccent,
-                                        startAngle = -90f,
-                                        sweepAngle = if (readiness != null) readiness!!.score.toFloat() / 100f * 360f else 0f,
-                                        useCenter = false,
-                                        topLeft = topLeftOffset,
-                                        size = arcSize,
-                                        style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
-                                    )
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = if (readiness != null) "${readiness!!.score}%" else "—",
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = GreenAccent
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Recovery Score",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    color = MutedText,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-
-                        // 2. Details Column (Center-Left side)
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = sessionName,
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryText
-                            )
-                            Text(
-                                text = focusMuscles,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = SecondaryText
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // Time Badge Pill
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(DarkCardSurface)
-                                    .border(BorderStroke(0.5.dp, BorderSubtle), RoundedCornerShape(20.dp))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Timer,
-                                        contentDescription = null,
-                                        tint = AmberAccent,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Text(
-                                        text = "~$finalWorkoutDurationMin min",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Normal,
-                                        color = PrimaryText
-                                    )
-                                }
-                            }
-                        }
-
-                        // 3. Mannequin Muscle Overlay (On the Right)
-                        Box(
-                            modifier = Modifier
-                                .width(80.dp)
-                                .height(120.dp)
-                                .align(Alignment.CenterVertically)
-                        ) {
-                            SingleFrontHeatmapCanvas(
-                                heatmap = recoveryHeatmap,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // START WORKOUT CTA Button
-                    Button(
-                        onClick = {
-                            if (todaySession != null) {
-                                fitnessViewModel.startWorkoutSession(todaySession)
-                                onNavigateTo(1)
-                            } else {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "No workout scheduled for today. Enjoy your rest day!",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = OrangeAccent,
-                            contentColor = Color.Black
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .testTag("start_workout_button"),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "START WORKOUT",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 3. STREAK Section
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (streakResult.training.current > 0) {
-                    Text(
-                        text = "🔥 ${streakResult.training.current} DAY STREAK",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = OrangeAccent
-                    )
-                } else {
-                    Text(
-                        text = "Log your first workout to start a streak",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = Color.Gray
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
             // 4. Two-Column Matrix Card Row (NUTRITION & BODY WEIGHT)
             Row(
@@ -567,13 +606,17 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .testTag("nutrition_summary_card")
+                        .testTag("nutrition_summary_card"),
+                    elevation = 0.dp
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -581,33 +624,31 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     text = "NUTRITION",
-                                    fontSize = 14.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = IndigoAccent,
-                                    letterSpacing = 0.5.sp
+                                    letterSpacing = 1.sp
                                 )
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = IndigoAccent,
+                                    tint = IndigoAccent.copy(alpha = 0.8f),
                                     modifier = Modifier
                                         .size(16.dp)
                                         .clickable { onNavigateTo(2) }
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
-
                             // Circular progress ring showing nutrition completion
                             Box(
                                 modifier = Modifier
-                                    .size(114.dp)
-                                    .align(Alignment.CenterHorizontally)
+                                    .size(100.dp)
                                     .drawBehind {
+                                        val strokeWidthPx = 8.dp.toPx()
                                         drawCircle(
                                             color = DarkRaised,
-                                            radius = size.minDimension / 2 - 2.dp.toPx(),
-                                            style = Stroke(width = 6.dp.toPx())
+                                            radius = size.minDimension / 2 - strokeWidthPx / 2,
+                                            style = Stroke(width = strokeWidthPx)
                                         )
                                         if (calTarget > 0) {
                                             drawArc(
@@ -615,7 +656,9 @@ fun HomeScreen(
                                                 startAngle = -90f,
                                                 sweepAngle = (calPercent.toFloat() / 100f) * 360f,
                                                 useCenter = false,
-                                                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
+                                                topLeft = Offset(strokeWidthPx / 2, strokeWidthPx / 2),
+                                                size = Size(size.width - strokeWidthPx, size.height - strokeWidthPx),
+                                                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                                             )
                                         }
                                     },
@@ -624,56 +667,52 @@ fun HomeScreen(
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
                                         text = String.format(java.util.Locale.US, "%,d", calLogged),
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.Black,
+                                        fontSize = 20.sp,
+                                        fontFamily = JetBrainsMonoFamily,
+                                        fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
                                     Text(
-                                        text = if (calTarget > 0) "/ ${String.format(java.util.Locale.US, "%,d", calTarget)} kcal" else "/ Set target in Settings",
-                                        fontSize = 12.sp,
+                                        text = if (calTarget > 0) "/ ${String.format(java.util.Locale.US, "%,d", calTarget)}" else "—",
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Normal,
                                         color = Color.Gray
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (calTarget > 0) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Outlined.LocalFireDepartment, contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                                     Text(
-                                        text = "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal remaining",
-                                        fontSize = 14.sp,
+                                        text = if (calTarget > 0) "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal left" else "No target",
+                                        fontSize = 11.sp,
                                         color = Color.White,
-                                        fontWeight = FontWeight.Normal
-                                    )
-                                } else {
-                                    Text(
-                                        text = "Calorie target not set",
-                                        fontSize = 14.sp,
-                                        color = Color.Gray,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
-                                Text(
-                                    text = if (proteinTarget > 0) "$proteinLogged / ${proteinTarget}g protein" else "$proteinLogged / — protein",
-                                    fontSize = 14.sp,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Normal
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Outlined.Egg, contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
+                                    Text(
+                                        text = if (proteinTarget > 0) "$proteinLogged / ${proteinTarget}g protein" else "$proteinLogged / — protein",
+                                        fontSize = 11.sp,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // + Log Food Button at Bottom
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(DarkCardSurface)
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkRaised)
                                 .clickable { onNavigateTo(2) }
-                                .padding(vertical = 10.dp)
                                 .testTag("log_food_bottom_button"),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
@@ -682,14 +721,15 @@ fun HomeScreen(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = null,
                                 tint = IndigoAccent,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Log Food",
+                                text = "LOG FOOD",
                                 color = IndigoAccent,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
                             )
                         }
                     }
@@ -700,13 +740,16 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .testTag("body_weight_summary_card")
+                        .testTag("body_weight_summary_card"),
+                    elevation = 0.dp
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -714,82 +757,79 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     text = "BODY WEIGHT",
-                                    fontSize = 14.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = IndigoAccent,
-                                    letterSpacing = 0.5.sp
+                                    letterSpacing = 1.sp
                                 )
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = IndigoAccent,
+                                    tint = IndigoAccent.copy(alpha = 0.8f),
                                     modifier = Modifier
                                         .size(16.dp)
                                         .clickable { onNavigateTo(3) }
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = "${String.format(java.util.Locale.US, "%.1f", latestWeight)} kg",
+                                    fontSize = 28.sp,
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
 
-                            Text(
-                                text = "${String.format(java.util.Locale.US, "%.1f", latestWeight)} kg",
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                              )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // Downward trend info
-                            if (weightHistory.size >= 2) {
-                                val change = weightHistory.first().weight - weightHistory[1].weight
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    if (change < 0) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDownward,
-                                            contentDescription = null,
-                                            tint = GreenAccent,
-                                            modifier = Modifier.size(16.dp)
+                                if (weightHistory.size >= 2) {
+                                    val change = weightHistory.first().weight - weightHistory[1].weight
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (change < 0) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDownward,
+                                                contentDescription = null,
+                                                tint = GreenAccent,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        } else if (change > 0) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowUpward,
+                                                contentDescription = null,
+                                                tint = RedAccent,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = "${String.format(java.util.Locale.US, "%.1f", Math.abs(change))} $units",
+                                            fontSize = 11.sp,
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontWeight = FontWeight.Normal,
+                                            color = if (change <= 0) GreenAccent else RedAccent
                                         )
-                                    } else if (change > 0) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowUpward,
-                                            contentDescription = null,
-                                            tint = RedAccent,
-                                            modifier = Modifier.size(16.dp)
+                                        Text(
+                                            text = "this week",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Normal,
+                                            color = Color.Gray
                                         )
                                     }
+                                } else {
                                     Text(
-                                        text = "${String.format(java.util.Locale.US, "%.1f", Math.abs(change))} $units",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Normal,
-                                        color = if (change <= 0) GreenAccent else RedAccent
-                                    )
-                                    Text(
-                                        text = "this week",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Normal,
+                                        text = "Log weigh-ins",
+                                        fontSize = 11.sp,
                                         color = Color.Gray
                                     )
                                 }
-                            } else {
-                                Text(
-                                    text = "Log weigh-ins to see weekly change",
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
-                                )
                             }
-
-                            Spacer(modifier = Modifier.height(14.dp))
 
                             // Smooth Line Graph (Spleen spline curves)
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(60.dp),
+                                    .height(56.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (weightHistory.size >= 2) {
@@ -857,21 +897,21 @@ fun HomeScreen(
                                             drawPath(
                                                 path = chartPath,
                                                 color = IndigoAccent,
-                                                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                                                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                                             )
 
                                             // Point anchor circles on spline line
                                             canvasPoints.forEach { pt ->
                                                 drawCircle(
-                                                    color = Color.White,
-                                                    radius = 1.5.dp.toPx(),
+                                                    color = DarkCardSurface,
+                                                    radius = 4.dp.toPx(),
                                                     center = pt
                                                 )
                                                 drawCircle(
                                                     color = IndigoAccent,
-                                                    radius = 3.dp.toPx(),
+                                                    radius = 4.dp.toPx(),
                                                     center = pt,
-                                                    style = Stroke(width = 0.75.dp.toPx())
+                                                    style = Stroke(width = 2.dp.toPx())
                                                 )
                                             }
                                         }
@@ -886,13 +926,12 @@ fun HomeScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
-
                             // Time range pill selector: "7D", "30D", "90D"
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 2.dp),
+                                    .background(DarkRaised, RoundedCornerShape(12.dp))
+                                    .padding(4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -900,15 +939,18 @@ fun HomeScreen(
                                     val isSelected = filter == selectedFilter
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
                                             .background(if (isSelected) IndigoAccent else Color.Transparent)
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
                                             .clickable { selectedFilter = filter }
+                                            .padding(vertical = 12.dp)
+                                            .heightIn(min = 48.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = filter,
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 9.sp,
+                                            fontSize = 10.sp,
                                             color = if (isSelected) Color.White else Color.Gray,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -917,19 +959,19 @@ fun HomeScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         // + Log Weight Button at Bottom
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(DarkCardSurface)
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkRaised)
                                 .clickable {
                                     weightInput = String.format(java.util.Locale.US, "%.1f", latestWeight)
                                     showWeightDialog = true
                                 }
-                                .padding(vertical = 10.dp)
                                 .testTag("log_weight_bottom_button"),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
@@ -938,20 +980,20 @@ fun HomeScreen(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = null,
                                 tint = IndigoAccent,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Log Weight",
+                                text = "LOG WEIGHT",
                                 color = IndigoAccent,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
                             )
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
     }
 
 
@@ -985,16 +1027,17 @@ fun HomeScreen(
                     OutlinedTextField(
                         value = weightInput,
                         onValueChange = { input ->
-                            if (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' }) {
-                                weightInput = input
+                            val normalized = input.replace(',', '.')
+                            if (normalized.count { it == '.' } <= 1 && normalized.all { it.isDigit() || it == '.' }) {
+                                weightInput = normalized
                             }
                         },
-                        label = { Text("Weight ($units)", color = SecondaryText) },
+                        label = { Text(stringResource(R.string.home_weight, units), color = SecondaryText) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("dialog_weight_input_field"),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = DarkRaised,

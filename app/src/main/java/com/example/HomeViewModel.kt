@@ -113,9 +113,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Weight logging State
-    val weightHistory: StateFlow<List<UiWeightEntry>> = repository.getWeightHistory()
-        .map { entries -> entries.map { it.toUi() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val weightHistory: StateFlow<UiState<List<UiWeightEntry>>> = repository.getWeightHistory()
+        .map { entries -> UiState.Success(entries.map { it.toUi() }) as UiState<List<UiWeightEntry>> }
+        .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     val allNutritionHistory: StateFlow<List<UiNutritionEntry>> = dao.getAllNutritionEntriesFlow()
         .map { entries -> entries.map { it.toUi() } }
@@ -140,21 +141,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         meals.sumOf { it.fat }.toInt()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val macroTargets: StateFlow<com.example.utils.NutritionTargets> = combine(
-        currentWeight,
-        calorieTargetFlow
-    ) { weight, calorieTarget ->
-        val proteinTarget = (weight * 1.8).toInt().coerceIn(100, 250)
-        val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
-        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
-        com.example.utils.NutritionTargets(
-            calories = calorieTarget,
-            protein = proteinTarget,
-            carbs = carbsTarget,
-            fat = fatTarget,
-            weeklyTrainingSessions = 4
-        )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.example.utils.NutritionTargets(calories = com.example.UserDefaults.CALORIES, protein = com.example.UserDefaults.PROTEIN_G, fat = 70, carbs = 300))
+    val macroTargets: StateFlow<UiState<com.example.utils.NutritionTargets>> = targetsFlow
+        .map { UiState.Success(it) as UiState<com.example.utils.NutritionTargets> }
+        .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     val todayExercisesFlow: Flow<List<com.example.data.PlanExercise>> = repository.getActivePlan().flatMapLatest { plan ->
         val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
@@ -183,7 +173,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 
                 val predictionText = "Systemic CNS readiness is ${scoreResult.systemicReadiness}%. " +
-                        "Acute-to-chronic ratio modifier is ${String.format("%.2f", scoreResult.acrModifier)}."
+                        "Acute-to-chronic ratio modifier is ${String.format(java.util.Locale.US, "%.2f", scoreResult.acrModifier)}."
 
                 val factorList = mutableListOf<com.example.ui.models.UiReadinessFactor>()
                 factorList.add(com.example.ui.models.UiReadinessFactor(
@@ -273,6 +263,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getCurrentLocalTimeString(): String {
-        return java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US).format(java.util.Date())
+        return android.text.format.DateFormat.getTimeFormat(getApplication()).format(java.util.Date())
     }
 }

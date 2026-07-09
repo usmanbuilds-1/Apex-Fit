@@ -10,7 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.ui.models.UiState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -57,8 +61,8 @@ fun ProgressScreen(
     homeViewModel: HomeViewModel,
     onNavigateTo: (Int) -> Unit
 ) {
-    var subScreen by remember { mutableStateOf("main") }
-    var selectedPart by remember { mutableStateOf<String?>(null) }
+    var subScreen by rememberSaveable { mutableStateOf("main") }
+    var selectedPart by rememberSaveable { mutableStateOf<String?>(null) }
 
     BackHandler(enabled = subScreen != "main") {
         subScreen = "main"
@@ -394,11 +398,29 @@ fun ProgressMainTabContent(
     val fatigueInfo by algorithmViewModel.fatigueRatio.collectAsStateWithLifecycle()
     val muscleVolumeMap by algorithmViewModel.muscleVolumes.collectAsStateWithLifecycle()
     val heatmap by algorithmViewModel.muscleHeatmap.collectAsStateWithLifecycle()
-    val weightHistory by homeViewModel.weightHistory.collectAsStateWithLifecycle()
-    val measurements by progressViewModel.allBodyMeasurements.collectAsStateWithLifecycle()
-    val monthlyMuscleVolumes by progressViewModel.monthlyMuscleVolumes.collectAsStateWithLifecycle()
+    val weightHistoryState by homeViewModel.weightHistory.collectAsStateWithLifecycle()
+    val measurementsState by progressViewModel.allBodyMeasurements.collectAsStateWithLifecycle()
+    val monthlyMuscleVolumesState by progressViewModel.monthlyMuscleVolumes.collectAsStateWithLifecycle()
+
+    if (weightHistoryState is UiState.Loading || measurementsState is UiState.Loading || monthlyMuscleVolumesState is UiState.Loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = BlueAccent)
+        }
+        return
+    }
+
+    if (weightHistoryState is UiState.Error || measurementsState is UiState.Error || monthlyMuscleVolumesState is UiState.Error) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.progress_error_loading_progress_data), color = Color.White)
+        }
+        return
+    }
+
+    val weightHistory: List<com.example.ui.models.UiWeightEntry> = (weightHistoryState as? UiState.Success)?.data ?: emptyList()
+    val measurements: List<com.example.ui.models.UiBodyMeasurement> = (measurementsState as? UiState.Success)?.data ?: emptyList()
+    val monthlyMuscleVolumes: Map<String, Int> = (monthlyMuscleVolumesState as? UiState.Success)?.data ?: emptyMap()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
-    var activeSubTab by remember { mutableStateOf(0) }
+    var activeSubTab by rememberSaveable { mutableStateOf(0) }
 
     LazyColumn(
         modifier = Modifier
@@ -432,7 +454,8 @@ fun ProgressMainTabContent(
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (isSelected) AmberAccent else Color.Transparent)
                             .clickable { activeSubTab = index }
-                            .padding(vertical = 10.dp),
+                            .padding(vertical = 12.dp)
+                            .heightIn(min = 48.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(
@@ -462,7 +485,7 @@ fun ProgressMainTabContent(
         if (activeSubTab == 2) {
             // Quick Body weight log text field
             item {
-                var inputWeight by remember { mutableStateOf("") }
+                var inputWeight by rememberSaveable { mutableStateOf("") }
                 val context = LocalContext.current
 
                 PremiumCard(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
@@ -481,8 +504,8 @@ fun ProgressMainTabContent(
                     ) {
                         OutlinedTextField(
                             value = inputWeight,
-                            onValueChange = { inputWeight = it },
-                            placeholder = { Text("Log weight index (e.g. 78.5)...", color = MutedText, fontSize = 11.sp) },
+                            onValueChange = { inputWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                            placeholder = { Text(stringResource(R.string.progress_log_weight_index_e_g_78_5), color = MutedText, fontSize = 11.sp) },
                             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.weight(1f).testTag("log_weight_input"),
@@ -500,16 +523,16 @@ fun ProgressMainTabContent(
                                 if (w != null) {
                                     fitnessViewModel.logWeight(w)
                                     inputWeight = ""
-                                    Toast.makeText(context, "Weight profile catalog update saved!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.progress_weight_profile_catalog_update_), Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(context, "Enter numeric index", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.progress_enter_numeric_index), Toast.LENGTH_SHORT).show()
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.testTag("log_weight_button")
                         ) {
-                            Text("SAVE WEIGHT", fontFamily = SyneFamily, fontSize = 11.sp, color = Color(0xFF0F0F1A))
+                            Text(stringResource(R.string.progress_save_weight), fontFamily = SyneFamily, fontSize = 11.sp, color = Color(0xFF0F0F1A))
                          }
                     }
                 }
@@ -556,7 +579,7 @@ fun ProgressMainTabContent(
                                             color = PrimaryText
                                         )
                                             Text(
-                                                text = "Logged: ${entry.date}${if (entry.time.isNotEmpty()) " • ${entry.time}" else ""}",
+                                                text = "Logged: ${entry.date}${if (entry.time.isNotEmpty()) " • ${com.example.utils.formatTimeForDisplay(LocalContext.current, entry.time)}" else ""}",
                                                 fontFamily = JetBrainsMonoFamily,
                                                 fontSize = 10.sp,
                                                 color = SecondaryText
@@ -564,13 +587,13 @@ fun ProgressMainTabContent(
                                     }
                                     IconButton(
                                         onClick = { fitnessViewModel.deleteWeightById(entry.id) },
-                                        modifier = Modifier.size(36.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Filled.Delete,
                                             contentDescription = "Delete weight entry",
                                             tint = MutedText,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 }
@@ -686,9 +709,9 @@ fun ProgressMainTabContent(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Undertrained", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = BlueAccent)
-                        Text("Optimal", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = GreenAccent)
-                        Text("Overreaching", fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = RedAccent)
+                        Text(stringResource(R.string.progress_undertrained), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = BlueAccent)
+                        Text(stringResource(R.string.progress_optimal), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = GreenAccent)
+                        Text(stringResource(R.string.progress_overreaching), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = RedAccent)
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -696,7 +719,7 @@ fun ProgressMainTabContent(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "FATIGUE RATIO INDEX IS ${String.format("%.2f", fatigueInfo.ratio)} (${fatigueInfo.riskStatus})",
+                        text = "FATIGUE RATIO INDEX IS ${String.format(java.util.Locale.US, "%.2f", fatigueInfo.ratio)} (${fatigueInfo.riskStatus})",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,

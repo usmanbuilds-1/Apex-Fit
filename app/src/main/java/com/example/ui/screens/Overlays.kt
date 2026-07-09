@@ -11,7 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -89,14 +92,14 @@ fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainVi
                         },
                         enabled = seconds > 0
                     ) {
-                        Text("-15s", color = SecondaryText, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overlay_15s), color = SecondaryText, fontWeight = FontWeight.Bold)
                     }
                     TextButton(
                         onClick = {
                             trainViewModel.addRestTimerSeconds(15)
                         }
                     ) {
-                        Text("+15s", color = OrangeAccent, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overlay_15s_1), color = OrangeAccent, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -110,7 +113,7 @@ fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainVi
                         colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("SKIP", color = SecondaryText, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overlay_skip), color = SecondaryText, fontWeight = FontWeight.Bold)
                     }
                     Button(
                         onClick = { fitnessViewModel.closeRestTimer() },
@@ -118,7 +121,7 @@ fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainVi
                         colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("READY", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overlay_ready), color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -129,7 +132,7 @@ fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainVi
 private fun formatTimerTime(seconds: Int): String {
     val mins = seconds / 60
     val secs = seconds % 60
-    return String.format("%d:%02d", mins, secs)
+    return String.format(java.util.Locale.US, "%d:%02d", mins, secs)
 }
 
 @Composable
@@ -220,7 +223,7 @@ fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: Train
                         colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("CONFIRM & NEXT SET", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overlay_confirm_next_set), color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 } else {
                     // Page 2: History
@@ -281,7 +284,7 @@ fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: Train
                         colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("CONFIRM & NEXT SET", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overlay_confirm_next_set), color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -395,7 +398,7 @@ fun SessionCompleteOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: T
                     colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("DONE", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(stringResource(R.string.overlay_done), color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }

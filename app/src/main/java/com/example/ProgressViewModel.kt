@@ -21,9 +21,10 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     private val dataStore = DataStoreManager(application)
     private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
 
-    val allBodyMeasurements: StateFlow<List<UiBodyMeasurement>> = dao.getAllBodyMeasurementsFlow()
-        .map { entries -> entries.map { it.toUi() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val allBodyMeasurements: StateFlow<UiState<List<UiBodyMeasurement>>> = dao.getAllBodyMeasurementsFlow()
+        .map { entries -> UiState.Success(entries.map { it.toUi() }) as UiState<List<UiBodyMeasurement>> }
+        .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "kg")
 
@@ -33,7 +34,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     }
 
     // 2. Monthly muscle volumes for radar chart
-    val monthlyMuscleVolumes = dao.getAllTrainingSessionsFlow().map { sessions ->
+    val monthlyMuscleVolumes: StateFlow<UiState<Map<String, Int>>> = dao.getAllTrainingSessionsFlow().map { sessions ->
         val allSets = dao.getAllExerciseSets()
         val currentMonthPrefix = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(java.util.Date())
         val thisMonthSessions = sessions.filter { it.date.startsWith(currentMonthPrefix) }
@@ -41,17 +42,22 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         val finishedSets = allSets.filter { it.completed && !it.isWarmup && it.sessionId in thisMonthSessionIds }
         
         val axes = com.example.utils.MuscleGroups.ALL
-        axes.associateWith { axis ->
+        val result = axes.associateWith { axis ->
             finishedSets.count { set ->
                 set.muscleGroup.lowercase().trim() == axis.lowercase().trim()
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+        UiState.Success(result) as UiState<Map<String, Int>>
+    }
+    .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     // 3. Muscle recovery status calculation
-    val muscleRecoveryStatuses = dao.getAllTrainingSessionsFlow().map { sessions ->
-        calculateMuscleRecovery(sessions)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val muscleRecoveryStatuses: StateFlow<UiState<List<MuscleRecoveryStatus>>> = dao.getAllTrainingSessionsFlow().map { sessions ->
+        UiState.Success(calculateMuscleRecovery(sessions)) as UiState<List<MuscleRecoveryStatus>>
+    }
+    .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     // Log & delete measurements
     fun logMeasurement(bodyPart: String, value: Double) {
