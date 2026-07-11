@@ -22,6 +22,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 class DelayedNotificationWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
@@ -82,9 +83,9 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             NutritionEntry(
                 date = date,
                 calories = list.sumOf { it.calories },
-                protein = list.sumOf { it.protein }.toInt(),
-                carbs = list.sumOf { it.carbs }.toInt(),
-                fat = list.sumOf { it.fat }.toInt()
+                protein = list.sumOf { it.protein }.roundToInt(),
+                carbs = list.sumOf { it.carbs }.roundToInt(),
+                fat = list.sumOf { it.fat }.roundToInt()
             )
         }.sortedBy { it.date }
         
@@ -135,9 +136,9 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val suggestedCal = AlgorithmEngine.suggestCaloricTarget(tdeeResult.tdee ?: com.example.UserDefaults.CALORIES, userGoal)
         
         val calTarget = if (isManual) manualValue else suggestedCal
-        val proteinTarget = (latestTrend * 2.0).toInt().coerceIn(100, 250) // 2.0g/kg for athletes
-        val fatTarget = (calTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
-        val carbsTarget = ((calTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
+        val proteinTarget = (latestTrend * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250) // g/kg from UserDefaults
+        val fatTarget = (calTarget * 0.25 / 9.0).roundToInt().coerceIn(45, 120)
+        val carbsTarget = ((calTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4.0).roundToInt().coerceIn(100, 500)
 
         val targets = NutritionTargets(
             calories = calTarget,
@@ -185,7 +186,6 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             val triggersAtHour = NotificationEngine.evaluateDailyTriggers(
                 nutritionLog = allNutrition,
                 trainingLog = completedSessions,
-                weightLog = engineWeights,
                 targets = targets,
                 todaySessionType = todaySessionType,
                 currentHour = hour

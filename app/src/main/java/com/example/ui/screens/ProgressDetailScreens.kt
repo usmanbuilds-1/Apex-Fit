@@ -182,6 +182,9 @@ fun BodyMeasurementDetailScreen(
     var error by rememberSaveable { mutableStateOf("") }
     val units by progressViewModel.units.collectAsStateWithLifecycle()
     val lengthUnit = if (units == "kg") "cm" else "in"
+    fun convertForDisplay(valueInCm: Double): Double {
+        return if (lengthUnit == "in") valueInCm / 2.54 else valueInCm
+    }
 
     Column(
         modifier = Modifier
@@ -297,7 +300,15 @@ fun BodyMeasurementDetailScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(m.date, color = SecondaryText, fontSize = 13.sp)
-                            Text(stringResource(R.string.progress_detail_fmt_str, m.value, lengthUnit), color = PrimaryText, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = stringResource(
+                                    R.string.progress_detail_fmt_str,
+                                    String.format(java.util.Locale.US, "%.1f", convertForDisplay(m.value)),
+                                    lengthUnit
+                                ),
+                                color = PrimaryText,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }

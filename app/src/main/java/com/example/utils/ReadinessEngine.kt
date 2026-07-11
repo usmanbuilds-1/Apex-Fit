@@ -3,30 +3,19 @@ package com.example.utils
 import com.example.data.ExerciseSet
 import com.example.data.TrainingSession
 import kotlin.math.exp
+import kotlin.math.roundToInt
 
 enum class MuscleSize { SMALL, MEDIUM, LARGE }
 
 object MuscleRecoveryData {
-    private val sizeMap = mapOf(
-        "biceps" to MuscleSize.SMALL,
-        "triceps" to MuscleSize.SMALL,
-        "calves" to MuscleSize.SMALL,
-        "core" to MuscleSize.SMALL,
-        "cardio" to MuscleSize.SMALL,
-        "shoulders" to MuscleSize.MEDIUM,
-        "hamstrings" to MuscleSize.MEDIUM,
-        "glutes" to MuscleSize.MEDIUM,
-        "chest" to MuscleSize.LARGE,
-        "back" to MuscleSize.LARGE,
-        "quads" to MuscleSize.LARGE,
-        "full body" to MuscleSize.LARGE
-    )
-
-    private val tauDays = mapOf(
-        MuscleSize.SMALL to 0.8,
-        MuscleSize.MEDIUM to 1.2,
-        MuscleSize.LARGE to 2.0
-    )
+    private val sizeMap = MuscleGroups.ALL.associateWith { muscle ->
+        when (muscle.lowercase()) {
+            "quads", "hamstrings", "glutes", "back" -> 2.0
+            "chest", "shoulders", "triceps", "biceps", "calves" -> 1.2
+            "forearms", "core", "neck" -> 0.8
+            else -> 1.2
+        }
+    }
 
     private val secondaryMap = mapOf(
         "bench" to listOf("Shoulders" to 0.40, "Triceps" to 0.30),
@@ -44,7 +33,13 @@ object MuscleRecoveryData {
         "leg_curl" to listOf("Glutes" to 0.25)
     )
 
-    fun tauFor(muscleGroup: String): Double = tauDays[sizeMap[muscleGroup.lowercase().trim()] ?: MuscleSize.MEDIUM] ?: 1.2
+    fun tauFor(muscleGroup: String): Double {
+        val norm = muscleGroup.lowercase().trim()
+        val canonical = com.example.utils.MuscleAliases.getCanonical(norm)
+        return sizeMap.entries.firstOrNull { 
+            it.key.lowercase() == norm || it.key.lowercase() == canonical 
+        }?.value ?: 1.2
+    }
 
     fun getSecondaryMuscles(exerciseName: String): List<Pair<String, Double>> {
         val normalized = exerciseName.lowercase().replace(" ", "_")
@@ -113,7 +108,7 @@ object MuscleReadinessCalculator {
     fun readinessPercent(snapshots: List<MuscleFatigueSnapshot>, muscleGroup: String, capacity: Double): Int {
         val remaining = remainingFatigue(snapshots, muscleGroup)
         val ratio = (remaining / capacity.coerceAtLeast(1.0)).coerceIn(0.0, 1.0)
-        return ((1.0 - ratio) * 100).toInt()
+        return ((1.0 - ratio) * 100).roundToInt()
     }
 }
 
@@ -135,7 +130,7 @@ object SystemicCNSCalculator {
     fun readinessPercent(snapshots: List<SystemicSnapshot>, capacity: Double): Int {
         val remaining = snapshots.sumOf { it.doseAmount * exp(-it.daysAgo / TAU_DAYS) }
         val ratio = (remaining / capacity.coerceAtLeast(1.0)).coerceIn(0.0, 1.0)
-        return ((1.0 - ratio) * 100).toInt()
+        return ((1.0 - ratio) * 100).roundToInt()
     }
 }
 
@@ -264,9 +259,6 @@ object ReadinessFinal {
         val compliance = AlgorithmEngine.calcComplianceScores(nutritionLog, completedLast30, targets)
         val nutritionScore = (compliance.calories + compliance.protein) / 2
 
-        // g) sleepScore
-        val sleepScore: Int? = null
-
         // h) acuteLoad and chronicLoad
         val fatigueResult = AlgorithmEngine.calcFatigueToFitness(completedLast30)
         val acuteLoad = fatigueResult.acuteLoad
@@ -283,7 +275,6 @@ object ReadinessFinal {
             systemicHistory = systemicHistory,
             systemicCapacity = systemicCapacity,
             nutritionScore = nutritionScore,
-            sleepScore = sleepScore,
             acuteLoad = acuteLoad,
             chronicLoad = chronicLoad
         )
@@ -297,7 +288,6 @@ object ReadinessFinal {
         systemicHistory: List<SystemicCNSCalculator.SystemicSnapshot>,
         systemicCapacity: Double,
         nutritionScore: Int,
-        sleepScore: Int?, // always pass null - not collected yet
         acuteLoad: Double, // from calcFatigueToFitness(trainingLog).acuteLoad
         chronicLoad: Double // from calcFatigueToFitness(trainingLog).chronicLoad
     ): ReadinessScore {
@@ -319,15 +309,15 @@ object ReadinessFinal {
         val systemicScore = SystemicCNSCalculator.readinessPercent(systemicHistory, systemicCapacity)
         val acrModifier = AcuteChronicRatioModifier.modifier(acuteLoad, chronicLoad)
 
-        val (wMuscle, wSystemic, wNutrition, wSleep) =
-            if (sleepScore != null) listOf(0.40, 0.20, 0.20, 0.20)
-            else listOf(0.45, 0.25, 0.30, 0.0)
+        val wMuscle = 0.45
+        val wSystemic = 0.25
+        val wNutrition = 0.30
 
         val musclePart = (avgMuscle * wMuscle + systemicScore * wSystemic) * acrModifier
-        val otherPart = nutritionScore * wNutrition + (sleepScore?.toDouble() ?: 0.0) * wSleep
+        val otherPart = nutritionScore * wNutrition
         val combined = musclePart + otherPart
 
-        val finalScore = combined.toInt().coerceIn(0, 100)
+        val finalScore = combined.roundToInt().coerceIn(0, 100)
 
         // Cold start: fewer than 3 sessions ever -> override label/copy only, not the raw score.
         // The score is mathematically "100%" because there's no fatigue data, not because
@@ -341,7 +331,7 @@ object ReadinessFinal {
                 muscleDetails = muscleDetails,
                 systemicReadiness = systemicScore,
                 nutritionScore = nutritionScore,
-                sleepScore = sleepScore,
+                sleepScore = null,
                 acrModifier = acrModifier,
                 dataConfidence = "limited - building baseline"
             )
@@ -357,11 +347,10 @@ object ReadinessFinal {
 
         val confidenceFlag = when {
             muscleDetails.any { it.confidence == "none" } -> "limited - some muscles lack history"
-            sleepScore == null -> "partial - sleep not logged"
             else -> "full"
         }
 
         return ReadinessScore(finalScore, label, color, rec, muscleDetails, systemicScore,
-            nutritionScore, sleepScore, acrModifier, confidenceFlag)
+            nutritionScore, null, acrModifier, confidenceFlag)
     }
 }

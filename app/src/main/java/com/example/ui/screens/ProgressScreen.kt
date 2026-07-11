@@ -48,6 +48,8 @@ import com.example.ui.components.MuscleHeatmapCanvas
 import com.example.data.HeatmapEntry
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -132,7 +134,7 @@ fun MonthlyVolumeRadarChart(
                     Text(
                         text = "Sets per muscle group (last 30 days)",
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 9.sp,
+                        fontSize = 11.sp,
                         color = SecondaryText
                     )
                 }
@@ -161,93 +163,114 @@ fun MonthlyVolumeRadarChart(
 
             val maxVal = (vals.maxOrNull() ?: 0).coerceAtLeast(10).toFloat()
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(modifier = Modifier.size(160.dp)) {
-                    val center = Offset(size.width / 2, size.height / 2)
-                    val r = size.minDimension / 2 - 20.dp.toPx()
+            val hasData = vals.any { it > 0 }
+            if (!hasData) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("No training data yet", fontSize = 16.sp, color = MutedText)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Log a workout to see your muscle volume distribution", fontSize = 12.sp, color = MutedText)
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Canvas(
+                        modifier = Modifier
+                            .size(160.dp)
+                            .semantics {
+                                val description = axes.mapIndexed { i, axis ->
+                                    "$axis: ${vals[i]} sets"
+                                }.joinToString(", ")
+                                contentDescription = "Muscle volume radar chart. $description"
+                            }
+                    ) {
+                        val center = Offset(size.width / 2, size.height / 2)
+                        val r = size.minDimension / 2 - 20.dp.toPx()
 
-                    // Draw grid concentric pentagons (3 levels: 0.33, 0.66, 1.0)
-                    val levels = listOf(0.33f, 0.66f, 1.0f)
-                    levels.forEach { level ->
-                        val path = Path()
+                        // Draw grid concentric pentagons (3 levels: 0.33, 0.66, 1.0)
+                        val levels = listOf(0.33f, 0.66f, 1.0f)
+                        levels.forEach { level ->
+                            val path = Path()
+                            for (i in 0 until 5) {
+                                val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
+                                val x = center.x + r * level * cos(angle).toFloat()
+                                val y = center.y + r * level * sin(angle).toFloat()
+                                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                            }
+                            path.close()
+                            drawPath(
+                                path = path,
+                                color = BorderSubtle.copy(alpha = 0.4f),
+                                style = Stroke(width = 1.dp.toPx())
+                            )
+                        }
+
+                        // Draw axes lines from center to outer points
                         for (i in 0 until 5) {
                             val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-                            val x = center.x + r * level * cos(angle).toFloat()
-                            val y = center.y + r * level * sin(angle).toFloat()
-                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                            val x = center.x + r * cos(angle).toFloat()
+                            val y = center.y + r * sin(angle).toFloat()
+                            drawLine(
+                                color = BorderSubtle.copy(alpha = 0.4f),
+                                start = center,
+                                end = Offset(x, y),
+                                strokeWidth = 1.dp.toPx()
+                            )
                         }
-                        path.close()
-                        drawPath(
-                            path = path,
-                            color = BorderSubtle.copy(alpha = 0.4f),
-                            style = Stroke(width = 1.dp.toPx())
-                        )
+
+                        // Plot active data path
+                        if (maxVal > 0) {
+                            val dataPath = Path()
+                            for (i in 0 until 5) {
+                                val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
+                                val normalizedVal = (vals[i].toFloat() / maxVal).coerceAtMost(1.0f)
+                                val x = center.x + r * normalizedVal * cos(angle).toFloat()
+                                val y = center.y + r * normalizedVal * sin(angle).toFloat()
+                                if (i == 0) dataPath.moveTo(x, y) else dataPath.lineTo(x, y)
+                            }
+                            dataPath.close()
+
+                            // Drawing filled path with alpha
+                            drawPath(
+                                path = dataPath,
+                                color = AccentSecondary.copy(alpha = 0.25f)
+                            )
+                            // Outer path stroke line
+                            drawPath(
+                                path = dataPath,
+                                color = AccentSecondary,
+                                style = Stroke(width = 2.dp.toPx())
+                            )
+                        }
                     }
 
-                    // Draw axes lines from center to outer points
+                    // Superimpose Label texts nicely spaced around outer edge
                     for (i in 0 until 5) {
                         val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-                        val x = center.x + r * cos(angle).toFloat()
-                        val y = center.y + r * sin(angle).toFloat()
-                        drawLine(
-                            color = BorderSubtle.copy(alpha = 0.4f),
-                            start = center,
-                            end = Offset(x, y),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                    }
+                        val xOffset = (80 * cos(angle)).toFloat().dp
+                        val yOffset = (80 * sin(angle)).toFloat().dp
 
-                    // Plot active data path
-                    if (maxVal > 0) {
-                        val dataPath = Path()
-                        for (i in 0 until 5) {
-                            val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-                            val normalizedVal = (vals[i].toFloat() / maxVal).coerceAtMost(1.0f)
-                            val x = center.x + r * normalizedVal * cos(angle).toFloat()
-                            val y = center.y + r * normalizedVal * sin(angle).toFloat()
-                            if (i == 0) dataPath.moveTo(x, y) else dataPath.lineTo(x, y)
+                        Box(
+                            modifier = Modifier
+                                .offset(x = xOffset, y = yOffset)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(DarkBackground.copy(alpha = 0.7f))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "${axes[i]}: ${vals[i]}s",
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (vals[i] > 0) AccentSecondary else MutedText
+                            )
                         }
-                        dataPath.close()
-
-                        // Drawing filled path with alpha
-                        drawPath(
-                            path = dataPath,
-                            color = AccentSecondary.copy(alpha = 0.25f)
-                        )
-                        // Outer path stroke line
-                        drawPath(
-                            path = dataPath,
-                            color = AccentSecondary,
-                            style = Stroke(width = 2.dp.toPx())
-                        )
-                    }
-                }
-
-                // Superimpose Label texts nicely spaced around outer edge
-                for (i in 0 until 5) {
-                    val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-                    val xOffset = (80 * cos(angle)).toFloat().dp
-                    val yOffset = (80 * sin(angle)).toFloat().dp
-
-                    Box(
-                        modifier = Modifier
-                            .offset(x = xOffset, y = yOffset)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(DarkBackground.copy(alpha = 0.7f))
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "${axes[i]}: ${vals[i]}s",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (vals[i] > 0) AccentSecondary else MutedText
-                        )
                     }
                 }
             }
@@ -276,6 +299,7 @@ fun MonthlyVolumeRadarChart(
 @Composable
 fun BodyMeasurementsTrackerPanel(
     measurements: List<UiBodyMeasurement>,
+    lengthUnit: String,
     onPartClick: (String) -> Unit
 ) {
     Box(
@@ -297,7 +321,7 @@ fun BodyMeasurementsTrackerPanel(
             Text(
                 text = "Tap a measurement to log or view trends",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 color = SecondaryText,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
@@ -356,15 +380,19 @@ fun BodyMeasurementsTrackerPanel(
                                 Text(
                                     text = if (latest != null) "Last logged: ${latest.date}" else "No custom log recorded",
                                     fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 8.sp,
+                                    fontSize = 11.sp,
                                     color = MutedText
                                 )
                             }
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            val displayValue = if (latest != null) {
+                                if (lengthUnit == "in") latest.value / 2.54 else latest.value
+                            } else 0.0
+                            val formattedValue = String.format(java.util.Locale.US, "%.1f", displayValue)
                             Text(
-                                text = if (latest != null) "${latest.value} ${latest.unit}" else "-- --",
+                                text = if (latest != null) "$formattedValue $lengthUnit" else "-- --",
                                 fontFamily = JetBrainsMonoFamily,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
@@ -395,7 +423,7 @@ fun ProgressMainTabContent(
     onOpenMuscleRecovery: () -> Unit,
     onOpenMeasurementDetail: (String) -> Unit
 ) {
-    val fatigueInfo by algorithmViewModel.fatigueRatio.collectAsStateWithLifecycle()
+    val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
     val muscleVolumeMap by algorithmViewModel.muscleVolumes.collectAsStateWithLifecycle()
     val heatmap by algorithmViewModel.muscleHeatmap.collectAsStateWithLifecycle()
     val weightHistoryState by homeViewModel.weightHistory.collectAsStateWithLifecycle()
@@ -420,6 +448,7 @@ fun ProgressMainTabContent(
     val measurements: List<com.example.ui.models.UiBodyMeasurement> = (measurementsState as? UiState.Success)?.data ?: emptyList()
     val monthlyMuscleVolumes: Map<String, Int> = (monthlyMuscleVolumesState as? UiState.Success)?.data ?: emptyMap()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
+    val lengthUnit = if (units == "kg") "cm" else "in"
     var activeSubTab by rememberSaveable { mutableStateOf(0) }
 
     LazyColumn(
@@ -471,7 +500,7 @@ fun ProgressMainTabContent(
                             Text(
                                 text = title,
                                 fontFamily = SyneFamily,
-                                fontSize = 9.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isSelected) Color(0xFF0F0F1A) else SecondaryText
                             )
@@ -553,7 +582,7 @@ fun ProgressMainTabContent(
                         Text(
                             text = "Tracked for each day entered with system local time auto picked.",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 9.sp,
+                            fontSize = 11.sp,
                             color = MutedText,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
@@ -581,7 +610,7 @@ fun ProgressMainTabContent(
                                             Text(
                                                 text = "Logged: ${entry.date}${if (entry.time.isNotEmpty()) " • ${com.example.utils.formatTimeForDisplay(LocalContext.current, entry.time)}" else ""}",
                                                 fontFamily = JetBrainsMonoFamily,
-                                                fontSize = 10.sp,
+                                                fontSize = 11.sp,
                                                 color = SecondaryText
                                             )
                                     }
@@ -612,7 +641,7 @@ fun ProgressMainTabContent(
                 // Gauge is needle progress (0f to 1f) corresponding to Fatigue zones
                 // Let's bind needleAnimState to fatigue ratios (optimal around index 0.5)
                 LaunchedEffect(fatigueInfo) {
-                    val ratio = fatigueInfo.ratio.toFloat().coerceIn(0f, 2f)
+                    val ratio = (fatigueInfo.ratio ?: 0.0).toFloat().coerceIn(0f, 2f)
                     val targetProgress = ratio / 2.0f // mapped 0f to 1f
                     needleAnimState.animateTo(
                         targetValue = targetProgress,
@@ -636,7 +665,13 @@ fun ProgressMainTabContent(
                             .height(130.dp),
                         contentAlignment = Alignment.BottomCenter
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .semantics {
+                                    contentDescription = "Fatigue gauge showing ${fatigueInfo.ratio ?: "unknown"} ratio, status: ${fatigueInfo.statusLabel}"
+                                }
+                        ) {
                             val strokeW = 14.dp.toPx()
                             val diameter = size.minDimension * 0.95f
                             val radius = diameter / 2
@@ -709,9 +744,9 @@ fun ProgressMainTabContent(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.progress_undertrained), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = BlueAccent)
-                        Text(stringResource(R.string.progress_optimal), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = GreenAccent)
-                        Text(stringResource(R.string.progress_overreaching), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = RedAccent)
+                        Text(stringResource(R.string.progress_undertrained), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = BlueAccent)
+                        Text(stringResource(R.string.progress_optimal), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = GreenAccent)
+                        Text(stringResource(R.string.progress_overreaching), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = RedAccent)
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -719,7 +754,7 @@ fun ProgressMainTabContent(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "FATIGUE RATIO INDEX IS ${String.format(java.util.Locale.US, "%.2f", fatigueInfo.ratio)} (${fatigueInfo.riskStatus})",
+                        text = "FATIGUE RATIO INDEX IS ${String.format(java.util.Locale.US, "%.2f", fatigueInfo.ratio ?: 0.0)} (${fatigueInfo.statusLabel})",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -728,7 +763,7 @@ fun ProgressMainTabContent(
                     Text(
                         text = "System is fully functional inside adaptive adaptation limits. Continue progressive loading.",
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = SecondaryText
                     )
                 }
@@ -749,6 +784,7 @@ fun ProgressMainTabContent(
             item {
                 BodyMeasurementsTrackerPanel(
                     measurements = measurements,
+                    lengthUnit = lengthUnit,
                     onPartClick = onOpenMeasurementDetail
                 )
             }
@@ -801,7 +837,7 @@ fun ProgressMainTabContent(
                             Text(
                                 text = "WEEKLY VOLUME",
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 8.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MutedText
                             )
@@ -818,7 +854,7 @@ fun ProgressMainTabContent(
                                 Text(
                                     text = "sets",
                                     fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 8.sp,
+                                    fontSize = 11.sp,
                                     color = MutedText
                                 )
                             }
@@ -838,7 +874,7 @@ fun ProgressMainTabContent(
                             Text(
                                 text = "ACTIVE TARGETS",
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 8.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MutedText
                             )
@@ -855,7 +891,7 @@ fun ProgressMainTabContent(
                                 Text(
                                     text = "/23 muscles",
                                     fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 8.sp,
+                                    fontSize = 11.sp,
                                     color = MutedText
                                 )
                             }
@@ -875,7 +911,7 @@ fun ProgressMainTabContent(
                             Text(
                                 text = "BALANCE",
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 8.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MutedText
                             )

@@ -73,6 +73,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.text.BasicTextField
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.roundToInt
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 
 @Composable
 fun ApexCard(
@@ -184,7 +187,7 @@ fun HomeScreen(
         }
         val transitionTime = (todayExercises.size - 1).coerceAtLeast(0) * 2.0
         val warmUp = 5.0
-        (rawTime + transitionTime + warmUp).toInt()
+        (rawTime + transitionTime + warmUp).roundToInt()
     }
 
     val finalWorkoutDurationMin = if (estimatedWorkoutDurationMin > 0) estimatedWorkoutDurationMin else 42
@@ -195,7 +198,15 @@ fun HomeScreen(
     var weightInput by rememberSaveable { mutableStateOf("") }
     var showCalculationExplanation by rememberSaveable { mutableStateOf(false) }
 
-    val allNutritionHistory by homeViewModel.allNutritionHistory.collectAsStateWithLifecycle()
+    var isStarting by remember { mutableStateOf(false) }
+    LaunchedEffect(isStarting) {
+        if (isStarting) {
+            kotlinx.coroutines.delay(1000)
+            isStarting = false
+        }
+    }
+
+    val todayNutrition by homeViewModel.todayNutrition.collectAsStateWithLifecycle()
     val goalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
     val richSessionsFlow by homeViewModel.richSessionsFlow.collectAsStateWithLifecycle(emptyList())
 
@@ -203,11 +214,11 @@ fun HomeScreen(
         java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
     }
 
-    val loggedCaloriesTotal = remember(allNutritionHistory, todayDateStr) {
-        allNutritionHistory.filter { it.date == todayDateStr }.sumOf { it.calories }
+    val loggedCaloriesTotal = remember(todayNutrition) {
+        todayNutrition.sumOf { it.calories }
     }
-    val loggedProteinTotal = remember(allNutritionHistory, todayDateStr) {
-        allNutritionHistory.filter { it.date == todayDateStr }.sumOf { it.protein }.toInt()
+    val loggedProteinTotal = remember(todayNutrition) {
+        todayNutrition.sumOf { it.protein }.roundToInt()
     }
 
     val isTodayWorkoutCompleted = remember(completedSessions, todayDateStr) {
@@ -480,7 +491,7 @@ fun HomeScreen(
                             )
                             Text(
                                 text = "RECOVERY",
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontFamily = SyneFamily,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = GreenAccent,
@@ -496,14 +507,14 @@ fun HomeScreen(
                             .height(120.dp)
                             .align(Alignment.CenterVertically)
                             .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(id = com.example.R.drawable.img_muscle_figure),
+                        Icon(
+                            imageVector = Icons.Default.FitnessCenter,
                             contentDescription = "Trained muscles",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .alpha(0.45f)
+                            tint = GreenAccent.copy(alpha = 0.7f),
+                            modifier = Modifier.size(36.dp)
                         )
                     }
                 }
@@ -513,6 +524,8 @@ fun HomeScreen(
                 // START WORKOUT CTA Button
                 Button(
                     onClick = {
+                        if (isStarting) return@Button
+                        isStarting = true
                         if (todaySession != null) {
                             fitnessViewModel.startWorkoutSession(todaySession)
                             onNavigateTo(1)
@@ -524,6 +537,7 @@ fun HomeScreen(
                             ).show()
                         }
                     },
+                    enabled = !isStarting,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = OrangeAccent,
                         contentColor = Color.Black
@@ -674,7 +688,7 @@ fun HomeScreen(
                                     )
                                     Text(
                                         text = if (calTarget > 0) "/ ${String.format(java.util.Locale.US, "%,d", calTarget)}" else "—",
-                                        fontSize = 10.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Normal,
                                         color = Color.Gray
                                     )
@@ -774,7 +788,7 @@ fun HomeScreen(
 
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
-                                    text = "${String.format(java.util.Locale.US, "%.1f", latestWeight)} kg",
+                                    text = "${String.format(java.util.Locale.US, "%.1f", latestWeight)} $units",
                                     fontSize = 28.sp,
                                     fontFamily = JetBrainsMonoFamily,
                                     fontWeight = FontWeight.Bold,
@@ -833,16 +847,25 @@ fun HomeScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (weightHistory.size >= 2) {
-                                    val linePoints = remember(weightHistory, selectedFilter) {
+                                    val entries = remember(weightHistory, selectedFilter) {
                                         val takeCount = when (selectedFilter) {
                                             "7D" -> 7
                                             "30D" -> 30
                                             "90D" -> 90
                                             else -> 7
                                         }
-                                        weightHistory.take(takeCount).reversed().map { it.weight }
+                                        weightHistory.take(takeCount).reversed()
                                     }
-                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val linePoints = remember(entries) { entries.map { it.weight } }
+                                    val minWeight = linePoints.minOrNull() ?: 60.0
+                                    val maxWeight = linePoints.maxOrNull() ?: 62.0
+                                    Canvas(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .semantics {
+                                                contentDescription = "Weight trend chart showing ${entries.size} entries from ${entries.firstOrNull()?.date ?: "N/A"} to ${entries.lastOrNull()?.date ?: "N/A"}, ranging from ${minWeight}kg to ${maxWeight}kg"
+                                            }
+                                    ) {
                                         if (linePoints.size >= 2) {
                                             val minW = linePoints.minOrNull() ?: 60.0
                                             val maxW = linePoints.maxOrNull() ?: 62.0
@@ -950,7 +973,7 @@ fun HomeScreen(
                                         Text(
                                             text = filter,
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 10.sp,
+                                            fontSize = 11.sp,
                                             color = if (isSelected) Color.White else Color.Gray,
                                             fontWeight = FontWeight.Bold
                                         )

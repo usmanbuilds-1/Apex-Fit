@@ -1,6 +1,7 @@
 package com.example.utils
 
 import com.example.data.*
+import kotlin.math.roundToInt
 
 object AlgorithmEngine {
 
@@ -73,7 +74,7 @@ object AlgorithmEngine {
             weeklyWorkouts <= 5 -> 1.55
             else -> 1.725
         }
-        val fallbackTdee = (bmrBaseline * activityMultiplier).toInt()
+        val fallbackTdee = (bmrBaseline * activityMultiplier).roundToInt()
 
         if (weightLog.size < 7 || nutritionLog.size < 7) {
             return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", 0, 0.0)
@@ -84,7 +85,7 @@ object AlgorithmEngine {
         val recentNutrition = nutritionLog.filter { it.date >= cutoff }
 
         if (recentWeight.size < 2 || recentNutrition.size < 3) {
-            return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", recentNutrition.map { it.calories }.average().takeIf { !it.isNaN() }?.toInt() ?: 0, 0.0)
+            return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", recentNutrition.map { it.calories }.average().takeIf { !it.isNaN() }?.roundToInt() ?: 0, 0.0)
         }
 
         val avgCalories = recentNutrition.map { it.calories }.average()
@@ -98,18 +99,18 @@ object AlgorithmEngine {
         
         // Weight gain or loss translates to calorie imbalance per day (1kg = 7700 kcal energy density, Hall 2012)
         val calorieImbalancePerDay = (weightChangeKg * 7700.0) / daysBetween
-        val tdee = (avgCalories - calorieImbalancePerDay).toInt()
+        val tdee = (avgCalories - calorieImbalancePerDay).roundToInt()
         
         val confidence = when {
             recentNutrition.size >= 12 && recentWeight.size >= 10 -> "high"
             recentNutrition.size >= 7 && recentWeight.size >= 5 -> "medium"
             else -> "low"
         }
-        return TDEEResult(tdee, confidence, avgCalories.toInt(), Math.round(weightChangeKg * 100.0) / 100.0)
+        return TDEEResult(tdee, confidence, avgCalories.roundToInt(), Math.round(weightChangeKg * 100.0) / 100.0)
     }
 
     fun suggestCaloricTarget(tdee: Int, goal: String, rateKgPerWeek: Double = 0.25): Int {
-        val dailyAdjustment = ((rateKgPerWeek * 7700) / 7).toInt()
+        val dailyAdjustment = ((rateKgPerWeek * 7700) / 7).roundToInt()
         val g = goal.lowercase()
         return when {
             g.contains("lose") || g.contains("cut") || g.contains("deficit") -> tdee - dailyAdjustment
@@ -126,11 +127,11 @@ object AlgorithmEngine {
 
         val calHits = recentNutrition.count { Math.abs(it.calories - targets.calories).toDouble() / targets.calories <= 0.1 }
         val proteinHits = recentNutrition.count { it.protein >= targets.protein }
-        val expectedSessions = ((days / 7.0) * targets.weeklyTrainingSessions).toInt()
+        val expectedSessions = ((days / 7.0) * targets.weeklyTrainingSessions).roundToInt()
         val trainingScore = if (expectedSessions > 0) minOf(100, (recentTraining.size * 100) / expectedSessions) else 0
         val calScore = if (recentNutrition.isNotEmpty()) (calHits * 100) / recentNutrition.size else 0
         val proteinScore = if (recentNutrition.isNotEmpty()) (proteinHits * 100) / recentNutrition.size else 0
-        val overall = ((proteinScore * 0.4) + (calScore * 0.35) + (trainingScore * 0.25)).toInt()
+        val overall = ((proteinScore * 0.4) + (calScore * 0.35) + (trainingScore * 0.25)).roundToInt()
 
         val dayNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
         val dayScores = mutableMapOf<String, Pair<Int,Int>>()
@@ -287,12 +288,12 @@ object AlgorithmEngine {
             }
         }
         val maxVolume = muscleVolume.values.maxOrNull() ?: 1.0
-        val allMuscles = listOf("chest","back","shoulders","biceps","triceps","quads","hamstrings","glutes","calves","core","forearms","lower_back")
+        val allMuscles = MuscleGroups.ALL.map { com.example.utils.MuscleAliases.getCanonical(it) }
         return allMuscles.associateWith { muscle ->
             val vol = muscleVolume[muscle] ?: 0.0
-            val intensity = ((vol / maxVolume) * 100).toInt()
+            val intensity = ((vol / maxVolume) * 100).roundToInt()
             HeatmapEntry(
-                volume = vol.toInt(),
+                volume = vol.roundToInt(),
                 intensity = intensity,
                 level = when { intensity >= 80 -> "high"; intensity >= 40 -> "medium"; intensity >= 10 -> "low"; else -> "untrained" },
                 colorHex = when { intensity >= 80 -> "#E84040"; intensity >= 40 -> "#E8A020"; intensity >= 10 -> "#2EC46A"; else -> "#252535" }
@@ -386,16 +387,6 @@ object AlgorithmEngine {
         return (avgReps * timePerRepSeconds) / 60.0
     }
 
-    private fun linearRegressionSlope(values: List<Double>): Double {
-        if (values.size < 2) return 0.0
-        val n = values.size
-        val xMean = (n - 1) / 2.0
-        val yMean = values.average()
-        val numerator = values.indices.sumOf { i -> (i - xMean) * (values[i] - yMean) }
-        val denominator = values.indices.sumOf { i -> (i - xMean) * (i - xMean) }
-        return if (denominator == 0.0) 0.0 else numerator / denominator
-    }
-
     fun calcStreaks(
         nutritionLog: List<NutritionEntry>,
         trainingLog: List<TrainingSession>,
@@ -403,7 +394,7 @@ object AlgorithmEngine {
     ): StreakResult {
         var currentStreak = 0
         val todayStr = getCurrentDate()
-        val yesterdayStr = getPreviousDate(todayStr)
+        val yesterdayStr = getPreviousDate(todayStr) ?: ""
         
         val todayEntry = nutritionLog.find { it.date == todayStr }
         var checkDate = yesterdayStr
@@ -418,6 +409,7 @@ object AlgorithmEngine {
             if (entry != null && entry.protein >= targets.protein * 0.9 && Math.abs(entry.calories - targets.calories).toDouble() / targets.calories <= 0.15) {
                 currentStreak++
                 val nextDate = getPreviousDate(tempDate)
+                if (nextDate == null) break
                 if (nextDate == tempDate) {
                     break
                 }
@@ -434,7 +426,7 @@ object AlgorithmEngine {
         
         if (completedDates.isNotEmpty()) {
             val today = getCurrentDate()
-            val yesterday = getPreviousDate(today)
+            val yesterday = getPreviousDate(today) ?: ""
             val sortedDates = completedDates.toList().sortedDescending()
             val mostRecent = sortedDates.first()
             
@@ -462,7 +454,10 @@ object AlgorithmEngine {
                             break // Streak broken
                         }
                     }
-                    currentDate = getPreviousDate(currentDate)
+                    val nextDate = getPreviousDate(currentDate)
+                    if (nextDate == null) break
+                    if (nextDate == currentDate) break
+                    currentDate = nextDate
                     if (history.size > 1000) break // Safety break
                 }
                 

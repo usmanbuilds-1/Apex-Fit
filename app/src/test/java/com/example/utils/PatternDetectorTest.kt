@@ -38,11 +38,11 @@ class PatternDetectorTest {
         return method.invoke(PatternDetector, tLog) as List<DetectedPattern>
     }
 
-    private fun invokeDetectSleepPatterns(sLog: List<SleepEntry>, tLog: List<RichTrainingSession>, wLog: List<WeightEntry>): List<DetectedPattern> {
-        val method: Method = PatternDetector::class.java.getDeclaredMethod("detectSleepPatterns", List::class.java, List::class.java, List::class.java)
+    private fun invokeDetectSleepPatterns(sLog: List<SleepEntry>, tLog: List<RichTrainingSession>): List<DetectedPattern> {
+        val method: Method = PatternDetector::class.java.getDeclaredMethod("detectSleepPatterns", List::class.java, List::class.java)
         method.isAccessible = true
         @Suppress("UNCHECKED_CAST")
-        return method.invoke(PatternDetector, sLog, tLog, wLog) as List<DetectedPattern>
+        return method.invoke(PatternDetector, sLog, tLog) as List<DetectedPattern>
     }
 
     // 1. Day of Week Patterns
@@ -190,13 +190,13 @@ class PatternDetectorTest {
             val feel = if (it % 2 == 0) 5 else 2
             RichTrainingSession(date = d(it - 1), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = feel, exercises = emptyList())
         }
-        val res = invokeDetectSleepPatterns(sLog, tLog, emptyList())
+        val res = invokeDetectSleepPatterns(sLog, tLog)
         assertTrue(res.any { it.id == "sleep_performance" })
     }
 
     @Test
     fun testDetectSleepPatterns_edgeCase_empty() {
-        val res = invokeDetectSleepPatterns(emptyList(), emptyList(), emptyList())
+        val res = invokeDetectSleepPatterns(emptyList(), emptyList())
         assertTrue(res.isEmpty())
     }
 
@@ -210,7 +210,7 @@ class PatternDetectorTest {
             val feel = 4 // same feel for all -> diff 0
             RichTrainingSession(date = d(it - 1), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = feel, exercises = emptyList())
         }
-        val res = invokeDetectSleepPatterns(sLog, tLog, emptyList())
+        val res = invokeDetectSleepPatterns(sLog, tLog)
         assertTrue(res.isEmpty())
     }
 }

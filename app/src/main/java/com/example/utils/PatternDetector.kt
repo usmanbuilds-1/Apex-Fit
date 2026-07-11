@@ -23,7 +23,7 @@ object PatternDetector {
         patterns.addAll(detectNutritionPerformancePatterns(nutritionLog, trainingLog, proteinTarget))
         patterns.addAll(detectWeightNutritionPatterns(weightLog, nutritionLog))
         patterns.addAll(detectRecoveryPatterns(trainingLog))
-        if (sleepLog.isNotEmpty()) patterns.addAll(detectSleepPatterns(sleepLog, trainingLog, weightLog))
+        if (sleepLog.isNotEmpty()) patterns.addAll(detectSleepPatterns(sleepLog, trainingLog))
 
         return patterns.sortedByDescending { it.confidence }
     }
@@ -114,7 +114,7 @@ object PatternDetector {
         val pairs = mutableListOf<Pair<Double, Int>>()
 
         trainingLog.filter { it.completed && it.sessionFeel > 0 }.forEach { session ->
-            val prevDate = getPreviousDate(session.date)
+            val prevDate = getPreviousDate(session.date) ?: return@forEach
             val prevNutrition = nutritionMap[prevDate] ?: return@forEach
             val proteinPct = prevNutrition.protein.toDouble() / proteinTarget
             pairs.add(Pair(proteinPct, session.sessionFeel))
@@ -240,8 +240,7 @@ object PatternDetector {
     // anabolic hormone production by up to 24%
     private fun detectSleepPatterns(
         sleepLog: List<SleepEntry>,
-        trainingLog: List<TrainingSession>,
-        weightLog: List<WeightEntry>
+        trainingLog: List<TrainingSession>
     ): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
         if (sleepLog.size < 7) return patterns

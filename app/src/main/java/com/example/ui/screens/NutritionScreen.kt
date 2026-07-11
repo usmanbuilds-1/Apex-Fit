@@ -40,6 +40,7 @@ import java.io.InputStream
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -210,18 +211,18 @@ fun NutritionScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(stringResource(R.string.nutrition_fmt_str, (loggedCalories * 100 / calorieTarget).coerceIn(0, 100)), fontFamily = JetBrainsMonoFamily, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-                            Text(stringResource(R.string.nutrition_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = SecondaryText)
+                            Text(stringResource(R.string.nutrition_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
                         }
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))
 
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories), fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MacroStatMini(label = "Prot:", value = "${loggedProtein.toInt()}g", color = Color(0xFFA78BFA))
-                            MacroStatMini(label = "Carb:", value = "${loggedCarbs.toInt()}g", color = BlueAccent)
-                            MacroStatMini(label = "Fat:", value = "${loggedFat.toInt()}g", color = RedAccent)
+                            MacroStatMini(label = "Prot:", value = "${loggedProtein.roundToInt()}g", color = Color(0xFFA78BFA))
+                            MacroStatMini(label = "Carb:", value = "${loggedCarbs.roundToInt()}g", color = BlueAccent)
+                            MacroStatMini(label = "Fat:", value = "${loggedFat.roundToInt()}g", color = RedAccent)
                         }
                     }
                 }
@@ -319,10 +320,10 @@ fun NutritionScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column {
-                                                Text(stringResource(R.string.nutrition_logged_at, com.example.utils.formatTimeForDisplay(LocalContext.current, meal.time)), fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
+                                                Text(stringResource(R.string.nutrition_logged_at, com.example.utils.formatTimeForDisplay(LocalContext.current, meal.time)), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
                                                 Text(meal.name.ifEmpty { "Logged Meal" }, fontFamily = SyneFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
                                                 Text(
-                                                    text = "${meal.calories} kcal • P: ${meal.protein.toInt()}g C: ${meal.carbs.toInt()}g F: ${meal.fat.toInt()}g",
+                                                    text = "${meal.calories} kcal • P: ${meal.protein.roundToInt()}g C: ${meal.carbs.roundToInt()}g F: ${meal.fat.roundToInt()}g",
                                                     fontFamily = JetBrainsMonoFamily,
                                                     fontSize = 11.sp,
                                                     color = SecondaryText
@@ -356,7 +357,7 @@ fun NutritionScreen(
                 Text(
                     text = "Consume at least 30g protein every 3-4 hours to trigger muscle protein synthesis (MPS) spikes efficiently.",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = SecondaryText,
                     modifier = Modifier.padding(bottom = 14.dp)
                 )
@@ -374,7 +375,7 @@ fun NutritionScreen(
                             Text(
                                 text = "MPS $i",
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 8.sp,
+                                fontSize = 11.sp,
                                 color = if (isHit) Color(0xFF0A0A0F) else PrimaryText
                             )
                         }
@@ -403,7 +404,7 @@ fun MacroStatMini(label: String, value: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
         Spacer(modifier = Modifier.width(4.dp))
-        Text(stringResource(R.string.nutrition_fmt_str_1, label, value), fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = SecondaryText)
+        Text(stringResource(R.string.nutrition_fmt_str_1, label, value), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
     }
 }
 
@@ -425,9 +426,9 @@ fun AddFoodSheet(
     var fatError by rememberSaveable { mutableStateOf("") }
 
     val isCalValid = inputCal.isNotEmpty() && inputCal.toIntOrNull()?.let { it in 0..5000 } == true
-    val isProtValid = inputProt.isNotEmpty() && inputProt.toDoubleOrNull()?.let { it in 0.0..500.0 } == true
-    val isCarbValid = inputCarb.isNotEmpty() && inputCarb.toDoubleOrNull()?.let { it in 0.0..500.0 } == true
-    val isFatValid = inputFat.isNotEmpty() && inputFat.toDoubleOrNull()?.let { it in 0.0..500.0 } == true
+    val isProtValid = inputProt.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
+    val isCarbValid = inputCarb.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
+    val isFatValid = inputFat.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
 
     val computedCalFromMacros = ((inputProt.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputCarb.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputFat.toDoubleOrNull() ?: 0.0) * 9.0)
     val showMacroCalWarning = computedCalFromMacros > 5000.0
@@ -443,7 +444,7 @@ fun AddFoodSheet(
                 Text(
                     text = "STATUS: Auto-tracking local time (${java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())})",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = AmberAccent,
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
@@ -484,7 +485,7 @@ fun AddFoodSheet(
                             inputCal = finalStr
                             calError = error
                         },
-                        label = { Text(stringResource(R.string.nutrition_calories), color = SecondaryText, fontSize = 10.sp) },
+                        label = { Text(stringResource(R.string.nutrition_calories), color = SecondaryText, fontSize = 11.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f).testTag("add_food_calories_input"),
@@ -498,7 +499,7 @@ fun AddFoodSheet(
                     OutlinedTextField(
                         value = inputProt,
                         onValueChange = { input ->
-                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.')
                             val clean = if (filtered.count { it == '.' } > 1) {
                                 val firstDot = filtered.indexOf('.')
                                 filtered.substring(0, firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
@@ -506,24 +507,19 @@ fun AddFoodSheet(
                                 filtered
                             }
 
-                            var finalStr = clean
                             var error = ""
                             val dVal = clean.toDoubleOrNull()
                             if (dVal != null) {
-                                if (dVal > 300.0) {
-                                    finalStr = "300.0"
-                                    error = "Protein: 0–300g"
-                                } else if (dVal < 0.0) {
-                                    finalStr = "0.0"
-                                    error = "Protein: 0–300g"
+                                if (dVal !in 0.0..500.0) {
+                                    error = "Protein: 0–500g"
                                 }
                             } else if (clean.isNotEmpty()) {
-                                error = "Protein: 0–300g"
+                                error = "Protein: 0–500g"
                             }
-                            inputProt = finalStr
+                            inputProt = clean
                             protError = error
                         },
-                        label = { Text(stringResource(R.string.nutrition_protein_g), color = SecondaryText, fontSize = 10.sp) },
+                        label = { Text(stringResource(R.string.nutrition_protein_g), color = SecondaryText, fontSize = 11.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_protein_input"),
@@ -540,7 +536,7 @@ fun AddFoodSheet(
                     OutlinedTextField(
                         value = inputCarb,
                         onValueChange = { input ->
-                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.')
                             val clean = if (filtered.count { it == '.' } > 1) {
                                 val firstDot = filtered.indexOf('.')
                                 filtered.substring(0, firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
@@ -548,24 +544,19 @@ fun AddFoodSheet(
                                 filtered
                             }
 
-                            var finalStr = clean
                             var error = ""
                             val dVal = clean.toDoubleOrNull()
                             if (dVal != null) {
-                                if (dVal > 300.0) {
-                                    finalStr = "300.0"
-                                    error = "Carbs: 0–300g"
-                                } else if (dVal < 0.0) {
-                                    finalStr = "0.0"
-                                    error = "Carbs: 0–300g"
+                                if (dVal !in 0.0..500.0) {
+                                    error = "Carbs: 0–500g"
                                 }
                             } else if (clean.isNotEmpty()) {
-                                error = "Carbs: 0–300g"
+                                error = "Carbs: 0–500g"
                             }
-                            inputCarb = finalStr
+                            inputCarb = clean
                             carbError = error
                         },
-                        label = { Text(stringResource(R.string.nutrition_carbs_g), color = SecondaryText, fontSize = 10.sp) },
+                        label = { Text(stringResource(R.string.nutrition_carbs_g), color = SecondaryText, fontSize = 11.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_carbs_input"),
@@ -579,7 +570,7 @@ fun AddFoodSheet(
                     OutlinedTextField(
                         value = inputFat,
                         onValueChange = { input ->
-                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }.replace(',', '.')
                             val clean = if (filtered.count { it == '.' } > 1) {
                                 val firstDot = filtered.indexOf('.')
                                 filtered.substring(0, firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
@@ -587,24 +578,19 @@ fun AddFoodSheet(
                                 filtered
                             }
 
-                            var finalStr = clean
                             var error = ""
                             val dVal = clean.toDoubleOrNull()
                             if (dVal != null) {
-                                if (dVal > 300.0) {
-                                    finalStr = "300.0"
-                                    error = "Fat: 0–300g"
-                                } else if (dVal < 0.0) {
-                                    finalStr = "0.0"
-                                    error = "Fat: 0–300g"
+                                if (dVal !in 0.0..500.0) {
+                                    error = "Fat: 0–500g"
                                 }
                             } else if (clean.isNotEmpty()) {
-                                error = "Fat: 0–300g"
+                                error = "Fat: 0–500g"
                             }
-                            inputFat = finalStr
+                            inputFat = clean
                             fatError = error
                         },
-                        label = { Text(stringResource(R.string.nutrition_fat_g), color = SecondaryText, fontSize = 10.sp) },
+                        label = { Text(stringResource(R.string.nutrition_fat_g), color = SecondaryText, fontSize = 11.sp) },
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_fat_input"),
@@ -617,7 +603,7 @@ fun AddFoodSheet(
                     )
                 }
 
-                Text(stringResource(R.string.nutrition_quick_add), fontFamily = SyneFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AmberAccent)
+                Text(stringResource(R.string.nutrition_quick_add), fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmberAccent)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -634,52 +620,52 @@ fun AddFoodSheet(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text(stringResource(R.string.nutrition_100_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_100_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
                     }
 
                     OutlinedButton(
                         onClick = {
                             val curr = inputProt.toDoubleOrNull() ?: 0.0
-                            val newVal = (curr + 10.0).coerceAtMost(300.0)
+                            val newVal = (curr + 10.0).coerceAtMost(500.0)
                             inputProt = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
-                            protError = if (newVal == 300.0) "Protein: 0–300g" else ""
+                            protError = if (newVal == 500.0) "Protein: 0–500g" else ""
                         },
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, BorderSubtle),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text(stringResource(R.string.nutrition_10g_prot), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_10g_prot), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
                     }
 
                     OutlinedButton(
                         onClick = {
                             val curr = inputCarb.toDoubleOrNull() ?: 0.0
-                            val newVal = (curr + 10.0).coerceAtMost(300.0)
+                            val newVal = (curr + 10.0).coerceAtMost(500.0)
                             inputCarb = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
-                            carbError = if (newVal == 300.0) "Carbs: 0–300g" else ""
+                            carbError = if (newVal == 500.0) "Carbs: 0–500g" else ""
                         },
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, BorderSubtle),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text(stringResource(R.string.nutrition_10g_carbs), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_10g_carbs), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
                     }
 
                     OutlinedButton(
                         onClick = {
                             val curr = inputFat.toDoubleOrNull() ?: 0.0
-                            val newVal = (curr + 5.0).coerceAtMost(300.0)
+                            val newVal = (curr + 5.0).coerceAtMost(500.0)
                             inputFat = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
-                            fatError = if (newVal == 300.0) "Fat: 0–300g" else ""
+                            fatError = if (newVal == 500.0) "Fat: 0–500g" else ""
                         },
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, BorderSubtle),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text(stringResource(R.string.nutrition_5g_fat), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_5g_fat), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
                     }
                 }
 
@@ -798,7 +784,7 @@ fun AdaptiveCalorieTargetCard(
                         )
                         Text(stringResource(R.string.nutrition_based_on_tdeeresult_weightchan, tdeeResult.weightChangeKg, tdeeResult.avgCalories),
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 9.sp,
+                            fontSize = 11.sp,
                             color = SecondaryText,
                             lineHeight = 14.sp
                         )
@@ -852,13 +838,13 @@ fun AdaptiveCalorieTargetCard(
                         )
                         Text(stringResource(R.string.nutrition_accuracy_improving_keep_loggin),
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             color = Color(0xFFF97316),
                             fontWeight = FontWeight.Medium
                         )
                         Text(stringResource(R.string.nutrition_you_have_4_6_days_of_data_a_pr),
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 9.sp,
+                            fontSize = 11.sp,
                             color = SecondaryText,
                             lineHeight = 14.sp
                         )
@@ -876,13 +862,13 @@ fun AdaptiveCalorieTargetCard(
                         )
                         Text(stringResource(R.string.nutrition_log_7_more_days_to_activate_ad),
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             color = Color(0xFF8A8A9A),
                             fontWeight = FontWeight.Medium
                         )
                         Text(stringResource(R.string.nutrition_the_system_learns_your_metabol),
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 9.sp,
+                            fontSize = 11.sp,
                             color = SecondaryText,
                             lineHeight = 14.sp
                         )

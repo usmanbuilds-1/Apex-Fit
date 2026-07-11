@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -34,9 +35,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 com.example.utils.NutritionEntry(
                     date = it.date,
                     calories = it.calories,
-                    protein = it.protein.toInt(),
-                    carbs = it.carbs.toInt(),
-                    fat = it.fat.toInt()
+                    protein = it.protein.roundToInt(),
+                    carbs = it.carbs.roundToInt(),
+                    fat = it.fat.roundToInt()
                 )
             }
         }
@@ -54,9 +55,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         dataStore.goalFlow
     ) { calorieTarget, weights, goal ->
         val latestWeight = weights.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
-        val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250)
-        val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
-        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
+        val proteinTarget = (latestWeight * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
+        val fatTarget = (calorieTarget * 0.25 / 9.0).roundToInt().coerceIn(45, 120)
+        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4.0).roundToInt().coerceIn(100, 500)
         
         com.example.utils.NutritionTargets(
             calories = calorieTarget,
@@ -122,23 +123,27 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val todayNutrition: StateFlow<List<UiNutritionEntry>> = dao.getNutritionForDateFlow(getTodayDateString())
+        .map { entries -> entries.map { it.toUi() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val currentWeight: Flow<Double> = dataStore.currentWeightFlow
     val calorieTargetFlow: Flow<Int> = dataStore.calorieTargetValueFlow
 
-    val loggedCalories: StateFlow<Int> = allNutritionHistory.map { meals ->
+    val loggedCalories: StateFlow<Int> = todayNutrition.map { meals ->
         meals.sumOf { it.calories }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val loggedProtein: StateFlow<Int> = allNutritionHistory.map { meals ->
-        meals.sumOf { it.protein }.toInt()
+    val loggedProtein: StateFlow<Int> = todayNutrition.map { meals ->
+        meals.sumOf { it.protein }.roundToInt()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val loggedCarbs: StateFlow<Int> = allNutritionHistory.map { meals ->
-        meals.sumOf { it.carbs }.toInt()
+    val loggedCarbs: StateFlow<Int> = todayNutrition.map { meals ->
+        meals.sumOf { it.carbs }.roundToInt()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val loggedFat: StateFlow<Int> = allNutritionHistory.map { meals ->
-        meals.sumOf { it.fat }.toInt()
+    val loggedFat: StateFlow<Int> = todayNutrition.map { meals ->
+        meals.sumOf { it.fat }.roundToInt()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val macroTargets: StateFlow<UiState<com.example.utils.NutritionTargets>> = targetsFlow

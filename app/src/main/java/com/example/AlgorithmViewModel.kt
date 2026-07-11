@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 class AlgorithmViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -33,9 +34,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 com.example.utils.NutritionEntry(
                     date = it.date,
                     calories = it.calories,
-                    protein = it.protein.toInt(),
-                    carbs = it.carbs.toInt(),
-                    fat = it.fat.toInt()
+                    protein = it.protein.roundToInt(),
+                    carbs = it.carbs.roundToInt(),
+                    fat = it.fat.roundToInt()
                 )
             }
         }
@@ -54,11 +55,11 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     ) { calorieTarget, weights, goal ->
         val latestWeight = weights.maxByOrNull { it.date }?.weight ?: com.example.UserDefaults.WEIGHT_KG
         // Helms et al. guidance: 1.8g protein per kg total bodyweight for muscle maintenance
-        val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250)
+        val proteinTarget = (latestWeight * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
         // Fat range: 25% of absolute daily calorie target
-        val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
+        val fatTarget = (calorieTarget * 0.25 / 9.0).roundToInt().coerceIn(45, 120)
         // Carbohydrates: Remainder of daily energetic allocations
-        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
+        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4.0).roundToInt().coerceIn(100, 500)
         
         com.example.utils.NutritionTargets(
             calories = calorieTarget,

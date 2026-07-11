@@ -767,7 +767,7 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                         Text(
                             text = label.uppercase(),
                             fontFamily = SyneFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
                             color = labelColor,
                             letterSpacing = 0.8.sp

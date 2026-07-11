@@ -48,7 +48,7 @@ object ProgressionEngine {
 
     fun calculateBeginnerStartingWeight(
         exerciseType: String,  // "compound_upper", "compound_lower", "isolation"
-        userBodyWeightLbs: Double,
+        userBodyWeightKg: Double,
         userHeightCm: Double  // for lever arm adjustment
     ): Double {
         
@@ -61,6 +61,8 @@ object ProgressionEngine {
             else -> 0.10
         }
         
+        // Convert kg to lbs internally for the multiplier calculation
+        val userBodyWeightLbs = userBodyWeightKg * 2.205
         var startWeight = userBodyWeightLbs * baseMultiplier
         
         // Adjust for height (tall = longer ROM = harder)

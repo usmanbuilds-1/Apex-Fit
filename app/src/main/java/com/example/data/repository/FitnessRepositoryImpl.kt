@@ -6,6 +6,7 @@ import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlin.math.roundToInt
 
 /**
  * FitnessRepositoryImpl provides clean, centralized data access delegating to the local database and datastore.
@@ -192,7 +193,7 @@ class FitnessRepositoryImpl(
         }
         
         val latestWeight = engineWeights.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
-        val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250).toDouble()
+        val proteinTarget = (latestWeight * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250).toDouble()
 
         val detected = com.example.utils.PatternDetector.scanAllPatterns(
             weightLog = engineWeights,

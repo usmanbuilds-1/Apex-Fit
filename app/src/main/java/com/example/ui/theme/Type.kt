@@ -92,6 +92,6 @@ val Typography = Typography(
     labelSmall = TextStyle(
         fontFamily = InterFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 10.sp
+        fontSize = 11.sp
     )
 )

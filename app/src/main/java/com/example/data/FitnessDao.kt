@@ -105,7 +105,7 @@ interface FitnessDao {
     suspend fun getActivePlan(): WorkoutPlan?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertWorkoutPlan(plan: WorkoutPlan)
+    suspend fun insertWorkoutPlan(plan: WorkoutPlan): Long
 
     @Query("UPDATE workout_programs SET isActive = 0")
     suspend fun deactivateAllPlans()
@@ -126,7 +126,7 @@ interface FitnessDao {
     suspend fun getSessionsForPlan(planId: Long): List<PlanSession>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertPlanSessions(sessions: List<PlanSession>)
+    suspend fun insertPlanSessions(sessions: List<PlanSession>): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlanSession(session: PlanSession)

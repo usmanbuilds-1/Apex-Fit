@@ -59,6 +59,14 @@ fun SettingsScreen(
     var editCurrentWeight by remember(currentWeightVal) { mutableStateOf(currentWeightVal.toString()) }
     var editGoalWeight by remember(currentGoalWeight) { mutableStateOf(currentGoalWeight.toString()) }
 
+    var isSaving by remember { mutableStateOf(false) }
+    LaunchedEffect(isSaving) {
+        if (isSaving) {
+            kotlinx.coroutines.delay(2000)
+            isSaving = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -298,6 +306,8 @@ fun SettingsScreen(
 
             Button(
                 onClick = {
+                    if (isSaving) return@Button
+                    isSaving = true
                     val hVal = editHeight.toDoubleOrNull() ?: com.example.UserDefaults.HEIGHT_CM
                     val aVal = editAge.toIntOrNull() ?: com.example.UserDefaults.AGE_YEARS
                     val equipmentVal = if (currentEquipment.isNotEmpty()) currentEquipment else "Barbell,Dumbbell,Cable,Machine"
@@ -322,6 +332,7 @@ fun SettingsScreen(
                     Toast.makeText(context, context.getString(R.string.settings_profile_saved_successfully), Toast.LENGTH_SHORT).show()
                     onNavigateTo(0)
                 },
+                enabled = !isSaving,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
                 modifier = Modifier.weight(1f).height(48.dp)
@@ -378,7 +389,7 @@ fun SettingsScreen(
         shape = RoundedCornerShape(10.dp),
         enabled = !isResetting
     ) {
-        Text(if (isResetting) "RESETTING..." else "RESET TOTAL ATHLETE DIRECTORY DATA", fontFamily = SyneFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+        Text(if (isResetting) "RESETTING..." else "RESET TOTAL ATHLETE DIRECTORY DATA", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
     }
     }
 }

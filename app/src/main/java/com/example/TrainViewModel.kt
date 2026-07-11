@@ -18,7 +18,6 @@ import kotlinx.coroutines.Dispatchers
 import androidx.room.withTransaction
 import android.content.Intent
 import androidx.core.content.ContextCompat
-import com.example.utils.RestTimerService
 
 class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -37,33 +36,6 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 android.util.Log.e("TrainViewModel", "Failed to seed default plan: ${e.message}", e)
-            }
-        }
-        viewModelScope.launch {
-            RestTimerService.secondsRemaining.collect { remaining ->
-                val prev = _restTimerSeconds.value
-                _restTimerSeconds.value = remaining
-                if (remaining < prev && remaining >= 0) {
-                    val elapsed = _restTimerTotal.value - remaining
-                    lastCompletedSetPointer?.let { (exId, sIdx) ->
-                        updateSetRestTaken(exId, sIdx, elapsed)
-                    }
-                    if (remaining in 1..3) {
-                        viewModelScope.launch { AudioService.playBeep() }
-                    } else if (remaining == 0 && prev > 0) {
-                        viewModelScope.launch { AudioService.playRestTimerComplete(getApplication()) }
-                    }
-                }
-            }
-        }
-        viewModelScope.launch {
-            RestTimerService.isRunning.collect { running ->
-                _isRestTimerActive.value = running
-                if (running) {
-                    _showRestOverlay.value = true
-                } else {
-                    _showRestOverlay.value = false
-                }
             }
         }
     }
@@ -202,6 +174,29 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectDay(day: String) {
         _selectedDayOfWeek.value = day
+        _activeSubstIndex.value = -1
+        _substitutionList.value = emptyList()
+    }
+
+    // Hoisted TrainScreen UI state
+    private val _activeSubstIndex = MutableStateFlow<Int?>(-1)
+    val activeSubstIndex: StateFlow<Int?> = _activeSubstIndex.asStateFlow()
+
+    private val _substitutionList = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    val substitutionList: StateFlow<List<Pair<String, String>>> = _substitutionList.asStateFlow()
+
+    fun selectSubstIndex(index: Int?) {
+        _activeSubstIndex.value = index
+    }
+
+    fun setSubstitutionList(list: List<Pair<String, String>>) {
+        _substitutionList.value = list
+    }
+
+    fun loadSubstitutionSuggestions(muscleGroup: String, exerciseName: String) {
+        viewModelScope.launch {
+            _substitutionList.value = getSubstitutionSuggestions(muscleGroup, exerciseName)
+        }
     }
 
     // Active Workout Mode state (derived reactively from sessionManager)
@@ -320,6 +315,8 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _lastCompletedSessionSets = MutableStateFlow<List<UiExerciseSet>>(emptyList())
     val lastCompletedSessionSets: StateFlow<List<UiExerciseSet>> = _lastCompletedSessionSets.asStateFlow()
+
+    private var restTimerJob: kotlinx.coroutines.Job? = null
 
     // Rest Timer State
     private val _restTimerSeconds = MutableStateFlow(0)
@@ -571,27 +568,72 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         _showRestOverlay.value = true
         _isRestTimerActive.value = true
 
-        val intent = Intent(getApplication(), RestTimerService::class.java).apply {
-            putExtra(RestTimerService.EXTRA_SECONDS, restSeconds)
-            putExtra(RestTimerService.EXTRA_EXERCISE, exerciseName)
+        // Schedule a one-time alarm for when the timer completes (background-safe)
+        val triggerAtMillis = System.currentTimeMillis() + (restSeconds * 1000L)
+        com.example.utils.RestTimerAlarmReceiver.scheduleAlarm(
+            context = getApplication(),
+            triggerAtMillis = triggerAtMillis,
+            exerciseName = exerciseName
+        )
+
+        // Start local coroutine countdown
+        startLocalTimer(restSeconds, exerciseName)
+    }
+
+    private fun startLocalTimer(durationSeconds: Int, exerciseName: String) {
+        restTimerJob?.cancel()
+        restTimerJob = viewModelScope.launch {
+            var remaining = durationSeconds
+            while (remaining > 0) {
+                delay(1000)
+                remaining--
+                val prev = _restTimerSeconds.value
+                _restTimerSeconds.value = remaining
+
+                val elapsed = _restTimerTotal.value - remaining
+                lastCompletedSetPointer?.let { (exId, sIdx) ->
+                    updateSetRestTaken(exId, sIdx, elapsed)
+                }
+
+                if (remaining in 1..3) {
+                    AudioService.playBeep()
+                } else if (remaining == 0 && prev > 0) {
+                    AudioService.playRestTimerComplete(getApplication())
+                }
+            }
+
+            if (_isRestTimerActive.value) {
+                // Timer completed naturally — cancel the alarm first so it doesn't fire
+                // a duplicate notification after the in-app completion already played
+                com.example.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())
+                closeRestTimer()
+            }
         }
-        ContextCompat.startForegroundService(getApplication(), intent)
     }
 
     fun addRestTimerSeconds(secs: Int) {
         val newSeconds = _restTimerSeconds.value + secs
         _restTimerTotal.value += secs
-        val intent = Intent(getApplication(), RestTimerService::class.java).apply {
-            putExtra(RestTimerService.EXTRA_SECONDS, newSeconds)
-            putExtra(RestTimerService.EXTRA_EXERCISE, "Rest")
-        }
-        ContextCompat.startForegroundService(getApplication(), intent)
+        _restTimerSeconds.value = newSeconds
+
+        // Reschedule alarm for the new duration
+        val triggerAtMillis = System.currentTimeMillis() + (newSeconds * 1000L)
+        com.example.utils.RestTimerAlarmReceiver.scheduleAlarm(
+            context = getApplication(),
+            triggerAtMillis = triggerAtMillis,
+            exerciseName = "Rest"
+        )
+
+        // Restart local timer from the new duration
+        startLocalTimer(newSeconds, "Rest")
     }
 
     fun closeRestTimer() {
         _isRestTimerActive.value = false
         _showRestOverlay.value = false
-        getApplication<Application>().stopService(Intent(getApplication(), RestTimerService::class.java))
+        restTimerJob?.cancel()
+        // Cancel the pending alarm — user dismissed the timer manually
+        com.example.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())
     }
 
     fun nextExercise() {
@@ -787,55 +829,60 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun seedDefaultWorkoutPlan() {
-        val planId = 1L
         val plan = WorkoutPlan(
-            id = planId,
+            id = 0,
             name = "Scientific Hypertrophy Split",
             goal = "Gain Muscle",
             isActive = true,
             createdAt = System.currentTimeMillis()
         )
+
+        dao.deleteAllPlans()  // cascades to plan_sessions and plan_exercises via FK
+        val generatedPlanId = dao.insertWorkoutPlan(plan)
         
         val sessions = listOf(
-            PlanSession(id = 101L, planId = planId, label = "Upper A", day = "Monday", focus = "Chest, Back, Arms"),
-            PlanSession(id = 102L, planId = planId, label = "Lower A", day = "Tuesday", focus = "Quads, Hamstrings, Calves"),
-            PlanSession(id = 103L, planId = planId, label = "Upper B", day = "Thursday", focus = "Shoulders, Chest, Back"),
-            PlanSession(id = 104L, planId = planId, label = "Lower B", day = "Friday", focus = "Hamstrings, Glutes, Quads")
+            PlanSession(id = 0, planId = generatedPlanId, label = "Upper A", day = "Monday", focus = "Chest, Back, Arms"),
+            PlanSession(id = 0, planId = generatedPlanId, label = "Lower A", day = "Tuesday", focus = "Quads, Hamstrings, Calves"),
+            PlanSession(id = 0, planId = generatedPlanId, label = "Upper B", day = "Thursday", focus = "Shoulders, Chest, Back"),
+            PlanSession(id = 0, planId = generatedPlanId, label = "Lower B", day = "Friday", focus = "Hamstrings, Glutes, Quads")
         )
+
+        val sessionIds = dao.insertPlanSessions(sessions)
+        val upperASessionId = sessionIds[0]
+        val lowerASessionId = sessionIds[1]
+        val upperBSessionId = sessionIds[2]
+        val lowerBSessionId = sessionIds[3]
 
         val exercises = listOf(
             // Monday - Upper A
-            PlanExercise(id = 10101L, planSessionId = 101L, name = "Incline Barbell Bench Press", muscleGroup = "Chest", sets = 4, repsMin = 6, repsMax = 10, weight = 80.0, restSeconds = 120, notes = "Focus on the deep stretch at chest level."),
-            PlanExercise(id = 10102L, planSessionId = 101L, name = "Weighted Pull-Up", muscleGroup = "Back", sets = 4, repsMin = 6, repsMax = 10, weight = 5.0, restSeconds = 120, notes = "Control the eccentric descent."),
-            PlanExercise(id = 10103L, planSessionId = 101L, name = "Dumbbell Lateral Raise", muscleGroup = "Shoulders", sets = 3, repsMin = 10, repsMax = 15, weight = 12.5, restSeconds = 90, notes = "Slight torso lean forward."),
-            PlanExercise(id = 10104L, planSessionId = 101L, name = "Incline Dumbbell Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 8, repsMax = 12, weight = 14.0, restSeconds = 90, notes = "Biceps fully stretched at bottom."),
-            PlanExercise(id = 10105L, planSessionId = 101L, name = "Dual Rope Tricep Pushdown", muscleGroup = "Triceps", sets = 3, repsMin = 10, repsMax = 15, weight = 25.0, restSeconds = 90, notes = "Flare ropes outward at end of range."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Incline Barbell Bench Press", muscleGroup = "Chest", sets = 4, repsMin = 6, repsMax = 10, weight = 80.0, restSeconds = 120, notes = "Focus on the deep stretch at chest level."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Weighted Pull-Up", muscleGroup = "Back", sets = 4, repsMin = 6, repsMax = 10, weight = 5.0, restSeconds = 120, notes = "Control the eccentric descent."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Dumbbell Lateral Raise", muscleGroup = "Shoulders", sets = 3, repsMin = 10, repsMax = 15, weight = 12.5, restSeconds = 90, notes = "Slight torso lean forward."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Incline Dumbbell Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 8, repsMax = 12, weight = 14.0, restSeconds = 90, notes = "Biceps fully stretched at bottom."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Dual Rope Tricep Pushdown", muscleGroup = "Triceps", sets = 3, repsMin = 10, repsMax = 15, weight = 25.0, restSeconds = 90, notes = "Flare ropes outward at end of range."),
 
             // Tuesday - Lower A
-            PlanExercise(id = 10201L, planSessionId = 102L, name = "Barbell Back Squat", muscleGroup = "Quads", sets = 4, repsMin = 6, repsMax = 8, weight = 100.0, restSeconds = 180, notes = "Keep knees tracking over toes."),
-            PlanExercise(id = 10202L, planSessionId = 102L, name = "Romanian Deadlift", muscleGroup = "Hamstrings", sets = 4, repsMin = 8, repsMax = 12, weight = 90.0, restSeconds = 120, notes = "Hinge at hips, keep back flat."),
-            PlanExercise(id = 10203L, planSessionId = 102L, name = "Leg Press (High & Wide)", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 12, weight = 160.0, restSeconds = 120, notes = "Aesthetic emphasis on quad sweep."),
-            PlanExercise(id = 10204L, planSessionId = 102L, name = "Seated Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 15, weight = 50.0, restSeconds = 90, notes = "Hard squeeze at full flexion."),
-            PlanExercise(id = 10205L, planSessionId = 102L, name = "Standing Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 60.0, restSeconds = 60, notes = "2-second pause at full stretch."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Barbell Back Squat", muscleGroup = "Quads", sets = 4, repsMin = 6, repsMax = 8, weight = 100.0, restSeconds = 180, notes = "Keep knees tracking over toes."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Romanian Deadlift", muscleGroup = "Hamstrings", sets = 4, repsMin = 8, repsMax = 12, weight = 90.0, restSeconds = 120, notes = "Hinge at hips, keep back flat."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Leg Press (High & Wide)", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 12, weight = 160.0, restSeconds = 120, notes = "Aesthetic emphasis on quad sweep."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Seated Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 15, weight = 50.0, restSeconds = 90, notes = "Hard squeeze at full flexion."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Standing Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 60.0, restSeconds = 60, notes = "2-second pause at full stretch."),
 
             // Thursday - Upper B
-            PlanExercise(id = 10301L, planSessionId = 103L, name = "Standing Overhead Press", muscleGroup = "Shoulders", sets = 4, repsMin = 6, repsMax = 10, weight = 50.0, restSeconds = 120, notes = "Press overhead in a straight line."),
-            PlanExercise(id = 10302L, planSessionId = 103L, name = "Chest-Supported Dumbbell Row", muscleGroup = "Back", sets = 4, repsMin = 8, repsMax = 12, weight = 25.0, restSeconds = 120, notes = "Squeeze shoulder blades together."),
-            PlanExercise(id = 10303L, planSessionId = 103L, name = "Flat Dumbbell Press", muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 30.0, restSeconds = 120, notes = "Drive dumbbells toward center on press."),
-            PlanExercise(id = 10304L, planSessionId = 103L, name = "Lat Pulldown (Neutral Grip)", muscleGroup = "Back", sets = 3, repsMin = 8, repsMax = 12, weight = 65.0, restSeconds = 90, notes = "Pull down to upper collarbone."),
-            PlanExercise(id = 10305L, planSessionId = 103L, name = "Hammer Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 10, repsMax = 15, weight = 15.0, restSeconds = 90, notes = "Focus on brachialis and forearm development."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Standing Overhead Press", muscleGroup = "Shoulders", sets = 4, repsMin = 6, repsMax = 10, weight = 50.0, restSeconds = 120, notes = "Press overhead in a straight line."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Chest-Supported Dumbbell Row", muscleGroup = "Back", sets = 4, repsMin = 8, repsMax = 12, weight = 25.0, restSeconds = 120, notes = "Squeeze shoulder blades together."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Flat Dumbbell Press", muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 30.0, restSeconds = 120, notes = "Drive dumbbells toward center on press."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Lat Pulldown (Neutral Grip)", muscleGroup = "Back", sets = 3, repsMin = 8, repsMax = 12, weight = 65.0, restSeconds = 90, notes = "Pull down to upper collarbone."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Hammer Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 10, repsMax = 15, weight = 15.0, restSeconds = 90, notes = "Focus on brachialis and forearm development."),
 
             // Friday - Lower B
-            PlanExercise(id = 10401L, planSessionId = 104L, name = "Conventional Deadlift", muscleGroup = "Back", sets = 3, repsMin = 5, repsMax = 5, weight = 120.0, restSeconds = 180, notes = "Full reset each rep, do not bounce."),
-            PlanExercise(id = 10402L, planSessionId = 104L, name = "Bulgarian Split Squat", muscleGroup = "Quads", sets = 3, repsMin = 8, repsMax = 12, weight = 16.0, restSeconds = 90, notes = "Load front heel, maintain vertical spine."),
-            PlanExercise(id = 10403L, planSessionId = 104L, name = "Leg Extension", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 15, weight = 60.0, restSeconds = 90, notes = "Peak contraction at top."),
-            PlanExercise(id = 10404L, planSessionId = 104L, name = "Lying Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 12, weight = 40.0, restSeconds = 90, notes = "Keep hips flat against the pad."),
-            PlanExercise(id = 10405L, planSessionId = 104L, name = "Seated Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 40.0, restSeconds = 60, notes = "Slow stretch at bottom range.")
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Conventional Deadlift", muscleGroup = "Back", sets = 3, repsMin = 5, repsMax = 5, weight = 120.0, restSeconds = 180, notes = "Full reset each rep, do not bounce."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Bulgarian Split Squat", muscleGroup = "Quads", sets = 3, repsMin = 8, repsMax = 12, weight = 16.0, restSeconds = 90, notes = "Load front heel, maintain vertical spine."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Leg Extension", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 15, weight = 60.0, restSeconds = 90, notes = "Peak contraction at top."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Lying Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 12, weight = 40.0, restSeconds = 90, notes = "Keep hips flat against the pad."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Seated Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 40.0, restSeconds = 60, notes = "Slow stretch at bottom range.")
         )
 
-        dao.deleteAllPlans()  // cascades to plan_sessions and plan_exercises via FK
-        dao.insertWorkoutPlan(plan)
-        dao.insertPlanSessions(sessions)
         dao.insertPlanExercises(exercises)
         selectDay("Monday")
     }

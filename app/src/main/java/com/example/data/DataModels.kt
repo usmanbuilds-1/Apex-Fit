@@ -52,6 +52,12 @@ data class NutritionEntry(
     )
 }
 
+/**
+ * A completed (or partial) workout session.
+ * @param id UUID string generated at commit time by WorkoutSessionManager.commitToDatabase.
+ *   Used as the FK target for ExerciseSet.sessionId.
+ *   Format: UUID.randomUUID().toString()
+ */
 @Entity(
     tableName = "workout_sessions",
     indices = [Index(value = ["date"])]
@@ -93,6 +99,15 @@ data class TrainingSession(
         )
     ]
 )
+/**
+ * Represents a single set within a workout session.
+ *
+ * @param effectiveSetValue A 0.0-1.0 multiplier indicating the hypertrophy
+ *   effectiveness of this set, derived from RPE via
+ *   ProgressionEngine.calculateEffectiveSetValue(rpe).
+ *   Values: RPE 10→1.0, 9→0.95, 8→0.85, 7→0.70, 6→0.45, else→0.20.
+ *   Used in AlgorithmEngine.calcEffectiveSets for weekly volume calculations.
+ */
 data class ExerciseSet(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val sessionId: String = "",
@@ -188,7 +203,7 @@ data class VolumeData(
 
 @Entity(tableName = "workout_programs")
 data class WorkoutPlan(
-    @PrimaryKey val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val goal: String,
     val isActive: Boolean,
@@ -213,7 +228,7 @@ data class WorkoutPlan(
     ]
 )
 data class PlanSession(
-    @PrimaryKey val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val planId: Long,
     val label: String, // e.g., "Upper A"
     val day: String, // e.g., "Monday"
@@ -232,7 +247,7 @@ data class PlanSession(
     ]
 )
 data class PlanExercise(
-    @PrimaryKey val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val planSessionId: Long,
     val name: String,
     val muscleGroup: String,

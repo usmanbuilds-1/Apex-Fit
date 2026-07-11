@@ -80,6 +80,15 @@ fun PlanBuilderScreen(
     var sessionToDelete by rememberSaveable { mutableStateOf<PlanSession?>(null) }
     var exerciseToDelete by rememberSaveable { mutableStateOf<PlanExercise?>(null) }
 
+    var isSaving by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isSaving) {
+        if (isSaving) {
+            kotlinx.coroutines.delay(2000)
+            isSaving = false
+        }
+    }
+
     LaunchedEffect(activePlan, dbSessions, dbExercises) {
         if (!isInitialized && activePlan != null) {
             planName = activePlan?.name ?: "My Custom Plan"
@@ -118,6 +127,8 @@ fun PlanBuilderScreen(
                 actions = {
                     TextButton(
                         onClick = {
+                            if (isSaving) return@TextButton
+                            isSaving = true
                             if (planName.isBlank()) {
                                 Toast.makeText(context, context.getString(R.string.plan_builder_plan_name_cannot_be_empty), Toast.LENGTH_SHORT).show()
                                 return@TextButton
@@ -149,6 +160,7 @@ fun PlanBuilderScreen(
                             Toast.makeText(context, context.getString(R.string.plan_builder_workout_plan_updated_successfu), Toast.LENGTH_SHORT).show()
                             onNavigateBack()
                         },
+                        enabled = !isSaving,
                         modifier = Modifier.testTag("save_plan_button")
                     ) {
                         Text(stringResource(R.string.plan_builder_save),
@@ -447,7 +459,7 @@ fun PlanBuilderScreen(
                                                         Text(
                                                             text = exercise.muscleGroup.uppercase(),
                                                             fontFamily = JetBrainsMonoFamily,
-                                                            fontSize = 9.sp,
+                                                            fontSize = 11.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             color = OrangeAccent
                                                         )
@@ -472,7 +484,7 @@ fun PlanBuilderScreen(
                                                     Text(
                                                         text = "Notes: ${exercise.notes}",
                                                         fontFamily = JetBrainsMonoFamily,
-                                                        fontSize = 10.sp,
+                                                        fontSize = 11.sp,
                                                         color = MutedText,
                                                         modifier = Modifier.padding(top = 2.dp)
                                                     )
@@ -539,7 +551,7 @@ fun PlanBuilderScreen(
                                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
                                     Text(stringResource(R.string.plan_builder_add_exercise),
                                         fontFamily = SyneFamily,
-                                        fontSize = 10.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -778,7 +790,7 @@ fun PlanBuilderScreen(
                         OutlinedTextField(
                             value = setsText,
                             onValueChange = { setsText = it },
-                            label = { Text(stringResource(R.string.plan_builder_sets), color = SecondaryText, fontSize = 10.sp) },
+                            label = { Text(stringResource(R.string.plan_builder_sets), color = SecondaryText, fontSize = 11.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
                                 .weight(1f)
@@ -794,7 +806,7 @@ fun PlanBuilderScreen(
                         OutlinedTextField(
                             value = repsMinText,
                             onValueChange = { repsMinText = it },
-                            label = { Text(stringResource(R.string.plan_builder_min_reps), color = SecondaryText, fontSize = 10.sp) },
+                            label = { Text(stringResource(R.string.plan_builder_min_reps), color = SecondaryText, fontSize = 11.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
                                 .weight(1.1f)
@@ -810,7 +822,7 @@ fun PlanBuilderScreen(
                         OutlinedTextField(
                             value = repsMaxText,
                             onValueChange = { repsMaxText = it },
-                            label = { Text(stringResource(R.string.plan_builder_max_reps), color = SecondaryText, fontSize = 10.sp) },
+                            label = { Text(stringResource(R.string.plan_builder_max_reps), color = SecondaryText, fontSize = 11.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
                                 .weight(1.1f)

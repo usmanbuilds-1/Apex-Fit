@@ -5,10 +5,12 @@ import androidx.work.Configuration
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import com.example.data.DataStoreManager
 import com.example.utils.SeedService
+import com.example.utils.CoachingScheduler
 
 class ApexFitApplication : Application(), Configuration.Provider {
     override val workManagerConfiguration: Configuration
@@ -18,14 +20,30 @@ class ApexFitApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        // Seed exercises on first launch
         val app = this
+
+        // Seed exercises on first launch
         CoroutineScope(Dispatchers.IO).launch {
-            val dataStore = DataStoreManager.getInstance(app)
-            val isSeeded = dataStore.isExercisesSeededFlow.firstOrNull() ?: false
-            if (!isSeeded) {
-                SeedService.seed(app)
-                dataStore.setExercisesSeeded(true)
+            try {
+                val dataStore = DataStoreManager.getInstance(app)
+                val isSeeded = dataStore.isExercisesSeededFlow.firstOrNull() ?: false
+                if (!isSeeded) {
+                    SeedService.seed(app)
+                    dataStore.setExercisesSeeded(true)
+                }
+            } catch (e: Exception) {
+                Log.e("ApexFitApplication", "Seeding failed", e)
+            }
+        }
+
+        // Schedule coaching notifications — with delay to ensure WorkManager is initialized
+        CoroutineScope(Dispatchers.IO).launch {
+            delay(2000)
+            try {
+                CoachingScheduler.schedule6AmDailyCoachingTask(app)
+                Log.i("ApexFitApplication", "Coaching task scheduled")
+            } catch (e: Exception) {
+                Log.e("ApexFitApplication", "Failed to schedule coaching", e)
             }
         }
     }

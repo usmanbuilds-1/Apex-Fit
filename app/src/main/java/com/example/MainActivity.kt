@@ -103,6 +103,10 @@ class MainActivity : ComponentActivity() {
         // Enforce Edge to Edge insets
         enableEdgeToEdge()
 
+        // Request notification permission on Android 13+ — runs on every launch but
+        // only prompts if not granted AND not previously denied
+        maybeRequestNotificationPermission()
+
         handleDeepLink(intent)
 
         setContent {

@@ -8,4 +8,5 @@ object UserDefaults {
     const val CALORIES = 2500
     const val WEEKLY_WORKOUTS = 3
     const val GOAL = "maintain"
+    const val PROTEIN_PER_KG = 1.8  // g protein per kg bodyweight (Helms et al.)
 }

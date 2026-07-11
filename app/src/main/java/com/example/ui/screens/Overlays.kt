@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.FitnessViewModel
 import com.example.TrainViewModel
 import com.example.ui.theme.*
+import kotlin.math.roundToInt
 
 @Composable
 fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainViewModel) {
@@ -355,8 +356,8 @@ fun SessionCompleteOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: T
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem(label = "VOLUME", value = "${totalVolume.toInt()} ${fitnessViewModel.units}")
-                    StatItem(label = "HYPERTROPHY", value = "${(hypertrophyScore).toInt()}")
+                    StatItem(label = "VOLUME", value = "${totalVolume.roundToInt()} ${fitnessViewModel.units}")
+                    StatItem(label = "HYPERTROPHY", value = "${(hypertrophyScore).roundToInt()}")
                 }
 
                 // PRs broken
@@ -419,7 +420,7 @@ private fun StatItem(label: String, value: String) {
         )
         Text(
             text = label,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = MutedText,
             fontWeight = FontWeight.Bold
         )

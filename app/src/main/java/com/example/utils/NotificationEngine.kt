@@ -1,6 +1,7 @@
 package com.example.utils
 
 import java.util.Calendar
+import kotlin.math.roundToInt
 
 object NotificationEngine {
 
@@ -15,7 +16,6 @@ object NotificationEngine {
     fun evaluateDailyTriggers(
         nutritionLog: List<NutritionEntry>,
         trainingLog: List<TrainingSession>,
-        weightLog: List<WeightEntry>,
         targets: NutritionTargets,
         todaySessionType: String?,
         currentHour: Int
@@ -43,8 +43,8 @@ object NotificationEngine {
                 val remaining = proteinTarget - morningProtein
                 triggers.add(NotificationTrigger(
                     id = "midday_protein",
-                    title = "Only ${morningProtein.toInt()}g protein by noon",
-                    body = "You need ${remaining.toInt()}g more today. Front-loading protein prevents evening scrambling. Eat 40g now.",
+                    title = "Only ${morningProtein.roundToInt()}g protein by noon",
+                    body = "You need ${remaining.roundToInt()}g more today. Front-loading protein prevents evening scrambling. Eat 40g now.",
                     triggerHour = 12,
                     priority = "high"
                 ))

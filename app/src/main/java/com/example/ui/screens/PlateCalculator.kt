@@ -3,6 +3,8 @@ package com.example.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -51,7 +53,7 @@ fun PlateCalculatorCard(
             Text(
                 text = "BARBELL PLATE CALCULATOR",
                 fontFamily = SyneFamily,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = OrangeAccent,
                 modifier = Modifier.padding(bottom = 6.dp)
@@ -68,7 +70,7 @@ fun PlateCalculatorCard(
                         targetWeightStr = normalized
                         targetWeight = normalized.toDoubleOrNull() ?: barWeight
                     },
-                    label = { Text(stringResource(R.string.plate_calc_weight_target, suffix), color = Color(0xFF8A8A9A), fontSize = 9.sp) },
+                    label = { Text(stringResource(R.string.plate_calc_weight_target, suffix), color = Color(0xFF8A8A9A), fontSize = 11.sp) },
                     textStyle = TextStyle(color = Color(0xFFF0F0F5), fontFamily = JetBrainsMonoFamily, fontSize = 12.sp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(0.4f),
@@ -96,7 +98,7 @@ fun PlateCalculatorCard(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F1A)),
                             modifier = Modifier.height(48.dp)
                         ) {
-                            Text(stringResource(R.string.plate_calc_fmt_str, preset.toInt(), suffix), color = Color(0xFFF0F0F5), fontSize = 9.sp, fontFamily = JetBrainsMonoFamily)
+                            Text(stringResource(R.string.plate_calc_fmt_str, preset.toInt(), suffix), color = Color(0xFFF0F0F5), fontSize = 11.sp, fontFamily = JetBrainsMonoFamily)
                         }
                     }
                 }
@@ -140,7 +142,7 @@ fun PlateCalculatorCard(
             Text(
                 text = "Plates per side: (Barbell: $barWeight$suffix • Load/side: ${String.format(java.util.Locale.US, "%.2f", sideWeight)}$suffix)",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 8.sp,
+                fontSize = 11.sp,
                 color = Color(0xFF8A8A9A),
                 modifier = Modifier.padding(bottom = 6.dp)
             )
@@ -149,7 +151,7 @@ fun PlateCalculatorCard(
                 Text(
                     text = "No plates to load (Empty barbell or below)",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = Color(0xFF8A8A9A),
                     textAlign = TextAlign.Center,
                     modifier = Modifier
@@ -199,7 +201,7 @@ fun PlateCalculatorCard(
 
                             Box(
                                 modifier = Modifier
-                                    .width(28.dp)
+                                    .width(36.dp)
                                     .fillMaxHeight(heightFactor)
                                     .clip(RoundedCornerShape(3.dp))
                                     .background(plate.color)
@@ -209,7 +211,7 @@ fun PlateCalculatorCard(
                                 Text(
                                     text = plate.label,
                                     color = plate.textColor,
-                                    fontSize = 9.sp,
+                                    fontSize = 11.sp,
                                     fontFamily = JetBrainsMonoFamily,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center
@@ -217,7 +219,7 @@ fun PlateCalculatorCard(
                             }
                         }
                     }
-
+ 
                     // Remaining sleeve extension
                     Box(
                         modifier = Modifier
@@ -225,6 +227,36 @@ fun PlateCalculatorCard(
                             .height(4.dp)
                             .background(Color.Gray.copy(alpha = 0.4f))
                     )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    plateTypes.forEach { plate ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(plate.color)
+                                    .border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(2.dp))
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "${plate.label}$suffix",
+                                fontSize = 11.sp,
+                                color = Color(0xFF8A8A9A),
+                                fontFamily = JetBrainsMonoFamily,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
             }
         }

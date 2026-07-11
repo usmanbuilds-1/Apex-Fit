@@ -15,7 +15,6 @@ class ReadinessEngineTest {
             systemicHistory = emptyList(),
             systemicCapacity = 1500.0,
             nutritionScore = 80,
-            sleepScore = 80,
             acuteLoad = 0.0,
             chronicLoad = 0.0
         )
@@ -34,32 +33,12 @@ class ReadinessEngineTest {
             systemicHistory = listOf(SystemicCNSCalculator.SystemicSnapshot(1.0, 200.0)),
             systemicCapacity = 1500.0,
             nutritionScore = 90,
-            sleepScore = 90,
             acuteLoad = 1.0,
             chronicLoad = 1.0
         )
         assertNotEquals("Building Baseline", res.label)
         assertTrue(res.overallPercent in 0..100)
         assertEquals("full", res.dataConfidence)
-    }
-
-    @Test
-    fun testReadinessFinalCalculate_missingSleepCase() {
-        val res = ReadinessFinal.calculate(
-            totalCompletedSessions = 10,
-            todaysMuscleGroups = listOf("chest"),
-            muscleFatigueHistory = mapOf("chest" to listOf(MuscleFatigueSnapshot("chest", 1.0, 100.0))),
-            muscleSessionHistory = mapOf("chest" to listOf(100.0, 120.0, 110.0)),
-            systemicHistory = listOf(SystemicCNSCalculator.SystemicSnapshot(1.0, 200.0)),
-            systemicCapacity = 1500.0,
-            nutritionScore = 90,
-            sleepScore = null, // Missing sleep
-            acuteLoad = 1.0,
-            chronicLoad = 1.0
-        )
-        assertNotEquals("Building Baseline", res.label)
-        assertTrue(res.overallPercent in 0..100)
-        assertEquals("partial - sleep not logged", res.dataConfidence)
     }
 
     @Test
@@ -72,7 +51,6 @@ class ReadinessEngineTest {
             systemicHistory = emptyList(),
             systemicCapacity = 1500.0,
             nutritionScore = 100,
-            sleepScore = 100,
             acuteLoad = 0.0,
             chronicLoad = 0.0
         )

@@ -13,10 +13,20 @@ object MuscleAliases {
         "Triceps" to "triceps",
         "Core" to "core", "Abs" to "core",
         "Forearms" to "forearms",
-        "Lower Back" to "lower_back"
+        "Lower Back" to "lower_back",
+        "Neck" to "neck",
+        "Trapezius" to "trapezius",
+        "Hip Abductors" to "hip_abductors",
+        "Hip Adductors" to "hip_adductors",
+        "Rotator Cuff" to "rotator_cuff",
+        "Serratus Anterior" to "serratus_anterior",
+        "Tibialis Anterior" to "tibialis_anterior"
     )
 
     fun getCanonical(muscle: String): String {
-        return map[muscle] ?: muscle.lowercase().replace(" ", "_")
+        val norm = muscle.trim()
+        return map[norm]
+            ?: map.entries.firstOrNull { it.key.equals(norm, ignoreCase = true) }?.value
+            ?: norm.lowercase().replace(" ", "_")
     }
 }

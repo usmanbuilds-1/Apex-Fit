@@ -67,6 +67,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 import kotlin.math.cos
+import kotlin.math.roundToInt
 
 @Composable
 fun TrainScreen(
@@ -152,8 +153,8 @@ fun ProgramSubTab(
     val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
     val scope = rememberCoroutineScope()
-    var substitutionList by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var activeSubstIndex by remember { mutableStateOf<Int?>(-1) }
+    val substitutionList by trainViewModel.substitutionList.collectAsStateWithLifecycle()
+    val activeSubstIndex by trainViewModel.activeSubstIndex.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Horizontal Day Picker Chips
@@ -212,7 +213,7 @@ fun ProgramSubTab(
                         Text(
                             text = "CURRENT SESSION PARAMETERS",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 9.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = AmberAccent
                         )
@@ -238,7 +239,7 @@ fun ProgramSubTab(
                         Text(
                             text = "Warmup",
                             fontFamily = SyneFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryText
                         )
@@ -246,7 +247,7 @@ fun ProgramSubTab(
                         Text(
                             text = "✓ 5 Mins light cardio + Shoulder cuff activations + Barbell sets",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             color = MutedText
                         )
 
@@ -323,7 +324,7 @@ fun ProgramSubTab(
                                 Text(
                                     text = "Rest Target Interval: ${ex.restSeconds} Seconds",
                                     fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     color = SecondaryText
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -356,10 +357,8 @@ fun ProgramSubTab(
                                     // Replace Exercise button suggestion
                                     Button(
                                         onClick = {
-                                            activeSubstIndex = index
-                                            scope.launch {
-                                                substitutionList = trainViewModel.getSubstitutionSuggestions(ex.muscleGroup, ex.name)
-                                            }
+                                            trainViewModel.selectSubstIndex(index)
+                                            trainViewModel.loadSubstitutionSuggestions(ex.muscleGroup, ex.name)
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                                         shape = RoundedCornerShape(8.dp),
@@ -383,7 +382,7 @@ fun ProgramSubTab(
                                         Text(
                                             text = "Suggested Substitutions",
                                             fontFamily = SyneFamily,
-                                            fontSize = 9.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = AmberAccent
                                         )
@@ -400,7 +399,7 @@ fun ProgramSubTab(
                                                 Text(
                                                     text = p.second,
                                                     fontFamily = JetBrainsMonoFamily,
-                                                    fontSize = 10.sp,
+                                                    fontSize = 11.sp,
                                                     color = SecondaryText,
                                                     lineHeight = 14.sp
                                                 )
@@ -435,6 +434,7 @@ fun WorkoutExecutionSubTab(
     val weightContextLines by trainViewModel.weightContextLines.collectAsStateWithLifecycle()
     val preferredUnits by trainViewModel.units.collectAsStateWithLifecycle()
     val saveError by trainViewModel.saveError.collectAsStateWithLifecycle()
+    val showRirOverlay by trainViewModel.showRirOverlay.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -590,7 +590,7 @@ fun WorkoutExecutionSubTab(
                             else -> "5 - Beast mode / excellent!"
                         },
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = SecondaryText
                     )
                 }
@@ -694,7 +694,7 @@ fun WorkoutExecutionSubTab(
                             else -> "5 - Beast mode / excellent!"
                         },
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         color = SecondaryText
                     )
                 }
@@ -758,7 +758,7 @@ fun WorkoutExecutionSubTab(
                 Text(
                     text = "Select a day above to start your workout.",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = SecondaryText,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 24.dp)
@@ -823,7 +823,7 @@ fun WorkoutExecutionSubTab(
                             Text(
                                 text = "EXERCISE ${currentIdx + 1} OF ${exercises.size}",
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 color = MutedText
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -834,7 +834,7 @@ fun WorkoutExecutionSubTab(
                                         .clickable { showPlateCalc = !showPlateCalc }
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
-                                    Text(stringResource(R.string.train_plate_calc), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = AmberAccent)
+                                    Text(stringResource(R.string.train_plate_calc), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
                                 }
                                 Box(
                                     modifier = Modifier
@@ -842,7 +842,7 @@ fun WorkoutExecutionSubTab(
                                         .background(DarkRaised)
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
-                                    Text(ex.muscleGroup.uppercase(), fontFamily = JetBrainsMonoFamily, fontSize = 9.sp, color = AmberAccent)
+                                    Text(ex.muscleGroup.uppercase(), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
                                 }
                             }
                         }
@@ -973,7 +973,7 @@ fun WorkoutExecutionSubTab(
                                             Text(
                                                 text = "WARMUP",
                                                 fontFamily = JetBrainsMonoFamily,
-                                                fontSize = 6.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF1E1B4B)
                                             )
@@ -983,7 +983,7 @@ fun WorkoutExecutionSubTab(
                                         Text(
                                             text = "SET",
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 8.sp,
+                                            fontSize = 11.sp,
                                             color = MutedText
                                         )
                                     }
@@ -1002,7 +1002,7 @@ fun WorkoutExecutionSubTab(
 
                                 // Weight textfield
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.train_weight), fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
+                                    Text(stringResource(R.string.train_weight), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
                                     BasicTextField(
                                         value = rawWeight,
                                         onValueChange = { input ->
@@ -1075,7 +1075,7 @@ fun WorkoutExecutionSubTab(
                                         Text(
                                             text = shortNote,
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 8.sp,
+                                            fontSize = 11.sp,
                                             color = MutedText
                                         )
                                     }
@@ -1084,7 +1084,7 @@ fun WorkoutExecutionSubTab(
                                         Text(
                                             text = weightError,
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 8.sp,
+                                            fontSize = 11.sp,
                                             color = RedAccent,
                                             modifier = Modifier.testTag("weight_error_msg")
                                         )
@@ -1093,7 +1093,7 @@ fun WorkoutExecutionSubTab(
 
                                 // Reps textfield
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.train_reps), fontFamily = JetBrainsMonoFamily, fontSize = 7.sp, color = SecondaryText)
+                                    Text(stringResource(R.string.train_reps), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
                                     BasicTextField(
                                         value = rawReps,
                                         onValueChange = { input ->
@@ -1134,7 +1134,7 @@ fun WorkoutExecutionSubTab(
                                         Text(
                                             text = repsError,
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 8.sp,
+                                            fontSize = 11.sp,
                                             color = RedAccent,
                                             modifier = Modifier.testTag("reps_error_msg")
                                         )
@@ -1142,27 +1142,29 @@ fun WorkoutExecutionSubTab(
                                 }
                                            // Completion Checkbox
                                 IconButton(
-                                    enabled = isSetValid,
+                                    enabled = isSetValid && !showRirOverlay,
                                     onClick = {
-                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        val newCompleted = !setObj.completed
-                                        val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                                        val r = rawReps.toIntOrNull() ?: setObj.reps
+                                        if (!showRirOverlay) {
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            val newCompleted = !setObj.completed
+                                            val w = rawWeight.toDoubleOrNull() ?: setObj.weight
+                                            val r = rawReps.toIntOrNull() ?: setObj.reps
 
-                                        if (newCompleted) {
-                                            // Smart RIR dynamic selector instead of instant log
-                                            trainViewModel.openRirSelector(
-                                                exerciseId = ex.id,
-                                                exerciseName = ex.name,
-                                                muscleGroup = ex.muscleGroup,
-                                                setIndex = sIdx,
-                                                weight = w,
-                                                reps = r,
-                                                totalSets = setsList.size
-                                            )
-                                        } else {
-                                            // Simple uncheck log state
-                                            trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, false)
+                                            if (newCompleted) {
+                                                // Smart RIR dynamic selector instead of instant log
+                                                trainViewModel.openRirSelector(
+                                                    exerciseId = ex.id,
+                                                    exerciseName = ex.name,
+                                                    muscleGroup = ex.muscleGroup,
+                                                    setIndex = sIdx,
+                                                    weight = w,
+                                                    reps = r,
+                                                    totalSets = setsList.size
+                                                )
+                                            } else {
+                                                // Simple uncheck log state
+                                                trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, false)
+                                            }
                                         }
                                     },
                                     modifier = Modifier.testTag("log_checkmark_button")
@@ -1179,7 +1181,7 @@ fun WorkoutExecutionSubTab(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             // Custom Segmented Button select row for RPE (1 to 10)
-                            Text(stringResource(R.string.train_rpe, selectedRpe), fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = AmberAccent)
+                            Text(stringResource(R.string.train_rpe, selectedRpe), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(
                                 modifier = Modifier
@@ -1213,7 +1215,7 @@ fun WorkoutExecutionSubTab(
                                         Text(
                                             text = rpeVal.toString(),
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 9.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = if (isRpeSelected) Color(0xFF0A0A0F) else zoneColor.copy(alpha = 0.7f)
                                         )
@@ -1276,7 +1278,7 @@ fun WorkoutExecutionSubTab(
                             Text(
                                 text = "Sets: 1–20",
                                 fontFamily = JetBrainsMonoFamily,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 color = RedAccent,
                                 modifier = Modifier.testTag("sets_error_msg")
                             )
@@ -1471,7 +1473,7 @@ fun NewPlansSubTab(
                                         .background(Color(0xFF2E6A41))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
-                                    Text(stringResource(R.string.train_active), fontFamily = JetBrainsMonoFamily, fontSize = 8.sp, color = PrimaryText)
+                                    Text(stringResource(R.string.train_active), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
                                 }
                             }
                         }
@@ -1545,7 +1547,7 @@ fun RealTimeEffectiveSetsCard(
                     color = PrimaryText
                 )
                 Text(
-                    text = "(${effData.progress.toInt()}% complete)",
+                    text = "(${effData.progress.roundToInt()}% complete)",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
                     color = AmberAccent
@@ -1603,7 +1605,7 @@ fun RealTimeEffectiveSetsCard(
                                 Spacer(modifier = Modifier.width(6.dp))
                             }
                             Text(
-                                text = "Last Set: ${if (lastSetWeight > 0) "${lastSetWeight.toInt()} $units " else ""}${if (lastSetReps > 0 && lastSetWeight <= 0) "$lastSetReps reps " else if (lastSetReps > 0) "× $lastSetReps reps " else ""}@ RPE ${effData.lastSetRPE}",
+                                text = "Last Set: ${if (lastSetWeight > 0) "${lastSetWeight.roundToInt()} $units " else ""}${if (lastSetReps > 0 && lastSetWeight <= 0) "$lastSetReps reps " else if (lastSetReps > 0) "× $lastSetReps reps " else ""}@ RPE ${effData.lastSetRPE}",
                                 fontFamily = JetBrainsMonoFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1636,13 +1638,13 @@ fun RealTimeEffectiveSetsCard(
                 Text(
                     text = "Status: " + if (effData.progress >= 100) "Goal complete!" else if (effData.progress > 45) "On track" else "Building momentum",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = GreenAccent
                 )
                 Text(
                     text = "Next: Set ${currentSetNum}/${totalSetsNum}",
                     fontFamily = JetBrainsMonoFamily,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = SecondaryText
                 )
             }

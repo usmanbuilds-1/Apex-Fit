@@ -4,9 +4,19 @@ import androidx.room.TypeConverter
 import org.json.JSONArray
 
 class Converters {
+    /**
+     * Serializes a List<String> to a JSON array string.
+     * Never returns null — empty list produces "[]".
+     */
     @TypeConverter
     fun fromStringList(value: List<String>): String = JSONArray(value).toString()
 
+    /**
+     * Deserializes a JSON array string to List<String>.
+     * Returns emptyList for null input or malformed JSON.
+     * Note: Room never passes null to this function (secondary_muscles is NOT NULL after migration 11),
+     * but we handle it defensively.
+     */
     @TypeConverter
     fun toStringList(value: String?): List<String> {
         if (value == null) return emptyList()

@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import java.util.UUID
 import com.google.gson.Gson
+import kotlin.math.roundToInt
 
 /**
  * Owns all in-memory workout state. A single source of truth for the
@@ -85,11 +86,6 @@ class WorkoutSessionManager(
         val contextLinesMap = mutableMapOf<String, String>()
 
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
-        val userBodyWeightLbs = if (preferredUnits.lowercase() == "lbs") {
-            userWeight
-        } else {
-            userWeight * 2.205
-        }
 
         // Calculate per-muscle readiness
         val readinessScore = try {
@@ -132,9 +128,9 @@ class WorkoutSessionManager(
             val calorieTarget = repository.getCalorieTargetFlow().firstOrNull() ?: com.example.UserDefaults.CALORIES
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.example.UserDefaults.WEIGHT_KG
             
-            val proteinTarget = (latestWeight * 1.8).toInt().coerceIn(100, 250)
-            val fatTarget = (calorieTarget * 0.25 / 9.0).toInt().coerceIn(45, 120)
-            val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4).toInt().coerceIn(100, 500)
+            val proteinTarget = (latestWeight * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
+            val fatTarget = (calorieTarget * 0.25 / 9.0).roundToInt().coerceIn(45, 120)
+            val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4.0).roundToInt().coerceIn(100, 500)
             val targets = com.example.utils.NutritionTargets(
                 calories = calorieTarget,
                 protein = proteinTarget,
@@ -162,7 +158,7 @@ class WorkoutSessionManager(
                 // First-time or beginner starting weight
                 suggestedLbs = com.example.utils.ProgressionEngine.calculateBeginnerStartingWeight(
                     exerciseType = exType,
-                    userBodyWeightLbs = userBodyWeightLbs,
+                    userBodyWeightKg = userWeight,
                     userHeightCm = userHeight
                 )
 

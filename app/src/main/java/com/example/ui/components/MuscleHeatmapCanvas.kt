@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import com.example.ui.theme.JetBrainsMonoFamily
 import com.example.ui.theme.SyneFamily
 import com.example.utils.HeatmapEntry
@@ -34,12 +36,27 @@ private val EMPTY_FILL           = Color(0xFF252535)  // matches BorderSubtle
 // PUBLIC COMPOSABLE
 // ─────────────────────────────────────────────────────────────────
 
+private fun buildHeatmapDescription(heatmap: Map<String, HeatmapEntry>, view: String): String {
+    val active = heatmap.filter { it.value.volume > 0 }
+    return if (active.isEmpty()) {
+        "$view body view: no training data in the last 7 days"
+    } else {
+        val topMuscles = active.entries.sortedByDescending { it.value.volume }.take(5)
+            .joinToString(", ") { "${it.key}: ${it.value.volume} sets" }
+        "$view body view: $topMuscles"
+    }
+}
+
 @Composable
 fun SingleFrontHeatmapCanvas(
     heatmap: Map<String, HeatmapEntry>,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
+    Canvas(
+        modifier = modifier.semantics {
+            contentDescription = buildHeatmapDescription(heatmap, "front")
+        }
+    ) {
         drawFrontView(heatmap)
     }
 }
@@ -74,6 +91,9 @@ fun MuscleHeatmapCanvas(
                     modifier = Modifier
                         .height(280.dp)
                         .fillMaxWidth()
+                        .semantics {
+                            contentDescription = buildHeatmapDescription(heatmap, "front")
+                        }
                 ) { drawFrontView(heatmap) }
             }
 
@@ -95,6 +115,9 @@ fun MuscleHeatmapCanvas(
                     modifier = Modifier
                         .height(280.dp)
                         .fillMaxWidth()
+                        .semantics {
+                            contentDescription = buildHeatmapDescription(heatmap, "back")
+                        }
                 ) { drawBackView(heatmap) }
             }
         }
@@ -598,7 +621,7 @@ private fun LegendDot(color: Color, label: String) {
             style = MaterialTheme.typography.labelSmall,
             color = Color(0xFF8A8A9A),
             fontFamily = JetBrainsMonoFamily,
-            fontSize = 10.sp
+            fontSize = 11.sp
         )
     }
 }

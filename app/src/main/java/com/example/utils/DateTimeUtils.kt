@@ -11,16 +11,16 @@ fun getCurrentDate(): String {
     return sdf.format(Date())
 }
 
-fun getPreviousDate(dateStr: String): String {
+fun getPreviousDate(dateStr: String): String? {
     return try {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val date = sdf.parse(dateStr) ?: Date()
+        val date = sdf.parse(dateStr) ?: return null
         val cal = Calendar.getInstance()
         cal.time = date
         cal.add(Calendar.DAY_OF_YEAR, -1)
         sdf.format(cal.time)
     } catch (e: Exception) {
-        dateStr
+        null
     }
 }
 
