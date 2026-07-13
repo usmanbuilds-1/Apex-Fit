@@ -101,7 +101,11 @@ object MuscleReadinessCalculator {
     fun userCapacity(pastSessionDoses: List<Double>, fallbackDefault: Double = 400.0): Double {
         if (pastSessionDoses.size < 3) return fallbackDefault
         val sorted = pastSessionDoses.sorted()
-        val p90 = sorted[(sorted.size * 0.9).toInt().coerceIn(0, sorted.size - 1)]
+        val p90 = if (sorted.size < 3) {
+            sorted.average()
+        } else {
+            sorted[((sorted.size - 1) * 0.9).toInt().coerceIn(0, sorted.size - 1)]
+        }
         return p90.coerceAtLeast(1.0)
     }
 
@@ -248,7 +252,11 @@ object ReadinessFinal {
         }
         val systemicCapacity = if (systemicPastSessionDoses.size < 3) 1500.0 else {
             val sorted = systemicPastSessionDoses.sorted()
-            val p90 = sorted[(sorted.size * 0.9).toInt().coerceIn(0, sorted.size - 1)]
+            val p90 = if (sorted.size < 3) {
+                sorted.average()
+            } else {
+                sorted[((sorted.size - 1) * 0.9).toInt().coerceIn(0, sorted.size - 1)]
+            }
             p90.coerceAtLeast(1.0)
         }
 
@@ -304,7 +312,11 @@ object ReadinessFinal {
             }
             MuscleReadinessDetail(muscle, readiness, sessionHist.size, confidence)
         }
-        val avgMuscle = if (muscleDetails.isNotEmpty()) muscleDetails.map { it.readinessPercent }.average() else 100.0
+        val avgMuscle = when {
+            muscleDetails.isNotEmpty() -> muscleDetails.map { it.readinessPercent }.average()
+            todaysMuscleGroups.isEmpty() -> 75.0  // non-training day — neutral
+            else -> 100.0
+        }
 
         val systemicScore = SystemicCNSCalculator.readinessPercent(systemicHistory, systemicCapacity)
         val acrModifier = AcuteChronicRatioModifier.modifier(acuteLoad, chronicLoad)

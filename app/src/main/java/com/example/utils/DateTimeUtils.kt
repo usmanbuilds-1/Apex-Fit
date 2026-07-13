@@ -30,22 +30,22 @@ fun getDaysBetween(dateStr1: String, dateStr2: String): Long {
         val d1 = sdf.parse(dateStr1) ?: return 0L
         val d2 = sdf.parse(dateStr2) ?: return 0L
         val diff = d2.time - d1.time
-        TimeUnit.MILLISECONDS.toDays(diff)
+        Math.round(diff.toDouble() / (1000 * 60 * 60 * 24)).coerceAtLeast(0L)
     } catch (e: Exception) {
         0L
     }
 }
 
-fun getDateDaysFromNow(dateStr: String, days: Int): String {
+fun getDateDaysFromNow(dateStr: String, days: Int): String? {
     return try {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val date = sdf.parse(dateStr) ?: Date()
+        val date = sdf.parse(dateStr) ?: return null
         val cal = Calendar.getInstance()
         cal.time = date
         cal.add(Calendar.DAY_OF_YEAR, days)
         sdf.format(cal.time)
     } catch (e: Exception) {
-        dateStr
+        null
     }
 }
 

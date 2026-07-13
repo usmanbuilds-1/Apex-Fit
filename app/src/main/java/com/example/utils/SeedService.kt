@@ -9,9 +9,9 @@ import org.json.JSONArray
 
 object SeedService {
     suspend fun seed(context: Context) {
-        val db = AppDatabase.getDatabase(context)
+        val db = com.example.di.ServiceLocator.database(context)
         val dao = db.fitnessDao()
-        val dataStore = DataStoreManager(context)
+        val dataStore = com.example.di.ServiceLocator.dataStore(context)
 
         val jsonString = context.assets.open("seed_exercises.json").bufferedReader().use { it.readText() }
         val jsonArray = JSONArray(jsonString)

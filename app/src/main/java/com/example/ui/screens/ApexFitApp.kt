@@ -1,4 +1,3 @@
-// name=app/src/main/java/com/example/ui/screens/ApexFitApp.kt
 package com.example.ui.screens
 
 import android.graphics.Bitmap
@@ -140,6 +139,10 @@ fun ApexFitApp(
     val gWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
     val activeTab by fitnessViewModel.currentTab.collectAsStateWithLifecycle()
 
+    val navController = rememberNavController()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
+
     val activeSession by trainViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     var hasPromptedResume by rememberSaveable { mutableStateOf(false) }
     var showResumeDialog by rememberSaveable { mutableStateOf(false) }
@@ -184,7 +187,13 @@ fun ApexFitApp(
                 TextButton(
                     onClick = {
                         showResumeDialog = false
-                        fitnessViewModel.selectTab(1) // navigate to Train tab
+                        navController.navigate("train") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 ) {
                     Text(stringResource(R.string.onboarding_resume), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
@@ -223,41 +232,16 @@ fun ApexFitApp(
 
     var showSettingsSheet by rememberSaveable { mutableStateOf(false) }
 
-    val navController = rememberNavController()
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = currentBackStackEntry?.destination?.route
-
-    // Sync navController changes back to ViewModel to keep currentTab state up to date on back press
-    LaunchedEffect(currentRoute) {
-        val tabIndex = when (currentRoute) {
-            "home" -> 0
-            "train" -> 1
-            "nutrition" -> 2
-            "progress" -> 3
-            else -> null
-        }
-        if (tabIndex != null && tabIndex != activeTab) {
-            fitnessViewModel.selectTab(tabIndex)
-        }
+    val routes = listOf("home", "train", "nutrition", "progress")
+    val startDest = remember {
+        val initialTab = fitnessViewModel.currentTab.value
+        if (initialTab in routes.indices) routes[initialTab] else "home"
     }
 
-    // Sync ViewModel changes back to NavController (e.g. programmatically selected tab)
-    LaunchedEffect(activeTab) {
-        val targetRoute = when (activeTab) {
-            0 -> "home"
-            1 -> "train"
-            2 -> "nutrition"
-            3 -> "progress"
-            else -> "home"
-        }
-        if (navController.currentDestination != null && currentRoute != targetRoute) {
-            navController.navigate(targetRoute) {
-                popUpTo(navController.graph.findStartDestination().id) {
-                    saveState = true
-                }
-                launchSingleTop = true
-                restoreState = true
-            }
+    LaunchedEffect(currentRoute) {
+        val tab = routes.indexOf(currentRoute)
+        if (tab != -1) {
+            fitnessViewModel.selectTab(tab)
         }
     }
 
@@ -321,7 +305,14 @@ fun ApexFitApp(
                             trainViewModel.closeRestTimer()
                             trainViewModel.closeRirSelector()
                             trainViewModel.dismissSessionComplete()
-                            fitnessViewModel.selectTab(it)
+                            val route = routes.getOrNull(it) ?: "home"
+                            navController.navigate(route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
                         }
                     )
                 }
@@ -336,7 +327,7 @@ fun ApexFitApp(
             ) {
                 NavHost(
                     navController = navController,
-                    startDestination = "home",
+                    startDestination = startDest,
                     modifier = Modifier.fillMaxSize(),
                     enterTransition = { androidx.compose.animation.EnterTransition.None },
                     exitTransition = { androidx.compose.animation.ExitTransition.None },
@@ -351,20 +342,24 @@ fun ApexFitApp(
                             trainViewModel = trainViewModel,
                             nutritionViewModel = nutritionViewModel,
                             onNavigateTo = { tabIndex ->
-                                fitnessViewModel.selectTab(tabIndex)
+                                val route = routes.getOrNull(tabIndex) ?: "home"
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         )
                     }
                     composable("train") {
-                        TrainScreen(
+                        TrainTab(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             trainViewModel = trainViewModel,
                             onNavigateToPlanBuilder = {
                                 navController.navigate("plan_builder")
-                            },
-                            onNavigateTo = { tabIndex ->
-                                fitnessViewModel.selectTab(tabIndex)
                             }
                         )
                     }
@@ -382,7 +377,14 @@ fun ApexFitApp(
                             algorithmViewModel = algorithmViewModel,
                             nutritionViewModel = nutritionViewModel,
                             onNavigateTo = { tabIndex ->
-                                fitnessViewModel.selectTab(tabIndex)
+                                val route = routes.getOrNull(tabIndex) ?: "home"
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         )
                     }
@@ -393,7 +395,14 @@ fun ApexFitApp(
                             progressViewModel = progressViewModel,
                             homeViewModel = homeViewModel,
                             onNavigateTo = { tabIndex ->
-                                fitnessViewModel.selectTab(tabIndex)
+                                val route = routes.getOrNull(tabIndex) ?: "home"
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         )
                     }

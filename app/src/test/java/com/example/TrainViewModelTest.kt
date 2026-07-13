@@ -26,6 +26,7 @@ class TrainViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        com.example.di.ServiceLocator.reset()
         val application = ApplicationProvider.getApplicationContext<Application>()
         val db = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
             .allowMainThreadQueries()
@@ -40,6 +41,7 @@ class TrainViewModelTest {
         testDb?.close()
         testDb = null
         AppDatabase.setTestDatabase(null)
+        com.example.di.ServiceLocator.reset()
     }
 
     @Test

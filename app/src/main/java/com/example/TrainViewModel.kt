@@ -21,11 +21,11 @@ import androidx.core.content.ContextCompat
 
 class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.getDatabase(application)
+    private val db = com.example.di.ServiceLocator.database(application)
     private val dao = db.fitnessDao()
-    private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
-    val sessionManager = WorkoutSessionManager(repository, dataStore)
+    private val dataStore = com.example.di.ServiceLocator.dataStore(application)
+    private val repository = com.example.di.ServiceLocator.repository(application)
+    val sessionManager = WorkoutSessionManager(repository, dataStore, viewModelScope)
 
     init {
         viewModelScope.launch {

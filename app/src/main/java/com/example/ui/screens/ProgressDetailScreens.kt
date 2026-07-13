@@ -182,6 +182,8 @@ fun BodyMeasurementDetailScreen(
     var error by rememberSaveable { mutableStateOf("") }
     val units by progressViewModel.units.collectAsStateWithLifecycle()
     val lengthUnit = if (units == "kg") "cm" else "in"
+    // TODO v1.1: Add separate Length Units selector in Settings (M-022 full implementation)
+    // For v1.0, this coupling is acceptable — most users use metric or imperial consistently
     fun convertForDisplay(valueInCm: Double): Double {
         return if (lengthUnit == "in") valueInCm / 2.54 else valueInCm
     }

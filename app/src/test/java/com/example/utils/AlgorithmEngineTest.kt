@@ -88,7 +88,7 @@ class AlgorithmEngineTest {
 
         // Case 1: maintained volume (1000 vs 1000) -> true plateau
         val resPlateau = AlgorithmEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), windowDays = 14)
-        assertTrue(resPlateau.plateau)
+        assertTrue(resPlateau.isPlateaued)
         assertEquals(14, resPlateau.daysStalled)
 
         // Case 2: volume dropped >=5% (500 vs 1000) -> not a plateau
@@ -97,13 +97,13 @@ class AlgorithmEngineTest {
         val recentSessionLow = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLogLow))
 
         val resNoPlateau = AlgorithmEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), windowDays = 14)
-        assertFalse(resNoPlateau.plateau)
+        assertFalse(resNoPlateau.isPlateaued)
     }
 
     @Test
     fun testDetectPlateau_edgeCase_empty() {
         val res = AlgorithmEngine.detectPlateau(emptyList(), emptyList(), emptyList(), windowDays = 10)
-        assertFalse(res.plateau)
+        assertFalse(res.isPlateaued)
     }
 
     @Test

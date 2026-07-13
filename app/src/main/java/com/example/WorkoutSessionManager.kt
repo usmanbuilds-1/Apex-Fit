@@ -24,11 +24,11 @@ import kotlin.math.roundToInt
  */
 class WorkoutSessionManager(
     private val repository: FitnessRepository,
-    private val dataStore: DataStoreManager
+    private val dataStore: DataStoreManager,
+    private val scope: CoroutineScope
 ) {
 
     private val gson = Gson()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val persistJob = MutableStateFlow<kotlinx.coroutines.Job?>(null)
 
     init {

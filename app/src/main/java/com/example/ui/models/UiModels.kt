@@ -173,7 +173,7 @@ fun com.example.data.PersonalRecord.toUi(): UiPersonalRecord {
 }
 
 fun com.example.data.PlateauResult.toUi(): UiPlateauResult = UiPlateauResult(
-    isPlateau = this.plateau,
+    isPlateau = this.isPlateaued,
     daysStalled = this.daysStalled,
     recommendation = this.interventionRecommendation.ifBlank { this.interventions.joinToString(". ") },
     severity = this.severity,
@@ -257,7 +257,6 @@ fun UiPersonalRecord.toData(): com.example.data.PersonalRecord = com.example.dat
 fun UiPlateauResult.toData(): com.example.data.PlateauResult = com.example.data.PlateauResult(
     isPlateaued = this.isPlateau,
     interventionRecommendation = this.recommendation,
-    plateau = this.isPlateau,
     severity = this.severity,
     interventions = this.interventions,
     daysStalled = this.daysStalled

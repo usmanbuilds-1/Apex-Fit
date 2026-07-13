@@ -128,7 +128,7 @@ object AlgorithmEngine {
         val calHits = recentNutrition.count { Math.abs(it.calories - targets.calories).toDouble() / targets.calories <= 0.1 }
         val proteinHits = recentNutrition.count { it.protein >= targets.protein }
         val expectedSessions = ((days / 7.0) * targets.weeklyTrainingSessions).roundToInt()
-        val trainingScore = if (expectedSessions > 0) minOf(100, (recentTraining.size * 100) / expectedSessions) else 0
+        val trainingScore = if (expectedSessions > 0) minOf(100, ((recentTraining.size.toDouble() * 100) / expectedSessions).roundToInt()) else 0
         val calScore = if (recentNutrition.isNotEmpty()) (calHits * 100) / recentNutrition.size else 0
         val proteinScore = if (recentNutrition.isNotEmpty()) (proteinHits * 100) / recentNutrition.size else 0
         val overall = ((proteinScore * 0.4) + (calScore * 0.35) + (trainingScore * 0.25)).roundToInt()
@@ -194,7 +194,7 @@ object AlgorithmEngine {
         }
 
         return PlateauResult(
-            plateau = true,
+            isPlateaued = true,
             severity = if (windowDays >= 14) "confirmed" else "early",
             interventions = listOf(
                 "Reduce calories by 100-150 kcal/day for 1 week",
@@ -232,7 +232,13 @@ object AlgorithmEngine {
             val totalSets = session.exercises.flatMap { it.sets }
                 .count { !it.isWarmup && it.completed }
             val avgRPE = session.exercises.flatMap { it.sets }.filter { !it.isWarmup && it.completed }.map { it.rpe }.average().takeIf { !it.isNaN() } ?: 7.0
-            val feelModifier = if (session.sessionFeel == 0) 1.0 else (session.sessionFeel * 0.5)
+            val feelModifier = when {
+                session.sessionFeel == 0 -> 1.0
+                session.sessionFeel <= 2 -> 0.6 + (session.sessionFeel - 1) * 0.2
+                session.sessionFeel == 3 -> 1.0
+                session.sessionFeel <= 5 -> 1.0 + (session.sessionFeel - 3) * 0.2
+                else -> 1.0
+            }
             Pair(session.date, totalSets.toDouble() * (avgRPE / 7.0) * feelModifier)
         }.sortedBy { it.first }
 
@@ -505,8 +511,7 @@ object AlgorithmEngine {
             exerciseId = exerciseId,
             type = if (hasNewWeightPR) "weight" else "",
             previousValue = prevMaxWeight,
-            newValue = lastMaxWeight,
-            isNewRecord = hasNewWeightPR
+            newValue = lastMaxWeight
         )
     }
 }

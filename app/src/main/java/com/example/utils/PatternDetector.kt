@@ -3,6 +3,7 @@ package com.example.utils
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
+import kotlin.math.roundToInt
 
 object PatternDetector {
 
@@ -65,7 +66,7 @@ object PatternDetector {
                     id = "low_cal_$dayName",
                     type = "nutrition_day_pattern",
                     title = "$dayName is your low calorie day",
-                    description = "You consistently eat ${Math.abs(calDeviation.toInt())}% fewer calories on ${dayName}s — averaging ${dayAvgCal.toInt()} kcal vs your usual ${overallAvgCalories.toInt()} kcal.",
+                    description = "You consistently eat ${Math.abs(calDeviation.roundToInt())}% fewer calories on ${dayName}s — averaging ${dayAvgCal.roundToInt()} kcal vs your usual ${overallAvgCalories.roundToInt()} kcal.",
                     confidence = confidence,
                     actionable = "Prep a high protein meal in advance for ${dayName}s — your pattern suggests you default to convenience food on this day.",
                     detectedAt = getCurrentDate()
@@ -77,7 +78,7 @@ object PatternDetector {
                     id = "high_cal_$dayName",
                     type = "nutrition_day_pattern",
                     title = "$dayName is your surplus day",
-                    description = "You eat ${calDeviation.toInt()}% more on ${dayName}s — averaging ${dayAvgCal.toInt()} kcal. This is likely a social eating pattern.",
+                    description = "You eat ${calDeviation.roundToInt()}% more on ${dayName}s — averaging ${dayAvgCal.roundToInt()} kcal. This is likely a social eating pattern.",
                     confidence = confidence,
                     actionable = "Front-load protein earlier on ${dayName}s so surplus calories are less likely to come from low-quality sources.",
                     detectedAt = getCurrentDate()
@@ -89,7 +90,7 @@ object PatternDetector {
                     id = "low_protein_$dayName",
                     type = "nutrition_day_pattern",
                     title = "Protein consistently drops on ${dayName}s",
-                    description = "Your protein averages ${dayAvgProtein.toInt()}g on ${dayName}s versus ${overallAvgProtein.toInt()}g on other days. Science: Areta et al 2013 showed that even one day of low protein intake reduces weekly muscle protein synthesis measurably.",
+                    description = "Your protein averages ${dayAvgProtein.roundToInt()}g on ${dayName}s versus ${overallAvgProtein.roundToInt()}g on other days. Science: Areta et al 2013 showed that even one day of low protein intake reduces weekly muscle protein synthesis measurably.",
                     confidence = confidence,
                     actionable = "Set a phone alarm for 12pm on ${dayName}s — eat 40g protein before the afternoon starts.",
                     detectedAt = getCurrentDate()
@@ -134,7 +135,7 @@ object PatternDetector {
                     id = "protein_performance_correlation",
                     type = "nutrition_performance",
                     title = "Your training is better after high protein days",
-                    description = "When you hit protein targets the day before, your session feel averages ${String.format(java.util.Locale.US, "%.1f", highAvgFeel)}/5 vs ${String.format(java.util.Locale.US, "%.1f", lowAvgFeel)}/5 after low protein days. That is a ${((highAvgFeel - lowAvgFeel) / lowAvgFeel * 100).toInt()}% performance difference.",
+                    description = "When you hit protein targets the day before, your session feel averages ${String.format(java.util.Locale.US, "%.1f", highAvgFeel)}/5 vs ${String.format(java.util.Locale.US, "%.1f", lowAvgFeel)}/5 after low protein days. That is a ${((highAvgFeel - lowAvgFeel) / lowAvgFeel * 100).roundToInt()}% performance difference.",
                     confidence = minOf(1.0f, pairs.size / 20.0f),
                     actionable = "Prioritise hitting protein the day before your heaviest sessions — Upper A and Lower B specifically.",
                     detectedAt = getCurrentDate()
@@ -161,10 +162,10 @@ object PatternDetector {
         val weightChangePairs = mutableListOf<Pair<Int, Double>>()
 
         nutritionLog.forEach { entry ->
-            val twoDaysLater = getDateDaysFromNow(entry.date, 2)
+            val twoDaysLater = getDateDaysFromNow(entry.date, 2) ?: return@forEach
             val currentTrend = trendMap[entry.date]?.trend ?: return@forEach
             val futureTrend = trendMap[twoDaysLater]?.trend ?: return@forEach
-            weightChangePairs.add(Pair(entry.carbs.toInt(), futureTrend - currentTrend))
+            weightChangePairs.add(Pair(entry.carbs.roundToInt(), futureTrend - currentTrend))
         }
 
         if (weightChangePairs.size < 8) return patterns
@@ -214,7 +215,7 @@ object PatternDetector {
 
         if (recoveryPerformancePairs.size < 6) return patterns
 
-        val grouped = recoveryPerformancePairs.groupBy { it.first }
+        val grouped = recoveryPerformancePairs.groupBy { it.first }.filter { it.value.size >= 2 }
         val bestRecoveryDays = grouped.maxByOrNull { it.value.map { p -> p.second }.average() }
 
         bestRecoveryDays?.let { (days, sessions) ->
@@ -250,7 +251,7 @@ object PatternDetector {
 
         val sleepPerformancePairs = mutableListOf<Pair<Double, Int>>()
         sleepLog.forEach { sleep ->
-            val nextDay = getDateDaysFromNow(sleep.date, 1)
+            val nextDay = getDateDaysFromNow(sleep.date, 1) ?: return@forEach
             val session = sessionMap[nextDay] ?: return@forEach
             sleepPerformancePairs.add(Pair(sleep.hours, session.sessionFeel))
         }

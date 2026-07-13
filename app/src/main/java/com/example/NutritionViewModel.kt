@@ -14,10 +14,10 @@ import kotlinx.coroutines.launch
 
 class NutritionViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.getDatabase(application)
+    private val db = com.example.di.ServiceLocator.database(application)
     private val dao = db.fitnessDao()
-    private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+    private val dataStore = com.example.di.ServiceLocator.dataStore(application)
+    private val repository = com.example.di.ServiceLocator.repository(application)
 
     private val _selectedNutritionDate = MutableStateFlow(getTodayDateString())
     val selectedNutritionDate: StateFlow<String> = _selectedNutritionDate.asStateFlow()

@@ -154,9 +154,9 @@ class FitnessRepositoryImpl(
             com.example.utils.NutritionEntry(
                 date = date,
                 calories = list.sumOf { it.calories },
-                protein = list.sumOf { it.protein }.toInt(),
-                carbs = list.sumOf { it.carbs }.toInt(),
-                fat = list.sumOf { it.fat }.toInt()
+                protein = list.sumOf { it.protein }.roundToInt(),
+                carbs = list.sumOf { it.carbs }.roundToInt(),
+                fat = list.sumOf { it.fat }.roundToInt()
             )
         }.sortedBy { it.date }
         

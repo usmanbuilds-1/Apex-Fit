@@ -172,7 +172,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         
         val allTriggers = mutableListOf<NotificationEngine.NotificationTrigger>()
         
-        if (plateau.plateau && plateau.severity == "confirmed") {
+        if (plateau.isPlateaued && plateau.severity == "confirmed") {
             allTriggers.add(NotificationEngine.NotificationTrigger(
                 id = "plateau_confirmed",
                 title = "Weight plateau confirmed — 14 days",

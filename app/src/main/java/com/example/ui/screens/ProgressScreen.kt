@@ -1,4 +1,3 @@
-// name=app/src/main/java/com/example/ui/screens/ProgressScreen.kt
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
@@ -53,7 +52,7 @@ import androidx.compose.ui.semantics.contentDescription
 import kotlin.math.cos
 import kotlin.math.sin
 
-val AccentSecondary = com.example.ui.theme.OrangeAccent // Indigo Accent for visual hierarchy
+val AccentSecondary = com.example.ui.theme.OrangeAccent // Orange accent for visual hierarchy
 
 @Composable
 fun ProgressScreen(

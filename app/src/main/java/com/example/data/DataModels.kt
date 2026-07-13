@@ -1,3 +1,6 @@
+// NOTE: This file contains the canonical data layer entities.
+// com.example.utils.Typealiases.kt provides aliases (e.g., utils.WeightEntry = data.WeightEntry)
+// for historical reasons. Always import from com.example.data directly.
 package com.example.data
 
 import androidx.room.Entity
@@ -146,17 +149,9 @@ data class SessionResult(
     val exercises: List<ExerciseSet>
 )
 
-sealed class AlgorithmOutput {
-    object Progressing : AlgorithmOutput()
-    object Maintaining : AlgorithmOutput()
-    object Fatigued : AlgorithmOutput()
-    object Stalled : AlgorithmOutput()
-}
-
 data class PlateauResult(
     val isPlateaued: Boolean = false,
     val interventionRecommendation: String = "", // Deload Week, Rep Range Shift, Exercise Swap, Volume Increase
-    val plateau: Boolean = isPlateaued,
     val severity: String = "",
     val interventions: List<String> = emptyList(),
     val daysStalled: Int = 0
@@ -180,8 +175,7 @@ data class PRResult(
     val exerciseId: String = "",
     val type: String = "", // max_weight, volume, estimated_1rm
     val previousValue: Double = 0.0,
-    val newValue: Double = 0.0,
-    val isNewRecord: Boolean = hasPR
+    val newValue: Double = 0.0
 ) {
     constructor(exerciseId: String, type: String, previousValue: Double, newValue: Double, isNewRecord: Boolean) : this(
         hasPR = isNewRecord,
@@ -189,8 +183,7 @@ data class PRResult(
         exerciseId = exerciseId,
         type = type,
         previousValue = previousValue,
-        newValue = newValue,
-        isNewRecord = isNewRecord
+        newValue = newValue
     )
 }
 

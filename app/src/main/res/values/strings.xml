@@ -116,6 +116,7 @@
     <string name="plan_builder_session_name_is_required">Session name is required</string>
     <string name="plan_builder_exercise_name_is_required">Exercise name is required</string>
     <string name="plan_builder_numeric_values_must_be_valid">Numeric values must be valid</string>
+    <string name="plan_builder_min_reps_greater_than_max">Min reps cannot be greater than max reps</string>
     <string name="overlay_15s">-15s</string>
     <string name="overlay_15s_1">+15s</string>
     <string name="overlay_skip">SKIP</string>

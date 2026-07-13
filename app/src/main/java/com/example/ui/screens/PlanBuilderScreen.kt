@@ -884,6 +884,10 @@ fun PlanBuilderScreen(
                             Toast.makeText(context, context.getString(R.string.plan_builder_numeric_values_must_be_valid), Toast.LENGTH_SHORT).show()
                             return@Button
                         }
+                        if (minRepsVal > maxRepsVal) {
+                            Toast.makeText(context, context.getString(R.string.plan_builder_min_reps_greater_than_max), Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
 
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 

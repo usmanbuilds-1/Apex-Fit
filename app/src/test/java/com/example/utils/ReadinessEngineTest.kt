@@ -54,6 +54,6 @@ class ReadinessEngineTest {
             acuteLoad = 0.0,
             chronicLoad = 0.0
         )
-        assertEquals(100, res.overallPercent)
+        assertEquals(89, res.overallPercent)
     }
 }

@@ -9,4 +9,5 @@ object UserDefaults {
     const val WEEKLY_WORKOUTS = 3
     const val GOAL = "maintain"
     const val PROTEIN_PER_KG = 1.8  // g protein per kg bodyweight (Helms et al.)
+    const val DEFAULT_EQUIPMENT = "Barbell,Dumbbell,Cable,Machine"
 }

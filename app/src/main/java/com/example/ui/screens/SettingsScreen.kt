@@ -50,14 +50,54 @@ fun SettingsScreen(
 
     val context = LocalContext.current
 
-    var editName by remember(username) { mutableStateOf(username) }
-    var editGoal by remember(goal) { mutableStateOf(goal) }
-    var editedManualCalValue by remember(manualCalorieVal) { mutableStateOf(manualCalorieVal.toString()) }
-    var editHeight by remember(userHeight) { mutableStateOf(userHeight.toString()) }
-    var editAge by remember(userAge) { mutableStateOf(userAge.toString()) }
+    var editName by rememberSaveable { mutableStateOf(username) }
+    var editGoal by rememberSaveable { mutableStateOf(goal) }
+    var editedManualCalValue by rememberSaveable { mutableStateOf(manualCalorieVal.toString()) }
+    var editHeight by rememberSaveable { mutableStateOf(userHeight.toString()) }
+    var editAge by rememberSaveable { mutableStateOf(userAge.toString()) }
     var editSex by remember(userSex) { mutableStateOf(userSex) }
-    var editCurrentWeight by remember(currentWeightVal) { mutableStateOf(currentWeightVal.toString()) }
-    var editGoalWeight by remember(currentGoalWeight) { mutableStateOf(currentGoalWeight.toString()) }
+    var editCurrentWeight by rememberSaveable { mutableStateOf(currentWeightVal.toString()) }
+    var editGoalWeight by rememberSaveable { mutableStateOf(currentGoalWeight.toString()) }
+
+    LaunchedEffect(username) {
+        if (editName.isEmpty()) editName = username
+    }
+    LaunchedEffect(goal) {
+        if (editGoal.isEmpty()) editGoal = goal
+    }
+    LaunchedEffect(manualCalorieVal) {
+        if (editedManualCalValue.isEmpty() || editedManualCalValue == "0") {
+            editedManualCalValue = manualCalorieVal.toString()
+        }
+    }
+    LaunchedEffect(userHeight) {
+        if (editHeight.isEmpty() || editHeight == "0" || editHeight == "0.0") {
+            editHeight = userHeight.toString()
+        }
+    }
+    LaunchedEffect(userAge) {
+        if (editAge.isEmpty() || editAge == "0") {
+            editAge = userAge.toString()
+        }
+    }
+    LaunchedEffect(currentWeightVal) {
+        if (editCurrentWeight.isEmpty() || editCurrentWeight == "0.0") {
+            editCurrentWeight = currentWeightVal.toString()
+        }
+    }
+    LaunchedEffect(currentGoalWeight) {
+        if (editGoalWeight.isEmpty() || editGoalWeight == "0.0") {
+            editGoalWeight = currentGoalWeight.toString()
+        }
+    }
+
+    var manualCalError by remember { mutableStateOf<String?>(null) }
+    var ageError by remember { mutableStateOf<String?>(null) }
+    var currentWeightError by remember { mutableStateOf<String?>(null) }
+    var goalWeightError by remember { mutableStateOf<String?>(null) }
+
+    val weightMin = if (units == "kg") 30.0 else 66.0
+    val weightMax = if (units == "kg") 300.0 else 660.0
 
     var isSaving by remember { mutableStateOf(false) }
     LaunchedEffect(isSaving) {
@@ -117,18 +157,32 @@ fun SettingsScreen(
         // Calorie Target Value override
         OutlinedTextField(
             value = editedManualCalValue,
-            onValueChange = { editedManualCalValue = it },
+            onValueChange = {
+                val filtered = it.filter { c -> c.isDigit() }
+                editedManualCalValue = filtered
+                val v = filtered.toIntOrNull()
+                manualCalError = if (v != null && v !in 1000..6000) "Must be 1000-6000" else null
+            },
+            isError = manualCalError != null,
             label = { Text(stringResource(R.string.settings_manual_calorie_target_limit), color = SecondaryText) },
             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("settings_manual_calorie_input"),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = DarkRaised,
                 unfocusedContainerColor = DarkRaised,
-                focusedIndicatorColor = AmberAccent,
-                unfocusedIndicatorColor = BorderSubtle
+                focusedIndicatorColor = if (manualCalError != null) RedAccent else AmberAccent,
+                unfocusedIndicatorColor = if (manualCalError != null) RedAccent else BorderSubtle
             )
         )
+        manualCalError?.let {
+            Text(
+                text = it,
+                color = RedAccent,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+            )
+        }
 
         // Height & Age Row
         Row(
@@ -149,20 +203,36 @@ fun SettingsScreen(
                     unfocusedIndicatorColor = BorderSubtle
                 )
             )
-            OutlinedTextField(
-                value = editAge,
-                onValueChange = { editAge = it },
-                label = { Text(stringResource(R.string.settings_age_yrs), color = SecondaryText) },
-                textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f).testTag("settings_age_input"),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = DarkRaised,
-                    unfocusedContainerColor = DarkRaised,
-                    focusedIndicatorColor = AmberAccent,
-                    unfocusedIndicatorColor = BorderSubtle
+            Column(modifier = Modifier.weight(1f)) {
+                OutlinedTextField(
+                    value = editAge,
+                    onValueChange = {
+                        val filtered = it.filter { c -> c.isDigit() }
+                        editAge = filtered
+                        val v = filtered.toIntOrNull()
+                        ageError = if (v != null && v !in 10..100) "Age must be 10-100" else null
+                    },
+                    isError = ageError != null,
+                    label = { Text(stringResource(R.string.settings_age_yrs), color = SecondaryText) },
+                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth().testTag("settings_age_input"),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = DarkRaised,
+                        unfocusedContainerColor = DarkRaised,
+                        focusedIndicatorColor = if (ageError != null) RedAccent else AmberAccent,
+                        unfocusedIndicatorColor = if (ageError != null) RedAccent else BorderSubtle
+                    )
                 )
-            )
+                ageError?.let {
+                    Text(
+                        text = it,
+                        color = RedAccent,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+                    )
+                }
+            }
         }
 
         // Biological Sex Select
@@ -258,34 +328,66 @@ fun SettingsScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            OutlinedTextField(
-                value = editCurrentWeight,
-                onValueChange = { editCurrentWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
-                label = { Text(stringResource(R.string.settings_current_weight, units), color = SecondaryText) },
-                textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f).testTag("settings_current_weight_input"),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = DarkRaised,
-                    unfocusedContainerColor = DarkRaised,
-                    focusedIndicatorColor = AmberAccent,
-                    unfocusedIndicatorColor = BorderSubtle
+            Column(modifier = Modifier.weight(1f)) {
+                OutlinedTextField(
+                    value = editCurrentWeight,
+                    onValueChange = {
+                        val filtered = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                        editCurrentWeight = filtered
+                        val v = filtered.toDoubleOrNull()
+                        currentWeightError = if (v != null && v !in weightMin..weightMax) "Must be $weightMin-$weightMax $units" else null
+                    },
+                    isError = currentWeightError != null,
+                    label = { Text(stringResource(R.string.settings_current_weight, units), color = SecondaryText) },
+                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth().testTag("settings_current_weight_input"),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = DarkRaised,
+                        unfocusedContainerColor = DarkRaised,
+                        focusedIndicatorColor = if (currentWeightError != null) RedAccent else AmberAccent,
+                        unfocusedIndicatorColor = if (currentWeightError != null) RedAccent else BorderSubtle
+                    )
                 )
-            )
-            OutlinedTextField(
-                value = editGoalWeight,
-                onValueChange = { editGoalWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
-                label = { Text(stringResource(R.string.settings_goal_weight, units), color = SecondaryText) },
-                textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f).testTag("settings_goal_weight_input"),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = DarkRaised,
-                    unfocusedContainerColor = DarkRaised,
-                    focusedIndicatorColor = AmberAccent,
-                    unfocusedIndicatorColor = BorderSubtle
+                currentWeightError?.let {
+                    Text(
+                        text = it,
+                        color = RedAccent,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                OutlinedTextField(
+                    value = editGoalWeight,
+                    onValueChange = {
+                        val filtered = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                        editGoalWeight = filtered
+                        val v = filtered.toDoubleOrNull()
+                        goalWeightError = if (v != null && v !in weightMin..weightMax) "Must be $weightMin-$weightMax $units" else null
+                    },
+                    isError = goalWeightError != null,
+                    label = { Text(stringResource(R.string.settings_goal_weight, units), color = SecondaryText) },
+                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth().testTag("settings_goal_weight_input"),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = DarkRaised,
+                        unfocusedContainerColor = DarkRaised,
+                        focusedIndicatorColor = if (goalWeightError != null) RedAccent else AmberAccent,
+                        unfocusedIndicatorColor = if (goalWeightError != null) RedAccent else BorderSubtle
+                    )
                 )
-            )
+                goalWeightError?.let {
+                    Text(
+                        text = it,
+                        color = RedAccent,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -307,10 +409,26 @@ fun SettingsScreen(
             Button(
                 onClick = {
                     if (isSaving) return@Button
+                    val calVal = editedManualCalValue.toIntOrNull() ?: 0
+                    if (calVal !in 1000..6000) {
+                        Toast.makeText(context, "Calorie target must be 1000-6000", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    val ageVal = editAge.toIntOrNull() ?: 0
+                    if (ageVal !in 10..100) {
+                        Toast.makeText(context, "Age must be 10-100", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    val cw = editCurrentWeight.toDoubleOrNull()
+                    val gw = editGoalWeight.toDoubleOrNull()
+                    if (cw == null || cw !in weightMin..weightMax || gw == null || gw !in weightMin..weightMax) {
+                        Toast.makeText(context, "Weight must be $weightMin-$weightMax $units", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
                     isSaving = true
                     val hVal = editHeight.toDoubleOrNull() ?: com.example.UserDefaults.HEIGHT_CM
                     val aVal = editAge.toIntOrNull() ?: com.example.UserDefaults.AGE_YEARS
-                    val equipmentVal = if (currentEquipment.isNotEmpty()) currentEquipment else "Barbell,Dumbbell,Cable,Machine"
+                    val equipmentVal = if (currentEquipment.isNotEmpty()) currentEquipment else com.example.UserDefaults.DEFAULT_EQUIPMENT
                     fitnessViewModel.updateProfile(
                         name = editName,
                         userGoal = editGoal,

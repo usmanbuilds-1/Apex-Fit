@@ -1,4 +1,3 @@
-// name=app/src/main/java/com/example/ui/screens/TrainScreen.kt
 package com.example.ui.screens
 import com.example.ui.models.UiState
 
@@ -63,22 +62,12 @@ import com.example.ui.theme.*
 import com.example.utils.AlgorithmEngine
 import com.example.utils.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 import kotlin.math.cos
 import kotlin.math.roundToInt
-
-@Composable
-fun TrainScreen(
-    fitnessViewModel: FitnessViewModel,
-    algorithmViewModel: AlgorithmViewModel,
-    trainViewModel: TrainViewModel,
-    onNavigateToPlanBuilder: () -> Unit,
-    onNavigateTo: (Int) -> Unit
-) {
-    TrainTab(fitnessViewModel, algorithmViewModel, trainViewModel, onNavigateToPlanBuilder)
-}
 
 // TRAIN TAB
 @Composable
@@ -153,6 +142,7 @@ fun ProgramSubTab(
     val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
     val scope = rememberCoroutineScope()
+    var substJob: Job? by remember { mutableStateOf(null) }
     val substitutionList by trainViewModel.substitutionList.collectAsStateWithLifecycle()
     val activeSubstIndex by trainViewModel.activeSubstIndex.collectAsStateWithLifecycle()
 
@@ -358,7 +348,11 @@ fun ProgramSubTab(
                                     Button(
                                         onClick = {
                                             trainViewModel.selectSubstIndex(index)
-                                            trainViewModel.loadSubstitutionSuggestions(ex.muscleGroup, ex.name)
+                                            substJob?.cancel()
+                                            substJob = scope.launch {
+                                                val suggestions = trainViewModel.getSubstitutionSuggestions(ex.muscleGroup, ex.name)
+                                                trainViewModel.setSubstitutionList(suggestions)
+                                            }
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                                         shape = RoundedCornerShape(8.dp),
@@ -767,7 +761,6 @@ fun WorkoutExecutionSubTab(
         }
     } else {
         // active workout runner layout
-        val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
         val unitSuffix = if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg"
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -905,6 +898,19 @@ fun WorkoutExecutionSubTab(
                     var rawWeight by remember(setObj.id) { mutableStateOf(setObj.weight.toString()) }
                     var rawReps by remember(setObj.id) { mutableStateOf(setObj.reps.toString()) }
                     var selectedRpe by remember(setObj.id) { mutableStateOf(setObj.rpe) }
+
+                    LaunchedEffect(setObj.weight) {
+                        val current = rawWeight.toDoubleOrNull()
+                        if (current != setObj.weight) {
+                            rawWeight = setObj.weight.toString()
+                        }
+                    }
+                    LaunchedEffect(setObj.reps) {
+                        val current = rawReps.toIntOrNull()
+                        if (current != setObj.reps) {
+                            rawReps = setObj.reps.toString()
+                        }
+                    }
 
                     // Error strings keyed to set id (and set index)
                     var weightError by remember(setObj.id, sIdx) { mutableStateOf("") }

@@ -42,7 +42,8 @@ object AudioService {
     }
 
     suspend fun playMusicSynthNote() {
-        val notes = listOf(130.81, 164.81, 196.00, 220.00) // C3, E3, G3, A3
+        // Plays a random single note from {C3, E3, G3, A3} (one note per call, not a chord)
+        val notes = listOf(130.81, 164.81, 196.00, 220.00)  // C3, E3, G3, A3
         val randomNote = notes.random()
         playSynthesizedAudioTone(randomNote, 80, android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }

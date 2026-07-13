@@ -16,10 +16,10 @@ import kotlinx.coroutines.withContext
 
 class ProgressViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.getDatabase(application)
+    private val db = com.example.di.ServiceLocator.database(application)
     private val dao = db.fitnessDao()
-    private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+    private val dataStore = com.example.di.ServiceLocator.dataStore(application)
+    private val repository = com.example.di.ServiceLocator.repository(application)
 
     val allBodyMeasurements: StateFlow<UiState<List<UiBodyMeasurement>>> = dao.getAllBodyMeasurementsFlow()
         .map { entries -> UiState.Success(entries.map { it.toUi() }) as UiState<List<UiBodyMeasurement>> }

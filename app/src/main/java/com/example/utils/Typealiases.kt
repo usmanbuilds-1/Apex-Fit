@@ -1,3 +1,6 @@
+// DEPRECATED: These typealiases exist for backward compatibility.
+// New code should import directly from com.example.data.
+// TODO: Remove these aliases in v2.0 after all callers are updated.
 package com.example.utils
 
 import com.example.data.*

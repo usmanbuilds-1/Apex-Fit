@@ -19,10 +19,10 @@ import kotlin.math.roundToInt
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.getDatabase(application)
+    private val db = com.example.di.ServiceLocator.database(application)
     private val dao = db.fitnessDao()
-    private val dataStore = DataStoreManager(application)
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+    private val dataStore = com.example.di.ServiceLocator.dataStore(application)
+    private val repository = com.example.di.ServiceLocator.repository(application)
 
     // Raw database/preference flows
     private val weightFlow: Flow<List<com.example.utils.WeightEntry>> = dao.getAllWeightEntriesFlow()
@@ -235,7 +235,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         nutritionFlow, richSessionsFlow, targetsFlow
     ) { nutrition, sessions, targets ->
         withContext(Dispatchers.Default) {
-            val validTargets = targets ?: com.example.utils.NutritionTargets(calories = 2650, protein = 160, carbs = 280, fat = 75, weeklyTrainingSessions = 4)
+            val validTargets = targets
             com.example.utils.AlgorithmEngine.calcStreaks(nutrition, sessions, validTargets)
         }
     }.stateIn(

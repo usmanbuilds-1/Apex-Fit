@@ -16,9 +16,10 @@ import kotlin.math.roundToInt
 
 class AlgorithmViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.getDatabase(application)
+    private val db = com.example.di.ServiceLocator.database(application)
     private val dao = db.fitnessDao()
-    private val dataStore = DataStoreManager(application)
+    private val dataStore = com.example.di.ServiceLocator.dataStore(application)
+    private val repository = com.example.di.ServiceLocator.repository(application)
 
     // ─────────────────────────────────────────────────────────────────
     // SECTION 1 — RAW ROOM FLOWS
@@ -131,7 +132,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         withContext(Dispatchers.Default) {
             val fourteenDaysAgo = com.example.utils.getDateDaysAgo(14)
             val recentSessions = sessions.filter { it.date >= fourteenDaysAgo && it.completed }.size
-            val workoutsFreq = Math.round(recentSessions / 2.0).toInt().coerceIn(1, 7)
+            val workoutsFreq = (recentSessions / 2.0).roundToInt().coerceIn(1, 7)
             
             com.example.utils.AlgorithmEngine.calcAdaptiveTDEE(
                 weightLog = weights,
@@ -362,9 +363,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     val targets: StateFlow<com.example.utils.NutritionTargets?> = targetsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private val repository: com.example.domain.repository.FitnessRepository by lazy {
-        com.example.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
-    }
+
 
     val todayExercisesFlow: Flow<List<com.example.data.PlanExercise>> = repository.getActivePlan().flatMapLatest { plan ->
         val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())

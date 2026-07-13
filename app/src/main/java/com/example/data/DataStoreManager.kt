@@ -14,10 +14,15 @@ import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "apex_fit_preferences")
 
-class DataStoreManager(private val context: Context) {
+class DataStoreManager(context: Context) {
+    private val context = context.applicationContext
 
     companion object {
-        fun getInstance(context: Context): DataStoreManager = DataStoreManager(context)
+        @Volatile private var instance: DataStoreManager? = null
+        fun getInstance(context: Context): DataStoreManager =
+            instance ?: synchronized(this) {
+                instance ?: DataStoreManager(context.applicationContext).also { instance = it }
+            }
         val ONBOARDED_KEY = booleanPreferencesKey("onboarded")
         val USER_NAME_KEY = stringPreferencesKey("username")
         val GOAL_KEY = stringPreferencesKey("goal")
@@ -32,6 +37,11 @@ class DataStoreManager(private val context: Context) {
         val SEX_KEY = stringPreferencesKey("sex")
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
+        val LENGTH_UNITS_KEY = stringPreferencesKey("length_units")
+    }
+
+    val lengthUnitsFlow: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[LENGTH_UNITS_KEY] ?: "cm"
     }
 
     val isOnboardedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -89,7 +99,7 @@ class DataStoreManager(private val context: Context) {
     }
 
     val equipmentFlow: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[EQUIPMENT_KEY] ?: "Barbell,Dumbbell,Cable,Machine"
+        preferences[EQUIPMENT_KEY] ?: com.example.UserDefaults.DEFAULT_EQUIPMENT
     }
 
     val activeSessionJsonFlow: Flow<String?> = context.dataStore.data.map { preferences ->
@@ -157,6 +167,12 @@ class DataStoreManager(private val context: Context) {
     suspend fun saveUnits(units: String) {
         context.dataStore.edit { preferences ->
             preferences[UNITS_KEY] = units
+        }
+    }
+
+    suspend fun saveLengthUnits(units: String) {
+        context.dataStore.edit { preferences ->
+            preferences[LENGTH_UNITS_KEY] = units
         }
     }
 
