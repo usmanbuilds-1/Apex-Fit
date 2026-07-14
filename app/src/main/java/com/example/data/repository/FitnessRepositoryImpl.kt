@@ -82,7 +82,11 @@ class FitnessRepositoryImpl(
     }
 
     override suspend fun getLastSessionWeights(exerciseName: String): List<Pair<Double, Int>> {
-        val sets = dao.getLastSetsForExercise(exerciseName)
+        val slug = exerciseName.lowercase()
+            .replace(Regex("[^a-z0-9\\s-]"), "")
+            .replace(Regex("\\s+"), "-")
+            .trim()
+        val sets = dao.getLastSetsForExercise(slug)
         return sets
             .groupBy { it.sessionId }
             .values

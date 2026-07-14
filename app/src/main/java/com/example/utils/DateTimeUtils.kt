@@ -6,19 +6,29 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+object DateTimeUtils {
+    private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
+    fun formatDate(date: Date): String = synchronized(DATE_FORMAT) { DATE_FORMAT.format(date) }
+    fun parseDate(dateStr: String): Date? = try {
+        synchronized(DATE_FORMAT) { DATE_FORMAT.parse(dateStr) }
+    } catch (e: Exception) {
+        null
+    }
+    fun todayDateString(): String = synchronized(DATE_FORMAT) { DATE_FORMAT.format(Date()) }
+}
+
 fun getCurrentDate(): String {
-    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    return sdf.format(Date())
+    return DateTimeUtils.todayDateString()
 }
 
 fun getPreviousDate(dateStr: String): String? {
     return try {
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val date = sdf.parse(dateStr) ?: return null
+        val date = DateTimeUtils.parseDate(dateStr) ?: return null
         val cal = Calendar.getInstance()
         cal.time = date
         cal.add(Calendar.DAY_OF_YEAR, -1)
-        sdf.format(cal.time)
+        DateTimeUtils.formatDate(cal.time)
     } catch (e: Exception) {
         null
     }
@@ -26,9 +36,8 @@ fun getPreviousDate(dateStr: String): String? {
 
 fun getDaysBetween(dateStr1: String, dateStr2: String): Long {
     return try {
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val d1 = sdf.parse(dateStr1) ?: return 0L
-        val d2 = sdf.parse(dateStr2) ?: return 0L
+        val d1 = DateTimeUtils.parseDate(dateStr1) ?: return 0L
+        val d2 = DateTimeUtils.parseDate(dateStr2) ?: return 0L
         val diff = d2.time - d1.time
         Math.round(diff.toDouble() / (1000 * 60 * 60 * 24)).coerceAtLeast(0L)
     } catch (e: Exception) {
@@ -38,12 +47,11 @@ fun getDaysBetween(dateStr1: String, dateStr2: String): Long {
 
 fun getDateDaysFromNow(dateStr: String, days: Int): String? {
     return try {
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val date = sdf.parse(dateStr) ?: return null
+        val date = DateTimeUtils.parseDate(dateStr) ?: return null
         val cal = Calendar.getInstance()
         cal.time = date
         cal.add(Calendar.DAY_OF_YEAR, days)
-        sdf.format(cal.time)
+        DateTimeUtils.formatDate(cal.time)
     } catch (e: Exception) {
         null
     }
@@ -52,7 +60,7 @@ fun getDateDaysFromNow(dateStr: String, days: Int): String? {
 fun getDateDaysAgo(days: Int): String {
     val cal = Calendar.getInstance()
     cal.add(Calendar.DAY_OF_YEAR, -days)
-    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+    return DateTimeUtils.formatDate(cal.time)
 }
 
 fun getWeekKey(dateStr: String): String {
@@ -60,9 +68,9 @@ fun getWeekKey(dateStr: String): String {
         val cal = Calendar.getInstance()
         cal.firstDayOfWeek = Calendar.MONDAY
         cal.minimalDaysInFirstWeek = 4
-        cal.time = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateStr) ?: return dateStr
+        cal.time = DateTimeUtils.parseDate(dateStr) ?: return dateStr
         cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+        DateTimeUtils.formatDate(cal.time)
     } catch (e: Exception) { 
         dateStr 
     }
@@ -74,9 +82,8 @@ fun getWeekKey(dateStr: String): String {
  */
 fun getDaysBetweenClamped(lastDate: String, today: String): Int {
     return try {
-        val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val last = format.parse(lastDate)
-        val current = format.parse(today)
+        val last = DateTimeUtils.parseDate(lastDate)
+        val current = DateTimeUtils.parseDate(today)
         if (last != null && current != null) {
             val diffInMillis = current.time - last.time
             val days = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()

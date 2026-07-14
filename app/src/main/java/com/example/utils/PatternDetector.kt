@@ -41,7 +41,7 @@ object PatternDetector {
         nutritionLog.forEach { entry ->
             try {
                 val cal = Calendar.getInstance()
-                cal.time = SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(entry.date) ?: return@forEach
+                cal.time = com.example.utils.DateTimeUtils.parseDate(entry.date) ?: return@forEach
                 val dow = cal.get(Calendar.DAY_OF_WEEK)
                 dayGroups.getOrPut(dow) { mutableListOf() }.add(entry)
             } catch (e: Exception) {

@@ -85,7 +85,7 @@ class WorkoutSessionManager(
         val suggestionsMap = mutableMapOf<String, Double>()
         val contextLinesMap = mutableMapOf<String, String>()
 
-        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        val today = com.example.utils.DateTimeUtils.todayDateString()
 
         // Calculate per-muscle readiness
         val readinessScore = try {
@@ -430,7 +430,7 @@ class WorkoutSessionManager(
 
         val trainingSession = TrainingSession(
             id = sessionId,
-            date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date()),
+            date = com.example.utils.DateTimeUtils.todayDateString(),
             sessionType = session.sessionType,
             completed = completedSetsOnly,
             durationMinutes = durationMinutes,
@@ -516,7 +516,7 @@ class WorkoutSessionManager(
                 } ?: return@forEach
 
                 val existing = repository.getPRsForExercise(exerciseId)
-                val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                val today = com.example.utils.DateTimeUtils.todayDateString()
 
                 val prevWeight = existing.firstOrNull { it.type == "max_weight" }?.value ?: 0.0
                 val prevVolume = existing.firstOrNull { it.type == "volume" }?.value ?: 0.0

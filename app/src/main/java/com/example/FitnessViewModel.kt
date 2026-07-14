@@ -218,6 +218,6 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun getTodayDateString(): String {
-        return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        return com.example.utils.DateTimeUtils.todayDateString()
     }
 }

@@ -112,41 +112,27 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "insufficient_data")
 
     val tdeeResult: StateFlow<com.example.utils.TDEEResult> = combine(
-        weightFlow,
-        nutritionFlow,
-        dataStore.heightFlow,
-        dataStore.ageFlow,
-        dataStore.sexFlow,
-        richSessionsFlow
-    ) { args: Array<Any> ->
-        @Suppress("UNCHECKED_CAST")
-        val weights = args[0] as List<com.example.utils.WeightEntry>
-        @Suppress("UNCHECKED_CAST")
-        val nutrition = args[1] as List<com.example.utils.NutritionEntry>
-        val height = args[2] as Double
-        val age = args[3] as Int
-        val sex = args[4] as String
-        @Suppress("UNCHECKED_CAST")
-        val sessions = args[5] as List<com.example.utils.TrainingSession>
+        weightFlow, nutritionFlow, richSessionsFlow
+    ) { weights, nutrition, sessions ->
+        Triple(weights, nutrition, sessions)
+    }.combine(
+        dataStore.heightFlow, dataStore.ageFlow, dataStore.sexFlow
+    ) { (weights, nutrition, sessions), height, age, sex ->
+        val fourteenDaysAgo = com.example.utils.getDateDaysAgo(14)
+        val recentSessions = sessions.filter { it.date >= fourteenDaysAgo && it.completed }.size
+        val workoutsFreq = Math.round(recentSessions / 2.0).toInt().coerceIn(1, 7)
 
-        withContext(Dispatchers.Default) {
-            val fourteenDaysAgo = com.example.utils.getDateDaysAgo(14)
-            val recentSessions = sessions.filter { it.date >= fourteenDaysAgo && it.completed }.size
-            val workoutsFreq = (recentSessions / 2.0).roundToInt().coerceIn(1, 7)
-            
-            com.example.utils.AlgorithmEngine.calcAdaptiveTDEE(
-                weightLog = weights,
-                nutritionLog = nutrition,
-                windowDays = 14,
-                heightCm = height,
-                ageYears = age,
-                biologicalSex = sex,
-                weeklyWorkouts = workoutsFreq
-            )
-        }
+        com.example.utils.AlgorithmEngine.calcAdaptiveTDEE(
+            weightLog = weights,
+            nutritionLog = nutrition,
+            windowDays = 14,
+            heightCm = height,
+            ageYears = age,
+            biologicalSex = sex,
+            weeklyWorkouts = workoutsFreq
+        )
     }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
+        viewModelScope, SharingStarted.WhileSubscribed(5_000),
         com.example.utils.TDEEResult(tdee = 0, confidence = "No Data", avgCalories = 0, weightChangeKg = 0.0)
     )
 
@@ -519,8 +505,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun isDateInCurrentWeekSinceMonday(dateStr: String): Boolean {
         return try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-            val sessionDate = sdf.parse(dateStr) ?: return false
+            val sessionDate = com.example.utils.DateTimeUtils.parseDate(dateStr) ?: return false
 
             val today = java.util.Date()
             val cal = java.util.Calendar.getInstance(java.util.Locale.US)
@@ -554,3 +539,10 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
 }
+
+private fun <T1, T2, T3, T4, R> Flow<T1>.combine(
+    flow2: Flow<T2>,
+    flow3: Flow<T3>,
+    flow4: Flow<T4>,
+    transform: suspend (T1, T2, T3, T4) -> R
+): Flow<R> = kotlinx.coroutines.flow.combine(this, flow2, flow3, flow4, transform)

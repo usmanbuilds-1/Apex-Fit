@@ -91,7 +91,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun getTodayDateString(): String {
-        return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        return com.example.utils.DateTimeUtils.todayDateString()
     }
 
     private fun isMuscleMatch(group: String, muscle: String): Boolean {
@@ -113,7 +113,6 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         sessions: List<com.example.data.TrainingSession>
     ): List<MuscleRecoveryStatus> = withContext(Dispatchers.IO) {
         val allSets = dao.getAllExerciseSets()
-        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
         
         val muscles = com.example.utils.MuscleGroups.ALL
         
@@ -145,14 +144,14 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                 } else {
                     val (lastSet, lastSession) = setsWithSessionsAndDates.first()
                     val lastDateStr = lastSession.date
-                    val lastDateObj = try { sdf.parse(lastDateStr) } catch(e: Exception) { null } ?: java.util.Date()
+                    val lastDateObj = com.example.utils.DateTimeUtils.parseDate(lastDateStr) ?: java.util.Date()
                     val todayDateObj = java.util.Date()
                     
                     val diffMs = todayDateObj.time - lastDateObj.time
                     val diffHoursRaw = diffMs / (1000 * 60 * 60)
                     val elapsedHours = maxOf(0, diffHoursRaw.toInt())
                     
-                    val todayStr = sdf.format(todayDateObj)
+                    val todayStr = com.example.utils.DateTimeUtils.formatDate(todayDateObj)
                     val trainedToday = (lastDateStr == todayStr)
                     
                     val todaysSets = setsWithSessionsAndDates.filter { it.second.date == lastDateStr }

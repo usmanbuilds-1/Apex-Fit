@@ -22,7 +22,7 @@ data class UiNutritionEntry(
     val timestamp: Long
 ) {
     val date: String get() = try {
-        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date(timestamp))
+        com.example.utils.DateTimeUtils.formatDate(java.util.Date(timestamp))
     } catch(e: Exception) {
         ""
     }
@@ -157,7 +157,7 @@ fun com.example.data.BodyMeasurement.toUi(): UiBodyMeasurement = UiBodyMeasureme
 
 fun com.example.data.PersonalRecord.toUi(): UiPersonalRecord {
     val dateLong = try {
-        SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(this.date)?.time ?: 0L
+        com.example.utils.DateTimeUtils.parseDate(this.date)?.time ?: 0L
     } catch (e: Exception) {
         0L
     }
@@ -190,10 +190,9 @@ fun UiWeightEntry.toData(): com.example.data.WeightEntry = com.example.data.Weig
 
 fun UiNutritionEntry.toData(): com.example.data.NutritionEntry {
     val (dateStr, timeStr) = try {
-        val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val sdfTime = SimpleDateFormat("HH:mm", Locale.US)
         val d = Date(this.timestamp)
-        Pair(sdfDate.format(d), sdfTime.format(d))
+        Pair(com.example.utils.DateTimeUtils.formatDate(d), sdfTime.format(d))
     } catch(e: Exception) {
         Pair("", "12:00")
     }
@@ -248,7 +247,7 @@ fun UiPersonalRecord.toData(): com.example.data.PersonalRecord = com.example.dat
     type = this.prType,
     value = this.weight,
     date = try {
-        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(this.achievedAt))
+        com.example.utils.DateTimeUtils.formatDate(Date(this.achievedAt))
     } catch (e: Exception) {
         ""
     }

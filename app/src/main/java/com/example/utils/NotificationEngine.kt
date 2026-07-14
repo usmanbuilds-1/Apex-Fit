@@ -25,7 +25,7 @@ object NotificationEngine {
         val todayNutrition = nutritionLog.find { it.date == today }
 
         // TRIGGER 1 — Morning readiness (7am)
-        if (currentHour == 7 && todaySessionType != null) {
+        if (currentHour in 6..9 && todaySessionType != null) {
             triggers.add(NotificationTrigger(
                 id = "morning_readiness",
                 title = "Session readiness calculated",
@@ -36,7 +36,7 @@ object NotificationEngine {
         }
 
         // TRIGGER 2 — Midday protein check (12pm)
-        if (currentHour == 12) {
+        if (currentHour in 11..13) {
             val morningProtein = (todayNutrition?.protein ?: 0).toDouble()
             val proteinTarget = targets.protein.toDouble()
             if (morningProtein < proteinTarget * 0.3) {
@@ -52,7 +52,7 @@ object NotificationEngine {
         }
 
         // TRIGGER 3 — Streak at risk (8pm)
-        if (currentHour == 20) {
+        if (currentHour in 19..21) {
             val todayLogged = todayNutrition != null
             if (!todayLogged) {
                 val streaks = AlgorithmEngine.calcStreaks(nutritionLog, trainingLog, targets)
@@ -70,7 +70,7 @@ object NotificationEngine {
 
         // TRIGGER 4 — Sunday weekly report (9am)
         val cal = Calendar.getInstance()
-        if (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY && currentHour == 9) {
+        if (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY && currentHour in 8..10) {
             triggers.add(NotificationTrigger(
                 id = "weekly_report",
                 title = "Your weekly coaching report is ready",

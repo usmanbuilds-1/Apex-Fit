@@ -138,7 +138,7 @@ object AlgorithmEngine {
         recentNutrition.forEach { entry ->
             try {
                 val cal = java.util.Calendar.getInstance()
-                cal.time = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(entry.date) ?: return@forEach
+                cal.time = com.example.utils.DateTimeUtils.parseDate(entry.date) ?: return@forEach
                 val day = dayNames[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
                 val current = dayScores[day] ?: Pair(0, 0)
                 val hit = if (entry.protein >= targets.protein && Math.abs(entry.calories - targets.calories).toDouble() / targets.calories <= 0.15) 1 else 0

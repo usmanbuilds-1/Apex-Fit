@@ -211,7 +211,7 @@ fun HomeScreen(
     val richSessionsFlow by homeViewModel.richSessionsFlow.collectAsStateWithLifecycle(emptyList())
 
     val todayDateStr = remember {
-        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        com.example.utils.DateTimeUtils.todayDateString()
     }
 
     val loggedCaloriesTotal = remember(todayNutrition) {
@@ -257,9 +257,8 @@ fun HomeScreen(
 
     fun getDaysSince(dateString: String, todayStr: String): Int {
         return try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-            val dateLog = sdf.parse(dateString) ?: return 100
-            val todayDate = sdf.parse(todayStr) ?: return 100
+            val dateLog = com.example.utils.DateTimeUtils.parseDate(dateString) ?: return 100
+            val todayDate = com.example.utils.DateTimeUtils.parseDate(todayStr) ?: return 100
             val diff = todayDate.time - dateLog.time
             (diff / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(0)
         } catch (e: Exception) {

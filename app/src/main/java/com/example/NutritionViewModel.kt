@@ -61,8 +61,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     fun changeNutritionDate(offsetDays: Int) {
         viewModelScope.launch {
             try {
-                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                val dateObj = sdf.parse(_selectedNutritionDate.value) ?: java.util.Date()
+                val dateObj = com.example.utils.DateTimeUtils.parseDate(_selectedNutritionDate.value) ?: java.util.Date()
                 val cal = java.util.Calendar.getInstance()
                 cal.time = dateObj
                 cal.add(java.util.Calendar.DAY_OF_YEAR, offsetDays)
@@ -73,7 +72,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
                     cal.time = today.time
                 }
 
-                _selectedNutritionDate.value = sdf.format(cal.time)
+                _selectedNutritionDate.value = com.example.utils.DateTimeUtils.formatDate(cal.time)
             } catch (e: Exception) {
                 android.util.Log.e("ApexFit", "Error in changeNutritionDate: ${e.message}", e)
             }
@@ -83,7 +82,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
 
 
     private fun getTodayDateString(): String {
-        return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        return com.example.utils.DateTimeUtils.todayDateString()
     }
 
     private fun getCurrentLocalTimeString(): String {
