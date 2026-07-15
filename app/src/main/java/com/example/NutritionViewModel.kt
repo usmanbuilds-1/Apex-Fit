@@ -19,6 +19,8 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     private val dataStore = com.example.di.ServiceLocator.dataStore(application)
     private val repository = com.example.di.ServiceLocator.repository(application)
 
+    private var _isLoggingNutrition = false
+
     private val _selectedNutritionDate = MutableStateFlow(getTodayDateString())
     val selectedNutritionDate: StateFlow<String> = _selectedNutritionDate.asStateFlow()
 
@@ -38,17 +40,23 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         date: String = getTodayDateString(),
         name: String = "Logged Meal"
     ) {
+        if (_isLoggingNutrition) return
+        _isLoggingNutrition = true
         viewModelScope.launch {
-            val newEntry = com.example.data.NutritionEntry(
-                date = date,
-                name = name,
-                time = getCurrentLocalTimeString(),
-                calories = calories,
-                protein = protein,
-                carbs = carbs,
-                fat = fat
-            )
-            dao.insertNutritionEntry(newEntry)
+            try {
+                val newEntry = com.example.data.NutritionEntry(
+                    date = date,
+                    name = name,
+                    time = getCurrentLocalTimeString(),
+                    calories = calories,
+                    protein = protein,
+                    carbs = carbs,
+                    fat = fat
+                )
+                dao.insertNutritionEntry(newEntry)
+            } finally {
+                _isLoggingNutrition = false
+            }
         }
     }
 

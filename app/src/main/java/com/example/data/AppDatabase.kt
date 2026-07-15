@@ -258,7 +258,8 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Empty migration - fallbackToDestructiveMigration handles it
+                // No schema changes between version 13 and 14.
+                // Body is intentionally empty — verified against schema exports.
             }
         }
 
@@ -274,7 +275,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "apex_fit_database"
                 )
                 .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance
                 instance

@@ -44,7 +44,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .flowOn(Dispatchers.IO)
 
     private val sessionsFlow: Flow<List<com.example.data.TrainingSession>> =
-        dao.getAllCompletedSessionsFlow().flowOn(Dispatchers.IO)
+        dao.getRecentCompletedSessionsFlow(
+            getDateDaysAgo(90)
+        ).flowOn(Dispatchers.IO)
 
     private val setsFlow: Flow<List<com.example.data.ExerciseSet>> =
         dao.getAllExerciseSetsFlow().flowOn(Dispatchers.IO)

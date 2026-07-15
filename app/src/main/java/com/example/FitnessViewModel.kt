@@ -5,6 +5,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.data.*
 import com.example.domain.repository.FitnessRepository
 import com.example.data.repository.FitnessRepositoryImpl
@@ -14,7 +20,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 
-class FitnessViewModel(application: Application) : AndroidViewModel(application) {
+class FitnessViewModel(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle
+) : AndroidViewModel(application) {
 
     private val db = com.example.di.ServiceLocator.database(application)
     private val dao = db.fitnessDao()
@@ -44,7 +53,9 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
     val equipmentAvailable = dataStore.equipmentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Barbell,Dumbbell,Cable,Machine")
 
     // Navigation Active Tab state (0=Home, 1=Train, 2=Nutrition, 3=Progress, 4=Coach)
-    private val _currentTab = MutableStateFlow(0)
+    private val _currentTab = MutableStateFlow(
+        savedStateHandle.get<Int>("current_tab") ?: 0
+    )
     val currentTab: StateFlow<Int> = _currentTab.asStateFlow()
 
     // Train sub-tab state (0=PROGRAM, 1=WORKOUTS, 2=PLANS)
@@ -57,15 +68,16 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
 
     fun selectTab(tab: Int) {
         _currentTab.value = tab
+        savedStateHandle["current_tab"] = tab
     }
 
-    fun completeOnboarding(username: String, goal: String, currentWeight: Double, goalWeight: Double, apiKey: String, height: Double = com.example.UserDefaults.HEIGHT_CM, age: Int = com.example.UserDefaults.AGE_YEARS, sex: String = "male") {
+    fun completeOnboarding(username: String, goal: String, currentWeight: Double, goalWeight: Double, height: Double = com.example.UserDefaults.HEIGHT_CM, age: Int = com.example.UserDefaults.AGE_YEARS, sex: String = "male") {
         viewModelScope.launch {
             dataStore.saveOnboardingData(username, goal, currentWeight, goalWeight, height, age, sex)
         }
     }
 
-    fun updateProfile(name: String, userGoal: String, targetUnit: String, key: String, equipment: String, height: Double = com.example.UserDefaults.HEIGHT_CM, age: Int = com.example.UserDefaults.AGE_YEARS, sex: String = "male") {
+    fun updateProfile(name: String, userGoal: String, targetUnit: String, equipment: String, height: Double = com.example.UserDefaults.HEIGHT_CM, age: Int = com.example.UserDefaults.AGE_YEARS, sex: String = "male") {
         viewModelScope.launch {
             dataStore.saveUsername(name)
             dataStore.saveGoal(userGoal)
@@ -219,5 +231,14 @@ class FitnessViewModel(application: Application) : AndroidViewModel(application)
 
     private fun getTodayDateString(): String {
         return com.example.utils.DateTimeUtils.todayDateString()
+    }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val app = this[APPLICATION_KEY] as Application
+                FitnessViewModel(app, this.createSavedStateHandle())
+            }
+        }
     }
 }

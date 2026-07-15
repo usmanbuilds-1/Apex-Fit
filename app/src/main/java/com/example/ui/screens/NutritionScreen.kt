@@ -72,7 +72,8 @@ fun NutritionScreen(
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
 
-    val calorieTarget = if (calorieTargetManual) calorieTargetValue else 2650
+    val suggestedFromTdee = tdeeResult.tdee ?: com.example.UserDefaults.CALORIES
+    val calorieTarget = if (calorieTargetManual) calorieTargetValue else suggestedFromTdee
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -123,6 +124,9 @@ fun NutritionScreen(
         ) {
         // Date picker swiping bar
         item {
+            val isToday = selectedDate == remember {
+                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -140,8 +144,15 @@ fun NutritionScreen(
                     fontWeight = FontWeight.Bold,
                     color = PrimaryText
                 )
-                IconButton(onClick = { fitnessViewModel.changeNutritionDate(1) }) {
-                    Icon(Icons.Filled.ArrowForward, contentDescription = "Next Day", tint = PrimaryText)
+                IconButton(
+                    onClick = { if (!isToday) fitnessViewModel.changeNutritionDate(1) },
+                    enabled = !isToday
+                ) {
+                    Icon(
+                        Icons.Filled.ArrowForward,
+                        contentDescription = "Next Day",
+                        tint = if (isToday) SecondaryText else PrimaryText
+                    )
                 }
             }
         }
@@ -758,7 +769,7 @@ fun AdaptiveCalorieTargetCard(
             when {
                 // ─ HIGH CONFIDENCE ─────────────────────────────────────
                 tdeeResult.confidence == "high" && tdeeResult.tdee != null -> {
-                    val suggestedCals = tdeeResult.tdee!!
+                    val suggestedCals = tdeeResult.tdee ?: com.example.UserDefaults.CALORIES
                     val goalLabel = when (userGoal.lowercase()) {
                         "bulk" -> "Lean Gain"
                         "cut" -> "Fat Loss"

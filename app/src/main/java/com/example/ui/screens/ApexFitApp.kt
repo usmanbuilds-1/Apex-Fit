@@ -122,7 +122,7 @@ fun PremiumCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApexFitApp(
-    fitnessViewModel: FitnessViewModel = viewModel(),
+    fitnessViewModel: FitnessViewModel = viewModel(factory = FitnessViewModel.Factory),
     algorithmViewModel: AlgorithmViewModel = viewModel(),
     homeViewModel: HomeViewModel = fitnessViewModel.homeVM,
     trainViewModel: TrainViewModel = fitnessViewModel.trainVM,
@@ -250,7 +250,7 @@ fun ApexFitApp(
         OnboardingScreen(
             preferredUnits = preferredUnits,
             onComplete = { name, selectedGoal, currW, goalW, key, height, age, sex ->
-                fitnessViewModel.completeOnboarding(name, selectedGoal, currW, goalW, key, height, age, sex)
+                fitnessViewModel.completeOnboarding(name, selectedGoal, currW, goalW, height, age, sex)
                 showNotificationRationale = true
             }
         )

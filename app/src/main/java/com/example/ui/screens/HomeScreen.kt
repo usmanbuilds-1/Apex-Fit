@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
 import com.example.AlgorithmViewModel
@@ -449,6 +451,13 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .size(88.dp)
+                            .semantics {
+                                val r = readiness
+                                contentDescription = if (r != null)
+                                    "Recovery readiness ${r.score} percent"
+                                else
+                                    "Recovery readiness not yet available"
+                            }
                             .drawBehind {
                                 val strokeWidthPx = 10.dp.toPx()
                                 val diameter = size.minDimension - strokeWidthPx
@@ -471,7 +480,7 @@ fun HomeScreen(
                                 drawArc(
                                     color = GreenAccent,
                                     startAngle = -90f,
-                                    sweepAngle = if (readiness != null) readiness!!.score.toFloat() / 100f * 360f else 0f,
+                                    sweepAngle = (readiness?.score?.toFloat() ?: 0f) / 100f * 360f,
                                     useCenter = false,
                                     topLeft = topLeftOffset,
                                     size = arcSize,
@@ -482,7 +491,7 @@ fun HomeScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = if (readiness != null) "${readiness!!.score}%" else "—",
+                                text = readiness?.score?.let { "$it%" } ?: "—",
                                 fontSize = 24.sp,
                                 fontFamily = JetBrainsMonoFamily,
                                 fontWeight = FontWeight.ExtraBold,

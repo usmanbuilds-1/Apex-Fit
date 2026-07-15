@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.FitnessViewModel
 import com.example.ui.theme.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.OpenInNew
 
 @Composable
 fun SettingsScreen(
@@ -433,7 +435,6 @@ fun SettingsScreen(
                         name = editName,
                         userGoal = editGoal,
                         targetUnit = units,
-                        key = "",
                         equipment = equipmentVal,
                         height = hVal,
                         age = aVal,
@@ -509,5 +510,61 @@ fun SettingsScreen(
     ) {
         Text(if (isResetting) "RESETTING..." else "RESET TOTAL ATHLETE DIRECTORY DATA", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
     }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "LEGAL",
+            fontFamily = SyneFamily,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = SecondaryText,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+        )
+
+        val context = LocalContext.current
+
+        PremiumCard(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            onClick = {
+                context.startActivity(
+                    android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse(com.example.BuildConfig.PRIVACY_POLICY_URL)
+                    )
+                )
+            }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Privacy Policy", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
+                Icon(Icons.Filled.OpenInNew, contentDescription = null,
+                    tint = SecondaryText, modifier = Modifier.size(16.dp))
+            }
+        }
+
+        PremiumCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                context.startActivity(
+                    android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse(com.example.BuildConfig.TERMS_URL)
+                    )
+                )
+            }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Terms of Service", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
+                Icon(Icons.Filled.OpenInNew, contentDescription = null,
+                    tint = SecondaryText, modifier = Modifier.size(16.dp))
+            }
+        }
     }
 }

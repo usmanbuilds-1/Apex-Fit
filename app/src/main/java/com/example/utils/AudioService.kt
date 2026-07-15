@@ -4,13 +4,11 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import kotlinx.coroutines.*
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 object AudioService {
-    @OptIn(ObsoleteCoroutinesApi::class)
-    private val scope = CoroutineScope(newSingleThreadContext("audio"))
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
     private val audioMutex = Mutex()
     @Volatile
     private var audioTrack: AudioTrack? = null

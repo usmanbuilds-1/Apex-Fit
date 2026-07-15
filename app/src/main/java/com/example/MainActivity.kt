@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
         val data = intent?.data
         if (data != null && data.scheme == "apexfit" && data.host == "screen") {
             val screen = data.lastPathSegment // "progress", "train", "nutrition", "home"
-            val fitnessViewModel = ViewModelProvider(this)[FitnessViewModel::class.java]
+            val fitnessViewModel = ViewModelProvider(this, FitnessViewModel.Factory)[FitnessViewModel::class.java]
             fitnessViewModel.selectTab(when (screen) {
                 "progress" -> 3
                 "train" -> 1

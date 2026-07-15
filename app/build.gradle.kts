@@ -17,6 +17,8 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    buildConfigField("String", "PRIVACY_POLICY_URL", "\"https://YOUR-PRIVACY-POLICY-URL.com\"")
+    buildConfigField("String", "TERMS_URL", "\"https://YOUR-TERMS-URL.com\"")
   }
 
   signingConfigs {

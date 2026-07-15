@@ -22,6 +22,7 @@ interface FitnessRepository {
 
     // SessionManager & GeminiService methods
     suspend fun getLastSetForExercise(exerciseId: String): LastSetWithDate?
+    suspend fun getLastSetsForExercise(exerciseId: String): List<com.example.data.ExerciseSet>
     suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord>
     suspend fun insertSessionAtomic(session: TrainingSession, sets: List<ExerciseSet>)
     suspend fun insertSessionWithPRsAtomic(session: TrainingSession, sets: List<ExerciseSet>, prs: List<PersonalRecord>)

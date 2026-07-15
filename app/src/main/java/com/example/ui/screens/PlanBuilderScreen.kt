@@ -663,7 +663,7 @@ fun PlanBuilderScreen(
                                 )
                             )
                         } else {
-                            val session = trainViewModel.getSessionById(editingSessionId!!)
+                            val session = editingSessionId?.let { trainViewModel.getSessionById(it) }
                             if (session != null) {
                                 trainViewModel.updateSession(
                                     session.copy(
@@ -908,7 +908,7 @@ fun PlanBuilderScreen(
                                 )
                             )
                         } else {
-                            val exercise = trainViewModel.getExerciseById(editingExerciseId!!)
+                            val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
                             if (exercise != null) {
                                 trainViewModel.updateExercise(
                                     exercise.copy(
@@ -964,7 +964,7 @@ fun PlanBuilderScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        trainViewModel.deleteSession(sessionToDelete!!.id)
+                        sessionToDelete?.let { trainViewModel.deleteSession(it.id) }
                         sessionToDelete = null
                     }
                 ) {
@@ -1004,7 +1004,7 @@ fun PlanBuilderScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        trainViewModel.deleteExercise(exerciseToDelete!!.id)
+                        exerciseToDelete?.let { trainViewModel.deleteExercise(it.id) }
                         exerciseToDelete = null
                     }
                 ) {

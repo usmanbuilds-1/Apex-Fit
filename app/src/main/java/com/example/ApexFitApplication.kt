@@ -5,6 +5,7 @@ import androidx.work.Configuration
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
@@ -18,12 +19,14 @@ class ApexFitApplication : Application(), Configuration.Provider {
             .setMinimumLoggingLevel(Log.INFO)
             .build()
 
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         val app = this
 
         // Seed exercises on first launch
-        CoroutineScope(Dispatchers.IO).launch {
+        appScope.launch {
             try {
                 val dataStore = DataStoreManager.getInstance(app)
                 val isSeeded = dataStore.isExercisesSeededFlow.firstOrNull() ?: false
@@ -37,7 +40,7 @@ class ApexFitApplication : Application(), Configuration.Provider {
         }
 
         // Schedule coaching notifications — with delay to ensure WorkManager is initialized
-        CoroutineScope(Dispatchers.IO).launch {
+        appScope.launch {
             delay(2000)
             try {
                 CoachingScheduler.schedule6AmDailyCoachingTask(app)

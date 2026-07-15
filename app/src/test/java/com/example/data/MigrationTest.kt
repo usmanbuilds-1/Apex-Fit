@@ -166,4 +166,30 @@ class MigrationTest {
         assertEquals("[]", cursor.getString(0))
         cursor.close()
     }
+
+    @Test
+    fun migrate13to14() {
+        val db = helper.createDatabase("test_db_migration_14", 13)
+        db.execSQL("""INSERT INTO workout_sessions (id, date, sessionType, completed,
+            durationMinutes, sessionFeel) VALUES ('test-uuid-1', '2024-01-01', 'Upper A', 1, 60, 4)""")
+        db.execSQL("""INSERT INTO body_weights (date, time, weight)
+            VALUES ('2024-01-01', '08:00', 80.5)""")
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(
+            "test_db_migration_14", 14, true, AppDatabase.MIGRATION_13_14
+        )
+
+        val sessionCursor = migratedDb.query("SELECT COUNT(*) FROM workout_sessions")
+        sessionCursor.moveToFirst()
+        assertEquals(1, sessionCursor.getInt(0))
+        sessionCursor.close()
+
+        val weightCursor = migratedDb.query("SELECT COUNT(*) FROM body_weights")
+        weightCursor.moveToFirst()
+        assertEquals(1, weightCursor.getInt(0))
+        weightCursor.close()
+
+        migratedDb.close()
+    }
 }

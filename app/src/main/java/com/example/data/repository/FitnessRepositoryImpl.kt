@@ -99,6 +99,9 @@ class FitnessRepositoryImpl(
         return dao.getLastSetForExercise(exerciseId)
     }
 
+    override suspend fun getLastSetsForExercise(exerciseId: String): List<com.example.data.ExerciseSet> =
+        dao.getLastSetsForExercise(exerciseId)
+
     override suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord> {
         return dao.getPRsForExercise(exerciseId)
     }

@@ -4,6 +4,7 @@ import com.example.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
@@ -41,7 +42,11 @@ class WorkoutSessionManager(
                         _activeSession.value = restored
                     }
                 } catch (e: Exception) {
-                    // ignore parse errors
+                    android.util.Log.e("WorkoutSessionManager", "Session restore failed — clearing corrupt JSON", e)
+                    _sessionRestoreFailed.value = true
+                    scope.launch {
+                        try { dataStore.saveActiveSessionJson(null) } catch (_: Exception) { }
+                    }
                 }
             }
         }
@@ -64,6 +69,9 @@ class WorkoutSessionManager(
     // PR preview — set before a set is logged if it would beat the record
     private val _pendingPRWarnings = MutableStateFlow<Map<String, Double>>(emptyMap())
     val pendingPRWarnings: StateFlow<Map<String, Double>> = _pendingPRWarnings
+
+    private val _sessionRestoreFailed = MutableStateFlow(false)
+    val sessionRestoreFailed: StateFlow<Boolean> = _sessionRestoreFailed.asStateFlow()
 
     // ─────────────────────────────────────────────────────────────
     // START SESSION
@@ -184,27 +192,45 @@ class WorkoutSessionManager(
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                val lastSetUi = com.example.ui.models.UiExerciseSet(
-                    id = lastSet.id,
-                    weight = lastSet.weight,
-                    reps = lastSet.reps,
-                    rpe = lastSet.rpe,
-                    isWarmup = lastSet.isWarmup,
-                    completed = lastSet.completed,
-                    exerciseName = lastSet.exerciseName,
-                    sessionId = lastSet.sessionId,
-                    muscleGroup = lastSet.muscleGroup
-                )
-
-                val progressionResult = com.example.utils.ProgressionEngine.calculateProgressiveWeight(
-                    exerciseId = exerciseNameToSlug(ex.name),
-                    lastSessionSets = listOf(lastSetUi), // Limitation: passing only last set
-                    repsMin = ex.repsMin,
-                    repsMax = ex.repsMax,
-                    targetSets = ex.sets,
-                    recoveryMultiplier = 1.0, // Should be calculated, but using 1.0 for now
-                    currentWeight = lastWeightLbs,
-                    exerciseType = exType
+                val allLastSets = repository.getLastSetsForExercise(exerciseNameToSlug(ex.name))
+                    .filter { !it.isWarmup && it.completed }
+                    .take(ex.sets)
+                    .map { s ->  
+                        com.example.ui.models.UiExerciseSet(  
+                            id = s.id,  
+                            weight = s.weight,  
+                            reps = s.reps,  
+                            rpe = s.rpe,  
+                            isWarmup = s.isWarmup,  
+                            completed = s.completed,  
+                            exerciseName = s.exerciseName,  
+                            sessionId = s.sessionId,  
+                            muscleGroup = s.muscleGroup  
+                        )  
+                    }  
+                  
+                val recoveryMultiplier = readinessPercent  
+                    ?.let { it / 100.0 }  
+                    ?.coerceIn(0.7, 1.0)  
+                    ?: 1.0  
+                  
+                val progressionResult = com.example.utils.ProgressionEngine.calculateProgressiveWeight(  
+                    exerciseId = exerciseNameToSlug(ex.name),  
+                    lastSessionSets = allLastSets.ifEmpty {  
+                        listOf(com.example.ui.models.UiExerciseSet(  
+                            weight = lastWeightLbs,  
+                            reps = ex.repsMin,  
+                            rpe = 7,  
+                            isWarmup = false,  
+                            completed = true  
+                        ))  
+                    },  
+                    repsMin = ex.repsMin,  
+                    repsMax = ex.repsMax,  
+                    targetSets = ex.sets,  
+                    recoveryMultiplier = recoveryMultiplier,  
+                    currentWeight = lastWeightLbs,  
+                    exerciseType = exType  
                 )
 
                 val suggestedLbs = progressionResult.newWeight

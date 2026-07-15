@@ -24,6 +24,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val dataStore = com.example.di.ServiceLocator.dataStore(application)
     private val repository = com.example.di.ServiceLocator.repository(application)
 
+    private var _isLoggingWeight = false
+
     // Raw database/preference flows
     private val weightFlow: Flow<List<com.example.utils.WeightEntry>> = dao.getAllWeightEntriesFlow()
         .map { list -> list.map { com.example.utils.WeightEntry(it.date, it.weight) } }
@@ -44,7 +46,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .flowOn(Dispatchers.IO)
 
     private val sessionsFlow: Flow<List<com.example.data.TrainingSession>> =
-        dao.getAllCompletedSessionsFlow().flowOn(Dispatchers.IO)
+        dao.getRecentCompletedSessionsFlow(
+            getDateDaysAgo(90)
+        ).flowOn(Dispatchers.IO)
 
     private val setsFlow: Flow<List<com.example.data.ExerciseSet>> =
         dao.getAllExerciseSetsFlow().flowOn(Dispatchers.IO)
@@ -245,16 +249,21 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     fun logWeight(weight: Double, date: String = getTodayDateString()) {
+        if (_isLoggingWeight) return
+        _isLoggingWeight = true
         viewModelScope.launch {
-            dao.insertWeightEntry(WeightEntry(date = date, time = getCurrentLocalTimeString(), weight = weight))
-            dataStore.saveWeight(weight, dataStore.goalWeightFlow.first())
+            try {
+                dao.insertWeightEntry(WeightEntry(date = date, time = getCurrentLocalTimeString(), weight = weight))
+                dataStore.saveWeight(weight, dataStore.goalWeightFlow.first())
+            } finally {
+                _isLoggingWeight = false
+            }
         }
     }
 
     fun deleteWeight(date: String) {
-        viewModelScope.launch {
-            dao.deleteWeightEntry(date)
-        }
+        android.util.Log.w("HomeViewModel", "deleteWeight(date) is deprecated — use deleteWeightById(id)")
+        // Do not call dao here. Call sites must migrate to deleteWeightById.
     }
 
     fun deleteWeightById(id: Long) {

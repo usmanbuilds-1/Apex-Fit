@@ -284,6 +284,20 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_sessions WHERE completed = 1 ORDER BY date DESC")
     fun getAllCompletedSessionsFlow(): Flow<List<TrainingSession>>
 
+    @Query("""
+        SELECT * FROM workout_sessions
+        WHERE completed = 1 AND date >= :cutoffDate
+        ORDER BY date DESC
+    """)
+    fun getRecentCompletedSessionsFlow(cutoffDate: String): Flow<List<TrainingSession>>
+
+    @Query("""
+        SELECT * FROM workout_sessions
+        WHERE completed = 1 AND date >= :cutoffDate
+        ORDER BY date DESC
+    """)
+    suspend fun getRecentCompletedSessions(cutoffDate: String): List<TrainingSession>
+
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId AND isWarmup = 0 AND completed = 1 ORDER BY id DESC")
     fun getExerciseSetsByExerciseIdFlow(exerciseId: String): Flow<List<ExerciseSet>>
 

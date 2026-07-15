@@ -57,8 +57,12 @@ object PatternDetector {
             val dayName = dayNames[(dow - 2 + 7) % 7]
             val dayAvgCal = entries.map { it.calories }.average()
             val dayAvgProtein = entries.map { it.protein }.average()
-            val calDeviation = ((dayAvgCal - overallAvgCalories) / overallAvgCalories) * 100
-            val proteinDeviation = ((dayAvgProtein - overallAvgProtein) / overallAvgProtein) * 100
+            val calDeviation = if (overallAvgCalories > 0.0)
+                ((dayAvgCal - overallAvgCalories) / overallAvgCalories) * 100
+            else 0.0
+            val proteinDeviation = if (overallAvgProtein > 0.0)
+                ((dayAvgProtein - overallAvgProtein) / overallAvgProtein) * 100
+            else 0.0
             val confidence = minOf(1.0f, entries.size / 8.0f)
 
             if (calDeviation < -15) {

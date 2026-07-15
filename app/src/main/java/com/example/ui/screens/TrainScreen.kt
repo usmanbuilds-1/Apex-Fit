@@ -165,7 +165,8 @@ fun ProgramSubTab(
                             RoundedCornerShape(14.dp)
                         )
                         .clickable { trainViewModel.selectDay(day) }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = 12.dp)
                 ) {
                     Text(
                         text = day.substring(0, 3).uppercase(),
