@@ -19,7 +19,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     private val dataStore = com.example.di.ServiceLocator.dataStore(application)
     private val repository = com.example.di.ServiceLocator.repository(application)
 
-    private var _isLoggingNutrition = false
+    private val _isLoggingNutrition = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private val _selectedNutritionDate = MutableStateFlow(getTodayDateString())
     val selectedNutritionDate: StateFlow<String> = _selectedNutritionDate.asStateFlow()
@@ -40,8 +40,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         date: String = getTodayDateString(),
         name: String = "Logged Meal"
     ) {
-        if (_isLoggingNutrition) return
-        _isLoggingNutrition = true
+        if (!_isLoggingNutrition.compareAndSet(false, true)) return
         viewModelScope.launch {
             try {
                 val newEntry = com.example.data.NutritionEntry(
@@ -55,7 +54,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
                 )
                 dao.insertNutritionEntry(newEntry)
             } finally {
-                _isLoggingNutrition = false
+                _isLoggingNutrition.set(false)
             }
         }
     }
@@ -82,7 +81,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
 
                 _selectedNutritionDate.value = com.example.utils.DateTimeUtils.formatDate(cal.time)
             } catch (e: Exception) {
-                android.util.Log.e("ApexFit", "Error in changeNutritionDate: ${e.message}", e)
+                android.util.Log.e("NutritionViewModel", "Date change failed", e)
             }
         }
     }

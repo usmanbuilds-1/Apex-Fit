@@ -66,7 +66,13 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
             .setContentIntent(pendingIntent)
             .build()
 
-        notificationManager.notify(id.hashCode(), notification)
+        val stableNotifId = mapOf(  
+            "morning_readiness" to 2001,  
+            "midday_protein" to 2002,  
+            "evening_coaching" to 2003,  
+            "weekly_report" to 2004  
+        )  
+        notificationManager.notify(stableNotifId[id] ?: id.hashCode(), notification)
         return Result.success()
     }
 }
@@ -94,9 +100,11 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             WeightEntry(date, list.map { it.weight }.average())
         }.sortedBy { it.date }
 
-        val dbSessions = dao.getAllTrainingSessions()
+        val dbSessions = dao.getAllCompletedSessions()
+        val allSets = dao.getAllExerciseSetsForCompletedSessions()
+        val setsBySession = allSets.groupBy { it.sessionId }
         val completedSessions = dbSessions.map { session ->
-            val dbSets = dao.getSetsForSession(session.id)
+            val dbSets = setsBySession[session.id] ?: emptyList()
             val exerciseLogs = dbSets.groupBy { it.exerciseId }.map { (exId, sets) ->
                 val firstSet = sets.firstOrNull()
                 val name = firstSet?.exerciseName ?: "Exercise"
@@ -137,8 +145,8 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         
         val calTarget = if (isManual) manualValue else suggestedCal
         val proteinTarget = (latestTrend * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250) // g/kg from UserDefaults
-        val fatTarget = (calTarget * 0.25 / 9.0).roundToInt().coerceIn(45, 120)
-        val carbsTarget = ((calTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4.0).roundToInt().coerceIn(100, 500)
+        val fatTarget = (calTarget * 0.25 / AppConstants.CALORIES_PER_GRAM_FAT).roundToInt().coerceIn(45, 120)
+        val carbsTarget = ((calTarget - (proteinTarget * AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) - (fatTarget * AppConstants.CALORIES_PER_GRAM_FAT.toInt())) / AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
 
         val targets = NutritionTargets(
             calories = calTarget,

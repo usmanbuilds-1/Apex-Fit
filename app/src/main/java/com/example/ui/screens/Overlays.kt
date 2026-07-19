@@ -249,7 +249,7 @@ fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: Train
                             modifier = Modifier.heightIn(max = 300.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(exerciseHistory.size) { idx ->
+                            items(exerciseHistory.size, key = { exerciseHistory[it].id }) { idx ->
                                 val session = exerciseHistory[idx]
                                 Row(
                                     modifier = Modifier

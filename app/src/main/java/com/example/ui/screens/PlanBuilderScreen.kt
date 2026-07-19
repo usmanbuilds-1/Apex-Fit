@@ -311,7 +311,7 @@ fun PlanBuilderScreen(
                     }
                 }
             } else {
-                itemsIndexed(sessionsList) { index, session ->
+                itemsIndexed(sessionsList, key = { _, session -> session.id }) { index, session ->
                     val sessionExercises = exercisesList.filter { it.planSessionId == session.id }
                     
                     Card(

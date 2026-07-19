@@ -73,6 +73,9 @@ class WorkoutSessionManager(
     private val _sessionRestoreFailed = MutableStateFlow(false)
     val sessionRestoreFailed: StateFlow<Boolean> = _sessionRestoreFailed.asStateFlow()
 
+    private val _isStartingSession = MutableStateFlow(false)
+    val isStartingSession: StateFlow<Boolean> = _isStartingSession.asStateFlow()
+
     // ─────────────────────────────────────────────────────────────
     // START SESSION
     // ─────────────────────────────────────────────────────────────
@@ -88,12 +91,14 @@ class WorkoutSessionManager(
         userHeight: Double,
         preferredUnits: String
     ) = withContext(Dispatchers.IO) {
+        if (_isStartingSession.value) return@withContext
+        _isStartingSession.value = true
+        try {
+            val lastWeightMap = mutableMapOf<String, Double>()
+            val suggestionsMap = mutableMapOf<String, Double>()
+            val contextLinesMap = mutableMapOf<String, String>()
 
-        val lastWeightMap = mutableMapOf<String, Double>()
-        val suggestionsMap = mutableMapOf<String, Double>()
-        val contextLinesMap = mutableMapOf<String, String>()
-
-        val today = com.example.utils.DateTimeUtils.todayDateString()
+            val today = com.example.utils.DateTimeUtils.todayDateString()
 
         // Calculate per-muscle readiness
         val readinessScore = try {
@@ -103,7 +108,7 @@ class WorkoutSessionManager(
             // Build rich sessions
             val setsBySession = setsRaw.groupBy { it.sessionId }
             val completedRichSessions = sessionsRaw.map { sessionObj ->
-                val sessionSets = setsBySession[sessionObj.id.toString()] ?: emptyList()
+                val sessionSets = setsBySession[sessionObj.id] ?: emptyList()
                 val sessionExercises = sessionSets
                     .groupBy { it.exerciseId }
                     .map { (exerciseId, exSets) ->
@@ -137,8 +142,8 @@ class WorkoutSessionManager(
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.example.UserDefaults.WEIGHT_KG
             
             val proteinTarget = (latestWeight * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
-            val fatTarget = (calorieTarget * 0.25 / 9.0).roundToInt().coerceIn(45, 120)
-            val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4.0).roundToInt().coerceIn(100, 500)
+            val fatTarget = (calorieTarget * 0.25 / com.example.utils.AppConstants.CALORIES_PER_GRAM_FAT).roundToInt().coerceIn(45, 120)
+            val carbsTarget = ((calorieTarget - (proteinTarget * com.example.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) - (fatTarget * com.example.utils.AppConstants.CALORIES_PER_GRAM_FAT.toInt())) / com.example.utils.AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
             val targets = com.example.utils.NutritionTargets(
                 calories = calorieTarget,
                 protein = proteinTarget,
@@ -158,24 +163,18 @@ class WorkoutSessionManager(
         }
 
         exercises.forEach { ex ->
-            val lastSet = repository.getLastSetForExercise(ex.id.toString())
+            val lastSet = repository.getLastSetForExercise(exerciseNameToSlug(ex.name))
             val exType = com.example.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
-            val suggestedLbs: Double
+            val suggestedPreferred: Double
             if (lastSet == null) {
                 // First-time or beginner starting weight
-                suggestedLbs = com.example.utils.ProgressionEngine.calculateBeginnerStartingWeight(
+                suggestedPreferred = com.example.utils.ProgressionEngine.calculateBeginnerStartingWeight(
                     exerciseType = exType,
                     userBodyWeightKg = userWeight,
-                    userHeightCm = userHeight
+                    userHeightCm = userHeight,
+                    preferredUnits = preferredUnits
                 )
-
-                val suggestedPreferred = if (preferredUnits.lowercase() == "lbs") {
-                    suggestedLbs
-                } else {
-                    val converted = suggestedLbs / 2.205
-                    com.example.utils.ProgressionEngine.run { converted.roundToNearest2_5() }
-                }
 
                 suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
                 lastWeightMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
@@ -186,7 +185,7 @@ class WorkoutSessionManager(
                 val lastWeightLbs = if (preferredUnits.lowercase() == "lbs") {
                     lastSet.weight
                 } else {
-                    lastSet.weight * 2.205
+                    lastSet.weight * com.example.utils.AppConstants.KG_TO_LBS
                 }
 
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
@@ -198,7 +197,7 @@ class WorkoutSessionManager(
                     .map { s ->  
                         com.example.ui.models.UiExerciseSet(  
                             id = s.id,  
-                            weight = s.weight,  
+                            weight = if (preferredUnits.lowercase() == "lbs") s.weight else s.weight * com.example.utils.AppConstants.KG_TO_LBS,  
                             reps = s.reps,  
                             rpe = s.rpe,  
                             isWarmup = s.isWarmup,  
@@ -238,7 +237,7 @@ class WorkoutSessionManager(
                 val suggestedPreferred = if (preferredUnits.lowercase() == "lbs") {
                     suggestedLbs
                 } else {
-                    val converted = suggestedLbs / 2.205
+                    val converted = suggestedLbs / com.example.utils.AppConstants.KG_TO_LBS
                     com.example.utils.ProgressionEngine.run { converted.roundToNearest2_5() }
                 }
 
@@ -280,6 +279,9 @@ class WorkoutSessionManager(
             exercises = activeExercises
         )
         persistSession()
+        } finally {
+            _isStartingSession.value = false
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -375,7 +377,7 @@ class WorkoutSessionManager(
                     dataStore.saveActiveSessionJson(null)
                 }
             } catch (e: Exception) {
-                android.util.Log.e("WorkoutSessionManager", "persistSession failed", e)
+                android.util.Log.e("WorkoutSessionManager", "Session persist failed — see exception", e)
             }
         }
     }
@@ -428,8 +430,8 @@ class WorkoutSessionManager(
             ?: return@withContext SessionCommitResult.empty()
 
         val sessionId = UUID.randomUUID().toString()
-        val durationMinutes = ((System.currentTimeMillis() - session.startTime) / 60_000L)
-            .toInt()
+        val durationMinutes = ((System.currentTimeMillis() - session.startTime).toDouble() / 60_000.0)
+            .let { it.roundToInt() }
             .coerceAtLeast(1)
 
         // Flatten all sets, filter to completed if needed

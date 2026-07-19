@@ -54,7 +54,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
-import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
 import com.example.AlgorithmViewModel
 import com.example.HomeViewModel
@@ -76,8 +75,6 @@ import androidx.compose.foundation.text.BasicTextField
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.roundToInt
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
 
 @Composable
 fun ApexCard(
@@ -376,7 +373,7 @@ fun HomeScreen(
                     ) {
                         Text(
                             text = "TODAY'S TRAINING",
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = AmberAccent,
                             letterSpacing = 1.5.sp
@@ -439,7 +436,7 @@ fun HomeScreen(
                             )
                             Text(
                                 text = "~$finalWorkoutDurationMin min",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontFamily = JetBrainsMonoFamily,
                                 fontWeight = FontWeight.Bold,
                                 color = PrimaryText
@@ -499,7 +496,7 @@ fun HomeScreen(
                             )
                             Text(
                                 text = "RECOVERY",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontFamily = SyneFamily,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = GreenAccent,
@@ -696,7 +693,7 @@ fun HomeScreen(
                                     )
                                     Text(
                                         text = if (calTarget > 0) "/ ${String.format(java.util.Locale.US, "%,d", calTarget)}" else "—",
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Normal,
                                         color = Color.Gray
                                     )
@@ -708,7 +705,7 @@ fun HomeScreen(
                                     Icon(Icons.Outlined.LocalFireDepartment, contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                                     Text(
                                         text = if (calTarget > 0) "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal left" else "No target",
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         color = Color.White,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -717,7 +714,7 @@ fun HomeScreen(
                                     Icon(Icons.Outlined.Egg, contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                                     Text(
                                         text = if (proteinTarget > 0) "$proteinLogged / ${proteinTarget}g protein" else "$proteinLogged / — protein",
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         color = Color.White,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -826,14 +823,14 @@ fun HomeScreen(
                                         }
                                         Text(
                                             text = "${String.format(java.util.Locale.US, "%.1f", Math.abs(change))} $units",
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             fontFamily = JetBrainsMonoFamily,
                                             fontWeight = FontWeight.Normal,
                                             color = if (change <= 0) GreenAccent else RedAccent
                                         )
                                         Text(
                                             text = "this week",
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.Normal,
                                             color = Color.Gray
                                         )
@@ -841,7 +838,7 @@ fun HomeScreen(
                                 } else {
                                     Text(
                                         text = "Log weigh-ins",
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         color = Color.Gray
                                     )
                                 }
@@ -981,7 +978,7 @@ fun HomeScreen(
                                         Text(
                                             text = filter,
                                             fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             color = if (isSelected) Color.White else Color.Gray,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -1048,7 +1045,7 @@ fun HomeScreen(
                     Text(
                         text = "Enter your current weight in $units. This updates your dynamic readiness fatigue filters and chronic load baselines.",
                         fontFamily = JetBrainsMonoFamily,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         color = SecondaryText,
                         lineHeight = 15.sp
                     )
@@ -1136,7 +1133,7 @@ fun HomeScreen(
                         Text(
                             text = "Readiness is calculated from your training load, nutrition compliance, and sleep (if tracked).",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = SecondaryText,
                             lineHeight = 15.sp
                         )
@@ -1153,7 +1150,7 @@ fun HomeScreen(
                         Text(
                             text = "Muscle readiness reflects recovery time needed per muscle group based on training intensity.",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = SecondaryText,
                             lineHeight = 15.sp
                         )
@@ -1170,7 +1167,7 @@ fun HomeScreen(
                         Text(
                             text = "Systemic readiness reflects overall CNS fatigue from recent training volume.",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             color = SecondaryText,
                             lineHeight = 15.sp
                         )

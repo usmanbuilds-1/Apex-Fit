@@ -34,8 +34,10 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     }
 
     // 2. Monthly muscle volumes for radar chart
-    val monthlyMuscleVolumes: StateFlow<UiState<Map<String, Int>>> = dao.getAllTrainingSessionsFlow().map { sessions ->
-        val allSets = dao.getAllExerciseSets()
+    val monthlyMuscleVolumes: StateFlow<UiState<Map<String, Int>>> = combine(
+        dao.getAllTrainingSessionsFlow(),
+        dao.getRecentExerciseSetsFlow(com.example.utils.getDateDaysAgo(90))
+    ) { sessions, allSets ->
         val currentMonthPrefix = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(java.util.Date())
         val thisMonthSessions = sessions.filter { it.date.startsWith(currentMonthPrefix) }
         val thisMonthSessionIds = thisMonthSessions.map { it.id }.toSet()
@@ -49,13 +51,18 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         }
         UiState.Success(result) as UiState<Map<String, Int>>
     }
+    .flowOn(Dispatchers.Default)
     .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     // 3. Muscle recovery status calculation
-    val muscleRecoveryStatuses: StateFlow<UiState<List<MuscleRecoveryStatus>>> = dao.getAllTrainingSessionsFlow().map { sessions ->
-        UiState.Success(calculateMuscleRecovery(sessions)) as UiState<List<MuscleRecoveryStatus>>
+    val muscleRecoveryStatuses: StateFlow<UiState<List<MuscleRecoveryStatus>>> = combine(
+        dao.getAllTrainingSessionsFlow(),
+        dao.getRecentExerciseSetsFlow(com.example.utils.getDateDaysAgo(90))
+    ) { sessions, allSets ->
+        UiState.Success(calculateMuscleRecovery(sessions, allSets)) as UiState<List<MuscleRecoveryStatus>>
     }
+    .flowOn(Dispatchers.Default)
     .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
@@ -109,14 +116,13 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private suspend fun calculateMuscleRecovery(
-        sessions: List<com.example.data.TrainingSession>
-    ): List<MuscleRecoveryStatus> = withContext(Dispatchers.IO) {
-        val allSets = dao.getAllExerciseSets()
-        
+    private fun calculateMuscleRecovery(
+        sessions: List<com.example.data.TrainingSession>,
+        allSets: List<com.example.data.ExerciseSet>
+    ): List<MuscleRecoveryStatus> {
         val muscles = com.example.utils.MuscleGroups.ALL
         
-        muscles.map { muscle ->
+        return muscles.map { muscle ->
             val matchingSets = allSets.filter { set ->
                 set.completed && !set.isWarmup && isMuscleMatch(set.muscleGroup, muscle)
             }

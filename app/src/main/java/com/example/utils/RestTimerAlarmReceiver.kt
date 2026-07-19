@@ -54,7 +54,7 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
                         triggerAtMillis,
                         pendingIntent
                     )
-                    Log.i(TAG, "Scheduled EXACT alarm at $triggerAtMillis for '$exerciseName'")
+                    Log.i("RestTimerAlarm", "Timer triggered")
                 } else {
                     // Permission not granted — fall back to inexact alarm.
                     // May fire late during Doze but will still fire.
@@ -72,7 +72,7 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
                     triggerAtMillis,
                     pendingIntent
                 )
-                Log.i(TAG, "Scheduled exact alarm (pre-S) at $triggerAtMillis for '$exerciseName'")
+                Log.i("RestTimerAlarm", "Timer triggered")
             }
         }
 

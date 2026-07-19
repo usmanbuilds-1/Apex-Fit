@@ -53,10 +53,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
 import com.example.AlgorithmViewModel
 import com.example.TrainViewModel
+import com.example.data.PlanExercise
+import com.example.data.exerciseId
 import com.example.ui.models.*
 import com.example.ui.theme.*
 import com.example.utils.AlgorithmEngine
@@ -137,6 +138,9 @@ fun ProgramSubTab(
     val selectedDaySessionRaw by trainViewModel.selectedDaySession.collectAsStateWithLifecycle()
     val exercises by trainViewModel.selectedDayExercises.collectAsStateWithLifecycle()
 
+    val sessionManager = trainViewModel.sessionManager
+    val isStarting by sessionManager.isStartingSession.collectAsStateWithLifecycle()
+
     val selectedDaySession = selectedDaySessionRaw
 
     val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
@@ -154,7 +158,7 @@ fun ProgramSubTab(
                 .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(daysOfWeek) { day ->
+            items(daysOfWeek, key = { it }) { day ->
                 val isSelected = selectedDay.equals(day, ignoreCase = true)
                 Box(
                     modifier = Modifier
@@ -246,9 +250,12 @@ fun ProgramSubTab(
 
                         Button(
                             onClick = {
-                                trainViewModel.startWorkoutSession(selectedDaySession)
-                                fitnessViewModel.setTrainSubTab(1)
+                                if (!isStarting) {
+                                    trainViewModel.startWorkoutSession(selectedDaySession)
+                                    fitnessViewModel.setTrainSubTab(1)
+                                }
                             },
+                            enabled = !isStarting,
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
                             shape = RoundedCornerShape(12.dp)
@@ -264,7 +271,7 @@ fun ProgramSubTab(
                 }
 
                 // Exercises list
-                items(exercises.size) { index ->
+                items(exercises.size, key = { exercises[it].id }) { index ->
                     val ex = exercises[index]
 
                     var isExpanded by rememberSaveable { mutableStateOf(false) }
@@ -430,9 +437,32 @@ fun WorkoutExecutionSubTab(
     val preferredUnits by trainViewModel.units.collectAsStateWithLifecycle()
     val saveError by trainViewModel.saveError.collectAsStateWithLifecycle()
     val showRirOverlay by trainViewModel.showRirOverlay.collectAsStateWithLifecycle()
+    val sessionRestoreFailed by trainViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(sessionRestoreFailed) {
+        if (sessionRestoreFailed) {
+            snackbarHostState.showSnackbar(
+                message = "Your previous session could not be restored.",
+                actionLabel = "OK",
+                duration = androidx.compose.material3.SnackbarDuration.Long
+            )
+        }
+    }
 
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
+
+    var pendingTimerStart by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val notifPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            pendingTimerStart?.invoke()
+        }
+    }
+
     var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
     var showNormalFinishFeelDialog by rememberSaveable { mutableStateOf(false) }
     var selectedFeelRating by rememberSaveable { mutableStateOf(4) }
@@ -729,7 +759,13 @@ fun WorkoutExecutionSubTab(
         )
     }
 
-    if (activeSession == null) {
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Color.Transparent,
+        modifier = Modifier.fillMaxSize()
+    ) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
+            if (activeSession == null) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -808,7 +844,7 @@ fun WorkoutExecutionSubTab(
             // Current Exercise Layout
             if (currentIdx < exercises.size) {
                 val ex = exercises[currentIdx]
-                val setsList = loggedSets[ex.id] ?: emptyList()
+                val setsList = loggedSets[ex.exerciseId] ?: emptyList()
 
                 item {
                     var showPlateCalc by rememberSaveable { mutableStateOf(false) }
@@ -854,7 +890,7 @@ fun WorkoutExecutionSubTab(
                             fontWeight = FontWeight.ExtraBold,
                             color = PrimaryText
                         )
-                        val contextLine = weightContextLines[ex.id.toString()] ?: ""
+                        val contextLine = weightContextLines[ex.exerciseId] ?: ""
                         if (contextLine.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
@@ -867,7 +903,7 @@ fun WorkoutExecutionSubTab(
                     }
                 }
 
-                val currEffSetsData = effectiveSetsMap[ex.id.toString()]
+                val currEffSetsData = effectiveSetsMap[ex.exerciseId]
                 if (currEffSetsData != null) {
                     item {
                         val nextSetIndex = setsList.indexOfFirst { !it.completed }
@@ -892,12 +928,12 @@ fun WorkoutExecutionSubTab(
 
 
                 // Row of sets logger inputs
-                items(setsList.size) { sIdx ->
+                items(setsList.size, key = { setsList[it].id }) { sIdx ->
                     val setObj = setsList[sIdx]
 
                     // Local editing state keyed to stable set id to avoid reset when the session model updates
-                    var rawWeight by remember(setObj.id) { mutableStateOf(setObj.weight.toString()) }
-                    var rawReps by remember(setObj.id) { mutableStateOf(setObj.reps.toString()) }
+                    var rawWeight by rememberSaveable(setObj.id) { mutableStateOf(setObj.weight.toString()) }
+                    var rawReps by rememberSaveable(setObj.id) { mutableStateOf(setObj.reps.toString()) }
                     var selectedRpe by remember(setObj.id) { mutableStateOf(setObj.rpe) }
 
                     LaunchedEffect(setObj.weight) {
@@ -922,14 +958,14 @@ fun WorkoutExecutionSubTab(
                         val w = rawWeight.toDoubleOrNull()
                         if (w != null && w in 0.25..500.0) {
                             val r = rawReps.toIntOrNull() ?: setObj.reps
-                            trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
+                            trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, setObj.completed)
                         }
                     }
                     val commitReps: () -> Unit = {
                         val r = rawReps.toIntOrNull()
                         if (r != null && r in 1..50) {
                             val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                            trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, setObj.completed)
+                            trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, setObj.completed)
                         }
                     }
 
@@ -1059,7 +1095,7 @@ fun WorkoutExecutionSubTab(
                                         decorationBox = { innerTextField ->
                                             Box(contentAlignment = Alignment.CenterStart) {
                                                 if (rawWeight.isEmpty()) {
-                                                    val suggested = lastWeights[ex.id.toString()] ?: ex.weight
+                                                    val suggested = lastWeights[ex.exerciseId] ?: ex.weight
                                                     Text(
                                                         text = "${suggested} $preferredUnits",
                                                         color = MutedText,
@@ -1071,7 +1107,7 @@ fun WorkoutExecutionSubTab(
                                             }
                                         }
                                     )
-                                    val contextLineInside = weightContextLines[ex.id.toString()] ?: ""
+                                    val contextLineInside = weightContextLines[ex.exerciseId] ?: ""
                                     if (contextLineInside.isNotEmpty()) {
                                         val shortNote = if (contextLineInside.contains(" → Suggested:")) {
                                             contextLineInside.substringBefore(" → Suggested:")
@@ -1159,18 +1195,29 @@ fun WorkoutExecutionSubTab(
 
                                             if (newCompleted) {
                                                 // Smart RIR dynamic selector instead of instant log
-                                                trainViewModel.openRirSelector(
-                                                    exerciseId = ex.id,
-                                                    exerciseName = ex.name,
-                                                    muscleGroup = ex.muscleGroup,
-                                                    setIndex = sIdx,
-                                                    weight = w,
-                                                    reps = r,
-                                                    totalSets = setsList.size
-                                                )
+                                                val timerStartCall = {
+                                                    trainViewModel.openRirSelector(
+                                                        exerciseId = ex.exerciseId,
+                                                        exerciseName = ex.name,
+                                                        muscleGroup = ex.muscleGroup,
+                                                        setIndex = sIdx,
+                                                        weight = w,
+                                                        reps = r,
+                                                        totalSets = setsList.size
+                                                     )
+                                                }
+                                                pendingTimerStart = timerStartCall
+                                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                                                    androidx.core.content.ContextCompat.checkSelfPermission(
+                                                        context, android.Manifest.permission.POST_NOTIFICATIONS
+                                                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                                    notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                                } else {
+                                                    timerStartCall()
+                                                }
                                             } else {
                                                 // Simple uncheck log state
-                                                trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, selectedRpe, false)
+                                                trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, false)
                                             }
                                         }
                                     },
@@ -1214,7 +1261,7 @@ fun WorkoutExecutionSubTab(
                                                 selectedRpe = rpeVal
                                                 val w = rawWeight.toDoubleOrNull() ?: setObj.weight
                                                 val r = rawReps.toIntOrNull() ?: setObj.reps
-                                                trainViewModel.logWorkoutSetState(ex.id, sIdx, w, r, rpeVal, setObj.completed)
+                                                trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, rpeVal, setObj.completed)
                                             }
                                             .padding(vertical = 8.dp),
                                         contentAlignment = Alignment.Center
@@ -1244,7 +1291,7 @@ fun WorkoutExecutionSubTab(
                             Button(
                                 onClick = {
                                     if (canAddSet) {
-                                        trainViewModel.addCustomLogSet(ex.id)
+                                        trainViewModel.addCustomLogSet(ex.exerciseId)
                                     }
                                 },
                                 enabled = canAddSet,
@@ -1384,6 +1431,8 @@ fun WorkoutExecutionSubTab(
         }
     }
 }
+}
+}
 
 @Composable
 fun NewPlansSubTab(
@@ -1448,7 +1497,7 @@ fun NewPlansSubTab(
             )
         }
 
-        items(plans) { plan ->
+        items(plans, key = { it.id }) { plan ->
             val isActive = activePlan?.id == plan.id
             Box(
                 modifier = Modifier

@@ -190,6 +190,14 @@ interface FitnessDao {
     @Query("SELECT * FROM personal_records ORDER BY date DESC")
     fun getAllPRsFlow(): Flow<List<PersonalRecord>>
 
+    @Query("""
+        SELECT pr.*, e.name as exerciseName
+        FROM personal_records pr
+        LEFT JOIN exercises e ON pr.exerciseId = e.id
+        ORDER BY pr.date DESC
+    """)
+    fun getPersonalRecordsWithNames(): Flow<List<PersonalRecordWithName>>
+
     @Query("SELECT * FROM personal_records WHERE exerciseId = :exerciseId")
     suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord>
 
@@ -273,6 +281,14 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_sessions WHERE completed = 1 ORDER BY date DESC")
     suspend fun getAllCompletedSessions(): List<TrainingSession>
 
+    @Query("""  
+        SELECT es.* FROM exercise_sets es  
+        INNER JOIN workout_sessions ws ON es.sessionId = ws.id  
+        WHERE ws.completed = 1  
+        ORDER BY es.id ASC  
+    """)  
+    suspend fun getAllExerciseSetsForCompletedSessions(): List<ExerciseSet>
+
     @Query("""
         SELECT * FROM body_measurements 
         WHERE bodyPart = :bodyPart 
@@ -303,6 +319,22 @@ interface FitnessDao {
 
     @Query("SELECT * FROM exercise_sets WHERE completed = 1 ORDER BY id DESC")
     fun getAllExerciseSetsFlow(): Flow<List<ExerciseSet>>
+
+    @Query("""  
+        SELECT es.* FROM exercise_sets es  
+        INNER JOIN workout_sessions ws ON es.sessionId = ws.id  
+        WHERE ws.date >= :cutoffDate AND ws.completed = 1  
+        ORDER BY es.id DESC  
+    """)  
+    fun getRecentExerciseSetsFlow(cutoffDate: String): Flow<List<ExerciseSet>>
+
+    @Query("""  
+        SELECT es.* FROM exercise_sets es  
+        INNER JOIN workout_sessions ws ON es.sessionId = ws.id  
+        WHERE ws.date >= :cutoffDate AND ws.completed = 1  
+        ORDER BY es.id DESC  
+    """)  
+    suspend fun getRecentExerciseSets(cutoffDate: String): List<ExerciseSet>
 
     @Query("""
         SELECT es.*, ts.date as date 

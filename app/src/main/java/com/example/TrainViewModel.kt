@@ -65,14 +65,13 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     // Plan Builder Editing State
     val planBuilderSessions = MutableStateFlow<List<PlanSession>>(emptyList())
     val planBuilderExercises = MutableStateFlow<List<PlanExercise>>(emptyList())
-    var isInitialized = false
+    private val _isInitialized = java.util.concurrent.atomic.AtomicBoolean(false)
+    val isInitialized: Boolean get() = _isInitialized.get()
 
     fun initializePlanBuilder(plan: WorkoutPlan?, sessions: List<PlanSession>, exercises: List<PlanExercise>) {
-        if (!isInitialized) {
-            planBuilderSessions.value = sessions
-            planBuilderExercises.value = exercises
-            isInitialized = true
-        }
+        if (!_isInitialized.compareAndSet(false, true)) return
+        planBuilderSessions.value = sessions
+        planBuilderExercises.value = exercises
     }
 
     fun addSession(session: PlanSession) {
@@ -238,11 +237,10 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentExerciseIdx = MutableStateFlow(0)
     val currentExerciseIdx: StateFlow<Int> = _currentExerciseIdx.asStateFlow()
 
-    val loggedSets: StateFlow<Map<Long, List<UiExerciseSet>>> = sessionManager.activeSession.map { active ->
+    val loggedSets: StateFlow<Map<String, List<UiExerciseSet>>> = sessionManager.activeSession.map { active ->
         if (active != null) {
             active.exercises.associate { exercise ->
-                val exIdLong = exercise.exerciseId.toLongOrNull() ?: 0L
-                exIdLong to exercise.sets.mapIndexed { sIdx, setObj ->
+                exercise.exerciseId to exercise.sets.mapIndexed { sIdx, setObj ->
                     ExerciseSet(
                         id = sIdx.toLong(),
                         sessionId = active.planSessionId,
@@ -361,8 +359,8 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         _saveError.value = null
     }
 
-    private val _rirSelectorExerciseId = MutableStateFlow(0L)
-    val rirSelectorExerciseId: StateFlow<Long> = _rirSelectorExerciseId.asStateFlow()
+    private val _rirSelectorExerciseId = MutableStateFlow("")
+    val rirSelectorExerciseId: StateFlow<String> = _rirSelectorExerciseId.asStateFlow()
 
     private val _rirSelectorExerciseName = MutableStateFlow("")
     val rirSelectorExerciseName: StateFlow<String> = _rirSelectorExerciseName.asStateFlow()
@@ -391,7 +389,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     private val _completedHypertrophyScore = MutableStateFlow(0.0)
     val completedHypertrophyScore: StateFlow<Double> = _completedHypertrophyScore.asStateFlow()
 
-    private var lastCompletedSetPointer: Pair<Long, Int>? = null
+    private var lastCompletedSetPointer: Pair<String, Int>? = null
 
     fun startWorkoutSession(planSession: PlanSession) {
         _currentExerciseIdx.value = 0
@@ -429,15 +427,15 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         _warmupCompleted.value = current
     }
 
-    fun logWorkoutSetState(exerciseId: Long, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int = 0, repsInReserve: Int? = null) {
+    fun logWorkoutSetState(exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int = 0, repsInReserve: Int? = null) {
         if (completed) {
             lastCompletedSetPointer = Pair(exerciseId, setIndex)
             viewModelScope.launch {
-                sessionManager.checkPRPreview(exerciseId.toString(), weight, reps)
+                sessionManager.checkPRPreview(exerciseId, weight, reps)
             }
         }
         sessionManager.updateSet(
-            exerciseId = exerciseId.toString(),
+            exerciseId = exerciseId,
             setIndex = setIndex,
             weight = weight,
             reps = reps,
@@ -448,12 +446,12 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun updateSetRestTaken(exerciseId: Long, setIndex: Int, restSeconds: Int) {
+    private fun updateSetRestTaken(exerciseId: String, setIndex: Int, restSeconds: Int) {
         val session = sessionManager.activeSession.value ?: return
-        val exercise = session.exercises.find { it.exerciseId == exerciseId.toString() } ?: return
+        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
         if (setIndex < exercise.sets.size) {
             sessionManager.updateSet(
-                exerciseId = exerciseId.toString(),
+                exerciseId = exerciseId,
                 setIndex = setIndex,
                 weight = exercise.sets[setIndex].weight,
                 reps = exercise.sets[setIndex].reps,
@@ -464,12 +462,12 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addCustomLogSet(exerciseId: Long) {
-        sessionManager.addCustomSet(exerciseId.toString())
+    fun addCustomLogSet(exerciseId: String) {
+        sessionManager.addCustomSet(exerciseId)
     }
 
     fun openRirSelector(
-        exerciseId: Long,
+        exerciseId: String,
         exerciseName: String,
         muscleGroup: String,
         setIndex: Int,
@@ -487,7 +485,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         _isShowingRirHistory.value = false
 
         viewModelScope.launch {
-            val lastSetForEx = dao.getLastSetForExercise(exerciseId.toString())
+            val lastSetForEx = dao.getLastSetForExercise(exerciseId)
             _selectedRir.value = lastSetForEx?.repsInReserve ?: 2
             _showRirOverlay.value = true
         }
@@ -502,7 +500,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         val rpe = com.example.utils.ProgressionEngine.calculateRPEFromRIR(_selectedRir.value)
 
         viewModelScope.launch {
-            val lastSets = dao.getExerciseSetsByExerciseIdAndRPE(exerciseId.toString(), rpe, 5)
+            val lastSets = dao.getExerciseSetsByExerciseIdAndRPE(exerciseId, rpe, 5)
             _rirHistoricalSets.value = lastSets
             _isShowingRirHistory.value = true
         }
@@ -694,14 +692,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         }
         var scoreSum = 0.0
         sets.forEach { set ->
-            val rpeMod = when (set.rpe) {
-                10 -> 1.0
-                9 -> 0.95
-                8 -> 0.85
-                7 -> 0.70
-                6 -> 0.45
-                else -> 0.20
-            }
+            val rpeMod = com.example.utils.ProgressionEngine.calculateEffectiveSetValue(set.rpe)
             val isCompound = set.exerciseName.lowercase().let { n ->
                 n.contains("squat") || n.contains("press") || n.contains("deadlift") || n.contains("row") || n.contains("pullup") || n.contains("dips")
             }

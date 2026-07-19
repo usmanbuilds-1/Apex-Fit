@@ -4,6 +4,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import kotlin.math.roundToInt
+import com.example.data.SleepEntry
+import com.example.data.DetectedPattern
 
 object PatternDetector {
 
@@ -121,7 +123,7 @@ object PatternDetector {
         trainingLog.filter { it.completed && it.sessionFeel > 0 }.forEach { session ->
             val prevDate = getPreviousDate(session.date) ?: return@forEach
             val prevNutrition = nutritionMap[prevDate] ?: return@forEach
-            val proteinPct = prevNutrition.protein.toDouble() / proteinTarget
+            val proteinPct = if (proteinTarget > 0.0) prevNutrition.protein.toDouble() / proteinTarget else 0.0
             pairs.add(Pair(proteinPct, session.sessionFeel))
         }
 
@@ -135,11 +137,14 @@ object PatternDetector {
             val lowAvgFeel = lowProteinSessions.map { it.second }.average()
 
             if (highAvgFeel - lowAvgFeel >= 0.7) {
+                val pctDiff = if (lowAvgFeel > 0.0)
+                    ((highAvgFeel - lowAvgFeel) / lowAvgFeel * 100).roundToInt()
+                else 0
                 patterns.add(DetectedPattern(
                     id = "protein_performance_correlation",
                     type = "nutrition_performance",
                     title = "Your training is better after high protein days",
-                    description = "When you hit protein targets the day before, your session feel averages ${String.format(java.util.Locale.US, "%.1f", highAvgFeel)}/5 vs ${String.format(java.util.Locale.US, "%.1f", lowAvgFeel)}/5 after low protein days. That is a ${((highAvgFeel - lowAvgFeel) / lowAvgFeel * 100).roundToInt()}% performance difference.",
+                    description = "When you hit protein targets the day before, your session feel averages ${String.format(java.util.Locale.US, "%.1f", highAvgFeel)}/5 vs ${String.format(java.util.Locale.US, "%.1f", lowAvgFeel)}/5 after low protein days. That is a ${pctDiff}% performance difference.",
                     confidence = minOf(1.0f, pairs.size / 20.0f),
                     actionable = "Prioritise hitting protein the day before your heaviest sessions — Upper A and Lower B specifically.",
                     detectedAt = getCurrentDate()

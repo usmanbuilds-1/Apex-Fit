@@ -8,6 +8,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Index
 import androidx.room.ColumnInfo
 import androidx.room.ForeignKey
+import androidx.room.Embedded
 
 @Entity(tableName = "body_weights")
 data class WeightEntry(
@@ -108,7 +109,7 @@ data class TrainingSession(
  * @param effectiveSetValue A 0.0-1.0 multiplier indicating the hypertrophy
  *   effectiveness of this set, derived from RPE via
  *   ProgressionEngine.calculateEffectiveSetValue(rpe).
- *   Values: RPE 10→1.0, 9→0.95, 8→0.85, 7→0.70, 6→0.45, else→0.20.
+ *   Values: RPE 10→1.0, 9→0.90, 8→0.75, 7→0.50, else→0.0.
  *   Used in AlgorithmEngine.calcEffectiveSets for weekly volume calculations.
  */
 data class ExerciseSet(
@@ -160,13 +161,6 @@ data class PlateauResult(
 data class FatigueRatio(
     val ratio: Double, // acute to chronic volume ratio
     val riskStatus: String // Low, Medium, High
-)
-
-@Entity(tableName = "weekly_reports")
-data class WeeklyReport(
-    @PrimaryKey val weekStart: String, // YYYY-MM-DD
-    val score: Int,
-    val geminiResponse: String
 )
 
 data class PRResult(
@@ -252,6 +246,12 @@ data class PlanExercise(
     val notes: String
 )
 
+val PlanExercise.exerciseId: String
+    get() = name.lowercase()
+        .replace(Regex("[^a-z0-9\\s-]"), "")
+        .replace(Regex("\\s+"), "-")
+        .trim()
+
 @Entity(
     tableName = "personal_records",
     foreignKeys = [
@@ -269,6 +269,11 @@ data class PersonalRecord(
     val type: String, // max_weight, volume, estimated_1rm
     val value: Double,
     val date: String
+)
+
+data class PersonalRecordWithName(
+    @Embedded val record: PersonalRecord,
+    @ColumnInfo(name = "exerciseName") val displayName: String?
 )
 
 @Entity(tableName = "body_measurements")
@@ -396,6 +401,9 @@ data class PersonalPattern(
     val avgCompliance: Double
 )
 
+// NOTE: Sleep tracking data model exists but has no UI or logging path.
+// detectSleepPatterns() is always called with emptyList(). Dead feature
+// as of this audit. Either build the UI or remove this model in a future pass.
 data class SleepEntry(
     val date: String,
     val hours: Double,

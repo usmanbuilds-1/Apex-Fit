@@ -23,7 +23,6 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import com.example.R
@@ -54,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.rememberAsyncImagePainter
 import com.example.FitnessViewModel
 import com.example.HomeViewModel
 import com.example.TrainViewModel
@@ -468,6 +466,12 @@ fun OnboardingScreen(
     var ageStr by rememberSaveable { mutableStateOf("25") }
     var sexChoice by rememberSaveable { mutableStateOf("Male") }
 
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var weightError by remember { mutableStateOf<String?>(null) }
+    var heightError by remember { mutableStateOf<String?>(null) }
+    var ageError by remember { mutableStateOf<String?>(null) }
+    var showAgeGateDialog by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
 
     Box(
@@ -514,6 +518,7 @@ fun OnboardingScreen(
                     value = name,
                     onValueChange = { newName ->
                         name = newName.take(40).filter { !it.isISOControl() }
+                        nameError = null
                     },
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Words,
@@ -534,6 +539,7 @@ fun OnboardingScreen(
                         unfocusedIndicatorColor = BorderSubtle
                     )
                 )
+                nameError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
 
                 // Goal Selectors
                 Text(
@@ -582,22 +588,28 @@ fun OnboardingScreen(
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
                 ) {
-                    OutlinedTextField(
-                        value = currentWeightStr,
-                        onValueChange = { currentWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
-                        label = { Text(stringResource(R.string.onboarding_current_wt, unitLabel), color = SecondaryText) },
-                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("onboarding_weight_input"),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = DarkRaised,
-                            unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = AmberAccent,
-                            unfocusedIndicatorColor = BorderSubtle
+                    Column(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = currentWeightStr,
+                            onValueChange = {
+                                currentWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                                weightError = null
+                            },
+                            label = { Text(stringResource(R.string.onboarding_current_wt, unitLabel), color = SecondaryText) },
+                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("onboarding_weight_input"),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = DarkRaised,
+                                unfocusedContainerColor = DarkRaised,
+                                focusedIndicatorColor = AmberAccent,
+                                unfocusedIndicatorColor = BorderSubtle
+                            )
                         )
-                    )
+                        weightError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+                    }
                     OutlinedTextField(
                         value = goalWeightStr,
                         onValueChange = { goalWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
@@ -623,34 +635,46 @@ fun OnboardingScreen(
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
                 ) {
-                    OutlinedTextField(
-                        value = heightStr,
-                        onValueChange = { heightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
-                        label = { Text(stringResource(R.string.onboarding_height_cm), color = SecondaryText) },
-                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.weight(1f),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = DarkRaised,
-                            unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = AmberAccent,
-                            unfocusedIndicatorColor = BorderSubtle
+                    Column(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = heightStr,
+                            onValueChange = {
+                                heightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                                heightError = null
+                            },
+                            label = { Text(stringResource(R.string.onboarding_height_cm), color = SecondaryText) },
+                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = DarkRaised,
+                                unfocusedContainerColor = DarkRaised,
+                                focusedIndicatorColor = AmberAccent,
+                                unfocusedIndicatorColor = BorderSubtle
+                            )
                         )
-                    )
-                    OutlinedTextField(
-                        value = ageStr,
-                        onValueChange = { ageStr = it },
-                        label = { Text(stringResource(R.string.onboarding_age_yrs), color = SecondaryText) },
-                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = DarkRaised,
-                            unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = AmberAccent,
-                            unfocusedIndicatorColor = BorderSubtle
+                        heightError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = ageStr,
+                            onValueChange = {
+                                ageStr = it
+                                ageError = null
+                            },
+                            label = { Text(stringResource(R.string.onboarding_age_yrs), color = SecondaryText) },
+                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = DarkRaised,
+                                unfocusedContainerColor = DarkRaised,
+                                focusedIndicatorColor = AmberAccent,
+                                unfocusedIndicatorColor = BorderSubtle
+                            )
                         )
-                    )
+                        ageError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+                    }
                 }
 
                 // Sex Selection Row
@@ -690,15 +714,34 @@ fun OnboardingScreen(
 
                 Button(
                     onClick = {
-                        val cw = currentWeightStr.toDoubleOrNull() ?: com.example.UserDefaults.WEIGHT_KG
-                        val gw = goalWeightStr.toDoubleOrNull() ?: com.example.UserDefaults.WEIGHT_KG
-                        val ht = heightStr.toDoubleOrNull() ?: com.example.UserDefaults.HEIGHT_CM
-                        val ag = ageStr.toIntOrNull() ?: com.example.UserDefaults.AGE_YEARS
-                        onComplete(name.trim(), goalTarget, cw, gw, "", ht, ag, sexChoice.lowercase())
+                        nameError = null
+                        weightError = null
+                        heightError = null
+                        ageError = null
+
+                        val trimmedName = name.trim()
+                        val weightVal = currentWeightStr.replace(",", ".").toDoubleOrNull()
+                        val heightVal = heightStr.replace(",", ".").toDoubleOrNull()
+                        val ageVal = ageStr.toIntOrNull()
+
+                        if (trimmedName.isEmpty() || trimmedName.length > 50) {
+                            nameError = "Please enter a name (1–50 characters)"
+                        } else if (weightVal == null || weightVal < 20.0 || weightVal > 500.0) {
+                            weightError = "Please enter a valid weight (20–500)"
+                        } else if (heightVal == null || heightVal < 100.0 || heightVal > 250.0) {
+                            heightError = "Please enter a valid height in cm (100–250)"
+                        } else if (ageVal == null || ageVal < 10 || ageVal > 100) {
+                            ageError = "Please enter a valid age (10–100)"
+                        } else if (ageVal < 13) {
+                            showAgeGateDialog = true
+                        } else {
+                            val cw = weightVal
+                            val gw = goalWeightStr.toDoubleOrNull() ?: cw
+                            val ht = heightVal
+                            val ag = ageVal
+                            onComplete(trimmedName, goalTarget, cw, gw, "", ht, ag, sexChoice.lowercase())
+                        }
                     },
-                    enabled = name.trim().length in 2..40 &&
-                            currentWeightStr.isNotBlank() && goalWeightStr.isNotBlank() &&
-                            heightStr.isNotBlank() && ageStr.isNotBlank(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
@@ -715,6 +758,33 @@ fun OnboardingScreen(
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
+                    )
+                }
+
+                if (showAgeGateDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showAgeGateDialog = false },
+                        containerColor = DarkCardSurface,
+                        title = {
+                            Text("Age Requirement",
+                                fontFamily = SyneFamily,
+                                color = PrimaryText,
+                                fontWeight = FontWeight.Bold)
+                        },
+                        text = {
+                            Text(
+                                "Apex Fit is for users aged 13 and older. " +
+                                "We are unable to create an account for users under 13.",
+                                fontFamily = InterFamily,
+                                color = SecondaryText,
+                                fontSize = 14.sp
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showAgeGateDialog = false }) {
+                                Text("OK", color = AmberAccent, fontFamily = InterFamily)
+                            }
+                        }
                     )
                 }
             }

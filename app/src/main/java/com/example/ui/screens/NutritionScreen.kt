@@ -441,7 +441,7 @@ fun AddFoodSheet(
     val isCarbValid = inputCarb.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
     val isFatValid = inputFat.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
 
-    val computedCalFromMacros = ((inputProt.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputCarb.toDoubleOrNull() ?: 0.0) * 4.0) + ((inputFat.toDoubleOrNull() ?: 0.0) * 9.0)
+    val computedCalFromMacros = ((inputProt.toDoubleOrNull() ?: 0.0) * com.example.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN) + ((inputCarb.toDoubleOrNull() ?: 0.0) * com.example.utils.AppConstants.CALORIES_PER_GRAM_CARB) + ((inputFat.toDoubleOrNull() ?: 0.0) * com.example.utils.AppConstants.CALORIES_PER_GRAM_FAT)
     val showMacroCalWarning = computedCalFromMacros > 5000.0
 
     val context = LocalContext.current

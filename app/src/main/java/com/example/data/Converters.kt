@@ -27,7 +27,7 @@ class Converters {
                 list.add(jsonArray.getString(i))
             }
         } catch (e: org.json.JSONException) {
-            android.util.Log.e("Converters", "Failed to parse JSON: $value", e)
+            android.util.Log.e("Converters", "Parse failed — value redacted", e)
             return emptyList()
         }
         return list

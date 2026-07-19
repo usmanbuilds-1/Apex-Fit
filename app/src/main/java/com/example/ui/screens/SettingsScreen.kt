@@ -546,6 +546,25 @@ fun SettingsScreen(
         }
 
         PremiumCard(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            onClick = {
+                fitnessViewModel.homeVM.exportUserData(context) { uri ->
+                    if (uri != null) {
+                        val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/csv"
+                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(share, "Export Data"))
+                    }
+                }
+            }
+        ) {
+            Text("Export My Data (CSV)",
+                fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
+        }
+
+        PremiumCard(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
                 context.startActivity(

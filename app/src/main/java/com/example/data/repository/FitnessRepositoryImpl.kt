@@ -29,8 +29,8 @@ class FitnessRepositoryImpl(
         dao.insertExerciseSet(set)
     }
 
-    override suspend fun savePlan(plan: WorkoutPlan) {
-        dao.insertWorkoutPlan(plan)
+    override suspend fun savePlan(plan: WorkoutPlan): Long {
+        return dao.insertWorkoutPlan(plan)
     }
 
     override fun getWorkoutPlans(): Flow<List<WorkoutPlan>> {
@@ -45,7 +45,8 @@ class FitnessRepositoryImpl(
         if (plan.isActive) {
             dao.deactivateAllPlans()
         }
-        dao.insertWorkoutPlan(plan)
+        val newPlanId = dao.insertWorkoutPlan(plan)
+        val resolvedPlanId = if (plan.id == 0L) newPlanId else plan.id
         // Clean up old sessions and their exercises
         val oldSessions = dao.getSessionsForPlan(plan.id)
         oldSessions.forEach {
@@ -53,7 +54,7 @@ class FitnessRepositoryImpl(
         }
         dao.deleteSessionsForPlan(plan.id)
         // Insert new ones
-        sessions.forEach { dao.insertPlanSession(it) }
+        sessions.forEach { dao.insertPlanSession(it.copy(planId = resolvedPlanId)) }
         exercises.forEach { dao.insertPlanExercise(it) }
     }
 
@@ -168,8 +169,10 @@ class FitnessRepositoryImpl(
         }.sortedBy { it.date }
         
         val dbSessions = dao.getAllCompletedSessions()
+        val allSets = dao.getAllExerciseSetsForCompletedSessions()
+        val setsBySession = allSets.groupBy { it.sessionId }
         val sessions = dbSessions.map { session ->
-            val dbSets = dao.getSetsForSession(session.id)
+            val dbSets = setsBySession[session.id] ?: emptyList()
             val exerciseLogs = dbSets.groupBy { it.exerciseId }.map { (exId, sets) ->
                 val firstSet = sets.firstOrNull()
                 val name = firstSet?.exerciseName ?: "Exercise"

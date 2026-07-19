@@ -10,7 +10,7 @@ android {
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.aistudio.apexfit.qnlyzs"
+    applicationId = "com.apexfit.app"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -83,7 +83,8 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.work.runtime.ktx)
-  implementation(libs.coil.compose)
+  // UNUSED — confirmed no references as of Phase 2 audit:
+  // implementation(libs.coil.compose)
   implementation(libs.kotlinx.coroutines.android)
   implementation("com.google.code.gson:gson:2.10.1")
   testImplementation(libs.androidx.compose.ui.test.junit4)
@@ -92,9 +93,10 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
-  testImplementation(libs.roborazzi)
-  testImplementation(libs.roborazzi.compose)
-  testImplementation(libs.roborazzi.junit.rule)
+  // UNUSED — confirmed no references as of Phase 2 audit:
+  // testImplementation(libs.roborazzi)
+  // testImplementation(libs.roborazzi.compose)
+  // testImplementation(libs.roborazzi.junit.rule)
   testImplementation(libs.androidx.room.testing)
   androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)

@@ -25,6 +25,8 @@ class ApexFitApplication : Application(), Configuration.Provider {
         super.onCreate()
         val app = this
 
+        com.example.di.ServiceLocator.setAppScope(appScope, this)
+
         // Seed exercises on first launch
         appScope.launch {
             try {

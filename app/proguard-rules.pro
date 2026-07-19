@@ -34,3 +34,18 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# Gson serialization — keep all fields used by reflection
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn sun.misc.**
+
+-keep class com.google.gson.** { *; }
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
+
+# Keep data classes serialized by Gson
+-keep class com.example.ActiveSession { *; }
+-keep class com.example.ActiveSession$* { *; }
+-keep class com.example.ui.models.** { *; }

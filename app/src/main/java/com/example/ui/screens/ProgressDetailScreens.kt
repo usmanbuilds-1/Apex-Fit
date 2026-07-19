@@ -91,7 +91,7 @@ fun MuscleRecoveryScreen(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(statuses.size) { idx ->
+                items(statuses.size, key = { statuses[it].muscleGroup }) { idx ->
                     val status = statuses[idx]
                     RecoveryCard(status)
                 }
@@ -288,7 +288,7 @@ fun BodyMeasurementDetailScreen(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(measurements.size) { idx ->
+                items(measurements.size, key = { measurements[it].id }) { idx ->
                     val m = measurements[idx]
                     Card(
                         modifier = Modifier.fillMaxWidth(),

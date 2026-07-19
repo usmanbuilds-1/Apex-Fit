@@ -98,7 +98,7 @@ object AlgorithmEngine {
         val daysBetween = getDaysBetween(oldestEntry.date, newestEntry.date).coerceAtLeast(1L)
         
         // Weight gain or loss translates to calorie imbalance per day (1kg = 7700 kcal energy density, Hall 2012)
-        val calorieImbalancePerDay = (weightChangeKg * 7700.0) / daysBetween
+        val calorieImbalancePerDay = (weightChangeKg * AppConstants.CALORIES_PER_KG_BODYFAT) / daysBetween
         val tdee = (avgCalories - calorieImbalancePerDay).roundToInt()
         
         val confidence = when {
@@ -110,7 +110,7 @@ object AlgorithmEngine {
     }
 
     fun suggestCaloricTarget(tdee: Int, goal: String, rateKgPerWeek: Double = 0.25): Int {
-        val dailyAdjustment = ((rateKgPerWeek * 7700) / 7).roundToInt()
+        val dailyAdjustment = ((rateKgPerWeek * AppConstants.CALORIES_PER_KG_BODYFAT) / 7).roundToInt()
         val g = goal.lowercase()
         return when {
             g.contains("lose") || g.contains("cut") || g.contains("deficit") -> tdee - dailyAdjustment
@@ -121,6 +121,15 @@ object AlgorithmEngine {
 
     // ── COMPLIANCE SCORES ────────────────────────────────────
     fun calcComplianceScores(nutritionLog: List<NutritionEntry>, trainingLog: List<TrainingSession>, targets: NutritionTargets, days: Int = 14): ComplianceResult {
+        if (targets.calories <= 0 || targets.protein <= 0) {
+            return ComplianceResult(
+                calories = 0,
+                protein = 0,
+                training = 0,
+                overall = 0,
+                weakestDay = null
+            )
+        }
         val cutoff = getDateDaysAgo(days)
         val recentNutrition = nutritionLog.filter { it.date >= cutoff }
         val recentTraining = trainingLog.filter { it.date >= cutoff && it.completed }

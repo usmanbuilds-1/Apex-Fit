@@ -24,7 +24,31 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val dataStore = com.example.di.ServiceLocator.dataStore(application)
     private val repository = com.example.di.ServiceLocator.repository(application)
 
-    private var _isLoggingWeight = false
+    private val _isLoggingWeight = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private val _todayDate = MutableStateFlow(getTodayDateString())
+
+    init {
+        viewModelScope.launch {
+            while (true) {
+                val now = System.currentTimeMillis()
+                val calendar = java.util.Calendar.getInstance()
+                calendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                calendar.set(java.util.Calendar.MINUTE, 0)
+                calendar.set(java.util.Calendar.SECOND, 0)
+                calendar.set(java.util.Calendar.MILLISECOND, 0)
+                val midnight = calendar.timeInMillis
+                val delayTime = (midnight - now).coerceAtLeast(0L)
+                kotlinx.coroutines.delay(delayTime)
+                _todayDate.value = getTodayDateString()
+            }
+        }
+    }
+
+    fun refreshTodayDate() {
+        _todayDate.value = getTodayDateString()
+    }
 
     // Raw database/preference flows
     private val weightFlow: Flow<List<com.example.utils.WeightEntry>> = dao.getAllWeightEntriesFlow()
@@ -45,14 +69,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         .flowOn(Dispatchers.IO)
 
-    private val sessionsFlow: Flow<List<com.example.data.TrainingSession>> =
-        dao.getRecentCompletedSessionsFlow(
-            getDateDaysAgo(90)
-        ).flowOn(Dispatchers.IO)
-
-    private val setsFlow: Flow<List<com.example.data.ExerciseSet>> =
-        dao.getAllExerciseSetsFlow().flowOn(Dispatchers.IO)
-
     val targetsFlow: Flow<com.example.utils.NutritionTargets> = combine(
         dataStore.calorieTargetValueFlow,
         weightFlow,
@@ -60,8 +76,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     ) { calorieTarget, weights, goal ->
         val latestWeight = weights.lastOrNull()?.weight ?: com.example.UserDefaults.WEIGHT_KG
         val proteinTarget = (latestWeight * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
-        val fatTarget = (calorieTarget * 0.25 / 9.0).roundToInt().coerceIn(45, 120)
-        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4.0).roundToInt().coerceIn(100, 500)
+        val fatTarget = (calorieTarget * 0.25 / com.example.utils.AppConstants.CALORIES_PER_GRAM_FAT).roundToInt().coerceIn(45, 120)
+        val carbsTarget = ((calorieTarget - (proteinTarget * com.example.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) - (fatTarget * com.example.utils.AppConstants.CALORIES_PER_GRAM_FAT.toInt())) / com.example.utils.AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
         
         com.example.utils.NutritionTargets(
             calories = calorieTarget,
@@ -72,50 +88,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         )
     }.flowOn(Dispatchers.IO)
 
-    val richSessionsFlow: Flow<List<com.example.utils.TrainingSession>> = combine(
-        sessionsFlow, setsFlow
-    ) { sessions, sets ->
-        withContext(Dispatchers.Default) {
-            buildRichSessions(sessions, sets)
-        }
-    }
-
-    private fun buildRichSessions(
-        sessions: List<com.example.data.TrainingSession>,
-        sets: List<com.example.data.ExerciseSet>
-    ): List<com.example.utils.TrainingSession> {
-        val setsBySession = sets.groupBy { it.sessionId }
-
-        return sessions.map { sessionObj ->
-            val sessionSets = setsBySession[sessionObj.id.toString()] ?: emptyList()
-            val exercises = sessionSets
-                .groupBy { it.exerciseId }
-                .map { (exerciseId, exSets) ->
-                    com.example.utils.ExerciseLog(
-                        id = exerciseId,
-                        name = exSets.first().exerciseName,
-                        muscleGroup = exSets.first().muscleGroup,
-                        sets = exSets.map { s ->
-                            com.example.utils.ExerciseSet(
-                                weight = s.weight,
-                                reps = s.reps,
-                                rpe = s.rpe,
-                                isWarmup = s.isWarmup,
-                                completed = s.completed
-                            )
-                        }
-                    )
-                }
-            com.example.utils.TrainingSession(
-                date = sessionObj.date,
-                sessionType = sessionObj.sessionType,
-                completed = sessionObj.completed,
-                sessionFeel = sessionObj.sessionFeel,
-                durationMinutes = sessionObj.durationMinutes,
-                exercises = exercises
-            )
-        }
-    }
+    val richSessionsFlow: Flow<List<com.example.utils.TrainingSession>> =
+        com.example.di.ServiceLocator.richSessionsFlow
 
     // Weight logging State
     val weightHistory: StateFlow<UiState<List<UiWeightEntry>>> = repository.getWeightHistory()
@@ -127,7 +101,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val todayNutrition: StateFlow<List<UiNutritionEntry>> = dao.getNutritionForDateFlow(getTodayDateString())
+    val todayNutrition: StateFlow<List<UiNutritionEntry>> = _todayDate
+        .flatMapLatest { date -> dao.getNutritionForDateFlow(date) }
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -249,14 +224,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     fun logWeight(weight: Double, date: String = getTodayDateString()) {
-        if (_isLoggingWeight) return
-        _isLoggingWeight = true
+        if (!_isLoggingWeight.compareAndSet(false, true)) return
         viewModelScope.launch {
             try {
                 dao.insertWeightEntry(WeightEntry(date = date, time = getCurrentLocalTimeString(), weight = weight))
                 dataStore.saveWeight(weight, dataStore.goalWeightFlow.first())
             } finally {
-                _isLoggingWeight = false
+                _isLoggingWeight.set(false)
             }
         }
     }
@@ -270,6 +244,42 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             dao.deleteWeightEntryById(id)
         }
+    }
+
+    fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {  
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {  
+            try {  
+                val weights = dao.getAllWeightEntries()  
+                val nutrition = dao.getAllNutritionEntriesFlow().first()  
+                val sessions = dao.getAllTrainingSessions()  
+  
+                val exportData = buildString {  
+                    appendLine("# Apex Fit Data Export — ${java.util.Date()}")  
+                    appendLine()  
+                    appendLine("## Weight History")  
+                    appendLine("date,time,weight_kg")  
+                    weights.forEach { appendLine("${it.date},${it.time},${it.weight}") }  
+                    appendLine()  
+                    appendLine("## Nutrition Log")  
+                    appendLine("date,name,calories,protein_g,carbs_g,fat_g")  
+                    nutrition.forEach { appendLine("${it.date},\"${it.name}\",${it.calories},${it.protein},${it.carbs},${it.fat}") }  
+                    appendLine()  
+                    appendLine("## Workout Sessions")  
+                    appendLine("date,type,duration_min,feel")  
+                    sessions.forEach { appendLine("${it.date},\"${it.sessionType}\",${it.durationMinutes},${it.sessionFeel}") }  
+                }  
+  
+                val file = java.io.File(context.getExternalFilesDir(null),  
+                    "apexfit_export_${System.currentTimeMillis()}.csv")  
+                file.writeText(exportData)  
+                val uri = androidx.core.content.FileProvider.getUriForFile(  
+                    context, "${context.packageName}.fileprovider", file)  
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(uri) }  
+            } catch (e: Exception) {  
+                android.util.Log.e("Export", "Export failed", e)  
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(null) }  
+            }  
+        }  
     }
 
     private fun getTodayDateString(): String {

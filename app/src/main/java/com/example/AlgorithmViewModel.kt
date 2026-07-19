@@ -48,8 +48,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             getDateDaysAgo(90)
         ).flowOn(Dispatchers.IO)
 
-    private val setsFlow: Flow<List<com.example.data.ExerciseSet>> =
-        dao.getAllExerciseSetsFlow().flowOn(Dispatchers.IO)
+
 
     val targetsFlow: Flow<com.example.utils.NutritionTargets> = combine(
         dataStore.calorieTargetValueFlow,
@@ -60,9 +59,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         // Helms et al. guidance: 1.8g protein per kg total bodyweight for muscle maintenance
         val proteinTarget = (latestWeight * com.example.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
         // Fat range: 25% of absolute daily calorie target
-        val fatTarget = (calorieTarget * 0.25 / 9.0).roundToInt().coerceIn(45, 120)
+        val fatTarget = (calorieTarget * 0.25 / com.example.utils.AppConstants.CALORIES_PER_GRAM_FAT).roundToInt().coerceIn(45, 120)
         // Carbohydrates: Remainder of daily energetic allocations
-        val carbsTarget = ((calorieTarget - (proteinTarget * 4) - (fatTarget * 9)) / 4.0).roundToInt().coerceIn(100, 500)
+        val carbsTarget = ((calorieTarget - (proteinTarget * com.example.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) - (fatTarget * com.example.utils.AppConstants.CALORIES_PER_GRAM_FAT.toInt())) / com.example.utils.AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
         
         com.example.utils.NutritionTargets(
             calories = calorieTarget,
@@ -81,13 +80,8 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // ─────────────────────────────────────────────────────────────────
 
 
-    private val richSessionsFlow: Flow<List<com.example.utils.TrainingSession>> = combine(
-        sessionsFlow, setsFlow
-    ) { sessions, sets ->
-        withContext(Dispatchers.Default) {
-            buildRichSessions(sessions, sets)
-        }
-    }
+    private val richSessionsFlow: Flow<List<com.example.utils.TrainingSession>> =
+        com.example.di.ServiceLocator.richSessionsFlow
 
     // ─────────────────────────────────────────────────────────────────
     // SECTION 3 — PUBLIC STATEFLOWS
@@ -308,7 +302,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     private val _progressionStatus = MutableStateFlow("No Data")
     val progressionStatus: StateFlow<String> = _progressionStatus.asStateFlow()
 
-    val allPRs: StateFlow<List<UiPersonalRecord>> = dao.getAllPRsFlow()
+    val allPRs: StateFlow<List<UiPersonalRecord>> = dao.getPersonalRecordsWithNames()
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -433,77 +427,6 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // SECTION 4 — COACH CONTEXT STRING
     // ─────────────────────────────────────────────────────────────────
 
-
-    private suspend fun loadFullTrainingSessions(): List<com.example.utils.TrainingSession> {
-        val dbSessions = dao.getAllCompletedSessions()
-        return dbSessions.map { session ->
-            val dbSets = dao.getSetsForSession(session.id)
-            val exerciseLogs = dbSets.groupBy { it.exerciseId }.map { (exId, sets) ->
-                val firstSet = sets.firstOrNull()
-                val name = firstSet?.exerciseName ?: "Exercise"
-                val muscle = firstSet?.muscleGroup ?: "General"
-                com.example.utils.ExerciseLog(
-                    id = exId,
-                    name = name,
-                    muscleGroup = muscle,
-                    sets = sets.map { s ->
-                        com.example.utils.ExerciseSet(
-                            weight = s.weight,
-                            reps = s.reps,
-                            rpe = s.rpe,
-                            isWarmup = s.isWarmup,
-                            completed = s.completed
-                        )
-                    }
-                )
-            }
-            com.example.utils.TrainingSession(
-                date = session.date,
-                sessionType = session.sessionType,
-                completed = session.completed,
-                sessionFeel = session.sessionFeel,
-                durationMinutes = session.durationMinutes,
-                exercises = exerciseLogs
-            )
-        }
-    }
-
-    private fun buildRichSessions(
-        sessions: List<com.example.data.TrainingSession>,
-        sets: List<com.example.data.ExerciseSet>
-    ): List<com.example.utils.TrainingSession> {
-        val setsBySession = sets.groupBy { it.sessionId }
-
-        return sessions.map { session ->
-            val sessionSets = setsBySession[session.id] ?: emptyList()
-            val exercises = sessionSets
-                .groupBy { it.exerciseId }
-                .map { (exerciseId, exSets) ->
-                    com.example.utils.ExerciseLog(
-                        id = exerciseId,
-                        name = exSets.first().exerciseName,
-                        muscleGroup = exSets.first().muscleGroup,
-                        sets = exSets.map { s ->
-                            com.example.utils.ExerciseSet(
-                                weight = s.weight,
-                                reps = s.reps,
-                                rpe = s.rpe,
-                                isWarmup = s.isWarmup,
-                                completed = s.completed
-                            )
-                        }
-                    )
-                }
-            com.example.utils.TrainingSession(
-                date = session.date,
-                sessionType = session.sessionType,
-                completed = session.completed,
-                sessionFeel = session.sessionFeel,
-                durationMinutes = session.durationMinutes,
-                exercises = exercises
-            )
-        }
-    }
 
     private fun isDateInCurrentWeekSinceMonday(dateStr: String): Boolean {
         return try {

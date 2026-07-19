@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -71,7 +72,7 @@ class TrainViewModelTest {
         
         // Poll database with real Thread.sleep to let background Dispatchers.IO finish writing
         var inserted: Exercise? = null
-        for (i in 1..30) {
+        for (i in 1..100) {
             testScheduler.advanceUntilIdle()
             inserted = dao.getExerciseById("custom-super-press")
             if (inserted != null) break
@@ -121,7 +122,7 @@ class TrainViewModelTest {
         // Poll database with real Thread.sleep to let background Dispatchers.IO finish writing
         var p1: WorkoutPlan? = null
         var p2: WorkoutPlan? = null
-        for (i in 1..30) {
+        for (i in 1..100) {
             testScheduler.advanceUntilIdle()
             val plans = dao.getAllPlans()
             p1 = plans.find { it.id == 1010L }

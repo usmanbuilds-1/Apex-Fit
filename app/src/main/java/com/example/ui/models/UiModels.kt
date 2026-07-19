@@ -155,6 +155,9 @@ fun com.example.data.BodyMeasurement.toUi(): UiBodyMeasurement = UiBodyMeasureme
     date = this.date
 )
 
+fun slugToDisplayName(slug: String): String =
+    slug.split("-").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
+
 fun com.example.data.PersonalRecord.toUi(): UiPersonalRecord {
     val dateLong = try {
         com.example.utils.DateTimeUtils.parseDate(this.date)?.time ?: 0L
@@ -163,11 +166,28 @@ fun com.example.data.PersonalRecord.toUi(): UiPersonalRecord {
     }
     return UiPersonalRecord(
         id = 0L,
-        exerciseName = this.exerciseId,
+        exerciseName = slugToDisplayName(this.exerciseId),
         weight = this.value,
         reps = 1,
         estimatedOneRepMax = this.value,
         prType = this.type,
+        achievedAt = dateLong
+    )
+}
+
+fun com.example.data.PersonalRecordWithName.toUi(): UiPersonalRecord {
+    val dateLong = try {
+        com.example.utils.DateTimeUtils.parseDate(this.record.date)?.time ?: 0L
+    } catch (e: Exception) {
+        0L
+    }
+    return UiPersonalRecord(
+        id = 0L,
+        exerciseName = this.displayName ?: slugToDisplayName(this.record.exerciseId),
+        weight = this.record.value,
+        reps = 1,
+        estimatedOneRepMax = this.record.value,
+        prType = this.record.type,
         achievedAt = dateLong
     )
 }

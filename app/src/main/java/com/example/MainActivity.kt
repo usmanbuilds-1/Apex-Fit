@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.rememberAsyncImagePainter
 import com.example.data.AppDatabase
 import com.example.data.DataStoreManager
 import com.example.data.Exercise
@@ -78,18 +77,26 @@ class MainActivity : ComponentActivity() {
         handleDeepLink(intent)
     }
 
-    private fun handleDeepLink(intent: Intent?) {
-        val data = intent?.data
-        if (data != null && data.scheme == "apexfit" && data.host == "screen") {
-            val screen = data.lastPathSegment // "progress", "train", "nutrition", "home"
-            val fitnessViewModel = ViewModelProvider(this, FitnessViewModel.Factory)[FitnessViewModel::class.java]
-            fitnessViewModel.selectTab(when (screen) {
-                "progress" -> 3
-                "train" -> 1
-                "nutrition" -> 2
-                else -> 0
-            })
+    private fun handleDeepLink(intent: Intent) {
+        val uri = intent.data ?: return
+        if (uri.scheme != "apexfit" || uri.host != "screen") {
+            android.util.Log.w("DeepLink", "Invalid deep link rejected")
+            return
         }
+        val screen = uri.lastPathSegment ?: return
+        val validScreens = setOf("home", "train", "nutrition", "progress")
+        if (screen !in validScreens) {
+            android.util.Log.w("DeepLink", "Unknown screen rejected: $screen")
+            return
+        }
+        val fitnessViewModel = ViewModelProvider(this, FitnessViewModel.Factory)[FitnessViewModel::class.java]
+        fitnessViewModel.selectTab(when (screen) {
+            "home" -> 0
+            "train" -> 1
+            "nutrition" -> 2
+            "progress" -> 3
+            else -> 0
+        })
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -101,10 +108,6 @@ class MainActivity : ComponentActivity() {
 
         // Enforce Edge to Edge insets
         enableEdgeToEdge()
-
-        // Request notification permission on Android 13+ — runs on every launch but
-        // only prompts if not granted AND not previously denied
-        maybeRequestNotificationPermission()
 
         handleDeepLink(intent)
 

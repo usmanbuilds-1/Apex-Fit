@@ -49,7 +49,8 @@ object ProgressionEngine {
     fun calculateBeginnerStartingWeight(
         exerciseType: String,  // "compound_upper", "compound_lower", "isolation"
         userBodyWeightKg: Double,
-        userHeightCm: Double  // for lever arm adjustment
+        userHeightCm: Double,  // for lever arm adjustment
+        preferredUnits: String = "lbs"
     ): Double {
         
         val baseMultiplier = when(exerciseType) {
@@ -61,9 +62,7 @@ object ProgressionEngine {
             else -> 0.10
         }
         
-        // Convert kg to lbs internally for the multiplier calculation
-        val userBodyWeightLbs = userBodyWeightKg * 2.205
-        var startWeight = userBodyWeightLbs * baseMultiplier
+        var startWeight = userBodyWeightKg * baseMultiplier
         
         // Adjust for height (tall = longer ROM = harder)
         if (userHeightCm > 185) {  // Taller than 6'1"
@@ -72,7 +71,14 @@ object ProgressionEngine {
             startWeight *= 1.10  // Increase by 10%
         }
         
-        return startWeight.roundToNearest2_5()
+        // Round to nearest 2.5 of the preferred unit to maintain accuracy
+        val result = if (preferredUnits.lowercase() == "lbs") {
+            (startWeight * AppConstants.KG_TO_LBS).roundToNearest2_5() / AppConstants.KG_TO_LBS
+        } else {
+            startWeight.roundToNearest2_5()
+        }
+        
+        return if (preferredUnits.lowercase() == "lbs") result * AppConstants.KG_TO_LBS else result
     }
 
 enum class OutcomeType { SUCCESS, PROGRESSING, STALLED, PLATEAU }
@@ -124,6 +130,10 @@ data class ProgressionResult(
         }
 
         // Weight Increment Logic
+        // NOTE: All weight values in this function are in LBS regardless of user preference.  
+        // WorkoutSessionManager converts to lbs before calling and converts back after.  
+        // baseIncrement values are lbs-calibrated (e.g. 5.0 = 5 lbs ≈ 2.3 kg for lower body).  
+        // Do NOT change these values without updating unit handling in WorkoutSessionManager.  
         val baseIncrement = when(exerciseType) {
             "compound_lower" -> 5.0
             "compound_upper" -> 2.5
@@ -142,7 +152,7 @@ data class ProgressionResult(
 
         val newWeight = when(outcome) {
             OutcomeType.SUCCESS -> currentWeight + (baseIncrement * rpeMultiplier * recoveryMultiplier)
-            OutcomeType.PLATEAU -> currentWeight * 0.9 // Deload 10%
+            OutcomeType.PLATEAU -> currentWeight * 0.9  // 10% deload in lbs
             else -> currentWeight
         }
         
