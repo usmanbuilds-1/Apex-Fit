@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.apexfit.app"
   compileSdk = 36
 
   defaultConfig {
@@ -17,33 +17,51 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    buildConfigField("String", "PRIVACY_POLICY_URL", "\"https://YOUR-PRIVACY-POLICY-URL.com\"")
-    buildConfigField("String", "TERMS_URL", "\"https://YOUR-TERMS-URL.com\"")
+    val privacyUrl = System.getenv("PRIVACY_POLICY_URL") ?: "https://apexfit.app/privacy"
+    val termsUrl   = System.getenv("TERMS_URL")          ?: "https://apexfit.app/terms"
+    buildConfigField("String", "PRIVACY_POLICY_URL", "\"$privacyUrl\"")
+    buildConfigField("String", "TERMS_URL",           "\"$termsUrl\"")
   }
 
-  signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH")
-      if (keystorePath != null) {
+  val keystorePath = System.getenv("KEYSTORE_PATH")
+
+  if (keystorePath != null) {
+    signingConfigs {
+      create("release") {
         storeFile = file(keystorePath)
         storePassword = System.getenv("STORE_PASSWORD")
         keyAlias = "upload"
         keyPassword = System.getenv("KEY_PASSWORD")
       }
     }
-  }
-
-  buildTypes {
-    release {
-      isCrunchPngs = false
-      isMinifyEnabled = true
-      isShrinkResources = true
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      if (System.getenv("KEYSTORE_PATH") != null) {
+    buildTypes {
+      release {
+        isCrunchPngs = false
+        isMinifyEnabled = true
+        isShrinkResources = true
+        proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         signingConfig = signingConfigs.getByName("release")
       }
+      debug {
+      }
     }
-    debug {
+  } else {
+    if (System.getenv("CI") == "true") {
+      throw GradleException(
+        "Release signing credentials not set. " +
+        "Set KEYSTORE_PATH, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD env vars."
+      )
+    }
+    buildTypes {
+      release {
+        isCrunchPngs = false
+        isMinifyEnabled = true
+        isShrinkResources = true
+        proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        // Local dev without env vars: unsigned release build (acceptable for local testing)
+      }
+      debug {
+      }
     }
   }
   compileOptions {

@@ -21,10 +21,10 @@
 #-renamesourcefileattribute SourceFile
 
 # Keep Room entities (Room's consumer rules cover this, but be explicit)
--keep class com.example.data.** { *; }
+-keep class com.apexfit.app.data.** { *; }
 
 # Keep BuildConfig
--keep class com.example.BuildConfig { *; }
+-keep class com.apexfit.app.BuildConfig { *; }
 
 # Keep generic type signatures for reflection
 -keepattributes Signature, *Annotation*
@@ -46,6 +46,6 @@
 -keep class * implements com.google.gson.JsonDeserializer
 
 # Keep data classes serialized by Gson
--keep class com.example.ActiveSession { *; }
--keep class com.example.ActiveSession$* { *; }
--keep class com.example.ui.models.** { *; }
+-keep class com.apexfit.app.ActiveSession { *; }
+-keep class com.apexfit.app.ActiveSession$* { *; }
+-keep class com.apexfit.app.ui.models.** { *; }

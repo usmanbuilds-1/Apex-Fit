@@ -101,8 +101,8 @@ for filename, prefix in files_to_process.items():
     if 'androidx.compose.ui.res.stringResource' not in content:
         content = content.replace('import androidx.compose.ui.Modifier', 'import androidx.compose.ui.res.stringResource\nimport androidx.compose.ui.Modifier')
         
-    if 'import com.example.R' not in content:
-        content = content.replace('import androidx.compose.ui.Modifier', 'import com.example.R\nimport androidx.compose.ui.Modifier')
+    if 'import com.apexfit.app.R' not in content:
+        content = content.replace('import androidx.compose.ui.Modifier', 'import com.apexfit.app.R\nimport androidx.compose.ui.Modifier')
         
     with open(filepath, 'w') as f:
         f.write(content)
