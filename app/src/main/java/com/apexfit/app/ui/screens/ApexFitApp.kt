@@ -243,18 +243,20 @@ fun ApexFitApp(
     }
 
     // Drive navigation from external tab changes (deep links, notifications)
-    LaunchedEffect(activeTab) {
-        val targetRoute = routes.getOrNull(activeTab) ?: return@LaunchedEffect
-        if (navController.currentDestination?.route != targetRoute) {
-            navController.navigate(targetRoute) {
-                popUpTo(navController.graph.findStartDestination().id) {
-                    saveState = true
-                }
-                launchSingleTop = true
-                restoreState = true
+LaunchedEffect(activeTab) {
+    val targetRoute = routes.getOrNull(activeTab) ?: return@LaunchedEffect
+    // Only navigate if NavHost has set the graph (avoid crash during onboarding/initial launch)
+    if (navController.currentDestination == null) return@LaunchedEffect
+    if (navController.currentDestination?.route != targetRoute) {
+        navController.navigate(targetRoute) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
             }
+            launchSingleTop = true
+            restoreState = true
         }
     }
+}
 
     if (!isOnboarded) {
         val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()

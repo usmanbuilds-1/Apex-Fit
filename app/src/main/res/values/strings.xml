@@ -42,7 +42,7 @@
     <string name="train_exercise_skipped">Exercise skipped: %1$s</string>
     <string name="train_plan_activated">Plan activated</string>
     <string name="nutrition_error_loading_meals">Error loading meals</string>
-    <string name="nutrition_fmt_str">%1$s%</string>
+    <string name="nutrition_fmt_str">%1$s%%</string>
     <string name="nutrition_kcal">KCAL</string>
     <string name="nutrition_target_kcal_logged_kcal">TARGET: %1$s KCAL • LOGGED: %2$s KCAL</string>
     <string name="nutrition_log_meal">+ Log Meal</string>

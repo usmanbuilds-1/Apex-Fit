@@ -330,8 +330,13 @@ data class ActiveSession(
     val startTime: Long = System.currentTimeMillis(),
     val readinessScore: Int? = null,
     val notes: String? = null,
-    val exercises: MutableList<ActiveExercise>
-)
+    val exercises: MutableList<ActiveExercise>,
+    val schemaVersion: Int = 1 // <-- Added this line
+) {
+    companion object {
+        const val CURRENT_VERSION = 1 // <-- Added this block
+    }
+}
 
 data class LastSetWithDate(
     val id: Long,
