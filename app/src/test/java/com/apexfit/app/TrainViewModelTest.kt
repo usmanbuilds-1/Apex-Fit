@@ -69,17 +69,15 @@ class TrainViewModelTest {
         )
         
         viewModel.addCustomExercise(planExercise)
-        
-        // Poll database with real Thread.sleep to let background Dispatchers.IO finish writing
-        var inserted: Exercise? = null
-        for (i in 1..100) {
-            testScheduler.advanceUntilIdle()
+        testScheduler.advanceUntilIdle()
+        var inserted = dao.getExerciseById("custom-super-press")
+        var retries = 0
+        while (inserted == null && retries < 20) {
+            Thread.sleep(50)
             inserted = dao.getExerciseById("custom-super-press")
-            if (inserted != null) break
-            Thread.sleep(100)
+            retries++
         }
-        
-        assertNotNull("Exercise should be inserted into the database", inserted)
+        assertNotNull("Exercise should be inserted into DB", inserted)
         assertEquals("Custom Super Press", inserted?.name)
         assertEquals("User Created", inserted?.category)
         assertEquals("Chest", inserted?.primaryMuscle)
@@ -118,23 +116,15 @@ class TrainViewModelTest {
         testScheduler.advanceUntilIdle()
 
         viewModel.activatePlan(2020L)
-        
-        // Poll database with real Thread.sleep to let background Dispatchers.IO finish writing
-        var p1: WorkoutPlan? = null
-        var p2: WorkoutPlan? = null
-        for (i in 1..100) {
-            testScheduler.advanceUntilIdle()
-            val plans = dao.getAllPlans()
-            p1 = plans.find { it.id == 1010L }
-            p2 = plans.find { it.id == 2020L }
-            if (p2 != null && p2.isActive && p1 != null && !p1.isActive) {
-                break
-            }
-            Thread.sleep(100)
+        testScheduler.advanceUntilIdle()
+        var plans = dao.getAllPlans()
+        var retries = 0
+        while ((plans.find { it.id == 2020L }?.isActive != true) && retries < 20) {
+            Thread.sleep(50)
+            plans = dao.getAllPlans()
+            retries++
         }
-
-        assertNotNull("Plan 2 should exist", p2)
-        assertTrue("Plan 2 should be active", p2?.isActive ?: false)
-        assertFalse("Plan 1 should be deactivated", p1?.isActive ?: true)
+        assertTrue("Plan 2020 should be active", plans.find { it.id == 2020L }?.isActive == true)
+        assertFalse("Plan 1010 should be inactive", plans.find { it.id == 1010L }?.isActive ?: true)
     }
 }

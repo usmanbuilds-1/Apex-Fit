@@ -208,6 +208,10 @@ class FitnessViewModel(
         homeVM.deleteWeight(date)
     }
 
+    fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {
+        homeVM.exportUserData(context, onComplete)
+    }
+
     // Database wipes CTA
     private val _isResetting = MutableStateFlow(false)
     val isResetting = _isResetting.asStateFlow()

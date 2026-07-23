@@ -574,7 +574,7 @@ fun SettingsScreen(
         PremiumCard(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             onClick = {
-                fitnessViewModel.homeVM.exportUserData(context) { uri ->
+                fitnessViewModel.exportUserData(context) { uri ->
                     if (uri != null) {
                         val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = "text/csv"

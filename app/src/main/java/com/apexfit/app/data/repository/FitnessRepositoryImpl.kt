@@ -206,7 +206,6 @@ class FitnessRepositoryImpl(
             weightLog = engineWeights,
             nutritionLog = engineNutrition,
             trainingLog = sessions,
-            sleepLog = emptyList(),
             proteinTarget = proteinTarget
         )
         

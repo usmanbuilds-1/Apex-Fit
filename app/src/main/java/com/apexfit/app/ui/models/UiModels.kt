@@ -85,6 +85,7 @@ data class UiBodyMeasurement(
 @Immutable
 data class UiPersonalRecord(
     val id: Long = 0,
+    val exerciseId: String = "",
     val exerciseName: String,
     val weight: Double,
     val reps: Int,
@@ -174,6 +175,7 @@ fun com.apexfit.app.data.PersonalRecord.toUi(): UiPersonalRecord {
     }
     return UiPersonalRecord(
         id = 0L,
+        exerciseId = this.exerciseId,
         exerciseName = slugToDisplayName(this.exerciseId),
         weight = this.value,
         reps = 1,
@@ -191,6 +193,7 @@ fun com.apexfit.app.data.PersonalRecordWithName.toUi(): UiPersonalRecord {
     }
     return UiPersonalRecord(
         id = 0L,
+        exerciseId = this.record.exerciseId,
         exerciseName = this.displayName ?: slugToDisplayName(this.record.exerciseId),
         weight = this.record.value,
         reps = 1,
@@ -270,8 +273,8 @@ fun UiBodyMeasurement.toData(): com.apexfit.app.data.BodyMeasurement = com.apexf
 )
 
 fun UiPersonalRecord.toData(): com.apexfit.app.data.PersonalRecord = com.apexfit.app.data.PersonalRecord(
-    id = "${this.exerciseName}_${this.prType}",
-    exerciseId = this.exerciseName,
+    id = "${this.exerciseId}_${this.prType}",
+    exerciseId = this.exerciseId,
     type = this.prType,
     value = this.weight,
     date = try {
@@ -303,7 +306,9 @@ data class UiFatigueResult(
     val ratio: Double?,
     val status: String,
     val statusLabel: String,
-    val recommendation: String
+    val recommendation: String,
+    val acuteLoad: Double = 0.0,
+    val chronicLoad: Double = 0.0
 )
 
 @Immutable
@@ -351,7 +356,9 @@ fun com.apexfit.app.utils.FatigueResult.toUi(): UiFatigueResult = UiFatigueResul
     ratio = this.ratio,
     status = this.status,
     statusLabel = this.statusLabel,
-    recommendation = this.recommendation
+    recommendation = this.recommendation,
+    acuteLoad = this.acuteLoad,
+    chronicLoad = this.chronicLoad
 )
 
 fun UiFatigueResult.toData(): com.apexfit.app.utils.FatigueResult = com.apexfit.app.utils.FatigueResult(
@@ -359,8 +366,8 @@ fun UiFatigueResult.toData(): com.apexfit.app.utils.FatigueResult = com.apexfit.
     status = this.status,
     statusLabel = this.statusLabel,
     recommendation = this.recommendation,
-    acuteLoad = 0.0,
-    chronicLoad = 0.0
+    acuteLoad = this.acuteLoad,
+    chronicLoad = this.chronicLoad
 )
 
 fun com.apexfit.app.utils.DeloadResult.toUi(): UiDeloadResult = UiDeloadResult(

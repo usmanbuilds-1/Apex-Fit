@@ -4,7 +4,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import kotlin.math.roundToInt
-import com.apexfit.app.data.SleepEntry
 import com.apexfit.app.data.DetectedPattern
 
 object PatternDetector {
@@ -16,7 +15,6 @@ object PatternDetector {
         weightLog: List<WeightEntry>,
         nutritionLog: List<NutritionEntry>,
         trainingLog: List<TrainingSession>,
-        sleepLog: List<SleepEntry> = emptyList(),
         proteinTarget: Double = 140.0
     ): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
@@ -26,7 +24,7 @@ object PatternDetector {
         patterns.addAll(detectNutritionPerformancePatterns(nutritionLog, trainingLog, proteinTarget))
         patterns.addAll(detectWeightNutritionPatterns(weightLog, nutritionLog))
         patterns.addAll(detectRecoveryPatterns(trainingLog))
-        if (sleepLog.isNotEmpty()) patterns.addAll(detectSleepPatterns(sleepLog, trainingLog))
+        // Sleep pattern detection deferred to v2.0 — no UI or data source exists yet.
 
         return patterns.sortedByDescending { it.confidence }
     }
@@ -239,51 +237,6 @@ object PatternDetector {
                     actionable = "Try to schedule your hardest sessions with at least $days rest day${if (days > 1) "s" else ""} before them.",
                     detectedAt = getCurrentDate()
                 ))
-            }
-        }
-        return patterns
-    }
-
-    // ── PATTERN 5 — SLEEP PATTERNS ────────────────────────────
-    // Only runs if user is logging sleep
-    // Science: Dattilo et al 2011 — sleep deprivation reduces
-    // anabolic hormone production by up to 24%
-    private fun detectSleepPatterns(
-        sleepLog: List<SleepEntry>,
-        trainingLog: List<TrainingSession>
-    ): List<DetectedPattern> {
-        val patterns = mutableListOf<DetectedPattern>()
-        if (sleepLog.size < 7) return patterns
-
-        val sleepMap = sleepLog.associateBy { it.date }
-        val sessionMap = trainingLog.filter { it.completed }.associateBy { it.date }
-
-        val sleepPerformancePairs = mutableListOf<Pair<Double, Int>>()
-        sleepLog.forEach { sleep ->
-            val nextDay = getDateDaysFromNow(sleep.date, 1) ?: return@forEach
-            val session = sessionMap[nextDay] ?: return@forEach
-            sleepPerformancePairs.add(Pair(sleep.hours, session.sessionFeel))
-        }
-
-        if (sleepPerformancePairs.size >= 5) {
-            val goodSleepSessions = sleepPerformancePairs.filter { it.first >= 7.5 }
-            val poorSleepSessions = sleepPerformancePairs.filter { it.first < 6.5 }
-
-            if (goodSleepSessions.size >= 2 && poorSleepSessions.size >= 2) {
-                val goodAvg = goodSleepSessions.map { it.second }.average()
-                val poorAvg = poorSleepSessions.map { it.second }.average()
-
-                if (goodAvg - poorAvg >= 0.8) {
-                    patterns.add(DetectedPattern(
-                        id = "sleep_performance",
-                        type = "sleep",
-                        title = "Sleep under 6.5 hours tanks your training",
-                        description = "Your session feel drops from ${String.format(java.util.Locale.US, "%.1f", goodAvg)}/5 after good sleep to ${String.format(java.util.Locale.US, "%.1f", poorAvg)}/5 after poor sleep. Science: Dattilo et al 2011 — sleep deprivation reduces anabolic hormone production by up to 24% and directly impairs muscle protein synthesis.",
-                        confidence = 0.9f,
-                        actionable = "On nights before Upper B and Lower B — your hardest sessions — prioritise 7.5+ hours above everything else.",
-                        detectedAt = getCurrentDate()
-                    ))
-                }
             }
         }
         return patterns

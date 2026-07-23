@@ -271,7 +271,7 @@ fun ProgramSubTab(
                 }
 
                 // Exercises list
-                items(exercises.size, key = { exercises[it].id }) { index ->
+                items(exercises.size, key = { exercises[it].exerciseId }) { index ->
                     val ex = exercises[index]
 
                     var isExpanded by rememberSaveable { mutableStateOf(false) }

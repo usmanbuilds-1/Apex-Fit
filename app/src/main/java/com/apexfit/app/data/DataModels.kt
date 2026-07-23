@@ -9,6 +9,7 @@ import androidx.room.Index
 import androidx.room.ColumnInfo
 import androidx.room.ForeignKey
 import androidx.room.Embedded
+import com.apexfit.app.utils.exerciseNameToSlug
 
 @Entity(tableName = "body_weights")
 data class WeightEntry(
@@ -247,10 +248,7 @@ data class PlanExercise(
 )
 
 val PlanExercise.exerciseId: String
-    get() = name.lowercase()
-        .replace(Regex("[^a-z0-9\\s-]"), "")
-        .replace(Regex("\\s+"), "-")
-        .trim()
+    get() = com.apexfit.app.utils.exerciseNameToSlug(name)
 
 @Entity(
     tableName = "personal_records",
@@ -406,14 +404,6 @@ data class PersonalPattern(
     val avgCompliance: Double
 )
 
-// NOTE: Sleep tracking data model exists but has no UI or logging path.
-// detectSleepPatterns() is always called with emptyList(). Dead feature
-// as of this audit. Either build the UI or remove this model in a future pass.
-data class SleepEntry(
-    val date: String,
-    val hours: Double,
-    val quality: Int
-)
 
 data class UserIntelligenceProfile(
     val totalSessionsLogged: Int,

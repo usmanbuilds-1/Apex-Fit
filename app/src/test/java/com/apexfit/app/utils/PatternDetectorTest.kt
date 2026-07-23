@@ -38,13 +38,6 @@ class PatternDetectorTest {
         return method.invoke(PatternDetector, tLog) as List<DetectedPattern>
     }
 
-    private fun invokeDetectSleepPatterns(sLog: List<SleepEntry>, tLog: List<RichTrainingSession>): List<DetectedPattern> {
-        val method: Method = PatternDetector::class.java.getDeclaredMethod("detectSleepPatterns", List::class.java, List::class.java)
-        method.isAccessible = true
-        @Suppress("UNCHECKED_CAST")
-        return method.invoke(PatternDetector, sLog, tLog) as List<DetectedPattern>
-    }
-
     // 1. Day of Week Patterns
     @Test
     fun testDetectDayOfWeekPatterns_normal() {
@@ -174,43 +167,6 @@ class PatternDetectorTest {
         }
         // Avg feel is 3, needs to be >= 3.5
         val res = invokeDetectRecoveryPatterns(tLog)
-        assertTrue(res.isEmpty())
-    }
-
-    // 5. Sleep Patterns
-    @Test
-    fun testDetectSleepPatterns_normal() {
-        val sLog = (0..10).map {
-            val hrs = if (it % 2 == 0) 8.0 else 5.0
-            SleepEntry(date = d(it), hours = hrs, quality = 4)
-        }
-        val tLog = (0..10).map {
-            // the session is on the *next* day after sleep, so if sleep at day N is good (even), session at N-1 (next day) should be good.
-            // Wait, d(it-1) is the day after d(it).
-            val feel = if (it % 2 == 0) 5 else 2
-            RichTrainingSession(date = d(it - 1), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = feel, exercises = emptyList())
-        }
-        val res = invokeDetectSleepPatterns(sLog, tLog)
-        assertTrue(res.any { it.id == "sleep_performance" })
-    }
-
-    @Test
-    fun testDetectSleepPatterns_edgeCase_empty() {
-        val res = invokeDetectSleepPatterns(emptyList(), emptyList())
-        assertTrue(res.isEmpty())
-    }
-
-    @Test
-    fun testDetectSleepPatterns_boundary_diff() {
-        val sLog = (0..10).map {
-            val hrs = if (it % 2 == 0) 8.0 else 5.0
-            SleepEntry(date = d(it), hours = hrs, quality = 4)
-        }
-        val tLog = (0..10).map {
-            val feel = 4 // same feel for all -> diff 0
-            RichTrainingSession(date = d(it - 1), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = feel, exercises = emptyList())
-        }
-        val res = invokeDetectSleepPatterns(sLog, tLog)
         assertTrue(res.isEmpty())
     }
 }
