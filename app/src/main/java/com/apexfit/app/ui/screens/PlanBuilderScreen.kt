@@ -898,7 +898,7 @@ fun PlanBuilderScreen(
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 
                         if (editingExerciseId == null) {
-                            val newId = java.util.UUID.randomUUID().hashCode().toLong().let { if (it < 0) -it else it }
+                            val newId = trainViewModel.generateNewSessionId()
                             trainViewModel.addCustomExercise(
                                 PlanExercise(
                                     id = newId,

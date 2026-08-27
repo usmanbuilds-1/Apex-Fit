@@ -235,7 +235,7 @@ fun SettingsScreen(
                         val filtered = it.filter { c -> c.isDigit() }
                         editAge = filtered
                         val v = filtered.toIntOrNull()
-                        ageError = if (v != null && v !in 10..100) "Age must be 10-100" else null
+                        ageError = if (v != null && v !in 13..100) "Age must be 13-100" else null
                     },
                     isError = ageError != null,
                     label = { Text(stringResource(R.string.settings_age_yrs), color = SecondaryText) },

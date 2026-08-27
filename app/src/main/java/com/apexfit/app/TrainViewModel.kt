@@ -117,28 +117,26 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addCustomExercise(planExercise: PlanExercise) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                val slug = com.apexfit.app.utils.exerciseNameToSlug(planExercise.name)
-                val existing = dao.getExerciseById(slug)
-                if (existing == null) {
-                    dao.insertExercises(listOf(
-                        Exercise(
-                            id = slug,
-                            name = planExercise.name,
-                            category = "User Created",
-                            primaryMuscle = planExercise.muscleGroup,
-                            secondaryMuscles = emptyList(),
-                            equipmentRequired = "Unknown",
-                            isBilateral = 1,
-                            isUserCreated = 1,
-                            isDeleted = 0,
-                            createdAt = System.currentTimeMillis()
-                        )
-                    ))
-                    dao.insertExerciseMetadata(ExerciseMetadata(exerciseId = slug))
-                }
-                addExercise(planExercise)
+            val slug = com.apexfit.app.utils.exerciseNameToSlug(planExercise.name)
+            val existing = dao.getExerciseById(slug)
+            if (existing == null) {
+                dao.insertExercises(listOf(
+                    Exercise(
+                        id = slug,
+                        name = planExercise.name,
+                        category = "User Created",
+                        primaryMuscle = planExercise.muscleGroup,
+                        secondaryMuscles = emptyList(),
+                        equipmentRequired = "Unknown",
+                        isBilateral = 1,
+                        isUserCreated = 1,
+                        isDeleted = 0,
+                        createdAt = System.currentTimeMillis()
+                    )
+                ))
+                dao.insertExerciseMetadata(ExerciseMetadata(exerciseId = slug))
             }
+            addExercise(planExercise)
         }
     }
 
@@ -852,12 +850,10 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun activatePlan(planId: Long) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                db.withTransaction {
-                    dao.deactivateAllPlans()
-                    val plan = dao.getAllPlans().firstOrNull { it.id == planId } ?: return@withTransaction
-                    dao.insertWorkoutPlan(plan.copy(isActive = true))
-                }
+            db.withTransaction {
+                dao.deactivateAllPlans()
+                val plan = dao.getAllPlans().firstOrNull { it.id == planId } ?: return@withTransaction
+                dao.insertWorkoutPlan(plan.copy(isActive = true))
             }
         }
     }

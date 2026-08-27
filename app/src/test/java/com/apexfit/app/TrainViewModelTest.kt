@@ -20,7 +20,6 @@ import org.robolectric.annotation.SQLiteMode
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@SQLiteMode(SQLiteMode.Mode.LEGACY)
 class TrainViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
@@ -32,6 +31,7 @@ class TrainViewModelTest {
         com.apexfit.app.di.ServiceLocator.reset()
         val application = ApplicationProvider.getApplicationContext<Application>()
         val db = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
+            .setQueryCoroutineContext(testDispatcher)
             .allowMainThreadQueries()
             .build()
         testDb = db
@@ -48,7 +48,7 @@ class TrainViewModelTest {
     }
 
     @Test
-    fun addCustomExercise_insertsExerciseRowWhenNameIsNew() = runTest {
+    fun addCustomExercise_insertsExerciseRowWhenNameIsNew() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()
         
@@ -72,30 +72,19 @@ class TrainViewModelTest {
         
         viewModel.addCustomExercise(planExercise)
         testScheduler.advanceUntilIdle()
-        var inserted = dao.getExerciseById("custom-super-press")
-        var retries = 0
-        while (inserted == null && retries < 30) {
-            Thread.sleep(20)
-            inserted = dao.getExerciseById("custom-super-press")
-            retries++
-        }
+        val inserted = dao.getExerciseById("custom-super-press")
         assertNotNull("Exercise should be inserted into DB", inserted)
         assertEquals("Custom Super Press", inserted?.name)
         assertEquals("User Created", inserted?.category)
         assertEquals("Chest", inserted?.primaryMuscle)
         
-        var metadata = dao.getMetadataForExercise("custom-super-press")
-        var metaRetries = 0
-        while (metadata == null && metaRetries < 30) {
-            Thread.sleep(20)
-            metadata = dao.getMetadataForExercise("custom-super-press")
-            metaRetries++
-        }
+        testScheduler.advanceUntilIdle()
+        val metadata = dao.getMetadataForExercise("custom-super-press")
         assertNotNull("ExerciseMetadata should also be inserted", metadata)
     }
 
     @Test
-    fun activatePlan_updatesActiveStatus() = runTest {
+    fun activatePlan_updatesActiveStatus() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()
 
@@ -125,13 +114,7 @@ class TrainViewModelTest {
 
         viewModel.activatePlan(2020L)
         testScheduler.advanceUntilIdle()
-        var plans = dao.getAllPlans()
-        var retries = 0
-        while ((plans.find { it.id == 2020L }?.isActive != true) && retries < 30) {
-            Thread.sleep(20)
-            plans = dao.getAllPlans()
-            retries++
-        }
+        val plans = dao.getAllPlans()
         assertTrue("Plan 2020 should be active", plans.find { it.id == 2020L }?.isActive == true)
         assertFalse("Plan 1010 should be inactive", plans.find { it.id == 1010L }?.isActive ?: true)
     }
