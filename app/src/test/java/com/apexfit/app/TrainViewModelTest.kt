@@ -15,10 +15,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.SQLiteMode
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [34])
+@SQLiteMode(SQLiteMode.Mode.LEGACY)
 class TrainViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
@@ -72,8 +74,8 @@ class TrainViewModelTest {
         testScheduler.advanceUntilIdle()
         var inserted = dao.getExerciseById("custom-super-press")
         var retries = 0
-        while (inserted == null && retries < 20) {
-            Thread.sleep(50)
+        while (inserted == null && retries < 30) {
+            Thread.sleep(20)
             inserted = dao.getExerciseById("custom-super-press")
             retries++
         }
@@ -82,7 +84,13 @@ class TrainViewModelTest {
         assertEquals("User Created", inserted?.category)
         assertEquals("Chest", inserted?.primaryMuscle)
         
-        val metadata = dao.getMetadataForExercise("custom-super-press")
+        var metadata = dao.getMetadataForExercise("custom-super-press")
+        var metaRetries = 0
+        while (metadata == null && metaRetries < 30) {
+            Thread.sleep(20)
+            metadata = dao.getMetadataForExercise("custom-super-press")
+            metaRetries++
+        }
         assertNotNull("ExerciseMetadata should also be inserted", metadata)
     }
 
@@ -119,8 +127,8 @@ class TrainViewModelTest {
         testScheduler.advanceUntilIdle()
         var plans = dao.getAllPlans()
         var retries = 0
-        while ((plans.find { it.id == 2020L }?.isActive != true) && retries < 20) {
-            Thread.sleep(50)
+        while ((plans.find { it.id == 2020L }?.isActive != true) && retries < 30) {
+            Thread.sleep(20)
             plans = dao.getAllPlans()
             retries++
         }

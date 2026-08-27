@@ -3,7 +3,40 @@ package com.apexfit.app.utils
 import com.apexfit.app.data.*
 import kotlin.math.roundToInt
 
+fun calcMacroTargets(
+    calorieTarget: Int,
+    bodyWeightKg: Double,
+    goal: String
+): com.apexfit.app.data.NutritionTargets = AlgorithmEngine.calcMacroTargets(calorieTarget, bodyWeightKg, goal)
+
 object AlgorithmEngine {
+
+    fun calcMacroTargets(
+        calorieTarget: Int,
+        bodyWeightKg: Double,
+        goal: String
+    ): com.apexfit.app.data.NutritionTargets {
+        val proteinG = (bodyWeightKg * com.apexfit.app.UserDefaults.PROTEIN_PER_KG)
+            .roundToInt().coerceIn(100, 250)
+        val fatG = (calorieTarget * 0.25 / AppConstants.CALORIES_PER_GRAM_FAT)
+            .roundToInt().coerceIn(45, 120)
+        val carbsG = ((calorieTarget - (proteinG * AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) -
+            (fatG * AppConstants.CALORIES_PER_GRAM_FAT.toInt())) /
+            AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
+        val weeklySessions = when (goal.lowercase()) {
+            "gain muscle" -> 4
+            "lose fat"    -> 5
+            else          -> 4
+        }
+        return com.apexfit.app.data.NutritionTargets(
+            calories = calorieTarget,
+            protein = proteinG,
+            carbs = carbsG,
+            fat = fatG,
+            weeklyTrainingSessions = weeklySessions
+        )
+    }
+
 
     // ── TREND WEIGHT ──────────────────────────────────────────
     // Science: Helms et al. (The Muscle and Strength Pyramid)
@@ -150,7 +183,7 @@ object AlgorithmEngine {
                 cal.time = com.apexfit.app.utils.DateTimeUtils.parseDate(entry.date) ?: return@forEach
                 val day = dayNames[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
                 val current = dayScores[day] ?: Pair(0, 0)
-                val hit = if (entry.protein >= targets.protein && Math.abs(entry.calories - targets.calories).toDouble() / targets.calories <= 0.15) 1 else 0
+                val hit = if (entry.protein >= targets.protein && Math.abs(entry.calories - targets.calories).toDouble() / targets.calories <= 0.10) 1 else 0
                 dayScores[day] = Pair(current.first + hit, current.second + 1)
             } catch (e: Exception) {
                 // Ignore parse errors safely

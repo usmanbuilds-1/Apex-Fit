@@ -26,6 +26,12 @@ import com.apexfit.app.utils.PatternScanWorker
 
 class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val sessionIdCounter = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())
+
+    private fun nextSessionId(): Long = sessionIdCounter.incrementAndGet()
+
+    fun generateNewSessionId(): Long = nextSessionId()
+
     private val db = com.apexfit.app.di.ServiceLocator.database(application)
     private val dao = db.fitnessDao()
     private val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(application)
@@ -49,6 +55,13 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.WEIGHT_KG)
     val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.HEIGHT_CM)
     val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "kg")
+
+    val equipmentAvailable = dataStore.equipmentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Barbell,Dumbbell,Cable,Machine")
+
+    val exerciseLibrary: StateFlow<UiState<List<Exercise>>> = dao.getAllExercisesFlow()
+        .map { UiState.Success(it) as UiState<List<Exercise>> }
+        .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
     // Training State (Plans, Sessions)
     val workoutPlans = repository.getWorkoutPlans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -77,6 +90,12 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         if (!_isInitialized.compareAndSet(false, true)) return
         planBuilderSessions.value = sessions
         planBuilderExercises.value = exercises
+    }
+
+    fun resetPlanBuilder() {
+        _isInitialized.set(false)
+        planBuilderSessions.value = emptyList()
+        planBuilderExercises.value = emptyList()
     }
 
     fun addSession(session: PlanSession) {
@@ -412,6 +431,12 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelActiveWorkout() {
+        restTimerJob?.cancel()
+        restTimerJob = null
+        _isRestTimerActive.value = false
+        _showRestOverlay.value = false
+        _restTimerSeconds.value = 0
+        com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())
         sessionManager.discardAndExit()
     }
 
@@ -720,7 +745,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
             scoreSum += (rpeMod * typeMod)
         }
         val pct = (scoreSum / sets.size) * 10.0
-        _completedHypertrophyScore.value = Math.min(10.0, Math.max(2.1, pct))
+        _completedHypertrophyScore.value = Math.min(10.0, Math.max(0.0, pct))
     }
 
     fun dismissSessionComplete() {
@@ -787,24 +812,22 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         get() = sessionManager.hasCompletedSets
 
     suspend fun getSubstitutionSuggestions(pattern: String, currentEx: String): List<Pair<String, String>> {
-        return when (pattern.lowercase()) {
-            "chest", "push" -> listOf(
-                "Incline Dumbbell Press" to "Excellent standard pushing substitute. Shifts the focus slightly to upper pectoralis, reducing anterior deltoid shear.",
-                "Weighted Chest Dips" to "Highly mechanical chest builder. Targets the lower sternal head of chest fibers."
-            )
-            "back", "pull" -> listOf(
-                "Chest-Supported Dumbbell Row" to "Unloads the lumbar spine entirely. Allows safe high-intensity latissimus Row.",
-                "Seated Cable Row" to "Provides constant tension through the entire concentric-concentric execution path."
-            )
-            "quads", "squat" -> listOf(
-                "Hack Squat machine" to "Stabilizes the axial column. Guarantees safety when pushing close to failure.",
-                "Bulgarian Split Squat" to "Unilateral powerhouse. Rectifies imbalance while loading quads/glutes."
-            )
-            else -> listOf(
-                "Cable Lateral Raise" to "Provides superior constant resistance profile over side dumbbells.",
-                "Incline Dumbbell Bicep Curl" to "Forces biceps into extreme stretch, magnifying tension and hypertrophy."
-            )
-        }
+        val muscleGroup = pattern
+        val exerciseName = currentEx
+        val exercises = (exerciseLibrary.value as? UiState.Success)?.data ?: return emptyList()
+        val equipment = equipmentAvailable.value.split(",").map { it.trim().lowercase() }
+        return exercises
+            .filter { ex ->
+                ex.primaryMuscle.equals(muscleGroup, ignoreCase = true) &&
+                ex.name != exerciseName &&
+                (equipment.isEmpty() || equipment.any { e ->
+                    ex.equipmentRequired.lowercase().contains(e) ||
+                    ex.category.lowercase().contains(e)
+                })
+            }
+            .sortedBy { it.name }
+            .take(5)
+            .map { it.name to "Alternative targeting ${it.primaryMuscle} (${it.equipmentRequired})." }
     }
 
     fun saveImportedWorkoutPlan(

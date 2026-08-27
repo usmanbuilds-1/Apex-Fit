@@ -54,22 +54,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         dataStore.calorieTargetValueFlow,
         weightFlow,
         dataStore.goalFlow
-    ) { calorieTarget, weights, goal ->
-        val latestWeight = weights.maxByOrNull { it.date }?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-        // Helms et al. guidance: 1.8g protein per kg total bodyweight for muscle maintenance
-        val proteinTarget = (latestWeight * com.apexfit.app.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
-        // Fat range: 25% of absolute daily calorie target
-        val fatTarget = (calorieTarget * 0.25 / com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT).roundToInt().coerceIn(45, 120)
-        // Carbohydrates: Remainder of daily energetic allocations
-        val carbsTarget = ((calorieTarget - (proteinTarget * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) - (fatTarget * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT.toInt())) / com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
-        
-        com.apexfit.app.utils.NutritionTargets(
-            calories = calorieTarget,
-            protein = proteinTarget,
-            carbs = carbsTarget,
-            fat = fatTarget,
-            weeklyTrainingSessions = 4
-        )
+    ) { calTarget, weights, goal ->
+        val latestTrend = weights.maxByOrNull { it.date }?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+        com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calTarget, latestTrend, goal)
     }.flowOn(Dispatchers.IO)
 
     private val goalFlow: Flow<String> = dataStore.goalFlow
@@ -190,13 +177,45 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val fatigueResult: StateFlow<UiFatigueResult> = richSessionsFlow
+    private data class SessionDerivedResults(
+        val fatigueResult: com.apexfit.app.utils.FatigueResult,
+        val muscleHeatmap: Map<String, HeatmapEntry>,
+        val injuryRiskSignals: List<String>,
+        val weeklyVolume: Map<String, Int>
+    )
+
+    private val sessionDerived: StateFlow<SessionDerivedResults> = richSessionsFlow
         .map { sessions ->
-            val res = withContext(Dispatchers.Default) {
-                com.apexfit.app.utils.AlgorithmEngine.calcFatigueToFitness(sessions)
+            withContext(Dispatchers.Default) {
+                SessionDerivedResults(
+                    fatigueResult = com.apexfit.app.utils.AlgorithmEngine.calcFatigueToFitness(sessions),
+                    muscleHeatmap = com.apexfit.app.utils.AlgorithmEngine.calcMuscleHeatmap(sessions, days = 7),
+                    injuryRiskSignals = com.apexfit.app.utils.AlgorithmEngine.detectInjuryRiskSignals(sessions)
+                        .ifEmpty { listOf("Recovery indicators normal. High-intensity load distributed optimally within target thresholds.") },
+                    weeklyVolume = buildMuscleVolumes(sessions)
+                )
             }
-            res.toUi()
         }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            SessionDerivedResults(
+                fatigueResult = com.apexfit.app.utils.FatigueResult(
+                    ratio = null,
+                    status = "unknown",
+                    statusLabel = "No Data",
+                    recommendation = "Log workouts to activate fatigue tracking",
+                    acuteLoad = 0.0,
+                    chronicLoad = 0.0
+                ),
+                muscleHeatmap = emptyMap(),
+                injuryRiskSignals = listOf("Log workouts to activate tracking."),
+                weeklyVolume = emptyMap()
+            )
+        )
+
+    val fatigueResult: StateFlow<UiFatigueResult> = sessionDerived
+        .map { it.fatigueResult.toUi() }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -219,77 +238,16 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.data.FatigueRatio(0.0, "No Data"))
 
-    val muscleVolumes: StateFlow<Map<String, Int>> = richSessionsFlow
-        .map { sessions ->
-            withContext(Dispatchers.Default) {
-                val muscleSetsMap = mutableMapOf<String, Int>()
-                val allKeys = listOf(
-                    "chest", "back", "front delts", "side delts", "rear delts",
-                    "biceps", "triceps", "forearms", "trapezius", "neck",
-                    "abs", "obliques", "transverse abdominis", "lower back",
-                    "glutes", "quadriceps", "hamstrings", "calves",
-                    "hip abductors", "hip adductors", "rotator cuff",
-                    "serratus anterior", "tibialis anterior"
-                )
-                allKeys.forEach { muscleSetsMap[it] = 0 }
-
-                sessions.forEach { s ->
-                    if (isDateInCurrentWeekSinceMonday(s.date)) {
-                        s.exercises.forEach { e ->
-                            val workingSetsCount = e.sets.count { !it.isWarmup && it.completed }
-                            val group = e.muscleGroup.lowercase().trim()
-                            
-                            val targetGroup = when {
-                                group.contains("chest") || group.contains("pectoral") -> "chest"
-                                group.contains("back") && !group.contains("lower") -> "back"
-                                group.contains("front delt") || group.contains("front_delt") || group.contains("anterior delt") -> "front delts"
-                                group.contains("rear delt") || group.contains("rear_delt") || group.contains("posterior delt") -> "rear delts"
-                                group.contains("side delt") || group.contains("side_delt") || group.contains("lateral delt") || group.contains("lateral") || group.contains("shoulder") || group.contains("delt") -> "side delts"
-                                group.contains("bicep") -> "biceps"
-                                group.contains("tricep") -> "triceps"
-                                group.contains("forearm") -> "forearms"
-                                group.contains("trapezius") || group.contains("trap") -> "trapezius"
-                                group.contains("neck") -> "neck"
-                                
-                                group.contains("abs") || group.contains("rectus abdominis") || group.contains("rectus_abdominis") || group.contains("abdom") || group.contains("core") -> "abs"
-                                group.contains("oblique") -> "obliques"
-                                group.contains("transverse abdominis") || group.contains("transverse_abdominis") -> "transverse abdominis"
-                                group.contains("lower back") || group.contains("lumbar") || group.contains("spinal erector") || group.contains("erector") -> "lower back"
-                                
-                                group.contains("glute") -> "glutes"
-                                group.contains("quad") || group.contains("quadriceps") -> "quadriceps"
-                                group.contains("hamstring") -> "hamstrings"
-                                group.contains("calf") || group.contains("calves") -> "calves"
-                                group.contains("hip abductor") || group.contains("abductor") -> "hip abductors"
-                                group.contains("hip adductor") || group.contains("adductor") -> "hip adductors"
-                                
-                                group.contains("rotator cuff") || group.contains("rotator") -> "rotator cuff"
-                                group.contains("serratus anterior") || group.contains("serratus") -> "serratus anterior"
-                                group.contains("tibialis anterior") || group.contains("tibialis") -> "tibialis anterior"
-                                
-                                else -> group
-                            }
-                            if (muscleSetsMap.containsKey(targetGroup)) {
-                                muscleSetsMap[targetGroup] = (muscleSetsMap[targetGroup] ?: 0) + workingSetsCount
-                            }
-                        }
-                    }
-                }
-                muscleSetsMap
-            }
-        }
+    val muscleVolumes: StateFlow<Map<String, Int>> = sessionDerived
+        .map { it.weeklyVolume }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             emptyMap()
         )
 
-    val muscleHeatmap: StateFlow<Map<String, HeatmapEntry>> = richSessionsFlow
-        .map { sessions ->
-            withContext(Dispatchers.Default) {
-                com.apexfit.app.utils.AlgorithmEngine.calcMuscleHeatmap(sessions, days = 7)
-            }
-        }
+    val muscleHeatmap: StateFlow<Map<String, HeatmapEntry>> = sessionDerived
+        .map { it.muscleHeatmap }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -306,20 +264,70 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val injuryRiskSignals: StateFlow<List<String>> = richSessionsFlow
-        .map { sessions ->
-            withContext(Dispatchers.Default) {
-                val risks = com.apexfit.app.utils.AlgorithmEngine.detectInjuryRiskSignals(sessions)
-                risks.ifEmpty {
-                    listOf("Recovery indicators normal. High-intensity load distributed optimally within target thresholds.")
-                }
-            }
-        }
+    val injuryRiskSignals: StateFlow<List<String>> = sessionDerived
+        .map { it.injuryRiskSignals }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             emptyList()
         )
+
+    private fun buildMuscleVolumes(sessions: List<com.apexfit.app.utils.TrainingSession>): Map<String, Int> {
+        val muscleSetsMap = mutableMapOf<String, Int>()
+        val allKeys = listOf(
+            "chest", "back", "front delts", "side delts", "rear delts",
+            "biceps", "triceps", "forearms", "trapezius", "neck",
+            "abs", "obliques", "transverse abdominis", "lower back",
+            "glutes", "quadriceps", "hamstrings", "calves",
+            "hip abductors", "hip adductors", "rotator cuff",
+            "serratus anterior", "tibialis anterior"
+        )
+        allKeys.forEach { muscleSetsMap[it] = 0 }
+
+        sessions.forEach { s ->
+            if (isDateInCurrentWeekSinceMonday(s.date)) {
+                s.exercises.forEach { e ->
+                    val workingSetsCount = e.sets.count { !it.isWarmup && it.completed }
+                    val group = e.muscleGroup.lowercase().trim()
+                    
+                    val targetGroup = when {
+                        group.contains("chest") || group.contains("pectoral") -> "chest"
+                        group.contains("back") && !group.contains("lower") -> "back"
+                        group.contains("front delt") || group.contains("front_delt") || group.contains("anterior delt") -> "front delts"
+                        group.contains("rear delt") || group.contains("rear_delt") || group.contains("posterior delt") -> "rear delts"
+                        group.contains("side delt") || group.contains("side_delt") || group.contains("lateral delt") || group.contains("lateral") || group.contains("shoulder") || group.contains("delt") -> "side delts"
+                        group.contains("bicep") -> "biceps"
+                        group.contains("tricep") -> "triceps"
+                        group.contains("forearm") -> "forearms"
+                        group.contains("trapezius") || group.contains("trap") -> "trapezius"
+                        group.contains("neck") -> "neck"
+                        
+                        group.contains("abs") || group.contains("rectus abdominis") || group.contains("rectus_abdominis") || group.contains("abdom") || group.contains("core") -> "abs"
+                        group.contains("oblique") -> "obliques"
+                        group.contains("transverse abdominis") || group.contains("transverse_abdominis") -> "transverse abdominis"
+                        group.contains("lower back") || group.contains("lumbar") || group.contains("spinal erector") || group.contains("erector") -> "lower back"
+                        
+                        group.contains("glute") -> "glutes"
+                        group.contains("quad") || group.contains("quadriceps") -> "quadriceps"
+                        group.contains("hamstring") -> "hamstrings"
+                        group.contains("calf") || group.contains("calves") -> "calves"
+                        group.contains("hip abductor") || group.contains("abductor") -> "hip abductors"
+                        group.contains("hip adductor") || group.contains("adductor") -> "hip adductors"
+                        
+                        group.contains("rotator cuff") || group.contains("rotator") -> "rotator cuff"
+                        group.contains("serratus anterior") || group.contains("serratus") -> "serratus anterior"
+                        group.contains("tibialis anterior") || group.contains("tibialis") -> "tibialis anterior"
+                        
+                        else -> group
+                    }
+                    if (muscleSetsMap.containsKey(targetGroup)) {
+                        muscleSetsMap[targetGroup] = (muscleSetsMap[targetGroup] ?: 0) + workingSetsCount
+                    }
+                }
+            }
+        }
+        return muscleSetsMap
+    }
 
     val hypertrophyQualityScores: StateFlow<Map<String, Double>> = richSessionsFlow
         .map { sessions ->
@@ -356,56 +364,8 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }.flowOn(Dispatchers.IO)
 
-    val sessionReadiness: StateFlow<UiSessionReadiness?> = combine(
-        nutritionFlow,
-        richSessionsFlow,
-        targetsFlow,
-        todayExercisesFlow
-    ) { nutrition, sessions, targets, todayExercises ->
-        val res = withContext(Dispatchers.Default) {
-            if (sessions.isEmpty() || targets == null) null
-            else {
-                val scoreResult = com.apexfit.app.utils.ReadinessFinal.buildReadinessInputs(
-                    completedSessions = sessions,
-                    todayExercises = todayExercises,
-                    nutritionLog = nutrition,
-                    targets = targets
-                )
-                
-                val predictionText = "Systemic CNS readiness is ${scoreResult.systemicReadiness}%. " +
-                        "Acute-to-chronic ratio modifier is ${String.format(java.util.Locale.US, "%.2f", scoreResult.acrModifier)}."
-
-                val factorList = mutableListOf<com.apexfit.app.ui.models.UiReadinessFactor>()
-                factorList.add(com.apexfit.app.ui.models.UiReadinessFactor(
-                    name = "Systemic CNS",
-                    impact = if (scoreResult.systemicReadiness >= 70) "positive" else if (scoreResult.systemicReadiness >= 50) "neutral" else "negative",
-                    value = "${scoreResult.systemicReadiness}%"
-                ))
-                factorList.add(com.apexfit.app.ui.models.UiReadinessFactor(
-                    name = "Nutrition",
-                    impact = if (scoreResult.nutritionScore >= 70) "positive" else if (scoreResult.nutritionScore >= 50) "neutral" else "negative",
-                    value = "${scoreResult.nutritionScore}%"
-                ))
-                scoreResult.muscleDetails.forEach { md ->
-                    factorList.add(com.apexfit.app.ui.models.UiReadinessFactor(
-                        name = "${md.muscleGroup.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }} Recovery",
-                        impact = if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
-                        value = "${md.readinessPercent}% (${md.confidence})"
-                    ))
-                }
-
-                com.apexfit.app.ui.models.UiSessionReadiness(
-                    score = scoreResult.overallPercent,
-                    label = scoreResult.label,
-                    colorHex = scoreResult.colorHex,
-                    prediction = predictionText,
-                    recommendation = scoreResult.recommendation,
-                    factors = factorList
-                )
-            }
-        }
-        res
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val sessionReadiness: StateFlow<UiSessionReadiness?> =
+        com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
 
     val detectedPatterns: StateFlow<List<com.apexfit.app.data.DetectedPatternEntity>> = dao.getAllDetectedPatternsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.FitnessViewModel
+import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ui.theme.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.OpenInNew
@@ -58,8 +59,12 @@ fun SettingsScreen(
     var editHeight by rememberSaveable { mutableStateOf(userHeight.toString()) }
     var editAge by rememberSaveable { mutableStateOf(userAge.toString()) }
     var editSex by remember(userSex) { mutableStateOf(userSex) }
-    var editCurrentWeight by rememberSaveable { mutableStateOf(currentWeightVal.toString()) }
-    var editGoalWeight by rememberSaveable { mutableStateOf(currentGoalWeight.toString()) }
+    var editCurrentWeight by rememberSaveable { 
+        mutableStateOf(currentWeightVal.toDisplayWeight(units).toString()) 
+    }
+    var editGoalWeight by rememberSaveable { 
+        mutableStateOf(currentGoalWeight.toDisplayWeight(units).toString()) 
+    }
 
     LaunchedEffect(username) {
         if (editName.isEmpty()) editName = username
@@ -84,12 +89,12 @@ fun SettingsScreen(
     }
     LaunchedEffect(currentWeightVal) {
         if (editCurrentWeight.isEmpty() || editCurrentWeight == "0.0") {
-            editCurrentWeight = currentWeightVal.toString()
+            editCurrentWeight = currentWeightVal.toDisplayWeight(units).toString()
         }
     }
     LaunchedEffect(currentGoalWeight) {
         if (editGoalWeight.isEmpty() || editGoalWeight == "0.0") {
-            editGoalWeight = currentGoalWeight.toString()
+            editGoalWeight = currentGoalWeight.toDisplayWeight(units).toString()
         }
     }
 
@@ -100,14 +105,6 @@ fun SettingsScreen(
 
     val weightMin = if (units == "kg") 30.0 else 66.0
     val weightMax = if (units == "kg") 300.0 else 660.0
-
-    var isSaving by remember { mutableStateOf(false) }
-    LaunchedEffect(isSaving) {
-        if (isSaving) {
-            kotlinx.coroutines.delay(2000)
-            isSaving = false
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -315,7 +312,7 @@ fun SettingsScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            val unitOptions = listOf("Metric (kg / cm)" to "kg", "Imperial (lb / in)" to "lb")
+            val unitOptions = listOf("Metric (kg / cm)" to "kg", "Imperial (lb)" to "lb")
             for ((label, code) in unitOptions) {
                 val isSelected = units == code
                 Box(
@@ -436,15 +433,14 @@ fun SettingsScreen(
 
             Button(
                 onClick = {
-                    if (isSaving) return@Button
                     val calVal = editedManualCalValue.toIntOrNull() ?: 0
                     if (calVal !in 1000..6000) {
                         Toast.makeText(context, "Calorie target must be 1000-6000", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     val ageVal = editAge.toIntOrNull() ?: 0
-                    if (ageVal !in 10..100) {
-                        Toast.makeText(context, "Age must be 10-100", Toast.LENGTH_SHORT).show()
+                    if (ageVal !in 13..100) {
+                        Toast.makeText(context, "Age must be 13-100", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     val cw = editCurrentWeight.toDoubleOrNull()
@@ -453,7 +449,6 @@ fun SettingsScreen(
                         Toast.makeText(context, "Weight must be $weightMin-$weightMax $units", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
-                    isSaving = true
                     val hVal = editHeight.toDoubleOrNull() ?: com.apexfit.app.UserDefaults.HEIGHT_CM
                     val aVal = editAge.toIntOrNull() ?: com.apexfit.app.UserDefaults.AGE_YEARS
                     val equipmentVal = if (currentEquipment.isNotEmpty()) currentEquipment else com.apexfit.app.UserDefaults.DEFAULT_EQUIPMENT
@@ -471,13 +466,12 @@ fun SettingsScreen(
 
                     val gW = editGoalWeight.toDoubleOrNull() ?: currentGoalWeight
                     val cW = editCurrentWeight.toDoubleOrNull() ?: currentWeightVal
-                    fitnessViewModel.setGoalWeight(gW)
-                    fitnessViewModel.setBodyWeight(cW)
+                    fitnessViewModel.setGoalWeight(gW, preferredUnit = units)
+                    fitnessViewModel.setBodyWeight(cW, preferredUnit = units)
 
                     Toast.makeText(context, context.getString(R.string.settings_profile_saved_successfully), Toast.LENGTH_SHORT).show()
                     onNavigateTo(0)
                 },
-                enabled = !isSaving,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
                 modifier = Modifier.weight(1f).height(48.dp)

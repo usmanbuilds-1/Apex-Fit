@@ -2,7 +2,6 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
-  alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -73,6 +72,11 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+  lint {
+    abortOnError = true
+    checkReleaseBuilds = false
+    disable.add("MissingTranslation")
+  }
   sourceSets {
     getByName("test").assets.srcDirs(files("$projectDir/schemas"))
   }

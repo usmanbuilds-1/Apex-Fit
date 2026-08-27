@@ -42,6 +42,12 @@ fun PlanBuilderScreen(
     trainViewModel: TrainViewModel,
     onNavigateBack: () -> Unit
 ) {
+    DisposableEffect(Unit) {
+        onDispose {
+            trainViewModel.resetPlanBuilder()
+        }
+    }
+
     val context = LocalContext.current
     val dbSessionsState by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val dbExercises by trainViewModel.allPlanExercises.collectAsStateWithLifecycle()
@@ -652,7 +658,7 @@ fun PlanBuilderScreen(
                         }
                         
                         if (editingSessionId == null) {
-                            val newId = java.util.UUID.randomUUID().hashCode().toLong().let { if (it < 0) -it else it }
+                            val newId = trainViewModel.generateNewSessionId()
                             trainViewModel.addSession(
                                 PlanSession(
                                     id = newId,

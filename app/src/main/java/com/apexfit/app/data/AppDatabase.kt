@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Exercise::class,
         ExerciseMetadata::class
     ],
-    version = 15,
+    version = 19,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -271,6 +271,68 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE body_weights ADD COLUMN unit TEXT NOT NULL DEFAULT 'kg'"
+                )
+            }
+        }
+
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE exercise_metadata ADD COLUMN stalledSessions INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE exercise_sets_v18 (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `sessionId` TEXT NOT NULL,
+                        `exerciseId` TEXT NOT NULL,
+                        `exerciseName` TEXT NOT NULL,
+                        `muscleGroup` TEXT NOT NULL,
+                        `weight` REAL NOT NULL,
+                        `reps` INTEGER NOT NULL,
+                        `rpe` INTEGER NOT NULL,
+                        `isWarmup` INTEGER NOT NULL,
+                        `restTaken` INTEGER NOT NULL,
+                        `completed` INTEGER NOT NULL,
+                        `repsInReserve` INTEGER NOT NULL,
+                        `effectiveSetValue` REAL NOT NULL,
+                        FOREIGN KEY(sessionId) REFERENCES workout_sessions(id) ON DELETE CASCADE,
+                        FOREIGN KEY(exerciseId) REFERENCES exercises(id) ON DELETE NO ACTION
+                    )
+                """)
+                database.execSQL("INSERT INTO exercise_sets_v18 SELECT * FROM exercise_sets")
+                database.execSQL("DROP TABLE exercise_sets")
+                database.execSQL("ALTER TABLE exercise_sets_v18 RENAME TO exercise_sets")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_exercise_sets_sessionId ON exercise_sets (sessionId)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_exercise_sets_exerciseId ON exercise_sets (exerciseId)")
+            }
+        }
+
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE body_weights_new (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `time` TEXT NOT NULL,
+                        `weight` REAL NOT NULL,
+                        `unit` TEXT NOT NULL
+                    )
+                """)
+                database.execSQL("INSERT INTO body_weights_new (`id`, `date`, `time`, `weight`, `unit`) SELECT `id`, `date`, `time`, `weight`, `unit` FROM body_weights")
+                database.execSQL("DROP TABLE body_weights")
+                database.execSQL("ALTER TABLE body_weights_new RENAME TO body_weights")
+            }
+        }
+
         fun setTestDatabase(db: AppDatabase?) {
             INSTANCE = db
         }
@@ -282,7 +344,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance

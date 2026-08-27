@@ -24,6 +24,19 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
+private fun buildRepository(context: Context): com.apexfit.app.data.repository.FitnessRepositoryImpl {
+    val db = com.apexfit.app.data.AppDatabase.getDatabase(context)
+    val dao = db.fitnessDao()
+    val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(context)
+    return com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
+}
+
+private fun buildDao(context: Context): com.apexfit.app.data.FitnessDao =
+    com.apexfit.app.data.AppDatabase.getDatabase(context).fitnessDao()
+
+private fun buildDataStore(context: Context): com.apexfit.app.data.DataStoreManager =
+    com.apexfit.app.di.ServiceLocator.dataStore(context)
+
 class DelayedNotificationWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val title = inputData.getString("title") ?: "Apex Fit Update"
@@ -79,9 +92,9 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
 
 class DailyCoachingWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val db = AppDatabase.getDatabase(applicationContext)
-        val dao = db.fitnessDao()
-        val dataStore = DataStoreManager(applicationContext)
+        val repository = buildRepository(applicationContext)
+        val dao = buildDao(applicationContext)
+        val dataStore = buildDataStore(applicationContext)
 
         // Load logs
         val dbNutrition = dao.getAllNutritionEntriesFlow().first()
@@ -89,9 +102,9 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             NutritionEntry(
                 date = date,
                 calories = list.sumOf { it.calories },
-                protein = list.sumOf { it.protein }.roundToInt(),
-                carbs = list.sumOf { it.carbs }.roundToInt(),
-                fat = list.sumOf { it.fat }.roundToInt()
+                protein = list.sumOf { it.protein },
+                carbs = list.sumOf { it.carbs },
+                fat = list.sumOf { it.fat }
             )
         }.sortedBy { it.date }
         
@@ -100,39 +113,10 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             WeightEntry(date, list.map { it.weight }.average())
         }.sortedBy { it.date }
 
-        val dbSessions = dao.getAllCompletedSessions()
-        val allSets = dao.getAllExerciseSetsForCompletedSessions()
-        val setsBySession = allSets.groupBy { it.sessionId }
-        val completedSessions = dbSessions.map { session ->
-            val dbSets = setsBySession[session.id] ?: emptyList()
-            val exerciseLogs = dbSets.groupBy { it.exerciseId }.map { (exId, sets) ->
-                val firstSet = sets.firstOrNull()
-                val name = firstSet?.exerciseName ?: "Exercise"
-                val muscle = firstSet?.muscleGroup ?: "General"
-                ExerciseLog(
-                    id = exId,
-                    name = name,
-                    muscleGroup = muscle,
-                    sets = sets.map { s ->
-                        ExerciseSet(
-                            weight = s.weight,
-                            reps = s.reps,
-                            rpe = s.rpe,
-                            isWarmup = s.isWarmup,
-                            completed = s.completed
-                        )
-                    }
-                )
-            }
-            TrainingSession(
-                date = session.date,
-                sessionType = session.sessionType,
-                completed = session.completed,
-                sessionFeel = session.sessionFeel,
-                durationMinutes = session.durationMinutes,
-                exercises = exerciseLogs
-            )
-        }
+        val cutoff = com.apexfit.app.utils.getDateDaysAgo(90)
+        val dbSessions = dao.getRecentCompletedSessions(cutoff)
+        val dbSets = dao.getRecentExerciseSets(cutoff)
+        val completedSessions = com.apexfit.app.utils.SessionMapper.buildRichSessions(dbSessions, dbSets)
 
         val isManual = dataStore.calorieTargetManualFlow.first()
         val manualValue = dataStore.calorieTargetValueFlow.first()
@@ -143,18 +127,8 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val tdeeResult = AlgorithmEngine.calcAdaptiveTDEE(engineWeights, allNutrition)
         val suggestedCal = AlgorithmEngine.suggestCaloricTarget(tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES, userGoal)
         
-        val calTarget = if (isManual) manualValue else suggestedCal
-        val proteinTarget = (latestTrend * com.apexfit.app.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250) // g/kg from UserDefaults
-        val fatTarget = (calTarget * 0.25 / AppConstants.CALORIES_PER_GRAM_FAT).roundToInt().coerceIn(45, 120)
-        val carbsTarget = ((calTarget - (proteinTarget * AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) - (fatTarget * AppConstants.CALORIES_PER_GRAM_FAT.toInt())) / AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
-
-        val targets = NutritionTargets(
-            calories = calTarget,
-            protein = proteinTarget,
-            carbs = carbsTarget,
-            fat = fatTarget,
-            weeklyTrainingSessions = 4
-        )
+        val calorieTarget = if (isManual) manualValue else suggestedCal
+        val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeightForCoaching, userGoal)
 
         // Find today session
         val activePlan = dao.getActivePlan()
@@ -173,7 +147,6 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         // Evaluate triggers for each key hour of the day
         val keyHours = listOf(7, 9, 12, 20)
         
-        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         repository.scanAndSaveWeeklyPatterns()
 
         val plateau = AlgorithmEngine.detectPlateau(engineWeights, allNutrition, completedSessions, windowDays = 14)
@@ -213,14 +186,14 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
                     add(java.util.Calendar.DAY_OF_YEAR, 1)
                 }
             }
-            val delayHours = ((target.timeInMillis - now.timeInMillis) / (1000 * 60 * 60)).coerceAtLeast(0L).toInt()
+            val delayMs = (target.timeInMillis - java.util.Calendar.getInstance().timeInMillis).coerceAtLeast(0L)
             val inputData = workDataOf(
                 "id" to trigger.id,
                 "title" to trigger.title,
                 "body" to trigger.body
             )
             val delayedRequest = OneTimeWorkRequestBuilder<DelayedNotificationWorker>()
-                .setInitialDelay(delayHours.toLong(), TimeUnit.HOURS)
+                .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
                 .setInputData(inputData)
                 .build()
             workManager?.enqueueUniqueWork(
@@ -268,10 +241,7 @@ object CoachingScheduler {
 
 class PatternScanWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
-        val db = AppDatabase.getDatabase(applicationContext)
-        val dao = db.fitnessDao()
-        val dataStore = DataStoreManager(applicationContext)
-        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
+        val repository = buildRepository(applicationContext)
         return try {
             repository.scanAndSaveWeeklyPatterns()
             Result.success()

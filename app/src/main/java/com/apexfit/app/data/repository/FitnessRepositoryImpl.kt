@@ -136,6 +136,14 @@ class FitnessRepositoryImpl(
         return dao.getAllExerciseSets()
     }
 
+    override suspend fun getRecentCompletedSessions(cutoffDate: String): List<TrainingSession> {
+        return dao.getRecentCompletedSessions(cutoffDate)
+    }
+
+    override suspend fun getRecentExerciseSets(cutoffDate: String): List<ExerciseSet> {
+        return dao.getRecentExerciseSets(cutoffDate)
+    }
+
     override fun getCalorieTargetFlow(): Flow<Int> {
         return dataStore.calorieTargetValueFlow
     }
@@ -159,9 +167,9 @@ class FitnessRepositoryImpl(
             com.apexfit.app.utils.NutritionEntry(
                 date = date,
                 calories = list.sumOf { it.calories },
-                protein = list.sumOf { it.protein }.roundToInt(),
-                carbs = list.sumOf { it.carbs }.roundToInt(),
-                fat = list.sumOf { it.fat }.roundToInt()
+                protein = list.sumOf { it.protein },
+                carbs = list.sumOf { it.carbs },
+                fat = list.sumOf { it.fat }
             )
         }.sortedBy { it.date }
         

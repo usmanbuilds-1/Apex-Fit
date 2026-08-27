@@ -48,4 +48,8 @@
 # Keep data classes serialized by Gson
 -keep class com.apexfit.app.ActiveSession { *; }
 -keep class com.apexfit.app.ActiveSession$* { *; }
+-keep class com.apexfit.app.data.ActiveSession { *; }
+-keep class com.apexfit.app.data.ActiveSession$* { *; }
 -keep class com.apexfit.app.ui.models.** { *; }
+
+-keepclassmembers class * extends androidx.datastore.preferences.protobuf.GeneratedMessageLite { *; }

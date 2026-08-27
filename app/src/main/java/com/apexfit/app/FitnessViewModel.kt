@@ -72,18 +72,28 @@ class FitnessViewModel(
     }
 
     fun completeOnboarding(username: String, goal: String, currentWeight: Double, goalWeight: Double, height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM, age: Int = com.apexfit.app.UserDefaults.AGE_YEARS, sex: String = "male") {
+        val validWeight    = currentWeight.coerceIn(20.0, 500.0)
+        val validGoalWeight = goalWeight.coerceIn(20.0, 500.0)
+        val validHeight    = height.coerceIn(100.0, 250.0)
+        val validAge       = age.coerceIn(13, 100)
+        val validGoal      = if (goal in listOf("Gain Muscle", "Lose Fat", "Maintain")) goal else "Maintain"
+        val validName      = username.trim().take(50).ifEmpty { "Athlete" }
         viewModelScope.launch {
-            dataStore.saveOnboardingData(username, goal, currentWeight, goalWeight, height, age, sex)
+            dataStore.saveOnboardingData(validName, validGoal, validWeight, validGoalWeight, validHeight, validAge, sex)
         }
     }
 
     fun updateProfile(name: String, userGoal: String, targetUnit: String, equipment: String, height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM, age: Int = com.apexfit.app.UserDefaults.AGE_YEARS, sex: String = "male") {
+        val validHeight    = height.coerceIn(100.0, 250.0)
+        val validAge       = age.coerceIn(13, 100)
+        val validGoal      = if (userGoal in listOf("Gain Muscle", "Lose Fat", "Maintain")) userGoal else "Maintain"
+        val validName      = name.trim().take(50).ifEmpty { "Athlete" }
         viewModelScope.launch {
-            dataStore.saveUsername(name)
-            dataStore.saveGoal(userGoal)
+            dataStore.saveUsername(validName)
+            dataStore.saveGoal(validGoal)
             dataStore.saveUnits(targetUnit)
             dataStore.saveEquipment(equipment)
-            dataStore.saveBiologicalParameters(height, age, sex)
+            dataStore.saveBiologicalParameters(validHeight, validAge, sex)
         }
     }
 
@@ -99,15 +109,17 @@ class FitnessViewModel(
         }
     }
 
-    fun setGoalWeight(value: Double) {
+    fun setGoalWeight(value: Double, preferredUnit: String = "kg") {
         viewModelScope.launch {
-            dataStore.saveWeight(currentWeight.value, value)
+            val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / 2.20462 else value
+            dataStore.saveWeight(currentWeight.value, valueKg)
         }
     }
 
-    fun setBodyWeight(value: Double) {
+    fun setBodyWeight(value: Double, preferredUnit: String = "kg") {
         viewModelScope.launch {
-            dataStore.saveWeight(value, goalWeight.value)
+            val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / 2.20462 else value
+            dataStore.saveWeight(valueKg, goalWeight.value)
         }
     }
 
@@ -167,8 +179,8 @@ class FitnessViewModel(
     }
 
     // Weight and measurements methods delegated to HomeViewModel & ProgressViewModel
-    fun logWeight(weight: Double, date: String = getTodayDateString()) {
-        homeVM.logWeight(weight, date)
+    fun logWeight(weight: Double, date: String = getTodayDateString(), preferredUnit: String = "kg") {
+        homeVM.logWeight(weight, date, preferredUnit)
     }
 
     fun logBodyMeasurement(bodyPart: String, value: Double, unit: String, date: String = getTodayDateString()) {
@@ -192,20 +204,8 @@ class FitnessViewModel(
         nutritionVM.changeNutritionDate(offsetDays)
     }
 
-
-
-    fun playMusicSynthNote() {
-        viewModelScope.launch {
-            com.apexfit.app.utils.AudioService.playMusicSynthNote()
-        }
-    }
-
     fun deleteWeightById(id: Long) {
         homeVM.deleteWeightById(id)
-    }
-
-    fun deleteWeight(date: String) {
-        homeVM.deleteWeight(date)
     }
 
     fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {

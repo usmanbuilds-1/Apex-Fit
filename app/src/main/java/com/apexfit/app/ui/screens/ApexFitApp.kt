@@ -244,14 +244,22 @@ fun ApexFitApp(
 
     // Drive navigation from external tab changes (deep links, notifications)
     LaunchedEffect(activeTab) {
-        val targetRoute = routes.getOrNull(activeTab) ?: return@LaunchedEffect
-        // Only navigate if NavHost has set the graph (avoid crash during onboarding/initial launch)
+        val targetRoute = when (activeTab) {
+            0 -> "home"
+            1 -> "train"
+            2 -> "nutrition"
+            3 -> "progress"
+            else -> return@LaunchedEffect
+        }
+        var attempts = 0
+        while (navController.currentDestination == null && attempts < 20) {
+            kotlinx.coroutines.delay(100)
+            attempts++
+        }
         if (navController.currentDestination == null) return@LaunchedEffect
         if (navController.currentDestination?.route != targetRoute) {
             navController.navigate(targetRoute) {
-                popUpTo(navController.graph.findStartDestination().id) {
-                    saveState = true
-                }
+                popUpTo(navController.graph.startDestinationId) { saveState = true }
                 launchSingleTop = true
                 restoreState = true
             }

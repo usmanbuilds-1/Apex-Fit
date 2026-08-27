@@ -9,6 +9,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.SQLiteMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -16,7 +17,8 @@ import java.io.IOException
 import java.util.Calendar
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [34])
+@SQLiteMode(SQLiteMode.Mode.LEGACY)
 class MigrationTest {
 
     @get:Rule
@@ -190,6 +192,84 @@ class MigrationTest {
         assertEquals(1, weightCursor.getInt(0))
         weightCursor.close()
 
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate15To16() {
+        val dbName = "test_db_migration_16"
+        var db = helper.createDatabase(dbName, 15)
+        db.execSQL("INSERT INTO body_weights (date, time, weight) VALUES ('2024-01-01', '08:00', 80.0)")
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(
+            dbName, 16, true, AppDatabase.MIGRATION_15_16
+        )
+
+        val cursor = migratedDb.query("SELECT unit FROM body_weights LIMIT 1")
+        assertTrue(cursor.moveToFirst())
+        assertEquals("kg", cursor.getString(0))
+        cursor.close()
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate16To17() {
+        val dbName = "test_db_migration_17"
+        var db = helper.createDatabase(dbName, 16)
+        db.execSQL("INSERT INTO exercises (id, name, category, primary_muscle, secondary_muscles, equipment_required, created_at) VALUES ('e1', 'Bench Press', 'Chest', 'Chest', '[]', 'Barbell', 1000)")
+        db.execSQL("INSERT INTO exercise_metadata (exercise_id) VALUES ('e1')")
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(
+            dbName, 17, true, AppDatabase.MIGRATION_16_17
+        )
+
+        val cursor = migratedDb.query("SELECT stalledSessions FROM exercise_metadata LIMIT 1")
+        assertTrue(cursor.moveToFirst())
+        assertEquals(0, cursor.getInt(0))
+        cursor.close()
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate17To18() {
+        val dbName = "test_db_migration_18"
+        var db = helper.createDatabase(dbName, 17)
+        db.execSQL("INSERT INTO workout_sessions (id, date, sessionType, completed, durationMinutes, sessionFeel) VALUES ('s1', '2024-01-01', 'Upper', 1, 60, 4)")
+        db.execSQL("INSERT INTO exercises (id, name, category, primary_muscle, secondary_muscles, equipment_required, created_at) VALUES ('e1', 'Bench Press', 'Chest', 'Chest', '[]', 'Barbell', 1000)")
+        db.execSQL("""
+            INSERT INTO exercise_sets (id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue)
+            VALUES (1, 's1', 'e1', 'Bench Press', 'Chest', 100.0, 10, 8, 0, 90, 1, 2, 1.0)
+        """.trimIndent())
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(
+            dbName, 18, true, AppDatabase.MIGRATION_17_18
+        )
+
+        val cursor = migratedDb.query("SELECT COUNT(*) FROM exercise_sets")
+        assertTrue(cursor.moveToFirst())
+        assertEquals(1, cursor.getInt(0))
+        cursor.close()
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate18To19() {
+        val dbName = "test_db_migration_19"
+        var db = helper.createDatabase(dbName, 18)
+        db.execSQL("INSERT INTO body_weights (date, time, weight, unit) VALUES ('2024-01-01', '08:00', 80.0, 'kg')")
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(
+            dbName, 19, true, AppDatabase.MIGRATION_18_19
+        )
+
+        val cursor = migratedDb.query("SELECT weight FROM body_weights LIMIT 1")
+        assertTrue(cursor.moveToFirst())
+        assertEquals(80.0, cursor.getDouble(0), 0.001)
+        cursor.close()
         migratedDb.close()
     }
 }

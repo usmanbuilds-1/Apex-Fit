@@ -63,6 +63,10 @@ import com.apexfit.app.ui.models.*
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.AlgorithmEngine
 import com.apexfit.app.utils.*
+import com.apexfit.app.utils.toDisplayWeight
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -167,8 +171,8 @@ fun HomeScreen(
 
     val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
     val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-    val sessionName = todaySession?.label ?: "Upper A"
-    val focusMuscles = (todaySession?.focus ?: "Chest • Back • Arms").replace(", ", " • ").replace(",", " • ")
+    val sessionName = todaySession?.label ?: "Rest Day"
+    val focusMuscles = (todaySession?.focus ?: "Active Recovery").replace(", ", " • ").replace(",", " • ")
 
     // Calculate precise metabolic duration based on specific exercise sets
     val estimatedWorkoutDurationMin = if (todaySession == null || todaySession.focus == "Muscle Recovery & Rest") {
@@ -302,7 +306,9 @@ fun HomeScreen(
         }
     }
 
-    val weightDiff = latestWeight - goalWeight
+    val latestDisplayWeight = latestWeight.toDisplayWeight(units)
+    val goalDisplayWeight = goalWeight.toDisplayWeight(units)
+    val weightDiff = latestDisplayWeight - goalDisplayWeight
     val weightChangeStr = if (weightDiff == 0.0) {
         "Target reached!"
     } else {
@@ -790,7 +796,7 @@ fun HomeScreen(
 
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
-                                    text = "${String.format(java.util.Locale.US, "%.1f", latestWeight)} $units",
+                                    text = "${String.format(java.util.Locale.US, "%.1f", latestWeight.toDisplayWeight(units))} $units",
                                     fontSize = 28.sp,
                                     fontFamily = JetBrainsMonoFamily,
                                     fontWeight = FontWeight.Bold,
@@ -798,7 +804,7 @@ fun HomeScreen(
                                 )
 
                                 if (weightHistory.size >= 2) {
-                                    val change = weightHistory.first().weight - weightHistory[1].weight
+                                    val change = weightHistory.first().weight.toDisplayWeight(units) - weightHistory[1].weight.toDisplayWeight(units)
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -841,6 +847,13 @@ fun HomeScreen(
                                 }
                             }
 
+                            Text(
+                                text = "WEIGHT ($units)",
+                                fontSize = 10.sp,
+                                color = SecondaryText
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
                             // Smooth Line Graph (Spleen spline curves)
                             Box(
                                 modifier = Modifier
@@ -848,17 +861,19 @@ fun HomeScreen(
                                     .height(56.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                if (weightHistory.size >= 2) {
-                                    val entries = remember(weightHistory, selectedFilter) {
-                                        val takeCount = when (selectedFilter) {
-                                            "7D" -> 7
-                                            "30D" -> 30
-                                            "90D" -> 90
-                                            else -> 7
-                                        }
-                                        weightHistory.take(takeCount).reversed()
+                                val daysToShow = when (selectedFilter) { "7D" -> 7; "30D" -> 30; else -> 90 }
+                                val cutoff = System.currentTimeMillis() - (daysToShow.toLong() * 86400000L)
+                                val chartData = weightHistory.filter { entry ->
+                                    try {
+                                        val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(entry.date)
+                                        (d?.time ?: 0L) >= cutoff
+                                    } catch (e: Exception) { true }
+                                }
+                                if (chartData.size >= 2) {
+                                    val entries = remember(chartData) {
+                                        chartData.reversed()
                                     }
-                                    val linePoints = remember(entries) { entries.map { it.weight } }
+                                    val linePoints = remember(entries, units) { entries.map { it.weight.toDisplayWeight(units) } }
                                     val minWeight = linePoints.minOrNull() ?: 60.0
                                     val maxWeight = linePoints.maxOrNull() ?: 62.0
                                     Canvas(
@@ -994,7 +1009,7 @@ fun HomeScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(DarkRaised)
                                 .clickable {
-                                    weightInput = String.format(java.util.Locale.US, "%.1f", latestWeight)
+                                    weightInput = String.format(java.util.Locale.US, "%.1f", latestWeight.toDisplayWeight(units))
                                     showWeightDialog = true
                                 }
                                 .testTag("log_weight_bottom_button"),
@@ -1025,6 +1040,16 @@ fun HomeScreen(
 
     // ───── LOG WEIGHT DIALOG ─────
     if (showWeightDialog) {
+        var weightError by rememberSaveable { mutableStateOf("") }
+        val weightMin = if (units.lowercase() == "kg") 20.0 else 44.0
+        val weightMax = if (units.lowercase() == "kg") 300.0 else 660.0
+
+        val focusRequester = remember { FocusRequester() }
+        LaunchedEffect(Unit) { 
+            delay(100)
+            try { focusRequester.requestFocus() } catch (_: Exception) {} 
+        }
+
         AlertDialog(
             onDismissRequest = { showWeightDialog = false },
             containerColor = DarkCardSurface,
@@ -1061,6 +1086,7 @@ fun HomeScreen(
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .focusRequester(focusRequester)
                             .testTag("dialog_weight_input_field"),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -1071,15 +1097,30 @@ fun HomeScreen(
                             unfocusedIndicatorColor = BorderSubtle
                         )
                     )
+
+                    if (weightError.isNotEmpty()) {
+                        Text(
+                            text = weightError,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontFamily = JetBrainsMonoFamily
+                        )
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         val parsedWeight = weightInput.toDoubleOrNull()
-                        if (parsedWeight != null && parsedWeight > 0.0) {
-                            fitnessViewModel.logWeight(parsedWeight)
-                            showWeightDialog = false
+                        when {
+                            parsedWeight == null -> weightError = "Enter a valid number"
+                            parsedWeight !in weightMin..weightMax -> 
+                                weightError = "Must be $weightMin–$weightMax $units"
+                            else -> {
+                                fitnessViewModel.logWeight(parsedWeight, preferredUnit = units)
+                                weightError = ""
+                                showWeightDialog = false
+                            }
                         }
                     }
                 ) {

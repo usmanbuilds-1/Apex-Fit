@@ -17,9 +17,9 @@ data class WeightEntry(
     val date: String, // YYYY-MM-DD
     val time: String = "12:00", // HH:mm
     val weight: Double,
-    @ColumnInfo(name = "trend_weight_kg") val trendWeightKg: Double? = null
+    @ColumnInfo(name = "unit") val unit: String = "kg"
 ) {
-    constructor(date: String, weight: Double) : this(id = 0, date = date, time = "12:00", weight = weight, trendWeightKg = null)
+    constructor(date: String, weight: Double) : this(id = 0, date = date, time = "12:00", weight = weight)
 }
 
 data class TrendPoint(
@@ -100,7 +100,7 @@ data class TrainingSession(
             entity = Exercise::class,
             parentColumns = ["id"],
             childColumns = ["exerciseId"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.NO_ACTION
         )
     ]
 )
@@ -470,7 +470,8 @@ data class ExerciseMetadata(
     @ColumnInfo(name = "default_rest_seconds", defaultValue = "120") val defaultRestSeconds: Int = 120,
     @ColumnInfo(name = "force_type", defaultValue = "'push'") val forceType: String = "push",
     @ColumnInfo(name = "recovery_tau_days", defaultValue = "1.2") val recoveryTauDays: Double = 1.2,
-    @ColumnInfo(name = "notes") val notes: String? = null
+    @ColumnInfo(name = "notes") val notes: String? = null,
+    @ColumnInfo(name = "stalledSessions") val stalledSessions: Int = 0
 )
 
 

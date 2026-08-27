@@ -163,6 +163,12 @@ interface FitnessDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExerciseMetadataList(metadataList: List<ExerciseMetadata>)
 
+    @Query("SELECT COALESCE(stalledSessions, 0) FROM exercise_metadata WHERE exercise_id = :exerciseId")
+    suspend fun getStalledCountForExercise(exerciseId: String): Int
+
+    @Query("UPDATE exercise_metadata SET stalledSessions = :count WHERE exercise_id = :exerciseId")
+    suspend fun updateStalledCount(exerciseId: String, count: Int)
+
 
 
     // Plan Exercises

@@ -405,6 +405,39 @@ fun com.apexfit.app.utils.SessionReadiness.toUi(): UiSessionReadiness = UiSessio
     factors = this.factors.map { it.toUi() }
 )
 
+fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
+    val predictionText = "Systemic CNS readiness is ${this.systemicReadiness}%. " +
+            "Acute-to-chronic ratio modifier is ${String.format(java.util.Locale.US, "%.2f", this.acrModifier)}."
+
+    val factorList = mutableListOf<UiReadinessFactor>()
+    factorList.add(UiReadinessFactor(
+        name = "Systemic CNS",
+        impact = if (this.systemicReadiness >= 70) "positive" else if (this.systemicReadiness >= 50) "neutral" else "negative",
+        value = "${this.systemicReadiness}%"
+    ))
+    factorList.add(UiReadinessFactor(
+        name = "Nutrition",
+        impact = if (this.nutritionScore >= 70) "positive" else if (this.nutritionScore >= 50) "neutral" else "negative",
+        value = "${this.nutritionScore}%"
+    ))
+    this.muscleDetails.forEach { md ->
+        factorList.add(UiReadinessFactor(
+            name = "${md.muscleGroup.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }} Recovery",
+            impact = if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
+            value = "${md.readinessPercent}% (${md.confidence})"
+        ))
+    }
+
+    return UiSessionReadiness(
+        score = this.overallPercent,
+        label = this.label,
+        colorHex = this.colorHex,
+        prediction = predictionText,
+        recommendation = this.recommendation,
+        factors = factorList
+    )
+}
+
 fun UiSessionReadiness.toData(): com.apexfit.app.utils.SessionReadiness = com.apexfit.app.utils.SessionReadiness(
     score = this.score,
     label = this.label,

@@ -32,6 +32,8 @@ interface FitnessRepository {
     suspend fun getSetsForSession(sessionId: String): List<ExerciseSet>
     suspend fun getAllCompletedSessions(): List<TrainingSession>
     suspend fun getAllExerciseSets(): List<ExerciseSet>
+    suspend fun getRecentCompletedSessions(cutoffDate: String): List<TrainingSession>
+    suspend fun getRecentExerciseSets(cutoffDate: String): List<ExerciseSet>
     fun getCalorieTargetFlow(): Flow<Int>
     fun getGoalFlow(): Flow<String>
     fun getCurrentWeightFlow(): Flow<Double>

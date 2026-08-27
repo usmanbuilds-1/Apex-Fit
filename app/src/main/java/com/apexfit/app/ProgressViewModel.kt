@@ -73,16 +73,18 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun logBodyMeasurement(bodyPart: String, value: Double, unit: String, date: String = getTodayDateString()) {
+        val safeValue = value.coerceIn(0.0, 500.0)
+        val safePart  = bodyPart.trim().take(50).ifEmpty { "Unknown" }
         viewModelScope.launch {
             // Always store in cm — convert from inches if needed
             val valueInCm = if (unit.lowercase() in listOf("in", "inches", "inch")) {
-                value * 2.54
+                safeValue * 2.54
             } else {
-                value
+                safeValue
             }
             dao.insertBodyMeasurement(
                 BodyMeasurement(
-                    bodyPart = bodyPart,
+                    bodyPart = safePart,
                     value = valueInCm,
                     unit = "cm",
                     date = date

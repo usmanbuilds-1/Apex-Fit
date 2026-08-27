@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import com.apexfit.app.data.RichTrainingSession
 import com.apexfit.app.utils.SessionMapper
 import com.apexfit.app.utils.getDateDaysAgo
+import com.apexfit.app.ui.models.UiSessionReadiness
+import com.apexfit.app.ui.models.toUi
+import kotlin.math.roundToInt
 
 object ServiceLocator {
     @Volatile private var database: AppDatabase? = null
@@ -46,6 +49,47 @@ object ServiceLocator {
             scope = appScope,
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
+        )
+    }
+
+    val sessionReadinessFlow: StateFlow<UiSessionReadiness?> by lazy {
+        val dao = database(appContext).fitnessDao()
+        combine(
+            richSessionsFlow,
+            dataStore(appContext).calorieTargetValueFlow,
+            dataStore(appContext).currentWeightFlow,
+            dao.getAllNutritionEntriesFlow()
+        ) { sessions, calorieTarget, weight, nutritionList ->
+            try {
+                if (sessions.isEmpty()) {
+                    null
+                } else {
+                    val mappedNutrition = nutritionList.map {
+                        com.apexfit.app.utils.NutritionEntry(
+                            date = it.date,
+                            calories = it.calories,
+                            protein = it.protein.roundToInt(),
+                            carbs = it.carbs.roundToInt(),
+                            fat = it.fat.roundToInt()
+                        )
+                    }
+                    val scoreResult = com.apexfit.app.utils.ReadinessFinal.buildReadinessInputs(
+                        sessions = sessions,
+                        nutritionLog = mappedNutrition,
+                        bodyWeightKg = weight,
+                        calorieTarget = calorieTarget
+                    )
+                    scoreResult.toUi()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ServiceLocator", "Readiness scoring failed", e)
+                null
+            }
+        }
+        .stateIn(
+            scope = appScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
         )
     }
 

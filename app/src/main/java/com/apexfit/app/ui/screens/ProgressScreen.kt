@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.FitnessViewModel
+import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ProgressViewModel
 import com.apexfit.app.AlgorithmViewModel
 import com.apexfit.app.HomeViewModel
@@ -49,6 +50,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -450,12 +454,44 @@ fun ProgressMainTabContent(
     val lengthUnit = if (units == "kg") "cm" else "in"
     var activeSubTab by rememberSaveable { mutableStateOf(0) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val pendingDeletions = remember { mutableStateMapOf<Long, kotlinx.coroutines.Job>() }
+
+    fun triggerPendingWeightDeletion(id: Long) {
+        if (pendingDeletions.containsKey(id)) return
+        val job = coroutineScope.launch {
+            delay(4000)
+            fitnessViewModel.deleteWeightById(id)
+            pendingDeletions.remove(id)
+        }
+        pendingDeletions[id] = job
+        coroutineScope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = "Weight entry deleted",
+                actionLabel = "UNDO",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                pendingDeletions[id]?.cancel()
+                pendingDeletions.remove(id)
+            }
+        }
+    }
+
+    val visibleWeights = weightHistory.filter { it.id !in pendingDeletions.keys }
+
+    Scaffold(
+        containerColor = DarkBackground,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         // Futuristic Top Segmented Tab Selector for clean high-fidelity UX spacing
         item {
             Row(
@@ -548,12 +584,17 @@ fun ProgressMainTabContent(
                         Button(
                             onClick = {
                                 val w = inputWeight.toDoubleOrNull()
-                                if (w != null) {
-                                    fitnessViewModel.logWeight(w)
-                                    inputWeight = ""
-                                    Toast.makeText(context, context.getString(R.string.progress_weight_profile_catalog_update_), Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, context.getString(R.string.progress_enter_numeric_index), Toast.LENGTH_SHORT).show()
+                                val weightMin = if (units.lowercase() == "kg") 20.0 else 44.0
+                                val weightMax = if (units.lowercase() == "kg") 300.0 else 660.0
+                                when {
+                                    w == null -> 
+                                        Toast.makeText(context, "Enter a valid number", Toast.LENGTH_SHORT).show()
+                                    w !in weightMin..weightMax -> 
+                                        Toast.makeText(context, "Must be $weightMin–$weightMax $units", Toast.LENGTH_SHORT).show()
+                                    else -> {
+                                        fitnessViewModel.logWeight(w, preferredUnit = units)
+                                        inputWeight = ""
+                                    }
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
@@ -567,7 +608,7 @@ fun ProgressMainTabContent(
             }
 
             // Weight log entries history
-            if (weightHistory.isNotEmpty()) {
+            if (visibleWeights.isNotEmpty()) {
                 item {
                     PremiumCard(modifier = Modifier.fillMaxWidth()) {
                         Text(
@@ -587,7 +628,7 @@ fun ProgressMainTabContent(
                         )
 
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            weightHistory.take(10).forEach { entry ->
+                            visibleWeights.take(10).forEach { entry ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -600,7 +641,7 @@ fun ProgressMainTabContent(
                                 ) {
                                     Column {
                                         Text(
-                                            text = "${entry.weight} $units",
+                                            text = "${entry.weight.toDisplayWeight(units)} $units",
                                             fontFamily = JetBrainsMonoFamily,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
@@ -614,7 +655,7 @@ fun ProgressMainTabContent(
                                             )
                                     }
                                     IconButton(
-                                        onClick = { fitnessViewModel.deleteWeightById(entry.id) },
+                                        onClick = { triggerPendingWeightDeletion(entry.id) },
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
@@ -928,4 +969,5 @@ fun ProgressMainTabContent(
             }
         }
     }
+}
 }

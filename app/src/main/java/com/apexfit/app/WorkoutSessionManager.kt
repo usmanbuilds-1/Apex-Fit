@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import java.util.UUID
 import com.google.gson.Gson
 import kotlin.math.roundToInt
@@ -26,11 +27,32 @@ import kotlin.math.roundToInt
 class WorkoutSessionManager(
     private val repository: FitnessRepository,
     private val dataStore: DataStoreManager,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val dao: FitnessDao = run {
+        try {
+            val field = repository.javaClass.getDeclaredField("dao")
+            field.isAccessible = true
+            field.get(repository) as FitnessDao
+        } catch (e: Exception) {
+            error("Cannot resolve FitnessDao")
+        }
+    }
 ) {
 
+    private var lastProgressionResults: MutableMap<String, Any> = mutableMapOf()
     private val gson = Gson()
     private val persistJob = MutableStateFlow<kotlinx.coroutines.Job?>(null)
+    private var workoutNotificationJob: Job? = null
+
+    private val appContext: android.content.Context = run {
+        try {
+            val field = dataStore.javaClass.getDeclaredField("context")
+            field.isAccessible = true
+            field.get(dataStore) as android.content.Context
+        } catch (e: Exception) {
+            error("Cannot resolve Context")
+        }
+    }
 
     init {
         scope.launch {
@@ -136,8 +158,10 @@ class WorkoutSessionManager(
 
         // Calculate per-muscle readiness
         val readinessScore = try {
-            val sessionsRaw = repository.getAllCompletedSessions()
-            val setsRaw = repository.getAllExerciseSets()
+            val cutoff = com.apexfit.app.utils.getDateDaysAgo(90)
+            val sessionsRaw = repository.getRecentCompletedSessions(cutoff)
+            val setsRaw = repository.getRecentExerciseSets(cutoff)
+            android.util.Log.d("WorkoutSessionManager", "Loaded bounded recent sessions, count: ${sessionsRaw.size}")
             
             // Build rich sessions
             val setsBySession = setsRaw.groupBy { it.sessionId }
@@ -175,16 +199,8 @@ class WorkoutSessionManager(
             val calorieTarget = repository.getCalorieTargetFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.CALORIES
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.WEIGHT_KG
             
-            val proteinTarget = (latestWeight * com.apexfit.app.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
-            val fatTarget = (calorieTarget * 0.25 / com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT).roundToInt().coerceIn(45, 120)
-            val carbsTarget = ((calorieTarget - (proteinTarget * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) - (fatTarget * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT.toInt())) / com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
-            val targets = com.apexfit.app.utils.NutritionTargets(
-                calories = calorieTarget,
-                protein = proteinTarget,
-                carbs = carbsTarget,
-                fat = fatTarget,
-                weeklyTrainingSessions = 4
-            )
+            val userGoal = repository.getGoalFlow().firstOrNull() ?: "Maintain Weight"
+            val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, userGoal)
 
             com.apexfit.app.utils.ReadinessFinal.buildReadinessInputs(
                 completedSessions = completedRichSessions,
@@ -247,6 +263,7 @@ class WorkoutSessionManager(
                     ?.coerceIn(0.7, 1.0)  
                     ?: 1.0  
                   
+                val stalledCount = try { dao.getStalledCountForExercise(exerciseNameToSlug(ex.name)) } catch (e: Exception) { 0 }
                 val progressionResult = com.apexfit.app.utils.ProgressionEngine.calculateProgressiveWeight(  
                     exerciseId = exerciseNameToSlug(ex.name),  
                     lastSessionSets = allLastSets.ifEmpty {  
@@ -263,8 +280,10 @@ class WorkoutSessionManager(
                     targetSets = ex.sets,  
                     recoveryMultiplier = recoveryMultiplier,  
                     currentWeight = lastWeightLbs,  
-                    exerciseType = exType  
+                    exerciseType = exType,
+                    consecutiveStalledSessions = stalledCount
                 )
+                lastProgressionResults[exerciseNameToSlug(ex.name)] = progressionResult
 
                 val suggestedLbs = progressionResult.newWeight
                 
@@ -313,6 +332,18 @@ class WorkoutSessionManager(
             exercises = activeExercises
         )
         persistSession()
+
+        val session = _activeSession.value ?: return@withContext
+        com.apexfit.app.utils.WorkoutActiveNotification.show(appContext, session.sessionName, 0)
+        workoutNotificationJob?.cancel()
+        workoutNotificationJob = scope.launch {
+            var minutes = 0
+            while (isActive) {
+                delay(60_000)
+                minutes++
+                com.apexfit.app.utils.WorkoutActiveNotification.show(appContext, session.sessionName, minutes)
+            }
+        }
         } finally {
             _isStartingSession.value = false
         }
@@ -417,6 +448,8 @@ class WorkoutSessionManager(
     }
 
     fun clearPersistedSession() {
+        workoutNotificationJob?.cancel()
+        com.apexfit.app.utils.WorkoutActiveNotification.dismiss(appContext)
         scope.launch {
             dataStore.saveActiveSessionJson(null)
         }
@@ -509,6 +542,20 @@ class WorkoutSessionManager(
         val prs = evaluatePRs(allSets)
         repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
 
+        lastProgressionResults.forEach { (exerciseId, result) ->
+            try {
+                val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
+                val current = dao.getStalledCountForExercise(exerciseId)
+                val newCount = when (r.outcome.name) {
+                    "SUCCESS", "PLATEAU" -> 0
+                    "STALLED" -> current + 1
+                    else -> current
+                }
+                dao.updateStalledCount(exerciseId, newCount)
+            } catch (e: Exception) { /* ignore */ }
+        }
+        lastProgressionResults.clear()
+
         val totalVolume = allSets
             .filter { !it.isWarmup }
             .sumOf { it.weight * it.reps }
@@ -544,6 +591,8 @@ class WorkoutSessionManager(
 
     /** Called from "Save partial session?" dialog — no path */
     fun discardAndExit() {
+        workoutNotificationJob?.cancel()
+        com.apexfit.app.utils.WorkoutActiveNotification.dismiss(appContext)
         clearPersistedSession()
     }
 
@@ -609,3 +658,5 @@ data class SessionCommitResult(
         fun empty() = SessionCommitResult("", 0, 0.0, 0, emptyList(), "")
     }
 }
+
+private val com.apexfit.app.data.ActiveSession.sessionName: String get() = this.sessionType

@@ -27,6 +27,8 @@ class ApexFitApplication : Application(), Configuration.Provider {
 
         com.apexfit.app.di.ServiceLocator.setAppScope(appScope, this)
 
+        com.apexfit.app.utils.WorkoutActiveNotification.createChannel(this)
+
         // Seed exercises on first launch
         appScope.launch {
             try {
@@ -43,7 +45,6 @@ class ApexFitApplication : Application(), Configuration.Provider {
 
         // Schedule coaching notifications — with delay to ensure WorkManager is initialized
         appScope.launch {
-            delay(2000)
             try {
                 CoachingScheduler.schedule6AmDailyCoachingTask(app)
                 Log.i("ApexFitApplication", "Coaching task scheduled")

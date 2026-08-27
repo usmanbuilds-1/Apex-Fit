@@ -27,24 +27,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoggingWeight = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private val _todayDate = MutableStateFlow(getTodayDateString())
-
-    init {
-        viewModelScope.launch {
-            while (true) {
-                val now = System.currentTimeMillis()
-                val calendar = java.util.Calendar.getInstance()
-                calendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
-                calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
-                calendar.set(java.util.Calendar.MINUTE, 0)
-                calendar.set(java.util.Calendar.SECOND, 0)
-                calendar.set(java.util.Calendar.MILLISECOND, 0)
-                val midnight = calendar.timeInMillis
-                val delayTime = (midnight - now).coerceAtLeast(0L)
-                kotlinx.coroutines.delay(delayTime)
-                _todayDate.value = getTodayDateString()
-            }
-        }
-    }
+    val todayDate: StateFlow<String> = _todayDate.asStateFlow()
 
     fun refreshTodayDate() {
         _todayDate.value = getTodayDateString()
@@ -75,17 +58,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         dataStore.goalFlow
     ) { calorieTarget, weights, goal ->
         val latestWeight = weights.lastOrNull()?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-        val proteinTarget = (latestWeight * com.apexfit.app.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250)
-        val fatTarget = (calorieTarget * 0.25 / com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT).roundToInt().coerceIn(45, 120)
-        val carbsTarget = ((calorieTarget - (proteinTarget * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) - (fatTarget * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT.toInt())) / com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
-        
-        com.apexfit.app.utils.NutritionTargets(
-            calories = calorieTarget,
-            protein = proteinTarget,
-            carbs = carbsTarget,
-            fat = fatTarget,
-            weeklyTrainingSessions = 4
-        )
+        AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, goal)
     }.flowOn(Dispatchers.IO)
 
     val richSessionsFlow: Flow<List<com.apexfit.app.utils.TrainingSession>> =
@@ -140,56 +113,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }.flowOn(Dispatchers.IO)
 
     // Readiness
-    val sessionReadiness: StateFlow<UiSessionReadiness?> = combine(
-        nutritionFlow,
-        richSessionsFlow,
-        targetsFlow,
-        todayExercisesFlow
-    ) { nutrition, sessions, targets, todayExercises ->
-        val res = withContext(Dispatchers.Default) {
-            if (sessions.isEmpty()) null
-            else {
-                val scoreResult = com.apexfit.app.utils.ReadinessFinal.buildReadinessInputs(
-                    completedSessions = sessions,
-                    todayExercises = todayExercises,
-                    nutritionLog = nutrition,
-                    targets = targets
-                )
-                
-                val predictionText = "Systemic CNS readiness is ${scoreResult.systemicReadiness}%. " +
-                        "Acute-to-chronic ratio modifier is ${String.format(java.util.Locale.US, "%.2f", scoreResult.acrModifier)}."
-
-                val factorList = mutableListOf<com.apexfit.app.ui.models.UiReadinessFactor>()
-                factorList.add(com.apexfit.app.ui.models.UiReadinessFactor(
-                    name = "Systemic CNS",
-                    impact = if (scoreResult.systemicReadiness >= 70) "positive" else if (scoreResult.systemicReadiness >= 50) "neutral" else "negative",
-                    value = "${scoreResult.systemicReadiness}%"
-                ))
-                factorList.add(com.apexfit.app.ui.models.UiReadinessFactor(
-                    name = "Nutrition",
-                    impact = if (scoreResult.nutritionScore >= 70) "positive" else if (scoreResult.nutritionScore >= 50) "neutral" else "negative",
-                    value = "${scoreResult.nutritionScore}%"
-                ))
-                scoreResult.muscleDetails.forEach { md ->
-                    factorList.add(com.apexfit.app.ui.models.UiReadinessFactor(
-                        name = "${md.muscleGroup.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }} Recovery",
-                        impact = if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
-                        value = "${md.readinessPercent}% (${md.confidence})"
-                    ))
-                }
-
-                com.apexfit.app.ui.models.UiSessionReadiness(
-                    score = scoreResult.overallPercent,
-                    label = scoreResult.label,
-                    colorHex = scoreResult.colorHex,
-                    prediction = predictionText,
-                    recommendation = scoreResult.recommendation,
-                    factors = factorList
-                )
-            }
-        }
-        res
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val sessionReadiness: StateFlow<UiSessionReadiness?> =
+        com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
 
     // Compliance
     val complianceScores: StateFlow<UiComplianceResult> = combine(
@@ -207,7 +132,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     val complianceScore: StateFlow<Int> = complianceScores
         .map { it.overall }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 88)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     // Home Analytics (Streaks)
     val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> = combine(
@@ -223,26 +148,33 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         com.apexfit.app.utils.StreakResult(com.apexfit.app.utils.StreakInfo(0), com.apexfit.app.utils.StreakInfo(0))
     )
 
-    fun logWeight(weight: Double, date: String = getTodayDateString()) {
+    fun logWeight(weight: Double, date: String = getTodayDateString(), preferredUnit: String = "kg") {
         if (!_isLoggingWeight.compareAndSet(false, true)) return
+        val safeWeight = weight.coerceIn(20.0, 500.0)
         viewModelScope.launch {
             try {
-                dao.insertWeightEntry(WeightEntry(date = date, time = getCurrentLocalTimeString(), weight = weight))
-                dataStore.saveWeight(weight, dataStore.goalWeightFlow.first())
+                val weightKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) safeWeight / 2.20462 else safeWeight
+                dao.insertWeightEntry(WeightEntry(date = date, time = getCurrentLocalTimeString(), weight = weightKg, unit = "kg"))
+                dataStore.saveWeight(weightKg, dataStore.goalWeightFlow.first())
             } finally {
                 _isLoggingWeight.set(false)
             }
         }
     }
 
-    fun deleteWeight(date: String) {
-        android.util.Log.w("HomeViewModel", "deleteWeight(date) is deprecated — use deleteWeightById(id)")
-        // Do not call dao here. Call sites must migrate to deleteWeightById.
-    }
-
     fun deleteWeightById(id: Long) {
         viewModelScope.launch {
             dao.deleteWeightEntryById(id)
+        }
+    }
+
+    private fun csvEscape(value: String): String {
+        val escaped = value.replace("\"", "\"\"")
+        return if (escaped.contains(',') || escaped.contains('"') ||
+                   escaped.contains('\n') || escaped.contains('\r')) {
+            "\"$escaped\""
+        } else {
+            escaped
         }
     }
 
@@ -262,19 +194,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     appendLine()  
                     appendLine("## Nutrition Log")  
                     appendLine("date,name,calories,protein_g,carbs_g,fat_g")  
-                    nutrition.forEach { appendLine("${it.date},\"${it.name}\",${it.calories},${it.protein},${it.carbs},${it.fat}") }  
+                    nutrition.forEach { appendLine("${it.date},${csvEscape(it.name)},${it.calories},${it.protein},${it.carbs},${it.fat}") }  
                     appendLine()  
                     appendLine("## Workout Sessions")  
                     appendLine("date,type,duration_min,feel")  
-                    sessions.forEach { appendLine("${it.date},\"${it.sessionType}\",${it.durationMinutes},${it.sessionFeel}") }  
+                    sessions.forEach { appendLine("${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel}") }  
                 }  
   
-                val file = java.io.File(context.getExternalFilesDir(null),  
-                    "apexfit_export_${System.currentTimeMillis()}.csv")  
+                val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")  
                 file.writeText(exportData)  
                 val uri = androidx.core.content.FileProvider.getUriForFile(  
                     context, "${context.packageName}.fileprovider", file)  
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(uri) }  
+                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    kotlinx.coroutines.delay(60_000)
+                    file.delete()
+                }
             } catch (e: Exception) {  
                 android.util.Log.e("Export", "Export failed", e)  
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(null) }  

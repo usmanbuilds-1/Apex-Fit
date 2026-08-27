@@ -176,6 +176,21 @@ data class ReadinessScore(
 
 object ReadinessFinal {
     fun buildReadinessInputs(
+        sessions: List<com.apexfit.app.utils.TrainingSession>,
+        nutritionLog: List<com.apexfit.app.utils.NutritionEntry>,
+        bodyWeightKg: Double,
+        calorieTarget: Int
+    ): ReadinessScore {
+        val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, bodyWeightKg, "Maintain Weight")
+        return buildReadinessInputs(
+            completedSessions = sessions,
+            todayExercises = emptyList(),
+            nutritionLog = nutritionLog,
+            targets = targets
+        )
+    }
+
+    fun buildReadinessInputs(
         completedSessions: List<com.apexfit.app.utils.TrainingSession>,
         todayExercises: List<com.apexfit.app.data.PlanExercise>,
         nutritionLog: List<com.apexfit.app.utils.NutritionEntry>,

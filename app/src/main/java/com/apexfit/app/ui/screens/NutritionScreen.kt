@@ -707,7 +707,7 @@ fun AddFoodSheet(
             Button(
                 enabled = isMealValid,
                 onClick = {
-                    val cal = inputCal.toIntOrNull() ?: 100
+                    val cal = inputCal.toIntOrNull() ?: 0
                     val prot = inputProt.toDoubleOrNull() ?: 0.0
                     val carb = inputCarb.toDoubleOrNull() ?: 0.0
                     val fat = inputFat.toDoubleOrNull() ?: 0.0
