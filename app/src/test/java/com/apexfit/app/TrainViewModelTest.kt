@@ -1,11 +1,14 @@
 package com.apexfit.app
 
 import android.app.Application
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.apexfit.app.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -30,8 +33,8 @@ class TrainViewModelTest {
         Dispatchers.setMain(testDispatcher)
         com.apexfit.app.di.ServiceLocator.reset()
         val application = ApplicationProvider.getApplicationContext<Application>()
+        com.apexfit.app.di.ServiceLocator.setAppScope(kotlinx.coroutines.CoroutineScope(testDispatcher), application)
         val db = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
-            .setQueryCoroutineContext(testDispatcher)
             .allowMainThreadQueries()
             .build()
         testDb = db
@@ -48,13 +51,21 @@ class TrainViewModelTest {
     }
 
     @Test
-    fun addCustomExercise_insertsExerciseRowWhenNameIsNew() = runTest(testDispatcher) {
+    fun addCustomExercise_insertsExerciseRowWhenNameIsNew() = runTest {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()
+
+        dao.insertWorkoutPlan(
+            WorkoutPlan(
+                id = 1L,
+                name = "Test Plan",
+                goal = "General",
+                isActive = true,
+                createdAt = System.currentTimeMillis()
+            )
+        )
         
         val viewModel = TrainViewModel(application)
-        
-        // Wait for VM init seeding if any (or let it finish)
         testScheduler.advanceUntilIdle()
 
         val planExercise = PlanExercise(
@@ -70,21 +81,23 @@ class TrainViewModelTest {
             notes = "Test custom exercise insertion"
         )
         
-        viewModel.addCustomExercise(planExercise)
+        viewModel.addCustomExercise(planExercise).join()
         testScheduler.advanceUntilIdle()
+
         val inserted = dao.getExerciseById("custom-super-press")
         assertNotNull("Exercise should be inserted into DB", inserted)
         assertEquals("Custom Super Press", inserted?.name)
         assertEquals("User Created", inserted?.category)
         assertEquals("Chest", inserted?.primaryMuscle)
         
-        testScheduler.advanceUntilIdle()
         val metadata = dao.getMetadataForExercise("custom-super-press")
         assertNotNull("ExerciseMetadata should also be inserted", metadata)
+
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
 
     @Test
-    fun activatePlan_updatesActiveStatus() = runTest(testDispatcher) {
+    fun activatePlan_updatesActiveStatus() = runTest {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()
 
@@ -112,10 +125,13 @@ class TrainViewModelTest {
         val viewModel = TrainViewModel(application)
         testScheduler.advanceUntilIdle()
 
-        viewModel.activatePlan(2020L)
+        viewModel.activatePlan(2020L).join()
         testScheduler.advanceUntilIdle()
         val plans = dao.getAllPlans()
+
         assertTrue("Plan 2020 should be active", plans.find { it.id == 2020L }?.isActive == true)
         assertFalse("Plan 1010 should be inactive", plans.find { it.id == 1010L }?.isActive ?: true)
+
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
 }

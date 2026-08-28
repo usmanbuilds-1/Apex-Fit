@@ -23,7 +23,6 @@ import org.robolectric.annotation.SQLiteMode
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@SQLiteMode(SQLiteMode.Mode.LEGACY)
 class HomeViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
@@ -34,12 +33,13 @@ class HomeViewModelTest {
         Dispatchers.setMain(testDispatcher)
         com.apexfit.app.di.ServiceLocator.reset()
         val application = ApplicationProvider.getApplicationContext<Application>()
-        com.apexfit.app.di.ServiceLocator.setAppScope(kotlinx.coroutines.CoroutineScope(testDispatcher), application)
         val db = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
         testDb = db
         AppDatabase.setTestDatabase(db)
+        com.apexfit.app.di.ServiceLocator.setDatabase(db)
+        com.apexfit.app.di.ServiceLocator.setAppScope(kotlinx.coroutines.CoroutineScope(testDispatcher), application)
     }
 
     @After
@@ -52,25 +52,20 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun logWeight_coercesWeightToMinimum() = runTest {
+    fun logWeight_coercesWeightToMinimum() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()
         
         val viewModel = HomeViewModel(application)
+        testScheduler.advanceUntilIdle()
         
         // Log negative weight
-        viewModel.logWeight(-10.0)
-        testScheduler.runCurrent()
+        val job = viewModel.logWeight(-10.0)
+        assertNotNull("logWeight job should not be null", job)
+        job?.join()
+        testScheduler.advanceUntilIdle()
 
-        var entries = dao.getAllWeightEntries()
-        var retries = 0
-        while (entries.isEmpty() && retries < 20) {
-            testScheduler.runCurrent()
-            Thread.sleep(10)
-            entries = dao.getAllWeightEntries()
-            retries++
-        }
-
+        val entries = dao.getAllWeightEntries()
         assertFalse("Weight entries should not be empty", entries.isEmpty())
         val entry = entries.first()
         assertEquals("Weight should be coerced to 20.0 kg (minimum limit)", 20.0, entry.weight, 0.001)

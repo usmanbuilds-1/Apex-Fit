@@ -38,6 +38,31 @@ class DataStoreManager(context: Context) {
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
         val LENGTH_UNITS_KEY = stringPreferencesKey("length_units")
+        val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
+    }
+
+    val weightsNormalizedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[WEIGHTS_NORMALIZED_KEY] ?: false
+    }
+
+    suspend fun markWeightsNormalized() {
+        context.dataStore.edit { preferences ->
+            preferences[WEIGHTS_NORMALIZED_KEY] = true
+        }
+    }
+
+    suspend fun normalizeDataStoreWeights() {
+        context.dataStore.edit { preferences ->
+            val units = preferences[UNITS_KEY] ?: "kg"
+            if (units.lowercase() in listOf("lb", "lbs")) {
+                val currentW = preferences[CURRENT_WEIGHT_KEY] ?: return@edit
+                val goalW = preferences[GOAL_WEIGHT_KEY] ?: return@edit
+                // Values are in lbs, convert to kg
+                preferences[CURRENT_WEIGHT_KEY] = currentW / 2.20462
+                preferences[GOAL_WEIGHT_KEY] = goalW / 2.20462
+            }
+            preferences[WEIGHTS_NORMALIZED_KEY] = true
+        }
     }
 
     val lengthUnitsFlow: Flow<String> = context.dataStore.data.map { preferences ->

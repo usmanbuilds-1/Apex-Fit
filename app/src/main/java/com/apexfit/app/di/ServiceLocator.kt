@@ -98,6 +98,10 @@ object ServiceLocator {
             database ?: AppDatabase.getDatabase(context).also { database = it }
         }
 
+    fun setDatabase(db: AppDatabase?) {
+        database = db
+    }
+
     fun dataStore(context: Context): DataStoreManager =
         dataStore ?: synchronized(this) {
             dataStore ?: DataStoreManager(context.applicationContext).also { dataStore = it }

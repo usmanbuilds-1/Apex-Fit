@@ -115,29 +115,27 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         planBuilderExercises.value = planBuilderExercises.value + exercise
     }
 
-    fun addCustomExercise(planExercise: PlanExercise) {
-        viewModelScope.launch {
-            val slug = com.apexfit.app.utils.exerciseNameToSlug(planExercise.name)
-            val existing = dao.getExerciseById(slug)
-            if (existing == null) {
-                dao.insertExercises(listOf(
-                    Exercise(
-                        id = slug,
-                        name = planExercise.name,
-                        category = "User Created",
-                        primaryMuscle = planExercise.muscleGroup,
-                        secondaryMuscles = emptyList(),
-                        equipmentRequired = "Unknown",
-                        isBilateral = 1,
-                        isUserCreated = 1,
-                        isDeleted = 0,
-                        createdAt = System.currentTimeMillis()
-                    )
-                ))
-                dao.insertExerciseMetadata(ExerciseMetadata(exerciseId = slug))
-            }
-            addExercise(planExercise)
+    fun addCustomExercise(planExercise: PlanExercise): kotlinx.coroutines.Job = viewModelScope.launch {
+        val slug = com.apexfit.app.utils.exerciseNameToSlug(planExercise.name)
+        val existing = dao.getExerciseById(slug)
+        if (existing == null) {
+            dao.insertExercises(listOf(
+                Exercise(
+                    id = slug,
+                    name = planExercise.name,
+                    category = "User Created",
+                    primaryMuscle = planExercise.muscleGroup,
+                    secondaryMuscles = emptyList(),
+                    equipmentRequired = "Unknown",
+                    isBilateral = 1,
+                    isUserCreated = 1,
+                    isDeleted = 0,
+                    createdAt = System.currentTimeMillis()
+                )
+            ))
+            dao.insertExerciseMetadata(ExerciseMetadata(exerciseId = slug))
         }
+        addExercise(planExercise)
     }
 
     fun updateExercise(exercise: PlanExercise) {
@@ -848,13 +846,11 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun activatePlan(planId: Long) {
-        viewModelScope.launch {
-            db.withTransaction {
-                dao.deactivateAllPlans()
-                val plan = dao.getAllPlans().firstOrNull { it.id == planId } ?: return@withTransaction
-                dao.insertWorkoutPlan(plan.copy(isActive = true))
-            }
+    fun activatePlan(planId: Long): kotlinx.coroutines.Job = viewModelScope.launch {
+        db.withTransaction {
+            dao.deactivateAllPlans()
+            val plan = dao.getAllPlans().firstOrNull { it.id == planId } ?: return@withTransaction
+            dao.insertWorkoutPlan(plan.copy(isActive = true))
         }
     }
 

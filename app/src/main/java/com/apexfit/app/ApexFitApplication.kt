@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import com.apexfit.app.data.DataStoreManager
@@ -46,6 +47,12 @@ class ApexFitApplication : Application(), Configuration.Provider {
         // Schedule coaching notifications — with delay to ensure WorkManager is initialized
         appScope.launch {
             try {
+                val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(app)
+                val alreadyNormalized = dataStore.weightsNormalizedFlow.first()
+                if (!alreadyNormalized) {
+                    dataStore.normalizeDataStoreWeights()
+                }
+
                 CoachingScheduler.schedule6AmDailyCoachingTask(app)
                 Log.i("ApexFitApplication", "Coaching task scheduled")
             } catch (e: Exception) {

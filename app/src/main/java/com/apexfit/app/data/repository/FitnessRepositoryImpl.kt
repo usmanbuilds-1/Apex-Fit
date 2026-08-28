@@ -208,7 +208,8 @@ class FitnessRepositoryImpl(
         }
         
         val latestWeight = engineWeights.lastOrNull()?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-        val proteinTarget = (latestWeight * com.apexfit.app.UserDefaults.PROTEIN_PER_KG).roundToInt().coerceIn(100, 250).toDouble()
+        val proteinTarget = (latestWeight * com.apexfit.app.UserDefaults.PROTEIN_PER_KG)
+            .coerceIn(100.0, 250.0)
 
         val detected = com.apexfit.app.utils.PatternDetector.scanAllPatterns(
             weightLog = engineWeights,

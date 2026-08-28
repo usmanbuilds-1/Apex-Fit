@@ -547,7 +547,7 @@ class WorkoutSessionManager(
                 val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
                 val current = dao.getStalledCountForExercise(exerciseId)
                 val newCount = when (r.outcome.name) {
-                    "SUCCESS", "PLATEAU" -> 0
+                    "SUCCESS", "PROGRESSING", "PLATEAU" -> 0
                     "STALLED" -> current + 1
                     else -> current
                 }
