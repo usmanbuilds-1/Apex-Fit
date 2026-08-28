@@ -44,7 +44,7 @@ class ApexFitApplication : Application(), Configuration.Provider {
             }
         }
 
-        // Schedule coaching notifications — with delay to ensure WorkManager is initialized
+        // Schedule coaching notifications
         appScope.launch {
             try {
                 val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(app)

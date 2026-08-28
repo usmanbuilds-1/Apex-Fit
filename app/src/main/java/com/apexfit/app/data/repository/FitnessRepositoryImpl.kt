@@ -6,7 +6,6 @@ import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
-import kotlin.math.roundToInt
 
 /**
  * FitnessRepositoryImpl provides clean, centralized data access delegating to the local database and datastore.

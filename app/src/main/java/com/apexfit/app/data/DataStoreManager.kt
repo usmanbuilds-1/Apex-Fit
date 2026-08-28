@@ -55,11 +55,10 @@ class DataStoreManager(context: Context) {
         context.dataStore.edit { preferences ->
             val units = preferences[UNITS_KEY] ?: "kg"
             if (units.lowercase() in listOf("lb", "lbs")) {
-                val currentW = preferences[CURRENT_WEIGHT_KEY] ?: return@edit
-                val goalW = preferences[GOAL_WEIGHT_KEY] ?: return@edit
-                // Values are in lbs, convert to kg
-                preferences[CURRENT_WEIGHT_KEY] = currentW / 2.20462
-                preferences[GOAL_WEIGHT_KEY] = goalW / 2.20462
+                val currentW = preferences[CURRENT_WEIGHT_KEY]
+                val goalW = preferences[GOAL_WEIGHT_KEY]
+                if (currentW != null) preferences[CURRENT_WEIGHT_KEY] = currentW / 2.20462
+                if (goalW != null) preferences[GOAL_WEIGHT_KEY] = goalW / 2.20462
             }
             preferences[WEIGHTS_NORMALIZED_KEY] = true
         }
