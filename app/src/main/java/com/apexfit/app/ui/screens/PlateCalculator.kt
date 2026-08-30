@@ -189,15 +189,9 @@ fun PlateCalculatorCard(
                         modifier = Modifier.padding(horizontal = 2.dp)
                     ) {
                         loadedPlates.forEach { plate ->
-                            val heightFactor = when (plate.weight) {
-                                25.0 -> 0.90f
-                                20.0 -> 0.82f
-                                15.0 -> 0.74f
-                                10.0 -> 0.66f
-                                5.0 -> 0.58f
-                                2.5 -> 0.50f
-                                else -> 0.42f
-                            }
+                            val maxPlateWeight = loadedPlates.maxOfOrNull { it.weight } ?: 1.0
+                            val heightFactor = (0.40f + (0.55f * (plate.weight / maxPlateWeight).toFloat()))
+                                .coerceIn(0.40f, 0.95f)
 
                             Box(
                                 modifier = Modifier

@@ -28,31 +28,14 @@ class WorkoutSessionManager(
     private val repository: FitnessRepository,
     private val dataStore: DataStoreManager,
     private val scope: CoroutineScope,
-    private val dao: FitnessDao = run {
-        try {
-            val field = repository.javaClass.getDeclaredField("dao")
-            field.isAccessible = true
-            field.get(repository) as FitnessDao
-        } catch (e: Exception) {
-            error("Cannot resolve FitnessDao")
-        }
-    }
+    private val dao: FitnessDao,
+    private val appContext: android.content.Context,
 ) {
 
     private var lastProgressionResults: MutableMap<String, Any> = mutableMapOf()
     private val gson = Gson()
     private val persistJob = MutableStateFlow<kotlinx.coroutines.Job?>(null)
     private var workoutNotificationJob: Job? = null
-
-    private val appContext: android.content.Context = run {
-        try {
-            val field = dataStore.javaClass.getDeclaredField("context")
-            field.isAccessible = true
-            field.get(dataStore) as android.content.Context
-        } catch (e: Exception) {
-            error("Cannot resolve Context")
-        }
-    }
 
     init {
         scope.launch {
@@ -241,10 +224,14 @@ class WorkoutSessionManager(
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                val allLastSets = repository.getLastSetsForExercise(exerciseNameToSlug(ex.name))
+                val _allSets = repository.getLastSetsForExercise(exerciseNameToSlug(ex.name))
                     .filter { !it.isWarmup && it.completed }
-                    .take(ex.sets)
-                    .map { s ->  
+                val _latestSessionId = _allSets.firstOrNull()?.sessionId
+                val allLastSets = if (_latestSessionId != null) {
+                    _allSets.filter { it.sessionId == _latestSessionId }.take(ex.sets)
+                } else {
+                    emptyList()
+                }.map { s ->  
                         com.apexfit.app.ui.models.UiExerciseSet(  
                             id = s.id,  
                             weight = if (preferredUnits.lowercase() == "lbs") s.weight else s.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,  

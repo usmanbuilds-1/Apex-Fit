@@ -36,7 +36,13 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = db.fitnessDao()
     private val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(application)
     private val repository = com.apexfit.app.di.ServiceLocator.repository(application)
-    val sessionManager = WorkoutSessionManager(repository, dataStore, viewModelScope)
+    val sessionManager = WorkoutSessionManager(
+        repository = repository,
+        dataStore = dataStore,
+        scope = viewModelScope,
+        dao = dao,
+        appContext = getApplication()
+    )
 
     init {
         viewModelScope.launch {

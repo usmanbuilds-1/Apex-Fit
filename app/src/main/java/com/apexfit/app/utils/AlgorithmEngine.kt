@@ -118,10 +118,15 @@ object AlgorithmEngine {
         val recentNutrition = nutritionLog.filter { it.date >= cutoff }
 
         if (recentWeight.size < 2 || recentNutrition.size < 3) {
-            return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", recentNutrition.map { it.calories }.average().takeIf { !it.isNaN() }?.roundToInt() ?: 0, 0.0)
+            return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", recentNutrition.groupBy { it.date }
+                .map { (_, e) -> e.sumOf { it.calories } }
+                .average().takeIf { !it.isNaN() }?.roundToInt() ?: 0, 0.0)
         }
 
-        val avgCalories = recentNutrition.map { it.calories }.average()
+        val dailyCalories = recentNutrition
+            .groupBy { it.date }
+            .map { (_, e) -> e.sumOf { it.calories } }
+        val avgCalories = if (dailyCalories.isEmpty()) 0.0 else dailyCalories.average()
         val trendData = calcTrendWeight(recentWeight)
         val weightChangeKg = trendData.last().trend - trendData.first().trend
         
@@ -132,7 +137,7 @@ object AlgorithmEngine {
         
         // Weight gain or loss translates to calorie imbalance per day (1kg = 7700 kcal energy density, Hall 2012)
         val calorieImbalancePerDay = (weightChangeKg * AppConstants.CALORIES_PER_KG_BODYFAT) / daysBetween
-        val tdee = (avgCalories - calorieImbalancePerDay).roundToInt()
+        val tdee = (avgCalories - calorieImbalancePerDay).roundToInt().coerceAtLeast(800)
         
         val confidence = when {
             recentNutrition.size >= 12 && recentWeight.size >= 10 -> "high"
@@ -165,25 +170,33 @@ object AlgorithmEngine {
         }
         val cutoff = getDateDaysAgo(days)
         val recentNutrition = nutritionLog.filter { it.date >= cutoff }
+        val dailyNutrition = recentNutrition
+            .groupBy { it.date }
+            .map { (_, e) -> Pair(e.sumOf { it.calories }, e.sumOf { it.protein }) }
         val recentTraining = trainingLog.filter { it.date >= cutoff && it.completed }
 
-        val calHits = recentNutrition.count { Math.abs(it.calories - targets.calories).toDouble() / targets.calories <= 0.1 }
-        val proteinHits = recentNutrition.count { it.protein >= targets.protein }
+        val calHits = dailyNutrition.count { (cal, _) -> 
+            Math.abs(cal - targets.calories).toDouble() / targets.calories <= 0.10 
+        }
+        val proteinHits = dailyNutrition.count { (_, protein) -> protein >= targets.protein }
         val expectedSessions = ((days / 7.0) * targets.weeklyTrainingSessions).roundToInt()
         val trainingScore = if (expectedSessions > 0) minOf(100, ((recentTraining.size.toDouble() * 100) / expectedSessions).roundToInt()) else 0
-        val calScore = if (recentNutrition.isNotEmpty()) (calHits * 100) / recentNutrition.size else 0
-        val proteinScore = if (recentNutrition.isNotEmpty()) (proteinHits * 100) / recentNutrition.size else 0
+        val calScore = if (dailyNutrition.isNotEmpty()) (calHits * 100) / dailyNutrition.size else 0
+        val proteinScore = if (dailyNutrition.isNotEmpty()) (proteinHits * 100) / dailyNutrition.size else 0
         val overall = ((proteinScore * 0.4) + (calScore * 0.35) + (trainingScore * 0.25)).roundToInt()
 
         val dayNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
         val dayScores = mutableMapOf<String, Pair<Int,Int>>()
-        recentNutrition.forEach { entry ->
+        recentNutrition.groupBy { it.date }.forEach { (dateStr, entries) ->
             try {
                 val cal = java.util.Calendar.getInstance()
-                cal.time = com.apexfit.app.utils.DateTimeUtils.parseDate(entry.date) ?: return@forEach
+                cal.time = com.apexfit.app.utils.DateTimeUtils.parseDate(dateStr) ?: return@forEach
                 val day = dayNames[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
                 val current = dayScores[day] ?: Pair(0, 0)
-                val hit = if (entry.protein >= targets.protein && Math.abs(entry.calories - targets.calories).toDouble() / targets.calories <= 0.10) 1 else 0
+                val totalCal = entries.sumOf { it.calories }
+                val totalProtein = entries.sumOf { it.protein }
+                val hit = if (totalProtein >= targets.protein &&
+                    Math.abs(totalCal - targets.calories).toDouble() / targets.calories <= 0.10) 1 else 0
                 dayScores[day] = Pair(current.first + hit, current.second + 1)
             } catch (e: Exception) {
                 // Ignore parse errors safely
@@ -204,7 +217,7 @@ object AlgorithmEngine {
         val change = Math.abs(recent.last().trend - recent.first().trend)
         val cutoff = getDateDaysAgo(windowDays)
         val recentLogs = nutritionLog.filter { it.date >= cutoff }
-        val loggingConsistency = recentLogs.size.toDouble() / windowDays
+        val loggingConsistency = recentLogs.map { it.date }.distinct().size.toDouble() / windowDays
         if (change >= 0.3) return PlateauResult(false)
         if (loggingConsistency < 0.7) return PlateauResult(false)
 
@@ -444,17 +457,25 @@ object AlgorithmEngine {
         val todayStr = getCurrentDate()
         val yesterdayStr = getPreviousDate(todayStr) ?: ""
         
-        val todayEntry = nutritionLog.find { it.date == todayStr }
+        val dailyNutritionMap = nutritionLog
+            .groupBy { it.date }
+            .mapValues { (_, e) -> Pair(e.sumOf { it.calories }, e.sumOf { it.protein }) }
+
         var checkDate = yesterdayStr
-        if (todayEntry != null && todayEntry.protein >= targets.protein * 0.9 && Math.abs(todayEntry.calories - targets.calories).toDouble() / targets.calories <= 0.15) {
+        val todayTotals = dailyNutritionMap[todayStr]
+        if (todayTotals != null &&
+            todayTotals.second >= targets.protein * 0.9 &&
+            Math.abs(todayTotals.first - targets.calories).toDouble() / targets.calories <= 0.15) {
             checkDate = todayStr
         }
         
         var tempDate = checkDate
         var iterations = 0
         while (iterations < 1000) {
-            val entry = nutritionLog.find { it.date == tempDate }
-            if (entry != null && entry.protein >= targets.protein * 0.9 && Math.abs(entry.calories - targets.calories).toDouble() / targets.calories <= 0.15) {
+            val dayTotals = dailyNutritionMap[tempDate]
+            if (dayTotals != null &&
+                dayTotals.second >= targets.protein * 0.9 &&
+                Math.abs(dayTotals.first - targets.calories).toDouble() / targets.calories <= 0.15) {
                 currentStreak++
                 val nextDate = getPreviousDate(tempDate)
                 if (nextDate == null) break

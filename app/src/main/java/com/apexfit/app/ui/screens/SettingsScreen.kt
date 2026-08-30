@@ -66,6 +66,11 @@ fun SettingsScreen(
         mutableStateOf(currentGoalWeight.toDisplayWeight(units).toString()) 
     }
 
+    var manualCalError by remember { mutableStateOf<String?>(null) }
+    var ageError by remember { mutableStateOf<String?>(null) }
+    var currentWeightError by remember { mutableStateOf<String?>(null) }
+    var goalWeightError by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(username) {
         if (editName.isEmpty()) editName = username
     }
@@ -97,11 +102,16 @@ fun SettingsScreen(
             editGoalWeight = currentGoalWeight.toDisplayWeight(units).toString()
         }
     }
-
-    var manualCalError by remember { mutableStateOf<String?>(null) }
-    var ageError by remember { mutableStateOf<String?>(null) }
-    var currentWeightError by remember { mutableStateOf<String?>(null) }
-    var goalWeightError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(units) {
+        if (currentWeightVal > 0.0) {
+            editCurrentWeight = currentWeightVal.toDisplayWeight(units).toString()
+        }
+        if (currentGoalWeight > 0.0) {
+            editGoalWeight = currentGoalWeight.toDisplayWeight(units).toString()
+        }
+        currentWeightError = null
+        goalWeightError = null
+    }
 
     val weightMin = if (units == "kg") 30.0 else 66.0
     val weightMax = if (units == "kg") 300.0 else 660.0

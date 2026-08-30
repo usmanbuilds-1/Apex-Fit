@@ -271,7 +271,7 @@ fun ProgramSubTab(
                 }
 
                 // Exercises list
-                items(exercises.size, key = { exercises[it].exerciseId }) { index ->
+                items(exercises.size, key = { it }) { index ->
                     val ex = exercises[index]
 
                     var isExpanded by rememberSaveable { mutableStateOf(false) }
@@ -454,14 +454,9 @@ fun WorkoutExecutionSubTab(
     val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
 
-    var pendingTimerStart by remember { mutableStateOf<(() -> Unit)?>(null) }
     val notifPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            pendingTimerStart?.invoke()
-        }
-    }
+    ) { /* permission result ignored — logging never blocked by permission */ }
 
     var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
     var showNormalFinishFeelDialog by rememberSaveable { mutableStateOf(false) }
@@ -958,14 +953,16 @@ fun WorkoutExecutionSubTab(
                         val w = rawWeight.toDoubleOrNull()
                         if (w != null && w in 0.25..500.0) {
                             val r = rawReps.toIntOrNull() ?: setObj.reps
-                            trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, setObj.completed)
+                            trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, 
+                                setObj.completed, restTakenSeconds = setObj.restTaken)
                         }
                     }
                     val commitReps: () -> Unit = {
                         val r = rawReps.toIntOrNull()
                         if (r != null && r in 1..50) {
                             val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                            trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, setObj.completed)
+                            trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, 
+                                setObj.completed, restTakenSeconds = setObj.restTaken)
                         }
                     }
 
@@ -1206,14 +1203,12 @@ fun WorkoutExecutionSubTab(
                                                         totalSets = setsList.size
                                                      )
                                                 }
-                                                pendingTimerStart = timerStartCall
+                                                timerStartCall()
                                                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
                                                     androidx.core.content.ContextCompat.checkSelfPermission(
                                                         context, android.Manifest.permission.POST_NOTIFICATIONS
                                                     ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                                                     notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                                } else {
-                                                    timerStartCall()
                                                 }
                                             } else {
                                                 // Simple uncheck log state

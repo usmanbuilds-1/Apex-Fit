@@ -27,6 +27,9 @@ class MigrationTest {
         AppDatabase::class.java
     )
 
+    private val TEST_DB = "migration_test_db"
+    private val migrationTestHelper get() = helper
+
     @Test
     @Throws(IOException::class)
     fun migrate8To10() {
@@ -170,6 +173,21 @@ class MigrationTest {
     }
 
     @Test
+    @Throws(IOException::class)
+    fun migrate12To13() {
+        val db = migrationTestHelper.createDatabase(TEST_DB, 12)
+        db.execSQL("INSERT INTO workout_sessions (id, date, sessionType, completed, durationMinutes, sessionFeel) VALUES ('s1', '2024-01-01', 'Upper A', 1, 45, 4)")
+        db.close()
+        val migrated = migrationTestHelper.runMigrationsAndValidate(
+            TEST_DB, 13, true, AppDatabase.MIGRATION_12_13
+        )
+        val cursor = migrated.query("SELECT COUNT(*) FROM workout_sessions")
+        cursor.moveToFirst()
+        assertEquals(1, cursor.getInt(0))
+        cursor.close()
+    }
+
+    @Test
     fun migrate13to14() {
         val db = helper.createDatabase("test_db_migration_14", 13)
         db.execSQL("""INSERT INTO workout_sessions (id, date, sessionType, completed,
@@ -193,6 +211,21 @@ class MigrationTest {
         weightCursor.close()
 
         migratedDb.close()
+    }
+
+    @Test
+    @Throws(IOException::class)
+    fun migrate14To15() {
+        val db = migrationTestHelper.createDatabase(TEST_DB, 14)
+        db.execSQL("INSERT INTO body_weights (date, time, weight, trend_weight_kg) VALUES ('2024-01-01', '08:00', 80.0, 80.0)")
+        db.close()
+        val migrated = migrationTestHelper.runMigrationsAndValidate(
+            TEST_DB, 15, true, AppDatabase.MIGRATION_14_15
+        )
+        val cursor = migrated.query("SELECT weight FROM body_weights LIMIT 1")
+        cursor.moveToFirst()
+        assertEquals(80.0, cursor.getDouble(0), 0.001)
+        cursor.close()
     }
 
     @Test

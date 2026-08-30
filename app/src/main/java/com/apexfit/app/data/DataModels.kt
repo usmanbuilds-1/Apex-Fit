@@ -206,6 +206,7 @@ data class WorkoutPlan(
 
 @Entity(
     tableName = "plan_sessions",
+    indices = [Index(value = ["planId"])],
     foreignKeys = [
         ForeignKey(
             entity = WorkoutPlan::class,
@@ -225,6 +226,7 @@ data class PlanSession(
 
 @Entity(
     tableName = "plan_exercises",
+    indices = [Index(value = ["planSessionId"])],
     foreignKeys = [
         ForeignKey(
             entity = PlanSession::class,
@@ -252,6 +254,7 @@ val PlanExercise.exerciseId: String
 
 @Entity(
     tableName = "personal_records",
+    indices = [Index(value = ["exerciseId"])],
     foreignKeys = [
         ForeignKey(
             entity = Exercise::class,

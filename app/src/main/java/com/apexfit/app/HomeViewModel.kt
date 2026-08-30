@@ -57,7 +57,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         weightFlow,
         dataStore.goalFlow
     ) { calorieTarget, weights, goal ->
-        val latestWeight = weights.lastOrNull()?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+        val latestWeight = weights.maxByOrNull { it.date }?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
         AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, goal)
     }.flowOn(Dispatchers.IO)
 
@@ -151,7 +151,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun logWeight(weight: Double, date: String = getTodayDateString(), preferredUnit: String = "kg"): kotlinx.coroutines.Job? {
         if (!_isLoggingWeight.compareAndSet(false, true)) return null
         val weightKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) weight / 2.20462 else weight
-        val safeWeightKg = weightKg.coerceIn(9.0, 300.0)
+        val safeWeightKg = weightKg.coerceIn(
+            com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG,
+            com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG
+        )
         return viewModelScope.launch {
             try {
                 val timeStr = try { getCurrentLocalTimeString() } catch (e: Exception) { "12:00" }

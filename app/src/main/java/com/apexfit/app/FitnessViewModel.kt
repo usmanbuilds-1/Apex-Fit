@@ -226,9 +226,7 @@ class FitnessViewModel(
             trainVM.cancelActiveWorkout()
             try {
                 withContext(Dispatchers.IO) {
-                    db.withTransaction {
-                        db.clearAllTables()
-                    }
+                    db.clearAllTables()
                     dataStore.clearAllData()
                     com.apexfit.app.utils.SeedService.seed(getApplication())
                     trainVM.seedDefaultWorkoutPlan()

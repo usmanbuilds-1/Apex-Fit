@@ -22,7 +22,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt
 
 private fun buildRepository(context: Context): com.apexfit.app.data.repository.FitnessRepositoryImpl {
     val db = com.apexfit.app.data.AppDatabase.getDatabase(context)
@@ -42,6 +41,17 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
         val title = inputData.getString("title") ?: "Apex Fit Update"
         val body = inputData.getString("body") ?: "Open your coach file to view updates."
         val id = inputData.getString("id") ?: "apex_notification"
+        val today = com.apexfit.app.utils.getTodayDateString()
+        if (id == "midday_protein") {
+            val dao = buildDao(applicationContext)
+            val todayProtein = dao.getNutritionForDate(today).sumOf { it.protein }
+            if (todayProtein >= 75.0) return Result.success()
+        }
+        if (id == "streak_at_risk") {
+            val dao = buildDao(applicationContext)
+            val hasLoggedToday = dao.getNutritionForDate(today).isNotEmpty()
+            if (hasLoggedToday) return Result.success()
+        }
 
         val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "apex_fitness_coaching"
@@ -58,7 +68,7 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
         val deepLink = when (id) {
             "weekly_report", "plateau_confirmed" -> "apexfit://screen/progress"
             "streak_at_risk" -> "apexfit://screen/train"
-            "midday_protein_check" -> "apexfit://screen/nutrition"
+            "midday_protein" -> "apexfit://screen/nutrition"
             else -> "apexfit://screen/home"
         }
         val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(deepLink))

@@ -28,7 +28,7 @@ object WorkoutActiveNotification {
 
     fun show(context: Context, sessionName: String, elapsedMinutes: Int) {
         val intent = Intent(context, MainActivity::class.java).apply {
-            action = "apexfit://screen/train"
+            data = android.net.Uri.parse("apexfit://screen/train")
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pi = PendingIntent.getActivity(

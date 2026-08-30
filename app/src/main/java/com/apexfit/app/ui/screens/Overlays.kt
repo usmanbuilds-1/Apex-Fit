@@ -144,6 +144,7 @@ fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: Train
     val reps by trainViewModel.rirSelectorReps.collectAsStateWithLifecycle()
     val exerciseHistory by trainViewModel.rirHistoricalSets.collectAsStateWithLifecycle()
     val isShowingHistory by trainViewModel.isShowingRirHistory.collectAsStateWithLifecycle()
+    val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val currentPage = if (isShowingHistory) 1 else 0
 
     Box(
@@ -184,7 +185,7 @@ fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: Train
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Text(
-                        text = "LOGGED: $weight ${fitnessViewModel.units} × $reps reps",
+                        text = "LOGGED: $weight $units × $reps reps",
                         style = MaterialTheme.typography.bodyMedium,
                         color = PrimaryText,
                         fontWeight = FontWeight.Bold
@@ -264,7 +265,7 @@ fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: Train
                                         fontSize = 12.sp
                                     )
                                     Text(
-                                        text = "${session.weight} ${fitnessViewModel.units} × ${session.reps}",
+                                        text = "${session.weight} $units × ${session.reps}",
                                         color = PrimaryText,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
@@ -299,6 +300,7 @@ fun SessionCompleteOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: T
     val brokenPRs by trainViewModel.completedPRsBroken.collectAsStateWithLifecycle()
     val hypertrophyScore by trainViewModel.completedHypertrophyScore.collectAsStateWithLifecycle()
     val sessionStats by trainViewModel.completedStats.collectAsStateWithLifecycle()
+    val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val sessionDuration = sessionStats.first
 
     val totalVolume = sessionSets.filter { !it.isWarmup }.sumOf { it.weight * it.reps }
@@ -356,7 +358,7 @@ fun SessionCompleteOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: T
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem(label = "VOLUME", value = "${totalVolume.roundToInt()} ${fitnessViewModel.units}")
+                    StatItem(label = "VOLUME", value = "${totalVolume.roundToInt()} $units")
                     StatItem(label = "HYPERTROPHY", value = "${(hypertrophyScore).roundToInt()}")
                 }
 

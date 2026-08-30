@@ -18,6 +18,10 @@ object DateTimeUtils {
     fun todayDateString(): String = synchronized(DATE_FORMAT) { DATE_FORMAT.format(Date()) }
 }
 
+fun getTodayDateString(): String {
+    return DateTimeUtils.todayDateString()
+}
+
 fun getCurrentDate(): String {
     return DateTimeUtils.todayDateString()
 }
