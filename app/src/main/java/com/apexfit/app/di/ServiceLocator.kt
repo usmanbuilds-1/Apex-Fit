@@ -30,7 +30,7 @@ object ServiceLocator {
         _appContext = context.applicationContext
     }
 
-    private val appScope get() = _appScope
+    val appScope get() = _appScope
         ?: error("appScope not set — call ServiceLocator.setAppScope() in Application.onCreate()")
 
     private val appContext get() = _appContext
@@ -116,6 +116,7 @@ object ServiceLocator {
 
     fun reset() {
         synchronized(this) {
+            database?.close()
             database = null
             dataStore = null
             repository = null

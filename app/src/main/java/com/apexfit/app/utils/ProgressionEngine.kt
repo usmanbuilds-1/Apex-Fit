@@ -72,13 +72,13 @@ object ProgressionEngine {
         }
         
         // Round to nearest 2.5 of the preferred unit to maintain accuracy
-        val result = if (preferredUnits.lowercase() == "lbs") {
+        val result = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
             (startWeight * AppConstants.KG_TO_LBS).roundToNearest2_5() / AppConstants.KG_TO_LBS
         } else {
             startWeight.roundToNearest2_5()
         }
         
-        return if (preferredUnits.lowercase() == "lbs") result * AppConstants.KG_TO_LBS else result
+        return if (preferredUnits.lowercase() in listOf("lb", "lbs")) result * AppConstants.KG_TO_LBS else result
     }
 
 enum class OutcomeType { SUCCESS, PROGRESSING, STALLED, PLATEAU }

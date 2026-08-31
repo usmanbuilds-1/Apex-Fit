@@ -12,6 +12,7 @@ import com.apexfit.app.data.WeightEntry
 import com.apexfit.app.ui.models.*
 import com.apexfit.app.utils.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -236,11 +237,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return com.apexfit.app.utils.DateTimeUtils.todayDateString()
     }
 
-    private fun getCurrentLocalTimeString(): String {
-        return android.text.format.DateFormat.getTimeFormat(getApplication()).format(java.util.Date())
-    }
+    private fun getCurrentLocalTimeString(): String =
+        java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
 
     public override fun onCleared() {
         super.onCleared()
+        viewModelScope.cancel()
     }
 }

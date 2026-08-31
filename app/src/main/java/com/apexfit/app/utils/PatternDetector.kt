@@ -115,7 +115,16 @@ object PatternDetector {
         proteinTarget: Double
     ): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
-        val nutritionMap = nutritionLog.associateBy { it.date }
+        val nutritionMap = nutritionLog
+            .groupBy { it.date }
+            .mapValues { (_, entries) ->
+                entries.first().copy(
+                    calories = entries.sumOf { it.calories },
+                    protein  = entries.sumOf { it.protein },
+                    carbs    = entries.sumOf { it.carbs },
+                    fat      = entries.sumOf { it.fat }
+                )
+            }
         val pairs = mutableListOf<Pair<Double, Int>>()
 
         trainingLog.filter { it.completed && it.sessionFeel > 0 }.forEach { session ->
@@ -163,7 +172,16 @@ object PatternDetector {
         val patterns = mutableListOf<DetectedPattern>()
         if (weightLog.size < 10 || nutritionLog.size < 10) return patterns
 
-        val nutritionMap = nutritionLog.associateBy { it.date }
+        val nutritionMap = nutritionLog
+            .groupBy { it.date }
+            .mapValues { (_, entries) ->
+                entries.first().copy(
+                    calories = entries.sumOf { it.calories },
+                    protein  = entries.sumOf { it.protein },
+                    carbs    = entries.sumOf { it.carbs },
+                    fat      = entries.sumOf { it.fat }
+                )
+            }
         val trendData = AlgorithmEngine.calcTrendWeight(weightLog)
         val trendMap = trendData.associateBy { it.date }
         val weightChangePairs = mutableListOf<Pair<Int, Double>>()

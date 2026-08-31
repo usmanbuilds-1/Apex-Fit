@@ -39,6 +39,7 @@ class TrainViewModelTest {
             .build()
         testDb = db
         AppDatabase.setTestDatabase(db)
+        com.apexfit.app.di.ServiceLocator.setDatabase(db)
     }
 
     @After

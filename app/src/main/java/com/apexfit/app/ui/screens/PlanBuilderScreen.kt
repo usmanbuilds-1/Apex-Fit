@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -124,7 +125,7 @@ fun PlanBuilderScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack, modifier = Modifier.testTag("back_button")) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
                             tint = Color.White
                         )
@@ -134,11 +135,11 @@ fun PlanBuilderScreen(
                     TextButton(
                         onClick = {
                             if (isSaving) return@TextButton
-                            isSaving = true
                             if (planName.isBlank()) {
                                 Toast.makeText(context, context.getString(R.string.plan_builder_plan_name_cannot_be_empty), Toast.LENGTH_SHORT).show()
                                 return@TextButton
                             }
+                            isSaving = true
                             val planId = activePlan?.id ?: 1L
                             val finalPlan = WorkoutPlan(
                                 id = planId,

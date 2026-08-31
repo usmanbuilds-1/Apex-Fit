@@ -525,10 +525,10 @@ private fun DrawScope.drawTrapezius(w: Float, h: Float, cp: Pair<Color, Float>) 
         moveTo(w * 0.352f, h * 0.163f)
         lineTo(w * 0.500f, h * 0.200f)
         lineTo(w * 0.648f, h * 0.163f)
-        quadraticBezierTo(w * 0.690f, h * 0.215f, w * 0.635f, h * 0.290f)
+        quadraticTo(w * 0.690f, h * 0.215f, w * 0.635f, h * 0.290f)
         lineTo(w * 0.500f, h * 0.268f)
         lineTo(w * 0.365f, h * 0.290f)
-        quadraticBezierTo(w * 0.310f, h * 0.215f, w * 0.352f, h * 0.163f)
+        quadraticTo(w * 0.310f, h * 0.215f, w * 0.352f, h * 0.163f)
         close()
     }
     drawPath(path, cp.first.copy(alpha = cp.second))
@@ -539,14 +539,14 @@ private fun DrawScope.drawLat(w: Float, h: Float, isLeft: Boolean, cp: Pair<Colo
     val path = Path().apply {
         if (isLeft) {
             moveTo(w * 0.295f, h * 0.222f)
-            quadraticBezierTo(w * 0.228f, h * 0.285f, w * 0.315f, h * 0.385f)
+            quadraticTo(w * 0.228f, h * 0.285f, w * 0.315f, h * 0.385f)
             lineTo(w * 0.395f, h * 0.428f)
-            quadraticBezierTo(w * 0.425f, h * 0.325f, w * 0.375f, h * 0.222f)
+            quadraticTo(w * 0.425f, h * 0.325f, w * 0.375f, h * 0.222f)
         } else {
             moveTo(w * 0.705f, h * 0.222f)
-            quadraticBezierTo(w * 0.772f, h * 0.285f, w * 0.685f, h * 0.385f)
+            quadraticTo(w * 0.772f, h * 0.285f, w * 0.685f, h * 0.385f)
             lineTo(w * 0.605f, h * 0.428f)
-            quadraticBezierTo(w * 0.575f, h * 0.325f, w * 0.625f, h * 0.222f)
+            quadraticTo(w * 0.575f, h * 0.325f, w * 0.625f, h * 0.222f)
         }
         close()
     }

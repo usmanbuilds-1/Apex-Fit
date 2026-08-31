@@ -10,6 +10,7 @@ import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import com.apexfit.app.ui.models.*
 import com.apexfit.app.utils.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -193,5 +194,6 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     public override fun onCleared() {
         super.onCleared()
+        viewModelScope.cancel()
     }
 }

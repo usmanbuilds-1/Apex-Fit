@@ -10,6 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -73,7 +75,8 @@ fun NutritionScreen(
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
 
     val suggestedFromTdee = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES
-    val calorieTarget = if (calorieTargetManual) calorieTargetValue else suggestedFromTdee
+    val calorieTarget = (if (calorieTargetManual) calorieTargetValue else suggestedFromTdee)
+        .coerceAtLeast(1)
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -135,7 +138,7 @@ fun NutritionScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { fitnessViewModel.changeNutritionDate(-1) }) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Prev Day", tint = PrimaryText)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev Day", tint = PrimaryText)
                 }
                 Text(
                     text = selectedDate,
@@ -149,7 +152,7 @@ fun NutritionScreen(
                     enabled = !isToday
                 ) {
                     Icon(
-                        Icons.Filled.ArrowForward,
+                        Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Next Day",
                         tint = if (isToday) SecondaryText else PrimaryText
                     )
@@ -192,14 +195,14 @@ fun NutritionScreen(
                                 val progress = (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f)
                                 
                                 val ringColor = when {
-                                    userGoal.lowercase().contains("cut") -> {
+                                    userGoal == "Lose Fat" -> {
                                         if (loggedCalories <= calorieTarget * 1.05) GreenAccent
                                         else if (loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B) // Amber
                                         else RedAccent
                                     }
-                                    userGoal.lowercase().contains("bulk") -> {
+                                    userGoal == "Gain Muscle" -> {
                                         if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) GreenAccent
-                                        else if (loggedCalories < calorieTarget * 0.85) RedAccent // Under-eating on bulk
+                                        else if (loggedCalories < calorieTarget * 0.85) RedAccent // Under-eating on gain
                                         else Color(0xFFF59E0B) // Significantly over
                                     }
                                     userGoal.lowercase().contains("maintain") -> {
@@ -770,14 +773,14 @@ fun AdaptiveCalorieTargetCard(
                 // ─ HIGH CONFIDENCE ─────────────────────────────────────
                 tdeeResult.confidence == "high" && tdeeResult.tdee != null -> {
                     val suggestedCals = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES
-                    val goalLabel = when (userGoal.lowercase()) {
-                        "bulk" -> "Lean Gain"
-                        "cut" -> "Fat Loss"
+                    val goalLabel = when (userGoal) {
+                        "Gain Muscle" -> "Lean Gain"
+                        "Lose Fat" -> "Fat Loss"
                         else -> "Maintenance"
                     }
-                    val targetCals = when (userGoal.lowercase()) {
-                        "bulk" -> suggestedCals + 300
-                        "cut" -> suggestedCals - 400
+                    val targetCals = when (userGoal) {
+                        "Gain Muscle" -> suggestedCals + 300
+                        "Lose Fat" -> suggestedCals - 400
                         else -> suggestedCals
                     }
 

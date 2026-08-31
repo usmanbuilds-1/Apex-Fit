@@ -26,31 +26,35 @@ object WorkoutActiveNotification {
         }
     }
 
-    fun show(context: Context, sessionName: String, elapsedMinutes: Int) {
-        val intent = Intent(context, MainActivity::class.java).apply {
+    fun buildNotification(context: Context, sessionName: String, elapsedMinutes: Int): android.app.Notification {
+        val intent = Intent(context, com.apexfit.app.MainActivity::class.java).apply {
             data = android.net.Uri.parse("apexfit://screen/train")
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        val pi = PendingIntent.getActivity(
+        val pi = android.app.PendingIntent.getActivity(
             context, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
         val iconRes = try {
             val r = context.resources.getIdentifier("ic_notification", "drawable", context.packageName)
             if (r != 0) r else android.R.drawable.ic_dialog_info
         } catch (e: Exception) { android.R.drawable.ic_dialog_info }
-        
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+
+        return androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(iconRes)
             .setContentTitle("Workout in progress")
             .setContentText("$sessionName · ${elapsedMinutes}m")
             .setContentIntent(pi)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)
             .build()
-        context.getSystemService(NotificationManager::class.java)
-            .notify(NOTIFICATION_ID, notification)
+    }
+
+    fun show(context: Context, sessionName: String, elapsedMinutes: Int) {
+        if (!NotificationEngine.hasNotificationPermission(context)) return
+        context.getSystemService(android.app.NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, buildNotification(context, sessionName, elapsedMinutes))
     }
 
     fun dismiss(context: Context) {

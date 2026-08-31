@@ -1,9 +1,21 @@
 package com.apexfit.app.utils
 
+import android.content.Context
 import java.util.Calendar
 import kotlin.math.roundToInt
 
 object NotificationEngine {
+
+    fun hasNotificationPermission(context: Context): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+        }
+    }
 
     data class NotificationTrigger(
         val id: String,

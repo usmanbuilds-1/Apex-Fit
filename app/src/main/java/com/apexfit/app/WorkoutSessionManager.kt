@@ -215,7 +215,7 @@ class WorkoutSessionManager(
             } else {
                 val daysSince = com.apexfit.app.utils.getDaysBetweenClamped(lastSet.date, today)
 
-                val lastWeightLbs = if (preferredUnits.lowercase() == "lbs") {
+                val lastWeightLbs = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
                     lastSet.weight
                 } else {
                     lastSet.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS
@@ -234,7 +234,7 @@ class WorkoutSessionManager(
                 }.map { s ->  
                         com.apexfit.app.ui.models.UiExerciseSet(  
                             id = s.id,  
-                            weight = if (preferredUnits.lowercase() == "lbs") s.weight else s.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,  
+                            weight = if (preferredUnits.lowercase() in listOf("lb", "lbs")) s.weight else s.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,  
                             reps = s.reps,  
                             rpe = s.rpe,  
                             isWarmup = s.isWarmup,  
@@ -274,7 +274,7 @@ class WorkoutSessionManager(
 
                 val suggestedLbs = progressionResult.newWeight
                 
-                val suggestedPreferred = if (preferredUnits.lowercase() == "lbs") {
+                val suggestedPreferred = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
                     suggestedLbs
                 } else {
                     val converted = suggestedLbs / com.apexfit.app.utils.AppConstants.KG_TO_LBS
@@ -321,14 +321,14 @@ class WorkoutSessionManager(
         persistSession()
 
         val session = _activeSession.value ?: return@withContext
-        com.apexfit.app.utils.WorkoutActiveNotification.show(appContext, session.sessionName, 0)
+        com.apexfit.app.utils.WorkoutForegroundService.start(appContext, session.sessionName, 0)
         workoutNotificationJob?.cancel()
         workoutNotificationJob = scope.launch {
             var minutes = 0
             while (isActive) {
                 delay(60_000)
                 minutes++
-                com.apexfit.app.utils.WorkoutActiveNotification.show(appContext, session.sessionName, minutes)
+                com.apexfit.app.utils.WorkoutForegroundService.start(appContext, session.sessionName, minutes)
             }
         }
         } finally {
@@ -418,10 +418,10 @@ class WorkoutSessionManager(
 
 
     private fun persistSession() {
-        val session = _activeSession.value
         persistJob.value?.cancel()
         persistJob.value = scope.launch {
             delay(500)
+            val session = _activeSession.value
             try {
                 if (session != null) {
                     dataStore.saveActiveSessionJson(gson.toJson(session))
@@ -429,14 +429,15 @@ class WorkoutSessionManager(
                     dataStore.saveActiveSessionJson(null)
                 }
             } catch (e: Exception) {
-                android.util.Log.e("WorkoutSessionManager", "Session persist failed — see exception", e)
+                android.util.Log.e("WorkoutSessionManager", "Session persist failed", e)
             }
         }
     }
 
     fun clearPersistedSession() {
+        persistJob.value?.cancel()
         workoutNotificationJob?.cancel()
-        com.apexfit.app.utils.WorkoutActiveNotification.dismiss(appContext)
+        com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
         scope.launch {
             dataStore.saveActiveSessionJson(null)
         }
@@ -579,7 +580,7 @@ class WorkoutSessionManager(
     /** Called from "Save partial session?" dialog — no path */
     fun discardAndExit() {
         workoutNotificationJob?.cancel()
-        com.apexfit.app.utils.WorkoutActiveNotification.dismiss(appContext)
+        com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
         clearPersistedSession()
     }
 

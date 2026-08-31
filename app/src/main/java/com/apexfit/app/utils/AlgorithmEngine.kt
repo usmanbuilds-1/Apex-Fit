@@ -227,8 +227,9 @@ object AlgorithmEngine {
             .filter { !it.isWarmup }
             .sumOf { it.weight * it.reps }
 
-        val volumeEarlier = trainingLog.filter { it.completed && it.date < cutoff }
-            .sortedByDescending { it.date }.take(windowDays)
+        val earlierCutoff = getDateDaysAgo(windowDays * 2)
+        val volumeEarlier = trainingLog
+            .filter { it.completed && it.date >= earlierCutoff && it.date < cutoff }
             .flatMap { it.exercises }
             .flatMap { it.sets }
             .filter { !it.isWarmup }
@@ -289,9 +290,9 @@ object AlgorithmEngine {
             val avgRPE = session.exercises.flatMap { it.sets }.filter { !it.isWarmup && it.completed }.map { it.rpe }.average().takeIf { !it.isNaN() } ?: 7.0
             val feelModifier = when {
                 session.sessionFeel == 0 -> 1.0
-                session.sessionFeel <= 2 -> 0.6 + (session.sessionFeel - 1) * 0.2
+                session.sessionFeel <= 2 -> 1.4 - (session.sessionFeel - 1) * 0.2   // feel=1→1.4, feel=2→1.2
                 session.sessionFeel == 3 -> 1.0
-                session.sessionFeel <= 5 -> 1.0 + (session.sessionFeel - 3) * 0.2
+                session.sessionFeel <= 5 -> 1.0 - (session.sessionFeel - 3) * 0.2   // feel=4→0.8, feel=5→0.6
                 else -> 1.0
             }
             Pair(session.date, totalSets.toDouble() * (avgRPE / 7.0) * feelModifier)

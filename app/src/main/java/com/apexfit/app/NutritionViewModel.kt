@@ -9,6 +9,7 @@ import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import com.apexfit.app.ui.models.*
 import com.apexfit.app.utils.*
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -97,11 +98,11 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         return com.apexfit.app.utils.DateTimeUtils.todayDateString()
     }
 
-    private fun getCurrentLocalTimeString(): String {
-        return android.text.format.DateFormat.getTimeFormat(getApplication()).format(java.util.Date())
-    }
+    private fun getCurrentLocalTimeString(): String =
+        java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
 
     public override fun onCleared() {
         super.onCleared()
+        viewModelScope.cancel()
     }
 }

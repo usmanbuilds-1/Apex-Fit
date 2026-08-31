@@ -253,7 +253,10 @@ interface FitnessDao {
     suspend fun getLastWeightForExercise(exerciseId: String): Double?
 
     @Query("""
-        SELECT es.*, ts.date as date 
+        SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
+               es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
+               es.restTaken, es.completed, es.repsInReserve,
+               ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
         WHERE es.exerciseId = :exerciseId AND es.completed = 1
@@ -343,7 +346,10 @@ interface FitnessDao {
     suspend fun getRecentExerciseSets(cutoffDate: String): List<ExerciseSet>
 
     @Query("""
-        SELECT es.*, ts.date as date 
+        SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
+               es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
+               es.restTaken, es.completed, es.repsInReserve,
+               ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
         WHERE es.exerciseId = :exerciseId AND es.rpe = :rpe AND es.completed = 1

@@ -4,9 +4,9 @@ package com.apexfit.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.room.withTransaction
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
@@ -30,11 +30,21 @@ class FitnessViewModel(
     private val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(application)
     private val repository = com.apexfit.app.di.ServiceLocator.repository(application)
 
-    // Specialized ViewModels linked from outside
-    val homeVM: HomeViewModel = HomeViewModel(application)
-    val trainVM: TrainViewModel = TrainViewModel(application)
-    val progressVM: ProgressViewModel = ProgressViewModel(application)
-    val nutritionVM: NutritionViewModel = NutritionViewModel(application)
+    private val childStore = ViewModelStore()
+    private val childFactory = ViewModelProvider.AndroidViewModelFactory(application)
+
+    val homeVM: HomeViewModel by lazy {
+        ViewModelProvider(childStore, childFactory)[HomeViewModel::class.java]
+    }
+    val trainVM: TrainViewModel by lazy {
+        ViewModelProvider(childStore, childFactory)[TrainViewModel::class.java]
+    }
+    val progressVM: ProgressViewModel by lazy {
+        ViewModelProvider(childStore, childFactory)[ProgressViewModel::class.java]
+    }
+    val nutritionVM: NutritionViewModel by lazy {
+        ViewModelProvider(childStore, childFactory)[NutritionViewModel::class.java]
+    }
 
     // User preferences & onboarding State (Expose from preferences)
     val isOnboarded = dataStore.isOnboardedFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -244,10 +254,7 @@ class FitnessViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        homeVM.onCleared()
-        trainVM.onCleared()
-        progressVM.onCleared()
-        nutritionVM.onCleared()
+        childStore.clear()
     }
 
     private fun getTodayDateString(): String {

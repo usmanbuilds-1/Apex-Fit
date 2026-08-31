@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import androidx.room.withTransaction
 import android.content.Intent
 import androidx.core.content.ContextCompat
@@ -39,13 +40,13 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     val sessionManager = WorkoutSessionManager(
         repository = repository,
         dataStore = dataStore,
-        scope = viewModelScope,
+        scope = com.apexfit.app.di.ServiceLocator.appScope,
         dao = dao,
         appContext = getApplication()
     )
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
                 val existing = dao.getAllPlans()
                 if (existing.isEmpty()) {
@@ -90,6 +91,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     val planBuilderSessions = MutableStateFlow<List<PlanSession>>(emptyList())
     val planBuilderExercises = MutableStateFlow<List<PlanExercise>>(emptyList())
     private val _isInitialized = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val isCommitting = java.util.concurrent.atomic.AtomicBoolean(false)
     val isInitialized: Boolean get() = _isInitialized.get()
 
     fun initializePlanBuilder(plan: WorkoutPlan?, sessions: List<PlanSession>, exercises: List<PlanExercise>) {
@@ -420,6 +422,8 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         _warmupCompleted.value = _warmupCompleted.value.mapValues { false }
         lastCompletedSetPointer = null
 
+        com.apexfit.app.utils.WorkoutForegroundService.start(getApplication(), planSession.label)
+
         viewModelScope.launch {
             val exercises = dao.getExercisesForSession(planSession.id)
             sessionManager.startSession(
@@ -433,6 +437,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelActiveWorkout() {
+        com.apexfit.app.utils.WorkoutForegroundService.stop(getApplication())
         restTimerJob?.cancel()
         restTimerJob = null
         _isRestTimerActive.value = false
@@ -675,6 +680,8 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun finishWorkoutSession(sessionFeel: Int = 4) {
+        if (!isCommitting.compareAndSet(false, true)) return
+        com.apexfit.app.utils.WorkoutForegroundService.stop(getApplication())
         viewModelScope.launch {
             _saveError.value = null
             val session = sessionManager.activeSession.value
@@ -726,8 +733,10 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 _showSessionCompleteScreen.value = true
+                isCommitting.set(false)
             } catch (e: Exception) {
                 _saveError.value = "Failed to save workout: ${e.localizedMessage}"
+                isCommitting.set(false)
             }
         }
     }
@@ -768,6 +777,8 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun savePartialAndExit(sessionFeel: Int) {
+        if (!isCommitting.compareAndSet(false, true)) return
+        com.apexfit.app.utils.WorkoutForegroundService.stop(getApplication())
         viewModelScope.launch {
             _saveError.value = null
             val session = sessionManager.activeSession.value
@@ -804,8 +815,10 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
                 generateWorkoutSessionHypertrophyQualityScore(completedSets)
                 _showSessionCompleteScreen.value = true
+                isCommitting.set(false)
             } catch (e: Exception) {
                 _saveError.value = "Failed to save partial workout: ${e.localizedMessage}"
+                isCommitting.set(false)
             }
         }
     }
@@ -921,5 +934,6 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     public override fun onCleared() {
         super.onCleared()
+        viewModelScope.cancel()
     }
 }
