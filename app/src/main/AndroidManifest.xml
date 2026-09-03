@@ -5,7 +5,10 @@
     <!-- Required runtime / system permissions used by the app -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
-    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <!-- Required for FGS type=health on API 34+.
+         Protection level: normal — granted at install.
+         No sensor data is actually accessed. -->
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -65,6 +68,9 @@
 
         <receiver android:name=".utils.RestTimerAlarmReceiver" android:exported="false" />
 
+        <!-- health type: this service runs during active workout sessions
+             to prevent OOM kill. HIGH_SAMPLING_RATE_SENSORS satisfies
+             the API 34 health-permission prerequisite. -->
         <service
             android:name=".utils.WorkoutForegroundService"
             android:foregroundServiceType="health"

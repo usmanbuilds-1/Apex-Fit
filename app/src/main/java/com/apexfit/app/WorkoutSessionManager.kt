@@ -195,8 +195,13 @@ class WorkoutSessionManager(
             null
         }
 
+        val ids = exercises.map { exerciseNameToSlug(it.name) }
+        val lastSets = dao.getLastSetsForExercises(ids)
+            .groupBy { it.exerciseId }
+            .mapValues { it.value.first() }
+
         exercises.forEach { ex ->
-            val lastSet = repository.getLastSetForExercise(exerciseNameToSlug(ex.name))
+            val lastSet = lastSets[exerciseNameToSlug(ex.name)]
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
@@ -210,16 +215,12 @@ class WorkoutSessionManager(
                 )
 
                 suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
-                lastWeightMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
+                lastWeightMap[exerciseNameToSlug(ex.name)] = if (preferredUnits.lowercase() in listOf("lb", "lbs")) suggestedPreferred / 2.20462 else suggestedPreferred
                 contextLinesMap[exerciseNameToSlug(ex.name)] = "First session suggestion (Beginner Base): $suggestedPreferred $preferredUnits"
             } else {
                 val daysSince = com.apexfit.app.utils.getDaysBetweenClamped(lastSet.date, today)
 
-                val lastWeightLbs = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
-                    lastSet.weight
-                } else {
-                    lastSet.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                }
+                val lastWeightLbs = lastSet.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS
 
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
@@ -234,7 +235,7 @@ class WorkoutSessionManager(
                 }.map { s ->  
                         com.apexfit.app.ui.models.UiExerciseSet(  
                             id = s.id,  
-                            weight = if (preferredUnits.lowercase() in listOf("lb", "lbs")) s.weight else s.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,  
+                            weight = if (preferredUnits.lowercase() in listOf("lb", "lbs")) s.weight * 2.20462 else s.weight,  
                             reps = s.reps,  
                             rpe = s.rpe,  
                             isWarmup = s.isWarmup,  
@@ -284,7 +285,12 @@ class WorkoutSessionManager(
                 suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
                 lastWeightMap[exerciseNameToSlug(ex.name)] = lastSet.weight
                 val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
-                contextLinesMap[exerciseNameToSlug(ex.name)] = "Last: ${lastSet.weight} $preferredUnits @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $preferredUnits. Outcome: ${progressionResult.reason}"
+                val lastWeightDisplay = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
+                    Math.round(lastSet.weight * 2.20462 * 10.0) / 10.0
+                } else {
+                    lastSet.weight
+                }
+                contextLinesMap[exerciseNameToSlug(ex.name)] = "Last: $lastWeightDisplay $preferredUnits @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $preferredUnits. Outcome: ${progressionResult.reason}"
             }
         }
 
@@ -306,7 +312,8 @@ class WorkoutSessionManager(
                         rpe = 7,               // Default — user must set this
                         isWarmup = false,
                         restTakenSeconds = 0,
-                        completed = false
+                        completed = false,
+                        weightUnit = preferredUnits
                     )
                 }.toMutableList()
             )
@@ -400,6 +407,7 @@ class WorkoutSessionManager(
         val suggestedWeight = lastSet?.weight ?: 50.0
         val suggestedReps = lastSet?.reps ?: 10
         val suggestedRpe = lastSet?.rpe ?: 7
+        val suggestedWeightUnit = lastSet?.weightUnit ?: "kg"
         exercise.sets.add(
             ActiveSet(
                 setNumber = newSetNum,
@@ -408,7 +416,8 @@ class WorkoutSessionManager(
                 rpe = suggestedRpe,
                 isWarmup = false,
                 restTakenSeconds = 0,
-                completed = false
+                completed = false,
+                weightUnit = suggestedWeightUnit
             )
         )
         // Trigger StateFlow emission with a completely new reference and nested elements
@@ -478,7 +487,8 @@ class WorkoutSessionManager(
      */
     suspend fun commitToDatabase(
         sessionFeel: Int,
-        completedSetsOnly: Boolean = true
+        completedSetsOnly: Boolean = true,
+        isPartial: Boolean = false
     ): SessionCommitResult = withContext(Dispatchers.IO) {
 
         val session = _activeSession.value
@@ -499,14 +509,17 @@ class WorkoutSessionManager(
                         exerciseId = exercise.exerciseId,
                         exerciseName = exercise.exerciseName,
                         muscleGroup = exercise.muscleGroup,
-                        weight = activeSet.weight,
+                        weight = if (activeSet.weightUnit.lowercase() in listOf("lb", "lbs"))
+                            activeSet.weight / 2.20462
+                        else activeSet.weight,
                         reps = activeSet.reps,
                         rpe = activeSet.rpe,
                         isWarmup = activeSet.isWarmup,
                         restTaken = activeSet.restTakenSeconds,
                         completed = activeSet.completed,
                         repsInReserve = activeSet.repsInReserve,
-                        effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(activeSet.rpe)
+                        effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(activeSet.rpe),
+                        weightUnit = "kg"
                     )
                 }
         }
@@ -519,7 +532,7 @@ class WorkoutSessionManager(
             durationMinutes = durationMinutes,
             sessionFeel = sessionFeel.coerceIn(1, 5),
             planSessionId = session.planSessionId.toLongOrNull(),
-            status = if (completedSetsOnly) "completed" else "partial",
+            status = if (isPartial) "partial" else "completed",
             readinessScoreAtStart = session.readinessScore,
             notes = session.notes,
             startedAt = session.startTime,
@@ -574,7 +587,11 @@ class WorkoutSessionManager(
 
     /** Called from "Save partial session?" dialog — yes path */
     suspend fun savePartialAndExit(sessionFeel: Int): SessionCommitResult {
-        return commitToDatabase(sessionFeel, completedSetsOnly = true)
+        return commitToDatabase(
+            sessionFeel,
+            completedSetsOnly = true,
+            isPartial = true
+        )
     }
 
     /** Called from "Save partial session?" dialog — no path */

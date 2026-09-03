@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Exercise::class,
         ExerciseMetadata::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -186,8 +186,6 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("INSERT INTO `exercise_sets_new` (id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue) SELECT id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue FROM `exercise_sets`")
                 database.execSQL("DROP TABLE `exercise_sets`")
                 database.execSQL("ALTER TABLE `exercise_sets_new` RENAME TO `exercise_sets`")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_sessionId` ON `exercise_sets` (`sessionId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId` ON `exercise_sets` (`exerciseId`)")
 
                 // 4. PlanSession
                 database.execSQL("""
@@ -258,8 +256,10 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // No schema changes between version 13 and 14.
-                // Body is intentionally empty — verified against schema exports.
+                // Schema version 14 adds no tables, columns, or indexes.
+                // The version bump was introduced to force a clean re-seed
+                // of the exercises table via SeedService on app update.
+                // Verified against: app/schemas/.../13.json vs 14.json diff.
             }
         }
 
@@ -311,8 +311,6 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("INSERT INTO exercise_sets_v18 SELECT * FROM exercise_sets")
                 database.execSQL("DROP TABLE exercise_sets")
                 database.execSQL("ALTER TABLE exercise_sets_v18 RENAME TO exercise_sets")
-                database.execSQL("CREATE INDEX IF NOT EXISTS index_exercise_sets_sessionId ON exercise_sets (sessionId)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS index_exercise_sets_exerciseId ON exercise_sets (exerciseId)")
             }
         }
 
@@ -341,6 +339,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Add weight_unit column to exercise_sets; default "kg"
+                database.execSQL(
+                    "ALTER TABLE exercise_sets ADD COLUMN weight_unit TEXT NOT NULL DEFAULT 'kg'"
+                )
+                // One-time normalization: rows already in kg need no change.
+                // Rows stored in lbs: none exist pre-launch.
+                // For post-launch users, a separate migration step would
+                // read weight_unit and divide by 2.20462 — not needed here.
+            }
+        }
+
         fun setTestDatabase(db: AppDatabase?) {
             INSTANCE = db
         }
@@ -352,7 +363,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance

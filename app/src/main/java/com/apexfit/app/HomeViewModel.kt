@@ -39,7 +39,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .map { list -> list.map { com.apexfit.app.utils.WeightEntry(it.date, it.weight) } }
         .flowOn(Dispatchers.IO)
 
-    private val nutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> = dao.getAllNutritionEntriesFlow()
+    private val nutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> = dao.getNutritionEntriesSince(getDateDaysAgo(30))
         .map { list ->
             list.map {
                 com.apexfit.app.utils.NutritionEntry(
@@ -53,14 +53,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         .flowOn(Dispatchers.IO)
 
-    val targetsFlow: Flow<com.apexfit.app.utils.NutritionTargets> = combine(
-        dataStore.calorieTargetValueFlow,
-        weightFlow,
-        dataStore.goalFlow
-    ) { calorieTarget, weights, goal ->
-        val latestWeight = weights.maxByOrNull { it.date }?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-        AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, goal)
-    }.flowOn(Dispatchers.IO)
+    val targetsFlow: Flow<com.apexfit.app.data.NutritionTargets> =
+        com.apexfit.app.di.ServiceLocator.sharedTargetsFlow
 
     val richSessionsFlow: Flow<List<com.apexfit.app.utils.TrainingSession>> =
         com.apexfit.app.di.ServiceLocator.richSessionsFlow

@@ -39,10 +39,6 @@ object AudioService {
         }
     }
 
-    suspend fun playMusicSynthNote() {
-        // Confirmed unused as of Phase 2 audit. Callers: none.
-    }
-
     suspend fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int, usage: Int = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType: Int = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION) {
         audioMutex.withLock {
             try {

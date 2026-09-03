@@ -356,46 +356,9 @@ fun NutritionScreen(
             }
         }
 
-        // Protein Timing targets 4 circles
+        // Protein Timing
         item {
-            val validMeals = if (loggedProtein >= 30.0) 1 else 0 // dynamic check based on mock logs
-            PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "PROTEIN SYNTHESIS FREQUENCY TIMING",
-                    fontFamily = SyneFamily,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryText,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-                Text(
-                    text = "Consume at least 30g protein every 3-4 hours to trigger muscle protein synthesis (MPS) spikes efficiently.",
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 11.sp,
-                    color = SecondaryText,
-                    modifier = Modifier.padding(bottom = 14.dp)
-                )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    (1..4).forEach { i ->
-                        val isHit = validMeals >= i || (i == 1 && loggedProtein > 45) // mock indicators for completeness
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(if (isHit) GreenAccent else BorderSubtle),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "MPS $i",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                color = if (isHit) Color(0xFF0A0A0F) else PrimaryText
-                            )
-                        }
-                    }
-                }
-            }
+            ProteinTimingCard(todayEntries = visibleMeals)
         }
 
         item {
@@ -892,4 +855,61 @@ fun AdaptiveCalorieTargetCard(
         }
     }
 }
+
+@Composable
+fun ProteinTimingCard(todayEntries: List<com.apexfit.app.ui.models.UiNutritionEntry>) {
+    val preWorkoutProtein = todayEntries
+        .filter { it.time >= "06:00" && it.time < "12:00" }
+        .sumOf { it.protein }
+    val postWorkoutProtein = todayEntries
+        .filter { it.time >= "12:00" && it.time < "16:00" }
+        .sumOf { it.protein }
+    val eveningProtein = todayEntries
+        .filter { it.time >= "20:00" }
+        .sumOf { it.protein }
+
+    val tip = when {
+        postWorkoutProtein < 20 -> "Log a post-workout meal with 20+ g protein"
+        eveningProtein > 50     -> "Consider spreading evening protein across earlier meals"
+        preWorkoutProtein < 10  -> "A small protein source before training may help"
+        else                    -> "Good protein distribution today"
+    }
+
+    PremiumCard(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "PROTEIN TIMING & DISTRIBUTION",
+            fontFamily = SyneFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryText,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Text(
+            text = tip,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 11.sp,
+            color = SecondaryText,
+            modifier = Modifier.padding(bottom = 14.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text("06:00-12:00", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = MutedText)
+                Text("${preWorkoutProtein.roundToInt()}g", fontFamily = SyneFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+            }
+            Column {
+                Text("12:00-16:00", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = MutedText)
+                Text("${postWorkoutProtein.roundToInt()}g", fontFamily = SyneFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+            }
+            Column {
+                Text("20:00+", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = MutedText)
+                Text("${eveningProtein.roundToInt()}g", fontFamily = SyneFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+            }
+        }
+    }
+}
+
 

@@ -1092,7 +1092,16 @@ fun WorkoutExecutionSubTab(
                                         decorationBox = { innerTextField ->
                                             Box(contentAlignment = Alignment.CenterStart) {
                                                 if (rawWeight.isEmpty()) {
-                                                    val suggested = lastWeights[ex.exerciseId] ?: ex.weight
+                                                    val rawSuggested = lastWeights[ex.exerciseId]
+                                                    val suggested = if (rawSuggested != null) {
+                                                        if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
+                                                            Math.round(rawSuggested * 2.20462 * 10.0) / 10.0
+                                                        } else {
+                                                            rawSuggested
+                                                        }
+                                                    } else {
+                                                        ex.weight
+                                                    }
                                                     Text(
                                                         text = "${suggested} $preferredUnits",
                                                         color = MutedText,

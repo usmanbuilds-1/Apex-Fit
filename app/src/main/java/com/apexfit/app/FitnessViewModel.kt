@@ -81,15 +81,29 @@ class FitnessViewModel(
         savedStateHandle["current_tab"] = tab
     }
 
-    fun completeOnboarding(username: String, goal: String, currentWeight: Double, goalWeight: Double, height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM, age: Int = com.apexfit.app.UserDefaults.AGE_YEARS, sex: String = "male") {
-        val validWeight    = currentWeight.coerceIn(20.0, 500.0)
-        val validGoalWeight = goalWeight.coerceIn(20.0, 500.0)
-        val validHeight    = height.coerceIn(100.0, 250.0)
+    fun completeOnboarding(
+        username: String,
+        goal: String,
+        currentWeight: Double,
+        goalWeight: Double,
+        height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM,
+        age: Int = com.apexfit.app.UserDefaults.AGE_YEARS,
+        sex: String = "male",
+        units: String = "kg"
+    ) {
+        val isImperial = units.lowercase() in listOf("lb", "lbs")
+        val weightKg = if (isImperial) currentWeight / 2.20462 else currentWeight
+        val goalKg   = if (isImperial) goalWeight / 2.20462   else goalWeight
+        val heightCm = if (isImperial) height * 2.54           else height
+        val validWeight     = weightKg.coerceIn(20.0, 500.0)
+        val validGoalWeight = goalKg.coerceIn(20.0, 500.0)
+        val validHeight     = heightCm.coerceIn(100.0, 250.0)
         val validAge       = age.coerceIn(13, 100)
         val validGoal      = if (goal in listOf("Gain Muscle", "Lose Fat", "Maintain")) goal else "Maintain"
         val validName      = username.trim().take(50).ifEmpty { "Athlete" }
         viewModelScope.launch {
             dataStore.saveOnboardingData(validName, validGoal, validWeight, validGoalWeight, validHeight, validAge, sex)
+            dataStore.saveUnits(units)
         }
     }
 

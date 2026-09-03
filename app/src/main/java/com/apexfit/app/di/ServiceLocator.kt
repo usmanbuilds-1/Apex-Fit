@@ -11,11 +11,17 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import com.apexfit.app.data.RichTrainingSession
+import com.apexfit.app.data.NutritionTargets
 import com.apexfit.app.utils.SessionMapper
 import com.apexfit.app.utils.getDateDaysAgo
 import com.apexfit.app.ui.models.UiSessionReadiness
 import com.apexfit.app.ui.models.toUi
 import kotlin.math.roundToInt
+import com.apexfit.app.utils.AlgorithmEngine
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.Dispatchers
 
 object ServiceLocator {
     @Volatile private var database: AppDatabase? = null
@@ -91,6 +97,23 @@ object ServiceLocator {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = null
         )
+    }
+
+    val sharedTargetsFlow: Flow<NutritionTargets> by lazy {
+        val dao = database(appContext).fitnessDao()
+        val ds = dataStore(appContext)
+        val weightFlow = dao.getAllWeightEntriesFlow()
+            .flowOn(Dispatchers.IO)
+        combine(
+            ds.calorieTargetManualFlow,
+            ds.calorieTargetValueFlow,
+            ds.goalFlow,
+            weightFlow
+        ) { isManual, manualCals, goal, weights ->
+            val latestWeight = weights.maxByOrNull { it.date }?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+            val calories = manualCals
+            AlgorithmEngine.calcMacroTargets(calories, latestWeight, goal)
+        }.flowOn(Dispatchers.IO).shareIn(appScope, SharingStarted.Lazily, 1)
     }
 
     fun database(context: Context): AppDatabase =

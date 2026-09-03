@@ -52,7 +52,7 @@ class TrainViewModelTest {
     }
 
     @Test
-    fun addCustomExercise_insertsExerciseRowWhenNameIsNew() = runTest {
+    fun addCustomExercise_insertsExerciseRowWhenNameIsNew() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()
 
@@ -98,7 +98,7 @@ class TrainViewModelTest {
     }
 
     @Test
-    fun activatePlan_updatesActiveStatus() = runTest {
+    fun activatePlan_updatesActiveStatus() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()
 

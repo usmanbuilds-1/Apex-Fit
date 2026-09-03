@@ -75,7 +75,6 @@ android {
   lint {
     abortOnError = true
     checkReleaseBuilds = false
-    disable.add("MissingTranslation")
   }
   sourceSets {
     getByName("test").assets.srcDirs(files("$projectDir/schemas"))

@@ -126,7 +126,8 @@ data class ExerciseSet(
     val restTaken: Int = 0,
     val completed: Boolean,
     val repsInReserve: Int = 2,
-    val effectiveSetValue: Double = 0.0
+    val effectiveSetValue: Double = 0.0,
+    @ColumnInfo(name = "weight_unit") val weightUnit: String = "kg"
 ) {
     constructor(weight: Double, reps: Int, rpe: Int = 7, isWarmup: Boolean = false, completed: Boolean = true) : this(
         id = 0,
@@ -141,7 +142,8 @@ data class ExerciseSet(
         restTaken = 0,
         completed = completed,
         repsInReserve = 2,
-        effectiveSetValue = 0.0
+        effectiveSetValue = 0.0,
+        weightUnit = "kg"
     )
 }
 
@@ -315,7 +317,8 @@ data class ActiveSet(
     val restTakenSeconds: Int = 0,
     val completedAt: Long = 0L,
     val completed: Boolean = false,
-    val repsInReserve: Int = 2
+    val repsInReserve: Int = 2,
+    val weightUnit: String = "kg"
 )
 
 data class ActiveExercise(
@@ -424,7 +427,13 @@ data class UserIntelligenceProfile(
 data class StreakInfo(val current: Int, val max: Int = 0)
 data class StreakResult(val nutrition: StreakInfo, val training: StreakInfo = StreakInfo(0))
 
-data class ExerciseLog(val id: String, val name: String, val muscleGroup: String, val sets: List<com.apexfit.app.data.ExerciseSet>)
+data class ExerciseLog(
+    val id: String,
+    val name: String,
+    val muscleGroup: String,
+    val sets: List<com.apexfit.app.data.ExerciseSet>,
+    val secondaryMuscles: List<String> = emptyList()
+)
 
 data class RichTrainingSession(
     val date: String,

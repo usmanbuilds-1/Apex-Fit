@@ -44,16 +44,23 @@ object AlgorithmEngine {
     // Smoothing coefficient α = 2 / (N + 1) where N = 14 days, giving α ≈ 0.133.
     fun calcTrendWeight(log: List<WeightEntry>): List<TrendPoint> {
         if (log.isEmpty()) return emptyList()
-        val sorted = log.sortedBy { it.date }
+
+        val dailyAveraged = log
+            .groupBy { it.date }
+            .map { (date, entries) ->
+                WeightEntry(date = date, weight = entries.map { it.weight }.average())
+            }
+            .sortedBy { it.date }
+
         val result = mutableListOf<TrendPoint>()
-        sorted.forEachIndexed { index, entry ->
+        dailyAveraged.forEachIndexed { index, entry ->
             if (index == 0) {
                 result.add(TrendPoint(entry.date, entry.weight, entry.weight))
             } else {
                 val prev = result[index - 1].trend
-                // Apply Helms' 14-day exponential smoothing weight
                 val trend = prev + 0.133 * (entry.weight - prev)
-                result.add(TrendPoint(entry.date, entry.weight, Math.round(trend * 100.0) / 100.0))
+                result.add(TrendPoint(entry.date, entry.weight,
+                    Math.round(trend * 100.0) / 100.0))
             }
         }
         return result

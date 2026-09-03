@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.apexfit.app.ui.theme.SyneFamily
 import com.apexfit.app.ui.theme.JetBrainsMonoFamily
 import com.apexfit.app.ui.theme.OrangeAccent
+import com.apexfit.app.ui.theme.SecondaryText
 
 @Composable
 fun PlateCalculatorCard(
@@ -129,7 +130,7 @@ fun PlateCalculatorCard(
 
             val loadedPlates = mutableListOf<PlateDesignInfo>()
             var temp = sideWeight
-            while (temp >= (if (isKg) 1.25 else 2.5)) {
+            while (temp >= (if (isKg) 1.25 else 2.5) && loadedPlates.size < 20) {
                 val matched = plateTypes.firstOrNull { it.weight <= temp }
                 if (matched != null) {
                     loadedPlates.add(matched)
@@ -137,6 +138,11 @@ fun PlateCalculatorCard(
                 } else {
                     break
                 }
+            }
+
+            if (loadedPlates.size >= 20) {
+                Text("Weight exceeds display range",
+                     fontSize = 11.sp, color = SecondaryText)
             }
 
             Text(

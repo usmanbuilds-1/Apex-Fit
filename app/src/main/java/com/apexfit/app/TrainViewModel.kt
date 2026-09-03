@@ -845,16 +845,6 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
             .map { it.name to "Alternative targeting ${it.primaryMuscle} (${it.equipmentRequired})." }
     }
 
-    fun saveImportedWorkoutPlan(
-        plan: WorkoutPlan,
-        sessions: List<PlanSession>,
-        exercises: List<PlanExercise>
-    ) {
-        viewModelScope.launch {
-            repository.updateWorkoutPlan(plan, sessions, exercises)
-        }
-    }
-
     fun updateWorkoutPlan(
         plan: WorkoutPlan,
         sessions: List<PlanSession>,
@@ -866,11 +856,8 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun activatePlan(planId: Long): kotlinx.coroutines.Job = viewModelScope.launch {
-        db.withTransaction {
-            dao.deactivateAllPlans()
-            val plan = dao.getAllPlans().firstOrNull { it.id == planId } ?: return@withTransaction
-            dao.insertWorkoutPlan(plan.copy(isActive = true))
-        }
+        dao.deactivateAllPlans()
+        dao.activatePlan(planId)
     }
 
     suspend fun seedDefaultWorkoutPlan() {

@@ -37,7 +37,6 @@ class DataStoreManager(context: Context) {
         val SEX_KEY = stringPreferencesKey("sex")
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
-        val LENGTH_UNITS_KEY = stringPreferencesKey("length_units")
         val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
     }
 
@@ -62,10 +61,6 @@ class DataStoreManager(context: Context) {
             }
             preferences[WEIGHTS_NORMALIZED_KEY] = true
         }
-    }
-
-    val lengthUnitsFlow: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[LENGTH_UNITS_KEY] ?: "cm"
     }
 
     val isOnboardedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -191,12 +186,6 @@ class DataStoreManager(context: Context) {
     suspend fun saveUnits(units: String) {
         context.dataStore.edit { preferences ->
             preferences[UNITS_KEY] = units
-        }
-    }
-
-    suspend fun saveLengthUnits(units: String) {
-        context.dataStore.edit { preferences ->
-            preferences[LENGTH_UNITS_KEY] = units
         }
     }
 

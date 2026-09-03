@@ -264,8 +264,13 @@ fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: Train
                                         color = SecondaryText,
                                         fontSize = 12.sp
                                     )
+                                    val displayWeight = if (units.lowercase() in listOf("lb", "lbs")) {
+                                        Math.round(session.weight * 2.20462 * 10.0) / 10.0
+                                    } else {
+                                        session.weight
+                                    }
                                     Text(
-                                        text = "${session.weight} $units × ${session.reps}",
+                                        text = "$displayWeight $units × ${session.reps}",
                                         color = PrimaryText,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp

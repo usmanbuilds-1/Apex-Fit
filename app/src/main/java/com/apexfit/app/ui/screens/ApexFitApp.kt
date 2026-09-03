@@ -270,8 +270,11 @@ fun ApexFitApp(
         val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
         OnboardingScreen(
             preferredUnits = preferredUnits,
-            onComplete = { name, selectedGoal, currW, goalW, key, height, age, sex ->
-                fitnessViewModel.completeOnboarding(name, selectedGoal, currW, goalW, height, age, sex)
+            onComplete = { name, selectedGoal, currW, goalW, _, height, age, sex ->
+                fitnessViewModel.completeOnboarding(
+                    name, selectedGoal, currW, goalW, height, age, sex,
+                    units = preferredUnits
+                )
                 showNotificationRationale = true
             }
         )
@@ -480,12 +483,14 @@ fun OnboardingScreen(
     preferredUnits: String = "kg",
     onComplete: (String, String, Double, Double, String, Double, Int, String) -> Unit
 ) {
-    val unitLabel = if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg"
+    val isImperial = preferredUnits.lowercase() in listOf("lb", "lbs")
+    val unitLabel = if (isImperial) "lb" else "kg"
+    val heightUnitLabel = if (isImperial) "in" else "cm"
     var name by rememberSaveable { mutableStateOf("") }
     var goalTarget by rememberSaveable { mutableStateOf("Gain Muscle") }
-    var currentWeightStr by rememberSaveable { mutableStateOf("80") }
-    var goalWeightStr by rememberSaveable { mutableStateOf("80") }
-    var heightStr by rememberSaveable { mutableStateOf("175") }
+    var currentWeightStr by rememberSaveable { mutableStateOf(if (isImperial) "175" else "80") }
+    var goalWeightStr by rememberSaveable { mutableStateOf(if (isImperial) "175" else "80") }
+    var heightStr by rememberSaveable { mutableStateOf(if (isImperial) "69" else "175") }
     var ageStr by rememberSaveable { mutableStateOf("25") }
     var sexChoice by rememberSaveable { mutableStateOf("Male") }
 
@@ -665,7 +670,7 @@ fun OnboardingScreen(
                                 heightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
                                 heightError = null
                             },
-                            label = { Text(stringResource(R.string.onboarding_height_cm), color = SecondaryText) },
+                            label = { Text(if (isImperial) "Height (in)" else stringResource(R.string.onboarding_height_cm), color = SecondaryText) },
                             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth(),
@@ -747,12 +752,18 @@ fun OnboardingScreen(
                         val heightVal = heightStr.replace(",", ".").toDoubleOrNull()
                         val ageVal = ageStr.toIntOrNull()
 
+                        val isImperial = preferredUnits.lowercase() in listOf("lb", "lbs")
+                        val minWeight = if (isImperial) 44.0 else 20.0
+                        val maxWeight = if (isImperial) 1100.0 else 500.0
+                        val minHeight = if (isImperial) 39.0 else 100.0
+                        val maxHeight = if (isImperial) 98.0 else 250.0
+
                         if (trimmedName.isEmpty() || trimmedName.length > 50) {
                             nameError = "Please enter a name (1–50 characters)"
-                        } else if (weightVal == null || weightVal < 20.0 || weightVal > 500.0) {
-                            weightError = "Please enter a valid weight (20–500)"
-                        } else if (heightVal == null || heightVal < 100.0 || heightVal > 250.0) {
-                            heightError = "Please enter a valid height in cm (100–250)"
+                        } else if (weightVal == null || weightVal < minWeight || weightVal > maxWeight) {
+                            weightError = if (isImperial) "Please enter a valid weight (44–1100)" else "Please enter a valid weight (20–500)"
+                        } else if (heightVal == null || heightVal < minHeight || heightVal > maxHeight) {
+                            heightError = if (isImperial) "Please enter a valid height in in (39–98)" else "Please enter a valid height in cm (100–250)"
                         } else if (ageVal == null || ageVal < 10 || ageVal > 100) {
                             ageError = "Please enter a valid age (10–100)"
                         } else if (ageVal < 13) {

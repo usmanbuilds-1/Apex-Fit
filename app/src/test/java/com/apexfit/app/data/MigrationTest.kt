@@ -305,4 +305,36 @@ class MigrationTest {
         cursor.close()
         migratedDb.close()
     }
+
+    @Test
+    fun migrateAll8To20() {
+        val dbName = "test_migrate_8_to_20"
+        var db = helper.createDatabase(dbName, 8)
+        db.execSQL("INSERT INTO weight_entries (date, time, weight) VALUES ('2023-01-01', '08:00', 75.5)")
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(
+            dbName,
+            20,
+            true,
+            AppDatabase.MIGRATION_8_9,
+            AppDatabase.MIGRATION_9_10,
+            AppDatabase.MIGRATION_10_11,
+            AppDatabase.MIGRATION_11_12,
+            AppDatabase.MIGRATION_12_13,
+            AppDatabase.MIGRATION_13_14,
+            AppDatabase.MIGRATION_14_15,
+            AppDatabase.MIGRATION_15_16,
+            AppDatabase.MIGRATION_16_17,
+            AppDatabase.MIGRATION_17_18,
+            AppDatabase.MIGRATION_18_19,
+            AppDatabase.MIGRATION_19_20
+        )
+
+        val cursor = migratedDb.query("SELECT weight FROM body_weights LIMIT 1")
+        assertTrue("Canary row should survive migrations from 8 to 20", cursor.moveToFirst())
+        assertEquals(75.5, cursor.getDouble(0), 0.001)
+        cursor.close()
+        migratedDb.close()
+    }
 }

@@ -29,7 +29,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .map { list -> list.map { com.apexfit.app.utils.WeightEntry(it.date, it.weight) } }
         .flowOn(Dispatchers.IO)
 
-    private val nutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> = dao.getAllNutritionEntriesFlow()
+    private val nutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> = dao.getNutritionEntriesSince(getDateDaysAgo(30))
         .map { list ->
             list.map {
                 com.apexfit.app.utils.NutritionEntry(

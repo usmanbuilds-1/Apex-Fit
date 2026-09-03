@@ -41,7 +41,18 @@ object MuscleRecoveryData {
         }?.value ?: 1.2
     }
 
-    fun getSecondaryMuscles(exerciseName: String): List<Pair<String, Double>> {
+    fun getSecondaryMuscles(
+        exerciseName: String,
+        secondaryMuscles: List<String> = emptyList()
+    ): List<Pair<String, Double>> {
+        // If structured data available, use it with a flat 25% dose share
+        if (secondaryMuscles.isNotEmpty()) {
+            val share = 0.25 / secondaryMuscles.size
+            return secondaryMuscles.map { muscle ->
+                MuscleAliases.getCanonical(muscle.lowercase()) to share
+            }
+        }
+        // Fallback to the substring map for exercises without structured data
         val normalized = exerciseName.lowercase().replace(" ", "_")
         return secondaryMap.entries
             .filter { normalized.contains(it.key) }
@@ -210,7 +221,7 @@ object ReadinessFinal {
                 for (set in exercise.sets) {
                     if (set.isWarmup || !set.completed) continue
                     val dose = FatigueDoseCalculator.doseForSet(set)
-                    val secondaries = MuscleRecoveryData.getSecondaryMuscles(exercise.name)
+                    val secondaries = MuscleRecoveryData.getSecondaryMuscles(exercise.name, exercise.secondaryMuscles)
                     val secondaryTotalPct = secondaries.sumOf { it.second }
                     val primaryDose = dose * (1.0 - secondaryTotalPct.coerceAtMost(1.0))
                     

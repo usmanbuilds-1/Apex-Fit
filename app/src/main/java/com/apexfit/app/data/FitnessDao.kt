@@ -30,6 +30,20 @@ interface FitnessDao {
     @Query("SELECT * FROM nutrition_logs ORDER BY date DESC, time DESC")
     fun getAllNutritionEntriesFlow(): Flow<List<NutritionEntry>>
 
+    @Query("""
+        SELECT * FROM nutrition_logs
+        WHERE date >= :since
+        ORDER BY date DESC
+    """)
+    fun getNutritionEntriesSince(since: String): Flow<List<NutritionEntry>>
+
+    @Query("""
+        SELECT * FROM nutrition_logs
+        WHERE date >= :since
+        ORDER BY date DESC
+    """)
+    suspend fun getNutritionEntriesSinceSnapshot(since: String): List<NutritionEntry>
+
     @Query("SELECT * FROM nutrition_logs WHERE date = :date ORDER BY time DESC")
     fun getNutritionForDateFlow(date: String): Flow<List<NutritionEntry>>
 
@@ -110,10 +124,10 @@ interface FitnessDao {
     @Query("UPDATE workout_programs SET isActive = 0")
     suspend fun deactivateAllPlans()
 
+    @Query("UPDATE workout_programs SET isActive = 1 WHERE id = :planId")
+    suspend fun activatePlan(planId: Long)
 
 
-    @Query("DELETE FROM workout_programs WHERE id = :planId")
-    suspend fun deleteWorkoutPlan(planId: Long)
 
     @Query("DELETE FROM workout_programs")
     suspend fun deleteAllPlans()
@@ -251,6 +265,21 @@ interface FitnessDao {
         ORDER BY id DESC LIMIT 1
     """)
     suspend fun getLastWeightForExercise(exerciseId: String): Double?
+
+    @Query("""
+        SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
+               es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
+               es.restTaken, es.completed, es.repsInReserve,
+               ts.date AS date
+        FROM exercise_sets es
+        INNER JOIN workout_sessions ts ON es.sessionId = ts.id
+        WHERE es.exerciseId IN (:exerciseIds)
+          AND es.completed = 1
+        ORDER BY es.id DESC
+    """)
+    suspend fun getLastSetsForExercises(
+        exerciseIds: List<String>
+    ): List<LastSetWithDate>
 
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
