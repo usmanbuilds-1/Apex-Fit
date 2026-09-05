@@ -41,6 +41,7 @@ class DataStoreManager(context: Context) {
         val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
         // AUDIT FIX (BUG-V4-015): flag for exercise_sets/PR canonicalization
         val SET_WEIGHTS_CANONICALIZED_KEY = booleanPreferencesKey("set_weights_canonicalized_v2")
+        val PLAN_WEIGHTS_CANONICALIZED_KEY = booleanPreferencesKey("plan_weights_canonicalized_v1")
     }
 
     val weightsNormalizedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -235,6 +236,24 @@ class DataStoreManager(context: Context) {
 
         context.dataStore.edit { prefs ->
             prefs[SET_WEIGHTS_CANONICALIZED_KEY] = true
+        }
+    }
+
+    suspend fun canonicalizePlanExerciseWeightsIfNeeded(
+        dao: com.apexfit.app.data.FitnessDao,
+        isImperial: Boolean
+    ) {
+        val alreadyDone = context.dataStore.data
+            .map { prefs -> prefs[PLAN_WEIGHTS_CANONICALIZED_KEY] ?: false }
+            .first()
+        if (alreadyDone) return
+
+        if (isImperial) {
+            dao.convertAllPlanExerciseWeightsToKg()
+        }
+
+        context.dataStore.edit { prefs ->
+            prefs[PLAN_WEIGHTS_CANONICALIZED_KEY] = true
         }
     }
 }

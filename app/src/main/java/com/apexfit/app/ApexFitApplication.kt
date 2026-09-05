@@ -60,6 +60,9 @@ class ApexFitApplication : Application(), Configuration.Provider {
                     .lowercase() in listOf("lb", "lbs")
                 dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial)
 
+                // FIX (§9 item 5): canonicalize plan_exercises weights on first v22 launch
+                dataStore.canonicalizePlanExerciseWeightsIfNeeded(dao, isImperial)
+
                 CoachingScheduler.schedule6AmDailyCoachingTask(app)
                 Log.i("ApexFitApplication", "Coaching task scheduled")
             } catch (e: Exception) {

@@ -200,6 +200,10 @@ interface FitnessDao {
     @Query("DELETE FROM plan_exercises WHERE planSessionId = :planSessionId")
     suspend fun deleteExercisesForPlanSession(planSessionId: Long)
 
+    // FIX (§9 item 5): canonicalize plan_exercises weight for imperial users on v22 upgrade
+    @Query("UPDATE plan_exercises SET weight = weight / 2.20462, weight_unit = 'kg' WHERE weight_unit IN ('lb', 'lbs')")
+    suspend fun convertAllPlanExerciseWeightsToKg()
+
 
 
     // Personal Records
