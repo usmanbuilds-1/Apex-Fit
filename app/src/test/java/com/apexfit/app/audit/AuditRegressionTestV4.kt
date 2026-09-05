@@ -75,8 +75,7 @@ class AuditRegressionTestV4 {
         val planId = dao.insertWorkoutPlan(plan)
 
         val session = PlanSession(planId = planId, label = "Upper A", day = "Monday", focus = "Chest & Back")
-        dao.insertPlanSession(session)
-        val sessionId = session.id
+        val sessionId = dao.insertPlanSessions(listOf(session)).first()
 
         val planExercise = PlanExercise(
             planSessionId = sessionId,
@@ -233,6 +232,9 @@ class AuditRegressionTestV4 {
     // asserts weight ≈ 100.0 kg.
     @Test
     fun convertAllExerciseSetWeightsToKg_dividesBy2_20462() = runBlocking {
+        dao.insertExercises(listOf(com.apexfit.app.data.Exercise(id = "bench-press", name = "Bench Press", category = "Barbell", primaryMuscle = "Chest", equipmentRequired = "Barbell")))
+        dao.insertTrainingSession(com.apexfit.app.data.TrainingSession(id = "session_1", date = "2024-01-01", sessionType = "Upper", completed = true, durationMinutes = 60, sessionFeel = 3))
+
         val exerciseSet = ExerciseSet(
             id = 1L,
             sessionId = "session_1",
@@ -265,6 +267,13 @@ class AuditRegressionTestV4 {
     fun canonicalizeExerciseSetWeightsIfNeeded_runsOnceAndRespectsUnits() = runBlocking {
         val dataStore = DataStoreManager(context)
         dataStore.clearAllData()
+
+        dao.insertExercises(listOf(
+            com.apexfit.app.data.Exercise(id = "squat", name = "Squat", category = "Barbell", primaryMuscle = "Legs", equipmentRequired = "Barbell"),
+            com.apexfit.app.data.Exercise(id = "deadlift", name = "Deadlift", category = "Barbell", primaryMuscle = "Back", equipmentRequired = "Barbell")
+        ))
+        dao.insertTrainingSession(com.apexfit.app.data.TrainingSession(id = "session_kg", date = "2024-01-01", sessionType = "Legs", completed = true, durationMinutes = 60, sessionFeel = 3))
+        dao.insertTrainingSession(com.apexfit.app.data.TrainingSession(id = "session_imperial_2", date = "2024-01-02", sessionType = "Back", completed = true, durationMinutes = 60, sessionFeel = 3))
 
         // 1. Kg user test: DAO conversion should NOT run
         val kgSet = ExerciseSet(

@@ -71,7 +71,8 @@ android {
     checkReleaseBuilds = false
   }
   sourceSets {
-    getByName("test").assets.srcDirs(files("$projectDir/schemas"))
+    getByName("test").assets.srcDir("$projectDir/schemas")
+    getByName("androidTest").assets.srcDir("$projectDir/schemas")
   }
 }
 

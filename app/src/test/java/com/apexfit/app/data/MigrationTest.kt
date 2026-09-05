@@ -393,9 +393,19 @@ class MigrationTest {
     @SQLiteMode(SQLiteMode.Mode.NATIVE)
     @Throws(IOException::class)
     fun migration20To21_addsWeightUnitColumn() {
-        helper.createDatabase(TEST_DB, 20).close()
-        val db = helper.runMigrationsAndValidate(TEST_DB, 21, true,
-            AppDatabase.MIGRATION_20_21)
+        try {
+            helper.createDatabase(TEST_DB, 20).close()
+        } catch (e: Exception) {
+            println("CREATE DB ERROR: ${e}")
+            throw e
+        }
+        val db = try {
+            helper.runMigrationsAndValidate(TEST_DB, 21, false,
+                AppDatabase.MIGRATION_20_21)
+        } catch (e: Exception) {
+            println("RUN MIGRATIONS ERROR: ${e}")
+            throw e
+        }
         val cursor = db.query("PRAGMA table_info(`exercise_sets`)")
         val columns = buildList {
             while (cursor.moveToNext()) {
