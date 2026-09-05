@@ -13,7 +13,7 @@ import com.apexfit.app.data.PlanSession
 import com.apexfit.app.data.WorkoutPlan
 import com.apexfit.app.ui.models.UiExerciseSet
 import com.apexfit.app.utils.AppConstants
-import com.apexfit.app.utils.DetectedPattern
+import com.apexfit.app.data.DetectedPattern
 import com.apexfit.app.utils.PatternDetector
 import com.apexfit.app.utils.exerciseNameToSlug
 import com.apexfit.app.utils.getDaysBetweenClamped
@@ -75,7 +75,8 @@ class AuditRegressionTestV4 {
         val planId = dao.insertWorkoutPlan(plan)
 
         val session = PlanSession(planId = planId, label = "Upper A", day = "Monday", focus = "Chest & Back")
-        val sessionId = dao.insertPlanSession(session)
+        dao.insertPlanSession(session)
+        val sessionId = session.id
 
         val planExercise = PlanExercise(
             planSessionId = sessionId,
@@ -129,9 +130,9 @@ class AuditRegressionTestV4 {
                             date = dateStr,
                             name = "Meal $mealIdx",
                             calories = 600,
-                            protein = 37,
-                            carbs = 75,
-                            fat = 15
+                            protein = 37.0,
+                            carbs = 75.0,
+                            fat = 15.0
                         )
                     )
                 }
@@ -143,9 +144,9 @@ class AuditRegressionTestV4 {
                             date = dateStr,
                             name = "Meal $mealIdx",
                             calories = 1200,
-                            protein = 75,
-                            carbs = 150,
-                            fat = 30
+                            protein = 75.0,
+                            carbs = 150.0,
+                            fat = 30.0
                         )
                     )
                 }
@@ -180,9 +181,9 @@ class AuditRegressionTestV4 {
                     date = dateStr,
                     name = "Daily Total",
                     calories = dailyCalories,
-                    protein = 150,
-                    carbs = 200,
-                    fat = 60
+                    protein = 150.0,
+                    carbs = 200.0,
+                    fat = 60.0
                 )
             )
         }
@@ -263,7 +264,7 @@ class AuditRegressionTestV4 {
     @Test
     fun canonicalizeExerciseSetWeightsIfNeeded_runsOnceAndRespectsUnits() = runBlocking {
         val dataStore = DataStoreManager(context)
-        dataStore.clearAll()
+        dataStore.clearAllData()
 
         // 1. Kg user test: DAO conversion should NOT run
         val kgSet = ExerciseSet(
@@ -282,17 +283,17 @@ class AuditRegressionTestV4 {
         dao.insertExerciseSet(kgSet)
 
         dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = false)
-        var currentSet = dao.getAllExerciseSets().first { it.id == 10L }
+        var currentSet = dao.getAllExerciseSets().first { s -> s.id == 10L }
         // Should remain untouched for kg user
         assertEquals(220.462, currentSet.weight, 0.001)
         assertEquals("lb", currentSet.weightUnit)
 
         // Clear dataStore flag to simulate fresh run for imperial user
-        dataStore.clearAll()
+        dataStore.clearAllData()
 
         // 2. Imperial user test: First invocation converts 220.462 -> 100.0
         dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = true)
-        currentSet = dao.getAllExerciseSets().first { it.id == 10L }
+        currentSet = dao.getAllExerciseSets().first { s -> s.id == 10L }
         assertEquals(100.0, currentSet.weight, 0.01)
         assertEquals("kg", currentSet.weightUnit)
 
@@ -314,7 +315,7 @@ class AuditRegressionTestV4 {
 
         // Second invocation: Should be a no-op because flag is already set
         dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = true)
-        val postSecondRunSet = dao.getAllExerciseSets().first { it.id == 20L }
+        val postSecondRunSet = dao.getAllExerciseSets().first { s -> s.id == 20L }
         assertEquals("Subsequent canonicalize call must be guarded and not convert again",
             220.462, postSecondRunSet.weight, 0.001)
         assertEquals("lb", postSecondRunSet.weightUnit)
