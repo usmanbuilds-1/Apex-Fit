@@ -101,7 +101,9 @@ data class UiPlateauResult(
     val recommendation: String,
     val severity: String = "",
     val interventions: List<String> = emptyList()
-)
+) {
+    val isPlateaued: Boolean get() = isPlateau
+}
 
 // Data -> Ui conversions
 fun com.apexfit.app.data.WeightEntry.toUi(): UiWeightEntry = UiWeightEntry(
