@@ -247,6 +247,11 @@ data class PlanExercise(
     val repsMin: Int,
     val repsMax: Int,
     val weight: Double,
+    // FIX (§9 item 5 / BUG-V4-018): explicit unit column — "kg" for all new
+    // plans; pre-existing rows get "kg" as column default, then canonicalization
+    // in DataStoreManager converts any lb-authored rows on first v22 launch.
+    @ColumnInfo(name = "weight_unit", defaultValue = "kg")
+    val weightUnit: String = "kg",
     val restSeconds: Int,
     val notes: String
 )

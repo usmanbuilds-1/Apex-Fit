@@ -104,14 +104,39 @@ object ServiceLocator {
         val ds = dataStore(appContext)
         val weightFlow = dao.getAllWeightEntriesFlow()
             .flowOn(Dispatchers.IO)
+        // AUDIT FIX (BUG-V4-014): honour isManual.
+        // Manual users  → stored value (manualCals).
+        // Auto users    → raw adaptive TDEE via calcAdaptiveTDEE with emptyList()
+        //                 for nutritionLog so it falls back to Mifflin-St Jeor.
+        //                 We intentionally do NOT apply suggestCaloricTarget here;
+        //                 rings show raw TDEE, coaching shows goal-adjusted — that
+        //                 divergence is a documented product decision (§9).
         combine(
             ds.calorieTargetManualFlow,
             ds.calorieTargetValueFlow,
             ds.goalFlow,
             weightFlow
         ) { isManual, manualCals, goal, weights ->
-            val latestWeight = weights.maxByOrNull { it.date }?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-            val calories = manualCals
+            val latestWeight = weights.maxByOrNull { it.date }?.weight
+                ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+            val calories: Int = if (isManual) {
+                manualCals
+            } else {
+                val recentWeights = weights
+                    .sortedByDescending { it.date }
+                    .take(14)
+                    .map { com.apexfit.app.utils.WeightEntry(date = it.date, weight = it.weight) }
+                val tdeeResult = AlgorithmEngine.calcAdaptiveTDEE(
+                    weightLog = recentWeights,
+                    nutritionLog = emptyList()
+                )
+                // FIX (§9 item 2): apply goal adjustment so Home ring, Nutrition
+                // ring, and coaching notification all track against the same target.
+                AlgorithmEngine.suggestCaloricTarget(
+                    tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
+                    goal
+                )
+            }
             AlgorithmEngine.calcMacroTargets(calories, latestWeight, goal)
         }.flowOn(Dispatchers.IO).shareIn(appScope, SharingStarted.Lazily, 1)
     }

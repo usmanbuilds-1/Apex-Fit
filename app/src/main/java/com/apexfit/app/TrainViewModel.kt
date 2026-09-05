@@ -421,9 +421,9 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         _showSessionCompleteScreen.value = false
         _warmupCompleted.value = _warmupCompleted.value.mapValues { false }
         lastCompletedSetPointer = null
-
-        com.apexfit.app.utils.WorkoutForegroundService.start(getApplication(), planSession.label)
-
+        // AUDIT FIX (BUG-V4-002): FGS start moved into sessionManager.startSession,
+        // which calls it after the session is built and while the app is still
+        // foreground. Removed premature start here to prevent orphaned FGS.
         viewModelScope.launch {
             val exercises = dao.getExercisesForSession(planSession.id)
             sessionManager.startSession(
@@ -465,7 +465,11 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         if (completed) {
             lastCompletedSetPointer = Pair(exerciseId, setIndex)
             viewModelScope.launch {
-                sessionManager.checkPRPreview(exerciseId, weight, reps)
+                // AUDIT FIX (BUG-V4-010): convert display weight → canonical kg
+                // before PR comparison; stored PRs are kg since schema v21.
+                val weightKg = if (units.value.lowercase() in listOf("lb", "lbs"))
+                    weight / 2.20462 else weight
+                sessionManager.checkPRPreview(exerciseId, weightKg, reps)
             }
         }
         sessionManager.updateSet(
@@ -856,8 +860,12 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun activatePlan(planId: Long): kotlinx.coroutines.Job = viewModelScope.launch {
-        dao.deactivateAllPlans()
-        dao.activatePlan(planId)
+        // AUDIT FIX (BUG-V4-009): wrap in a transaction so deactivate + activate
+        // are atomic — a crash between the two calls cannot leave all plans inactive.
+        db.withTransaction {
+            dao.deactivateAllPlans()
+            dao.activatePlan(planId)
+        }
     }
 
     suspend fun seedDefaultWorkoutPlan() {

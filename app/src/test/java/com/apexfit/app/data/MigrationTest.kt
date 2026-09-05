@@ -337,4 +337,75 @@ class MigrationTest {
         cursor.close()
         migratedDb.close()
     }
+
+    // ─── AUDIT FIX (MY-001): Native-mode tests for rebuild migrations.
+    // The class-level @SQLiteMode(LEGACY) annotation masks index divergence.
+    // These three tests run in native SQLite mode and will catch it.
+    // They use a helper that validates the migrated schema and asserts indexes.
+
+    @Test
+    @SQLiteMode(SQLiteMode.Mode.NATIVE)
+    @Throws(IOException::class)
+    fun migration10To11_recreatesExerciseSetIndexes() {
+        helper.createDatabase(TEST_DB, 10).close()
+        val db = helper.runMigrationsAndValidate(TEST_DB, 11, true,
+            AppDatabase.MIGRATION_10_11)
+        val cursor = db.query("PRAGMA index_list(`exercise_sets`)")
+        val indexNames = buildList {
+            while (cursor.moveToNext()) {
+                add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+        }
+        cursor.close()
+        db.close()
+        assert(indexNames.any { it.contains("sessionId") }) {
+            "index_exercise_sets_sessionId missing after MIGRATION_10_11"
+        }
+        assert(indexNames.any { it.contains("exerciseId") }) {
+            "index_exercise_sets_exerciseId missing after MIGRATION_10_11"
+        }
+    }
+
+    @Test
+    @SQLiteMode(SQLiteMode.Mode.NATIVE)
+    @Throws(IOException::class)
+    fun migration17To18_recreatesExerciseSetIndexes() {
+        helper.createDatabase(TEST_DB, 17).close()
+        val db = helper.runMigrationsAndValidate(TEST_DB, 18, true,
+            AppDatabase.MIGRATION_17_18)
+        val cursor = db.query("PRAGMA index_list(`exercise_sets`)")
+        val indexNames = buildList {
+            while (cursor.moveToNext()) {
+                add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+        }
+        cursor.close()
+        db.close()
+        assert(indexNames.any { it.contains("sessionId") }) {
+            "index_exercise_sets_sessionId missing after MIGRATION_17_18"
+        }
+        assert(indexNames.any { it.contains("exerciseId") }) {
+            "index_exercise_sets_exerciseId missing after MIGRATION_17_18"
+        }
+    }
+
+    @Test
+    @SQLiteMode(SQLiteMode.Mode.NATIVE)
+    @Throws(IOException::class)
+    fun migration20To21_addsWeightUnitColumn() {
+        helper.createDatabase(TEST_DB, 20).close()
+        val db = helper.runMigrationsAndValidate(TEST_DB, 21, true,
+            AppDatabase.MIGRATION_20_21)
+        val cursor = db.query("PRAGMA table_info(`exercise_sets`)")
+        val columns = buildList {
+            while (cursor.moveToNext()) {
+                add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+        }
+        cursor.close()
+        db.close()
+        assert(columns.contains("weight_unit")) {
+            "weight_unit column missing after MIGRATION_20_21"
+        }
+    }
 }

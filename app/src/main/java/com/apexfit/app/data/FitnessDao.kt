@@ -37,13 +37,6 @@ interface FitnessDao {
     """)
     fun getNutritionEntriesSince(since: String): Flow<List<NutritionEntry>>
 
-    @Query("""
-        SELECT * FROM nutrition_logs
-        WHERE date >= :since
-        ORDER BY date DESC
-    """)
-    suspend fun getNutritionEntriesSinceSnapshot(since: String): List<NutritionEntry>
-
     @Query("SELECT * FROM nutrition_logs WHERE date = :date ORDER BY time DESC")
     fun getNutritionForDateFlow(date: String): Flow<List<NutritionEntry>>
 
@@ -163,6 +156,9 @@ interface FitnessDao {
     @Query("SELECT * FROM exercises WHERE id = :id LIMIT 1")
     suspend fun getExerciseById(id: String): Exercise?
 
+    @Query("SELECT * FROM exercises WHERE id IN (:ids)")
+    suspend fun getExercisesByIds(ids: List<String>): List<Exercise>
+
 
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -220,6 +216,12 @@ interface FitnessDao {
 
     @Query("SELECT * FROM personal_records WHERE exerciseId = :exerciseId")
     suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord>
+
+    @Query("UPDATE exercise_sets SET weight = weight / 2.20462, weight_unit = 'kg' WHERE weight_unit IN ('lb', 'lbs')")
+    suspend fun convertAllExerciseSetWeightsToKg()
+
+    @Query("UPDATE personal_records SET value = value / 2.20462 WHERE type IN ('max_weight', 'estimated_1rm')")
+    suspend fun convertAllPersonalRecordValuesToKg()
 
 
 

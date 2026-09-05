@@ -10,23 +10,30 @@ class WorkoutForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val sessionName = intent?.getStringExtra("sessionName") ?: "Workout"
-        val elapsedMinutes = intent?.getIntExtra("elapsedMinutes", 0) ?: 0
-        val notification = WorkoutActiveNotification.buildNotification(this, sessionName, elapsedMinutes)
+        // AUDIT FIX (BUG-V4-006): null intent = system sticky restart with no
+        // active session. Stop immediately rather than pinning a phantom notification.
+        if (intent == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        val sessionName = intent.getStringExtra("sessionName") ?: "Workout"
+        val startTime = intent.getLongExtra("startTime", System.currentTimeMillis())
+        val notification = WorkoutActiveNotification.buildNotification(this, sessionName, startTime)
         startForeground(WorkoutActiveNotification.NOTIFICATION_ID, notification)
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        WorkoutActiveNotification.dismiss(this)
     }
 
     companion object {
-        fun start(context: Context, sessionName: String, elapsedMinutes: Int = 0) {
+        fun start(context: Context, sessionName: String, startTime: Long = System.currentTimeMillis()) {
             val intent = Intent(context, WorkoutForegroundService::class.java).apply {
                 putExtra("sessionName", sessionName)
-                putExtra("elapsedMinutes", elapsedMinutes)
+                putExtra("startTime", startTime)
             }
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -37,6 +44,7 @@ class WorkoutForegroundService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, WorkoutForegroundService::class.java))
+            WorkoutActiveNotification.dismiss(context)
         }
     }
 }

@@ -53,6 +53,13 @@ class ApexFitApplication : Application(), Configuration.Provider {
                     dataStore.normalizeDataStoreWeights()
                 }
 
+                // AUDIT FIX (BUG-V4-015): canonicalize exercise_set and PR weights for
+                // users who had lb data stored by a pre-v21 build.
+                val dao = com.apexfit.app.di.ServiceLocator.database(app).fitnessDao()
+                val isImperial = dataStore.unitsFlow.first()
+                    .lowercase() in listOf("lb", "lbs")
+                dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial)
+
                 CoachingScheduler.schedule6AmDailyCoachingTask(app)
                 Log.i("ApexFitApplication", "Coaching task scheduled")
             } catch (e: Exception) {

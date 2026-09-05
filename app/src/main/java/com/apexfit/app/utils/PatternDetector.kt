@@ -36,34 +36,44 @@ object PatternDetector {
     private fun detectDayOfWeekPatterns(nutritionLog: List<NutritionEntry>): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
         val dayNames = listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday")
-        val dayGroups = mutableMapOf<Int, MutableList<NutritionEntry>>()
 
-        nutritionLog.forEach { entry ->
+        // AUDIT FIX (BUG-V4-005): aggregate to daily totals first so meal-count
+        // differences between days don't create false day-of-week patterns.
+        // dailyTotals: date-string → Pair(totalCalories, totalProtein)
+        val dailyTotals: Map<String, Pair<Double, Double>> = nutritionLog
+            .groupBy { it.date }
+            .mapValues { (_, entries) ->
+                Pair(entries.sumOf { it.calories.toDouble() }, entries.sumOf { it.protein.toDouble() })
+            }
+
+        // Group daily totals by day-of-week
+        val dayGroups = mutableMapOf<Int, MutableList<Pair<Double, Double>>>()
+        dailyTotals.forEach { (dateStr, totals) ->
             try {
                 val cal = Calendar.getInstance()
-                cal.time = com.apexfit.app.utils.DateTimeUtils.parseDate(entry.date) ?: return@forEach
+                cal.time = com.apexfit.app.utils.DateTimeUtils.parseDate(dateStr) ?: return@forEach
                 val dow = cal.get(Calendar.DAY_OF_WEEK)
-                dayGroups.getOrPut(dow) { mutableListOf() }.add(entry)
+                dayGroups.getOrPut(dow) { mutableListOf() }.add(totals)
             } catch (e: Exception) {
                 // Ignore parsing errors safely
             }
         }
 
-        val overallAvgCalories = nutritionLog.map { it.calories }.average()
-        val overallAvgProtein = nutritionLog.map { it.protein }.average()
+        val overallAvgCalories = dailyTotals.values.map { it.first }.average().takeIf { !it.isNaN() } ?: 0.0
+        val overallAvgProtein = dailyTotals.values.map { it.second }.average().takeIf { !it.isNaN() } ?: 0.0
 
-        dayGroups.forEach { (dow, entries) ->
-            if (entries.size < 3) return@forEach
+        dayGroups.forEach { (dow, dayTotalsList) ->
+            if (dayTotalsList.size < 3) return@forEach
             val dayName = dayNames[(dow - 2 + 7) % 7]
-            val dayAvgCal = entries.map { it.calories }.average()
-            val dayAvgProtein = entries.map { it.protein }.average()
+            val dayAvgCal = dayTotalsList.map { it.first }.average()
+            val dayAvgProtein = dayTotalsList.map { it.second }.average()
             val calDeviation = if (overallAvgCalories > 0.0)
                 ((dayAvgCal - overallAvgCalories) / overallAvgCalories) * 100
             else 0.0
             val proteinDeviation = if (overallAvgProtein > 0.0)
                 ((dayAvgProtein - overallAvgProtein) / overallAvgProtein) * 100
             else 0.0
-            val confidence = minOf(1.0f, entries.size / 8.0f)
+            val confidence = minOf(1.0f, dayTotalsList.size / 8.0f)
 
             if (calDeviation < -15) {
                 patterns.add(DetectedPattern(

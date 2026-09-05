@@ -26,7 +26,11 @@ object WorkoutActiveNotification {
         }
     }
 
-    fun buildNotification(context: Context, sessionName: String, elapsedMinutes: Int): android.app.Notification {
+    fun buildNotification(
+        context: Context,
+        sessionName: String,
+        startTime: Long = System.currentTimeMillis()
+    ): android.app.Notification {
         val intent = Intent(context, com.apexfit.app.MainActivity::class.java).apply {
             data = android.net.Uri.parse("apexfit://screen/train")
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -43,7 +47,11 @@ object WorkoutActiveNotification {
         return androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(iconRes)
             .setContentTitle("Workout in progress")
-            .setContentText("$sessionName · ${elapsedMinutes}m")
+            .setContentText(sessionName)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(false)
+            .setWhen(startTime)
+            .setShowWhen(true)
             .setContentIntent(pi)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -51,10 +59,10 @@ object WorkoutActiveNotification {
             .build()
     }
 
-    fun show(context: Context, sessionName: String, elapsedMinutes: Int) {
+    fun show(context: Context, sessionName: String, startTime: Long = System.currentTimeMillis()) {
         if (!NotificationEngine.hasNotificationPermission(context)) return
         context.getSystemService(android.app.NotificationManager::class.java)
-            .notify(NOTIFICATION_ID, buildNotification(context, sessionName, elapsedMinutes))
+            .notify(NOTIFICATION_ID, buildNotification(context, sessionName, startTime))
     }
 
     fun dismiss(context: Context) {

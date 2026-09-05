@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "apex_fit_preferences")
@@ -38,6 +39,8 @@ class DataStoreManager(context: Context) {
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
         val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
+        // AUDIT FIX (BUG-V4-015): flag for exercise_sets/PR canonicalization
+        val SET_WEIGHTS_CANONICALIZED_KEY = booleanPreferencesKey("set_weights_canonicalized_v2")
     }
 
     val weightsNormalizedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -205,6 +208,33 @@ class DataStoreManager(context: Context) {
     suspend fun clearAllData() {
         context.dataStore.edit { preferences ->
             preferences.clear()
+        }
+    }
+
+    /**
+     * AUDIT FIX (BUG-V4-015): one-time canonicalization of exercise_set weights
+     * and PR values for users who had lb data written by a pre-v21 build.
+     * Runs once per install; kg users are untouched.
+     *
+     * @param dao FitnessDao to execute the DAO update queries
+     * @param isImperial true if the user's preferred unit is lb/lbs
+     */
+    suspend fun canonicalizeExerciseSetWeightsIfNeeded(
+        dao: com.apexfit.app.data.FitnessDao,
+        isImperial: Boolean
+    ) {
+        val alreadyDone = context.dataStore.data
+            .map { prefs -> prefs[SET_WEIGHTS_CANONICALIZED_KEY] ?: false }
+            .first()
+        if (alreadyDone) return
+
+        if (isImperial) {
+            dao.convertAllExerciseSetWeightsToKg()
+            dao.convertAllPersonalRecordValuesToKg()
+        }
+
+        context.dataStore.edit { prefs ->
+            prefs[SET_WEIGHTS_CANONICALIZED_KEY] = true
         }
     }
 }

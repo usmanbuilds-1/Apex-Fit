@@ -35,7 +35,6 @@ class WorkoutSessionManager(
     private var lastProgressionResults: MutableMap<String, Any> = mutableMapOf()
     private val gson = Gson()
     private val persistJob = MutableStateFlow<kotlinx.coroutines.Job?>(null)
-    private var workoutNotificationJob: Job? = null
 
     init {
         scope.launch {
@@ -146,6 +145,14 @@ class WorkoutSessionManager(
             val setsRaw = repository.getRecentExerciseSets(cutoff)
             android.util.Log.d("WorkoutSessionManager", "Loaded bounded recent sessions, count: ${sessionsRaw.size}")
             
+            // AUDIT FIX (BUG-V4-013): load secondary muscles once per session start
+            val exerciseIds = setsRaw.map { it.exerciseId }.distinct()
+            val secondaryMusclesMap: Map<String, List<String>> = dao.getExercisesByIds(exerciseIds)
+                .associate { ex ->
+                    val secondaries = ex.secondaryMuscles
+                    ex.id to secondaries
+                }
+
             // Build rich sessions
             val setsBySession = setsRaw.groupBy { it.sessionId }
             val completedRichSessions = sessionsRaw.map { sessionObj ->
@@ -157,6 +164,7 @@ class WorkoutSessionManager(
                             id = exerciseId,
                             name = exSets.first().exerciseName,
                             muscleGroup = exSets.first().muscleGroup,
+                            secondaryMuscles = secondaryMusclesMap[exerciseId] ?: emptyList(), // AUDIT FIX (BUG-V4-013)
                             sets = exSets.map { s ->
                                 com.apexfit.app.utils.ExerciseSet(
                                     weight = s.weight,
@@ -232,18 +240,21 @@ class WorkoutSessionManager(
                     _allSets.filter { it.sessionId == _latestSessionId }.take(ex.sets)
                 } else {
                     emptyList()
-                }.map { s ->  
-                        com.apexfit.app.ui.models.UiExerciseSet(  
-                            id = s.id,  
-                            weight = if (preferredUnits.lowercase() in listOf("lb", "lbs")) s.weight * 2.20462 else s.weight,  
-                            reps = s.reps,  
-                            rpe = s.rpe,  
-                            isWarmup = s.isWarmup,  
-                            completed = s.completed,  
-                            exerciseName = s.exerciseName,  
-                            sessionId = s.sessionId,  
-                            muscleGroup = s.muscleGroup  
-                        )  
+                }.map { s ->
+                        com.apexfit.app.ui.models.UiExerciseSet(
+                            id = s.id,
+                            // AUDIT FIX (BUG-V4-011): progression engine contract is lbs for
+                            // ALL users. s.weight is canonical kg since schema v21, so convert
+                            // unconditionally. The display-unit branch was inverting the contract.
+                            weight = s.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,
+                            reps = s.reps,
+                            rpe = s.rpe,
+                            isWarmup = s.isWarmup,
+                            completed = s.completed,
+                            exerciseName = s.exerciseName,
+                            sessionId = s.sessionId,
+                            muscleGroup = s.muscleGroup
+                        )
                     }  
                   
                 val recoveryMultiplier = readinessPercent  
@@ -328,16 +339,7 @@ class WorkoutSessionManager(
         persistSession()
 
         val session = _activeSession.value ?: return@withContext
-        com.apexfit.app.utils.WorkoutForegroundService.start(appContext, session.sessionName, 0)
-        workoutNotificationJob?.cancel()
-        workoutNotificationJob = scope.launch {
-            var minutes = 0
-            while (isActive) {
-                delay(60_000)
-                minutes++
-                com.apexfit.app.utils.WorkoutForegroundService.start(appContext, session.sessionName, minutes)
-            }
-        }
+        com.apexfit.app.utils.WorkoutForegroundService.start(appContext, session.sessionName, session.startTime)
         } finally {
             _isStartingSession.value = false
         }
@@ -445,7 +447,6 @@ class WorkoutSessionManager(
 
     fun clearPersistedSession() {
         persistJob.value?.cancel()
-        workoutNotificationJob?.cancel()
         com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
         scope.launch {
             dataStore.saveActiveSessionJson(null)
@@ -490,6 +491,10 @@ class WorkoutSessionManager(
         completedSetsOnly: Boolean = true,
         isPartial: Boolean = false
     ): SessionCommitResult = withContext(Dispatchers.IO) {
+        // AUDIT FIX (BUG-V4-003): cancel any pending persist before we clear
+        // state, so a debounced saver cannot write stale data after the commit's
+        // null write.
+        persistJob.value?.cancel()
 
         val session = _activeSession.value
             ?: return@withContext SessionCommitResult.empty()
@@ -596,7 +601,6 @@ class WorkoutSessionManager(
 
     /** Called from "Save partial session?" dialog — no path */
     fun discardAndExit() {
-        workoutNotificationJob?.cancel()
         com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
         clearPersistedSession()
     }

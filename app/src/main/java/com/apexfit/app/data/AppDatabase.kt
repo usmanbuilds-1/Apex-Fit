@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Exercise::class,
         ExerciseMetadata::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -186,6 +186,9 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("INSERT INTO `exercise_sets_new` (id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue) SELECT id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue FROM `exercise_sets`")
                 database.execSQL("DROP TABLE `exercise_sets`")
                 database.execSQL("ALTER TABLE `exercise_sets_new` RENAME TO `exercise_sets`")
+                // AUDIT FIX (BUG-V4-008): restore indexes destroyed by the DROP above.
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_sessionId` ON `exercise_sets` (`sessionId`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId` ON `exercise_sets` (`exerciseId`)")
 
                 // 4. PlanSession
                 database.execSQL("""
@@ -311,6 +314,9 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("INSERT INTO exercise_sets_v18 SELECT * FROM exercise_sets")
                 database.execSQL("DROP TABLE exercise_sets")
                 database.execSQL("ALTER TABLE exercise_sets_v18 RENAME TO exercise_sets")
+                // AUDIT FIX (BUG-V4-008): restore indexes destroyed by the DROP above.
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_sessionId` ON `exercise_sets` (`sessionId`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId` ON `exercise_sets` (`exerciseId`)")
             }
         }
 
@@ -352,6 +358,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // FIX (§9 item 5 / BUG-V4-018): add weight_unit to plan_exercises so
+        // plan weights have an explicit unit; subsequent app launch will canonicalize
+        // pre-existing imperial plan weights via DataStoreManager.
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE plan_exercises ADD COLUMN weight_unit TEXT NOT NULL DEFAULT 'kg'"
+                )
+            }
+        }
+
         fun setTestDatabase(db: AppDatabase?) {
             INSTANCE = db
         }
@@ -363,7 +380,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance

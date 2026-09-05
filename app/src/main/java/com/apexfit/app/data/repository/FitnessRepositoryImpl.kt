@@ -177,6 +177,14 @@ class FitnessRepositoryImpl(
         val setsBySession = allSets.groupBy { it.sessionId }
         val sessions = dbSessions.map { session ->
             val dbSets = setsBySession[session.id] ?: emptyList()
+            // AUDIT FIX (BUG-V4-013): load secondary muscle data for all exercises in scan
+            val exerciseIds = dbSets.map { it.exerciseId }.distinct()
+            val exerciseMetaMap: Map<String, List<String>> = dao.getExercisesByIds(exerciseIds)
+                .associate { ex ->
+                    val slugKey = ex.id
+                    val secondaries = ex.secondaryMuscles
+                    slugKey to secondaries
+                }
             val exerciseLogs = dbSets.groupBy { it.exerciseId }.map { (exId, sets) ->
                 val firstSet = sets.firstOrNull()
                 val name = firstSet?.exerciseName ?: "Exercise"
@@ -185,6 +193,7 @@ class FitnessRepositoryImpl(
                     id = exId,
                     name = name,
                     muscleGroup = muscle,
+                    secondaryMuscles = exerciseMetaMap[exId] ?: emptyList(), // AUDIT FIX (BUG-V4-013)
                     sets = sets.map { s ->
                         com.apexfit.app.utils.ExerciseSet(
                             weight = s.weight,

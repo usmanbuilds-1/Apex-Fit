@@ -90,7 +90,9 @@ fun getDaysBetweenClamped(lastDate: String, today: String): Int {
         val current = DateTimeUtils.parseDate(today)
         if (last != null && current != null) {
             val diffInMillis = current.time - last.time
-            val days = (diffInMillis / (1000 * 60 * 60 * 24)).toInt()
+            // AUDIT FIX (BUG-V4-004): use rounding not truncation so a 23-hour
+            // DST spring-forward day still counts as 1 day, not 0.
+            val days = Math.round(diffInMillis.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
             if (days < 0) 2 else days
         } else {
             2
