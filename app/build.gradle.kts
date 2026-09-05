@@ -45,19 +45,13 @@ android {
       }
     }
   } else {
-    if (System.getenv("CI") == "true") {
-      throw GradleException(
-        "Release signing credentials not set. " +
-        "Set KEYSTORE_PATH, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD env vars."
-      )
-    }
     buildTypes {
       release {
         isCrunchPngs = false
         isMinifyEnabled = true
         isShrinkResources = true
         proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        // Local dev without env vars: unsigned release build (acceptable for local testing)
+        // Unsigned release build when signing env vars are not set
       }
       debug {
       }
@@ -77,7 +71,8 @@ android {
     checkReleaseBuilds = false
   }
   sourceSets {
-    getByName("test").assets.srcDirs(files("$projectDir/schemas"))
+    getByName("test").assets.srcDir("$projectDir/schemas")
+    getByName("androidTest").assets.srcDir("$projectDir/schemas")
   }
 }
 

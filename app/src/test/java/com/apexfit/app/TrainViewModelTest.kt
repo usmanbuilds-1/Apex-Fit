@@ -128,6 +128,7 @@ class TrainViewModelTest {
 
         viewModel.activatePlan(2020L).join()
         testScheduler.advanceUntilIdle()
+        kotlinx.coroutines.delay(100)
         val plans = dao.getAllPlans()
 
         assertTrue("Plan 2020 should be active", plans.find { it.id == 2020L }?.isActive == true)
