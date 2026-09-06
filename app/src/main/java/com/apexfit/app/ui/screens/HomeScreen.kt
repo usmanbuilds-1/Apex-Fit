@@ -101,6 +101,77 @@ fun ApexCard(
     }
 }
 
+private val com.apexfit.app.ui.models.UiPlateauResult.isPlateaued: Boolean get() = this.isPlateau
+
+@Composable
+private fun PlateauCard(plateauResult: com.apexfit.app.ui.models.UiPlateauResult) {
+    if (!plateauResult.isPlateaued) return
+
+    val daysText = if (plateauResult.daysStalled > 0)
+        "${plateauResult.daysStalled} days without progress"
+    else "Progress has stalled"
+
+    androidx.compose.material3.Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = DarkRaised,
+        border = BorderStroke(1.dp, AmberAccent.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            // Amber left accent bar
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(AmberAccent)
+            )
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "PLATEAU DETECTED",
+                    fontFamily = SyneFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = AmberAccent,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = daysText,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 12.sp,
+                    color = SecondaryText
+                )
+                if (plateauResult.interventions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    plateauResult.interventions.take(3).forEach { action ->
+                        Row(
+                            verticalAlignment = Alignment.Top,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        ) {
+                            Text(
+                                text = "→ ",
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 12.sp,
+                                color = AmberAccent
+                            )
+                            Text(
+                                text = action,
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 12.sp,
+                                color = PrimaryText
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun HomeScreen(
     fitnessViewModel: FitnessViewModel,
@@ -582,6 +653,13 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Plateau card — only visible when progress has stalled
+        PlateauCard(plateauResult = plateauResult)
+
+        if (plateauResult.isPlateaued) {
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         // 3. STREAK Section
         Row(
             modifier = Modifier
@@ -616,7 +694,11 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // NUTRITION Left Card
-                val calTarget = calorieTargetValue.coerceAtLeast(0) // Use 0 if not set
+                // Use the goal-adjusted adaptive target from sharedTargetsFlow.
+                // targets.calories is already goal-adjusted for non-manual users
+                // and respects the stored manual value for manual users.
+                // Fall back to calorieTargetValue only if targets hasn't loaded yet.
+                val calTarget = (targets?.calories ?: calorieTargetValue).coerceAtLeast(1)
                 val calLogged = loggedCaloriesTotal
                 val calLeft = (calTarget - calLogged)
                 val calPercent = if (calTarget > 0) (calLogged * 100 / calTarget).coerceIn(0, 100) else 0

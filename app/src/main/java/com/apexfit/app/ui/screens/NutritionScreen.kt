@@ -74,7 +74,13 @@ fun NutritionScreen(
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
 
-    val suggestedFromTdee = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES
+    // Apply goal adjustment so non-manual users see their actual goal-adjusted
+    // target, not raw maintenance calories.
+    // suggestCaloricTarget: Lose Fat → TDEE−400, Gain Muscle → TDEE+250, Maintain → TDEE
+    val suggestedFromTdee = com.apexfit.app.utils.AlgorithmEngine.suggestCaloricTarget(
+        tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
+        userGoal
+    )
     val calorieTarget = (if (calorieTargetManual) calorieTargetValue else suggestedFromTdee)
         .coerceAtLeast(1)
 

@@ -47,7 +47,8 @@ class FitnessViewModel(
     }
 
     // User preferences & onboarding State (Expose from preferences)
-    val isOnboarded = dataStore.isOnboardedFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val isOnboarded: StateFlow<Boolean?> = dataStore.isOnboardedFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val username = dataStore.usernameFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
     val goal = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Gain Muscle")
     val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.WEIGHT_KG)
@@ -57,6 +58,7 @@ class FitnessViewModel(
     val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.HEIGHT_CM)
     val userAge = dataStore.ageFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.AGE_YEARS)
     val userSex = dataStore.sexFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "male")
+    val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 3)
 
     val calorieTargetManual = dataStore.calorieTargetManualFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val calorieTargetValue = dataStore.calorieTargetValueFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.CALORIES)
@@ -89,7 +91,8 @@ class FitnessViewModel(
         height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM,
         age: Int = com.apexfit.app.UserDefaults.AGE_YEARS,
         sex: String = "male",
-        units: String = "kg"
+        units: String = "kg",
+        weeklyWorkouts: Int = 3
     ) {
         val isImperial = units.lowercase() in listOf("lb", "lbs")
         val weightKg = if (isImperial) currentWeight / 2.20462 else currentWeight
@@ -102,8 +105,14 @@ class FitnessViewModel(
         val validGoal      = if (goal in listOf("Gain Muscle", "Lose Fat", "Maintain")) goal else "Maintain"
         val validName      = username.trim().take(50).ifEmpty { "Athlete" }
         viewModelScope.launch {
-            dataStore.saveOnboardingData(validName, validGoal, validWeight, validGoalWeight, validHeight, validAge, sex)
+            dataStore.saveOnboardingData(validName, validGoal, validWeight, validGoalWeight, validHeight, validAge, sex, weeklyWorkouts)
             dataStore.saveUnits(units)
+        }
+    }
+
+    fun updateWeeklyWorkouts(n: Int) {
+        viewModelScope.launch {
+            dataStore.saveWeeklyWorkouts(n)
         }
     }
 

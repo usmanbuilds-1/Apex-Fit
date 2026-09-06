@@ -16,7 +16,12 @@ object AlgorithmEngine {
         bodyWeightKg: Double,
         goal: String
     ): com.apexfit.app.data.NutritionTargets {
-        val proteinG = (bodyWeightKg * com.apexfit.app.UserDefaults.PROTEIN_PER_KG)
+        val proteinMultiplier = when {
+            goal.lowercase().contains("lose") -> 2.2
+            goal.lowercase().contains("gain") -> 2.0
+            else -> 1.8
+        }
+        val proteinG = (bodyWeightKg * proteinMultiplier)
             .roundToInt().coerceIn(100, 250)
         val fatG = (calorieTarget * 0.25 / AppConstants.CALORIES_PER_GRAM_FAT)
             .roundToInt().coerceIn(45, 120)

@@ -36,6 +36,7 @@ class DataStoreManager(context: Context) {
         val HEIGHT_KEY = doublePreferencesKey("height")
         val AGE_KEY = intPreferencesKey("age")
         val SEX_KEY = stringPreferencesKey("sex")
+        val WEEKLY_WORKOUTS_KEY = intPreferencesKey("weekly_workouts")
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
         val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
@@ -113,6 +114,10 @@ class DataStoreManager(context: Context) {
         preferences[SEX_KEY] ?: "male"
     }
 
+    val weeklyWorkoutsFlow: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[WEEKLY_WORKOUTS_KEY] ?: 3
+    }
+
     val calorieTargetManualFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[CALORIE_TARGET_MANUAL_KEY] ?: false
     }
@@ -146,7 +151,8 @@ class DataStoreManager(context: Context) {
         goalWeight: Double,
         height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM,
         age: Int = com.apexfit.app.UserDefaults.AGE_YEARS,
-        sex: String = "male"
+        sex: String = "male",
+        weeklyWorkouts: Int = 3
     ) {
         context.dataStore.edit { preferences ->
             preferences[USER_NAME_KEY] = username
@@ -157,6 +163,13 @@ class DataStoreManager(context: Context) {
             preferences[HEIGHT_KEY] = height
             preferences[AGE_KEY] = age
             preferences[SEX_KEY] = sex
+            preferences[WEEKLY_WORKOUTS_KEY] = weeklyWorkouts
+        }
+    }
+
+    suspend fun saveWeeklyWorkouts(workouts: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[WEEKLY_WORKOUTS_KEY] = workouts
         }
     }
 

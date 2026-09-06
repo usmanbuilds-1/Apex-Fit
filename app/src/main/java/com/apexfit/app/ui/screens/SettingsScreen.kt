@@ -46,6 +46,7 @@ fun SettingsScreen(
     val userHeight by fitnessViewModel.userHeight.collectAsStateWithLifecycle()
     val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()
     val userSex by fitnessViewModel.userSex.collectAsStateWithLifecycle()
+    val weeklyWorkouts by fitnessViewModel.weeklyWorkouts.collectAsStateWithLifecycle()
     val currentEquipment by fitnessViewModel.equipmentAvailable.collectAsStateWithLifecycle()
     val currentWeightVal by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
     val currentGoalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
@@ -59,6 +60,7 @@ fun SettingsScreen(
     var editHeight by rememberSaveable { mutableStateOf(userHeight.toString()) }
     var editAge by rememberSaveable { mutableStateOf(userAge.toString()) }
     var editSex by remember(userSex) { mutableStateOf(userSex) }
+    var editIsManual by rememberSaveable { mutableStateOf(manualCalorieTarget) }
     var editCurrentWeight by rememberSaveable { 
         mutableStateOf(currentWeightVal.toDisplayWeight(units).toString()) 
     }
@@ -189,27 +191,74 @@ fun SettingsScreen(
             }
         }
 
-        // Calorie Target Value override
-        OutlinedTextField(
-            value = editedManualCalValue,
-            onValueChange = {
-                val filtered = it.filter { c -> c.isDigit() }
-                editedManualCalValue = filtered
-                val v = filtered.toIntOrNull()
-                manualCalError = if (v != null && v !in 1000..6000) "Must be 1000-6000" else null
-            },
-            isError = manualCalError != null,
-            label = { Text(stringResource(R.string.settings_manual_calorie_target_limit), color = SecondaryText) },
-            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth().testTag("settings_manual_calorie_input"),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = DarkRaised,
-                unfocusedContainerColor = DarkRaised,
-                focusedIndicatorColor = if (manualCalError != null) RedAccent else AmberAccent,
-                unfocusedIndicatorColor = if (manualCalError != null) RedAccent else BorderSubtle
-            )
+        // Calorie target mode selector
+        Text(
+            text = "CALORIE TARGET",
+            fontFamily = SyneFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = SecondaryText,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
         )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(false to "SMART", true to "MANUAL").forEach { (isManual, label) ->
+                val selected = editIsManual == isManual
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (selected) OrangeAccent else DarkRaised)
+                        .border(1.dp, if (selected) OrangeAccent else BorderSubtle, RoundedCornerShape(10.dp))
+                        .clickable { editIsManual = isManual }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        fontFamily = SyneFamily,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (selected) Color.Black else SecondaryText,
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        if (editIsManual) {
+            OutlinedTextField(
+                value = editedManualCalValue,
+                onValueChange = {
+                    val filtered = it.filter { c -> c.isDigit() }
+                    editedManualCalValue = filtered
+                    val v = filtered.toIntOrNull()
+                    manualCalError = if (v != null && v !in 1000..6000) "Must be 1000-6000" else null
+                },
+                isError = manualCalError != null,
+                label = { Text("Target (1000–6000 kcal)", color = SecondaryText) },
+                textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth().testTag("settings_manual_calorie_input"),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = DarkRaised,
+                    unfocusedContainerColor = DarkRaised,
+                    focusedIndicatorColor = if (manualCalError != null) RedAccent else AmberAccent,
+                    unfocusedIndicatorColor = if (manualCalError != null) RedAccent else BorderSubtle
+                )
+            )
+        } else {
+            Text(
+                text = "Apex Fit will calculate your target based on your weight trend and goal.",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 11.sp,
+                color = SecondaryText,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+        }
         manualCalError?.let {
             Text(
                 text = it,
@@ -305,6 +354,50 @@ fun SettingsScreen(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isSelected) Color(0xFF0A0A0F) else PrimaryText
+                    )
+                }
+            }
+        }
+
+        // Weekly Workouts Select
+        Text(
+            text = "WEEKLY WORKOUTS",
+            fontFamily = SyneFamily,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = SecondaryText,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf("1", "2", "3", "4", "5", "6+").forEach { option ->
+                val optVal = if (option == "6+") 6 else option.toIntOrNull() ?: 3
+                val selected = (weeklyWorkouts >= 6 && option == "6+") || (weeklyWorkouts < 6 && weeklyWorkouts.toString() == option)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selected) AmberAccent else DarkRaised)
+                        .border(
+                            1.dp,
+                            if (selected) AmberAccent else BorderSubtle,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .clickable { fitnessViewModel.updateWeeklyWorkouts(optVal) }
+                        .padding(vertical = 12.dp)
+                        .heightIn(min = 48.dp)
+                        .testTag("settings_weekly_workouts_$option"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = option,
+                        fontFamily = SyneFamily,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (selected) Color(0xFF0A0A0F) else SecondaryText
                     )
                 }
             }
@@ -472,7 +565,7 @@ fun SettingsScreen(
                         sex = editSex.lowercase()
                     )
                     val cInt = editedManualCalValue.toIntOrNull() ?: com.apexfit.app.UserDefaults.CALORIES
-                    fitnessViewModel.setManualCalorieTarget(true, cInt)
+                    fitnessViewModel.setManualCalorieTarget(editIsManual, if (editIsManual) cInt else 0)
 
                     val gW = editGoalWeight.toDoubleOrNull() ?: currentGoalWeight
                     val cW = editCurrentWeight.toDoubleOrNull() ?: currentWeightVal

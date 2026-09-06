@@ -153,7 +153,7 @@ fun ApexFitApp(
     }
 
     LaunchedEffect(activeSession, isOnboarded) {
-        if (isOnboarded && activeSession != null && !hasPromptedResume) {
+        if (isOnboarded == true && activeSession != null && !hasPromptedResume) {
             showResumeDialog = true
             hasPromptedResume = true
         }
@@ -266,20 +266,28 @@ fun ApexFitApp(
         }
     }
 
-    if (!isOnboarded) {
+    when (isOnboarded) {
+        null -> Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DarkBackground)
+        )
+        false -> {
         val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
         OnboardingScreen(
             preferredUnits = preferredUnits,
-            onComplete = { name, selectedGoal, currW, goalW, _, height, age, sex ->
+            onComplete = { name, selectedGoal, currW, goalW, units, height, age, sex, weeklyWorkouts ->
                 fitnessViewModel.completeOnboarding(
                     name, selectedGoal, currW, goalW, height, age, sex,
-                    units = preferredUnits
+                    units = units,
+                    weeklyWorkouts = weeklyWorkouts
                 )
                 showNotificationRationale = true
             }
         )
-    } else {
-        Scaffold(
+        } // end false branch
+        true -> {
+            Scaffold(
             containerColor = DarkBackground,
             topBar = {
                 if (currentRoute != "plan_builder") {
@@ -475,24 +483,27 @@ fun ApexFitApp(
                 }
             }
         }
-    }
+        } // end true branch
+    } // end when
 }
 
 @Composable
 fun OnboardingScreen(
     preferredUnits: String = "kg",
-    onComplete: (String, String, Double, Double, String, Double, Int, String) -> Unit
+    onComplete: (String, String, Double, Double, String, Double, Int, String, Int) -> Unit
 ) {
-    val isImperial = preferredUnits.lowercase() in listOf("lb", "lbs")
+    var selectedUnits by rememberSaveable { mutableStateOf(preferredUnits) }
+    val isImperial = selectedUnits.lowercase() in listOf("lb", "lbs")
     val unitLabel = if (isImperial) "lb" else "kg"
     val heightUnitLabel = if (isImperial) "in" else "cm"
     var name by rememberSaveable { mutableStateOf("") }
     var goalTarget by rememberSaveable { mutableStateOf("Gain Muscle") }
-    var currentWeightStr by rememberSaveable { mutableStateOf(if (isImperial) "175" else "80") }
-    var goalWeightStr by rememberSaveable { mutableStateOf(if (isImperial) "175" else "80") }
-    var heightStr by rememberSaveable { mutableStateOf(if (isImperial) "69" else "175") }
-    var ageStr by rememberSaveable { mutableStateOf("25") }
+    var currentWeightStr by rememberSaveable { mutableStateOf("") }
+    var goalWeightStr by rememberSaveable { mutableStateOf("") }
+    var heightStr by rememberSaveable { mutableStateOf("") }
+    var ageStr by rememberSaveable { mutableStateOf("") }
     var sexChoice by rememberSaveable { mutableStateOf("Male") }
+    var weeklyWorkoutsStr by rememberSaveable { mutableStateOf("3") }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var weightError by remember { mutableStateOf<String?>(null) }
@@ -540,6 +551,48 @@ fun OnboardingScreen(
                     color = PrimaryText,
                     modifier = Modifier.padding(bottom = 20.dp)
                 )
+
+                // Units toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("kg" to "KG", "lb" to "LB").forEach { (unit, label) ->
+                        val selected = selectedUnits.lowercase() == unit
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) AmberAccent else DarkRaised)
+                                .border(
+                                    1.dp,
+                                    if (selected) AmberAccent else BorderSubtle,
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable {
+                                    selectedUnits = unit
+                                    // Reset weight/height/goalWeight to sensible defaults
+                                    // for the new unit so the user isn't staring at 80 lb
+                                    currentWeightStr = if (unit == "lb") "175" else "80"
+                                    goalWeightStr = if (unit == "lb") "175" else "80"
+                                    heightStr = if (unit == "lb") "69" else "175"
+                                }
+                                .padding(vertical = 14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontFamily = SyneFamily,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (selected) Color(0xFF0A0A0F) else SecondaryText,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+                }
 
                 // Name field
                 OutlinedTextField(
@@ -608,6 +661,20 @@ fun OnboardingScreen(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                val goalDescription = when (goalTarget) {
+                    "Gain Muscle" -> "↑ ~250 kcal above maintenance  ·  High protein  ·  Progressive overload"
+                    "Lose Fat"    -> "↓ ~400 kcal below maintenance  ·  High protein  ·  Preserve muscle"
+                    else          -> "At maintenance  ·  Balanced macros  ·  Performance focus"
+                }
+                Text(
+                    text = goalDescription,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 11.sp,
+                    color = SecondaryText,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
 
                 // Weights Row
                 Row(
@@ -738,7 +805,48 @@ fun OnboardingScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "WEEKLY WORKOUTS",
+                    fontFamily = SyneFamily,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SecondaryText,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf("1", "2", "3", "4", "5", "6+").forEach { option ->
+                        val selected = weeklyWorkoutsStr == option
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selected) AmberAccent else DarkRaised)
+                                .border(
+                                    1.dp,
+                                    if (selected) AmberAccent else BorderSubtle,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { weeklyWorkoutsStr = option }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = option,
+                                fontFamily = SyneFamily,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (selected) Color(0xFF0A0A0F) else SecondaryText
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Button(
                     onClick = {
@@ -752,7 +860,7 @@ fun OnboardingScreen(
                         val heightVal = heightStr.replace(",", ".").toDoubleOrNull()
                         val ageVal = ageStr.toIntOrNull()
 
-                        val isImperial = preferredUnits.lowercase() in listOf("lb", "lbs")
+                        val isImperial = selectedUnits.lowercase() in listOf("lb", "lbs")
                         val minWeight = if (isImperial) 44.0 else 20.0
                         val maxWeight = if (isImperial) 1100.0 else 500.0
                         val minHeight = if (isImperial) 39.0 else 100.0
@@ -771,9 +879,28 @@ fun OnboardingScreen(
                         } else {
                             val cw = weightVal
                             val gw = goalWeightStr.toDoubleOrNull() ?: cw
-                            val ht = heightVal
-                            val ag = ageVal
-                            onComplete(trimmedName, goalTarget, cw, gw, "", ht, ag, sexChoice.lowercase())
+
+                            // Cross-field: goal weight must be consistent with goal direction
+                            val goalWeightOk = when (goalTarget.lowercase()) {
+                                "lose fat"    -> gw < cw
+                                "gain muscle" -> gw >= cw
+                                else          -> true
+                            }
+                            if (!goalWeightOk) {
+                                weightError = when (goalTarget.lowercase()) {
+                                    "lose fat"    -> "Goal weight must be below current weight for fat loss"
+                                    "gain muscle" -> "Goal weight should be at or above current weight for muscle gain"
+                                    else          -> null
+                                }
+                            } else {
+                                // all valid — proceed
+                                val ht = heightVal
+                                val ag = ageVal
+                                val workouts = if (weeklyWorkoutsStr == "6+") 6 else
+                                    weeklyWorkoutsStr.toIntOrNull() ?: 3
+                                onComplete(trimmedName, goalTarget, cw, gw, selectedUnits, ht, ag,
+                                    sexChoice.lowercase(), workouts)
+                            }
                         }
                     },
                     modifier = Modifier

@@ -99,20 +99,23 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     ) { weights, nutrition, sessions ->
         Triple(weights, nutrition, sessions)
     }.combine(
-        dataStore.heightFlow, dataStore.ageFlow, dataStore.sexFlow
-    ) { (weights, nutrition, sessions), height, age, sex ->
-        val fourteenDaysAgo = com.apexfit.app.utils.getDateDaysAgo(14)
-        val recentSessions = sessions.filter { it.date >= fourteenDaysAgo && it.completed }.size
-        val workoutsFreq = Math.round(recentSessions / 2.0).toInt().coerceIn(1, 7)
-
+        combine(
+            dataStore.heightFlow,
+            dataStore.ageFlow,
+            dataStore.sexFlow,
+            dataStore.weeklyWorkoutsFlow
+        ) { height, age, sex, workouts ->
+            UserBioProfile(height, age, sex, workouts)
+        }
+    ) { (weights, nutrition, sessions), bio ->
         com.apexfit.app.utils.AlgorithmEngine.calcAdaptiveTDEE(
             weightLog = weights,
             nutritionLog = nutrition,
             windowDays = 14,
-            heightCm = height,
-            ageYears = age,
-            biologicalSex = sex,
-            weeklyWorkouts = workoutsFreq
+            heightCm = bio.height,
+            ageYears = bio.age,
+            biologicalSex = bio.sex,
+            weeklyWorkouts = bio.weeklyWorkouts
         )
     }.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000),
@@ -424,6 +427,13 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
 }
+
+private data class UserBioProfile(
+    val height: Double,
+    val age: Int,
+    val sex: String,
+    val weeklyWorkouts: Int
+)
 
 private fun <T1, T2, T3, T4, R> Flow<T1>.combine(
     flow2: Flow<T2>,
