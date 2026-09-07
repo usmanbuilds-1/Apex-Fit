@@ -1213,12 +1213,6 @@ fun WorkoutExecutionSubTab(
                                                      )
                                                 }
                                                 timerStartCall()
-                                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
-                                                    androidx.core.content.ContextCompat.checkSelfPermission(
-                                                        context, android.Manifest.permission.POST_NOTIFICATIONS
-                                                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                                    notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                                }
                                             } else {
                                                 // Simple uncheck log state
                                                 trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, false)

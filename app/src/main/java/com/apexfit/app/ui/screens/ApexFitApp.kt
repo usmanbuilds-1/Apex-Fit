@@ -3,6 +3,11 @@ package com.apexfit.app.ui.screens
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.widget.Toast
+import android.os.Build
+import android.content.Context
+import android.content.pm.PackageManager
+import android.Manifest
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -157,6 +162,19 @@ fun ApexFitApp(
             showResumeDialog = true
             hasPromptedResume = true
         }
+        if (isOnboarded == true && activeSession != null) {
+            val prefs = context.getSharedPreferences("apex_prefs", Context.MODE_PRIVATE)
+            val handled = prefs.getBoolean("notification_permission_handled", false)
+            if (!handled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    prefs.edit().putBoolean("notification_permission_handled", true).apply()
+                }
+            }
+        }
     }
 
     if (showResumeDialog) {
@@ -214,7 +232,7 @@ fun ApexFitApp(
             onAllow = {
                 showNotificationRationale = false
                 val prefs = context.getSharedPreferences("apex_prefs", android.content.Context.MODE_PRIVATE)
-                prefs.edit().putBoolean("notifications_requested", true).apply()
+                prefs.edit().putBoolean("notification_permission_handled", true).apply()
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 }
@@ -222,7 +240,7 @@ fun ApexFitApp(
             onSkip = {
                 showNotificationRationale = false
                 val prefs = context.getSharedPreferences("apex_prefs", android.content.Context.MODE_PRIVATE)
-                prefs.edit().putBoolean("notifications_requested", true).apply()
+                prefs.edit().putBoolean("notification_permission_handled", true).apply()
             }
         )
     }

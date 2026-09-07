@@ -35,9 +35,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Raw database/preference flows
-    private val weightFlow: Flow<List<com.apexfit.app.utils.WeightEntry>> = dao.getAllWeightEntriesFlow()
-        .map { list -> list.map { com.apexfit.app.utils.WeightEntry(it.date, it.weight) } }
-        .flowOn(Dispatchers.IO)
+    private val weightFlow = com.apexfit.app.di.ServiceLocator.weightEntriesFlow
 
     private val nutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> = dao.getNutritionEntriesSince(getDateDaysAgo(30))
         .map { list ->
@@ -65,9 +63,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
 
-    val allNutritionHistory: StateFlow<List<UiNutritionEntry>> = dao.getAllNutritionEntriesFlow()
-        .map { entries -> entries.map { it.toUi() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
+    val allNutritionHistory: StateFlow<List<UiNutritionEntry>> =
+        com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
+            .map { list -> list.map { it.toUi() } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
 
     val todayNutrition: StateFlow<List<UiNutritionEntry>> = _todayDate
         .flatMapLatest { date -> dao.getNutritionForDateFlow(date) }

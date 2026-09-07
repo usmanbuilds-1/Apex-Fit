@@ -58,13 +58,37 @@ object ServiceLocator {
         )
     }
 
+    val weightEntriesFlow: StateFlow<List<com.apexfit.app.utils.WeightEntry>> by lazy {
+        val dao = database(appContext).fitnessDao()
+        dao.getAllWeightEntriesFlow()
+            .flowOn(Dispatchers.IO)
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.Eagerly,
+                initialValue = emptyList()
+            )
+    }
+
+    val nutritionEntriesFlow: StateFlow<List<com.apexfit.app.utils.NutritionEntry>> by lazy {
+        val dao = database(appContext).fitnessDao()
+        dao.getNutritionEntriesSince(
+            com.apexfit.app.utils.getDateDaysAgo(90)
+        )
+            .flowOn(Dispatchers.IO)
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.Eagerly,
+                initialValue = emptyList()
+            )
+    }
+
     val sessionReadinessFlow: StateFlow<UiSessionReadiness?> by lazy {
         val dao = database(appContext).fitnessDao()
         combine(
             richSessionsFlow,
             dataStore(appContext).calorieTargetValueFlow,
             dataStore(appContext).currentWeightFlow,
-            dao.getAllNutritionEntriesFlow()
+            nutritionEntriesFlow
         ) { sessions, calorieTarget, weight, nutritionList ->
             try {
                 if (sessions.isEmpty()) {

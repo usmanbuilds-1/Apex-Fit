@@ -13,7 +13,7 @@ import com.apexfit.app.data.PlanSession
 import com.apexfit.app.data.WorkoutPlan
 import com.apexfit.app.ui.models.UiExerciseSet
 import com.apexfit.app.utils.AppConstants
-import com.apexfit.app.utils.DetectedPattern
+import com.apexfit.app.data.DetectedPattern
 import com.apexfit.app.utils.PatternDetector
 import com.apexfit.app.utils.exerciseNameToSlug
 import com.apexfit.app.utils.getDaysBetweenClamped

@@ -37,40 +37,6 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
 
-    companion object {
-        private const val PREFS_NAME = "apex_prefs"
-        private const val KEY_NOTIFICATIONS_REQUESTED = "notifications_requested"
-    }
-
-    // Permission launcher for POST_NOTIFICATIONS (Android 13+)
-    private val requestNotifications =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            // granted == true => can post notifications; false => cannot
-            // Intentionally mark requested so we don't re-prompt on every launch.
-            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().putBoolean(KEY_NOTIFICATIONS_REQUESTED, true).apply()
-        }
-
-    private fun maybeRequestNotificationPermission() {
-        // Only for Android 13+; don't request if already granted or if we already requested once.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val alreadyRequested = prefs.getBoolean(KEY_NOTIFICATIONS_REQUESTED, false)
-
-            val hasPermission = ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (!hasPermission && !alreadyRequested) {
-                // Launch the system permission dialog. Non-blocking — continues after this call.
-                requestNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                // Mark requested immediately so we don't prompt again on subsequent starts.
-                prefs.edit().putBoolean(KEY_NOTIFICATIONS_REQUESTED, true).apply()
-            }
-        }
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -110,7 +76,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         handleDeepLink(intent)
-        maybeRequestNotificationPermission()
 
         setContent {
             ApexFitTheme {

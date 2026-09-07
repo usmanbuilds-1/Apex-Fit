@@ -25,23 +25,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // SECTION 1 — RAW ROOM FLOWS
     // ─────────────────────────────────────────────────────────────────
 
-    private val weightFlow: Flow<List<com.apexfit.app.utils.WeightEntry>> = dao.getAllWeightEntriesFlow()
-        .map { list -> list.map { com.apexfit.app.utils.WeightEntry(it.date, it.weight) } }
-        .flowOn(Dispatchers.IO)
+    private val weightFlow = com.apexfit.app.di.ServiceLocator.weightEntriesFlow
 
-    private val nutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> = dao.getNutritionEntriesSince(getDateDaysAgo(30))
-        .map { list ->
-            list.map {
-                com.apexfit.app.utils.NutritionEntry(
-                    date = it.date,
-                    calories = it.calories,
-                    protein = it.protein.roundToInt(),
-                    carbs = it.carbs.roundToInt(),
-                    fat = it.fat.roundToInt()
-                )
-            }
-        }
-        .flowOn(Dispatchers.IO)
+    private val nutritionFlow = com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
 
     private val sessionsFlow: Flow<List<com.apexfit.app.data.TrainingSession>> =
         dao.getRecentCompletedSessionsFlow(
@@ -221,7 +207,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .map { it.fatigueResult.toUi() }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.WhileSubscribed(500),
             com.apexfit.app.utils.FatigueResult(
                 ratio = null,
                 status = "unknown",
@@ -239,13 +225,13 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 riskStatus = result.statusLabel
             )
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.data.FatigueRatio(0.0, "No Data"))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.data.FatigueRatio(0.0, "No Data"))
 
     val muscleVolumes: StateFlow<Map<String, Int>> = sessionDerived
         .map { it.weeklyVolume }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.WhileSubscribed(500),
             emptyMap()
         )
 
@@ -253,7 +239,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .map { it.muscleHeatmap }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.WhileSubscribed(500),
             emptyMap()
         )
 
@@ -265,13 +251,13 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     val allPRs: StateFlow<List<UiPersonalRecord>> = dao.getPersonalRecordsWithNames()
         .map { entries -> entries.map { it.toUi() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
 
     val injuryRiskSignals: StateFlow<List<String>> = sessionDerived
         .map { it.injuryRiskSignals }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.WhileSubscribed(500),
             emptyList()
         )
 
@@ -340,7 +326,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.WhileSubscribed(500),
             emptyMap()
         )
 
@@ -351,10 +337,10 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 com.apexfit.app.utils.AlgorithmEngine.calcWeeklyVolumePerMuscle(sessions)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyMap())
 
     val targets: StateFlow<com.apexfit.app.utils.NutritionTargets?> = targetsFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), null)
 
 
 
@@ -371,7 +357,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
 
     val detectedPatterns: StateFlow<List<com.apexfit.app.data.DetectedPatternEntity>> = dao.getAllDetectedPatternsFlow()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
 
     val deloadRecommendation: StateFlow<UiDeloadResult> = combine(
         richSessionsFlow, complianceScore
@@ -382,7 +368,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         res.toUi()
     }.stateIn(
         viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
+        SharingStarted.WhileSubscribed(500),
         com.apexfit.app.utils.DeloadResult(recommendation = "No data yet", urgency = "low", signals = 0).toUi()
     )
 

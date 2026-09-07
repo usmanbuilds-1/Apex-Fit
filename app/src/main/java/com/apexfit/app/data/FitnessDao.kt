@@ -136,7 +136,7 @@ interface FitnessDao {
     suspend fun insertPlanSessions(sessions: List<PlanSession>): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertPlanSession(session: PlanSession)
+    suspend fun insertPlanSession(session: PlanSession): Long
 
     @Query("DELETE FROM plan_sessions WHERE planId = :planId")
     suspend fun deleteSessionsForPlan(planId: Long)
