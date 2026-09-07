@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -186,11 +187,15 @@ class WorkoutSessionManager(
                 )
             }
 
-            val nutritionLog = repository.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList()
-            val calorieTarget = repository.getCalorieTargetFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.CALORIES
+            // Parallel reads: launch all three concurrently and await together
+            val nutritionLogDeferred = async { repository.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList() }
+            val calorieTargetDeferred = async { repository.getCalorieTargetFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.CALORIES }
+            val userGoalDeferred = async { repository.getGoalFlow().firstOrNull() ?: "Maintain Weight" }
+
+            val nutritionLog = nutritionLogDeferred.await()
+            val calorieTarget = calorieTargetDeferred.await()
+            val userGoal = userGoalDeferred.await()
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-            
-            val userGoal = repository.getGoalFlow().firstOrNull() ?: "Maintain Weight"
             val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, userGoal)
 
             com.apexfit.app.utils.ReadinessFinal.buildReadinessInputs(

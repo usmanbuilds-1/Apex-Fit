@@ -61,6 +61,7 @@ import com.apexfit.app.TrainViewModel
 import com.apexfit.app.NutritionViewModel
 import com.apexfit.app.ui.models.*
 import com.apexfit.app.ui.theme.*
+import com.apexfit.app.ui.components.SingleFrontHeatmapCanvas
 import com.apexfit.app.utils.AlgorithmEngine
 import com.apexfit.app.utils.*
 import com.apexfit.app.utils.toDisplayWeight
@@ -182,6 +183,7 @@ fun HomeScreen(
     onNavigateTo: (Int) -> Unit
 ) {
     val username by fitnessViewModel.username.collectAsStateWithLifecycle()
+    val activeWorkoutSession by trainViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val weight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
     val activePlanSessionsState by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val activePlanSessions: List<com.apexfit.app.data.PlanSession> = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
@@ -240,7 +242,9 @@ fun HomeScreen(
     // Aggregate meal stats
     val latestWeight = weightHistory.firstOrNull()?.weight ?: weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
 
-    val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
+    val todayDayString = remember {
+        java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
+    }
     val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
     val sessionName = todaySession?.label ?: "Rest Day"
     val focusMuscles = (todaySession?.focus ?: "Active Recovery").replace(", ", " • ").replace(",", " • ")
@@ -260,7 +264,7 @@ fun HomeScreen(
         (rawTime + transitionTime + warmUp).roundToInt()
     }
 
-    val finalWorkoutDurationMin = if (estimatedWorkoutDurationMin > 0) estimatedWorkoutDurationMin else 42
+    val finalWorkoutDurationMin = estimatedWorkoutDurationMin
 
     val context = LocalContext.current
 
@@ -493,27 +497,29 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Time Badge Pill
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(DarkRaised)
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Timer,
-                                contentDescription = null,
-                                tint = AmberAccent,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                text = "~$finalWorkoutDurationMin min",
-                                fontSize = 12.sp,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryText
-                            )
+                        if (finalWorkoutDurationMin > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(DarkRaised)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Timer,
+                                    contentDescription = null,
+                                    tint = AmberAccent,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "~$finalWorkoutDurationMin min",
+                                    fontSize = 12.sp,
+                                    fontFamily = JetBrainsMonoFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryText
+                                )
+                            }
                         }
                     }
 
@@ -548,7 +554,7 @@ fun HomeScreen(
                                     style = Stroke(width = 1.dp.toPx())
                                 )
                                 drawArc(
-                                    color = GreenAccent,
+                                    color = if (readiness != null) GreenAccent else BorderSubtle,
                                     startAngle = -90f,
                                     sweepAngle = (readiness?.score?.toFloat() ?: 0f) / 100f * 360f,
                                     useCenter = false,
@@ -559,43 +565,28 @@ fun HomeScreen(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = readiness?.score?.let { "$it%" } ?: "—",
-                                fontSize = 24.sp,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = PrimaryText
-                            )
-                            Text(
-                                text = "RECOVERY",
-                                fontSize = 12.sp,
-                                fontFamily = SyneFamily,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = GreenAccent,
-                                letterSpacing = 1.sp
-                            )
+                        val currentReadiness = readiness
+                        if (currentReadiness != null) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("${currentReadiness.score}%", fontSize = 24.sp, fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.ExtraBold, color = PrimaryText)
+                                Text("RECOVERY", fontSize = 12.sp, fontFamily = SyneFamily, fontWeight = FontWeight.ExtraBold, color = GreenAccent, letterSpacing = 1.sp)
+                            }
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 6.dp)) {
+                                Text("Log a\nsession", fontSize = 10.sp, fontFamily = JetBrainsMonoFamily, color = SecondaryText, textAlign = TextAlign.Center, lineHeight = 14.sp)
+                            }
                         }
                     }
 
                     // 3. Mannequin Muscle Overlay (On the Right)
-                    // TODO: Wire recoveryHeatmap to SingleFrontHeatmapCanvas in Today's Training card
-                    Box(
+                    SingleFrontHeatmapCanvas(
                         modifier = Modifier
                             .width(72.dp)
                             .height(120.dp)
                             .align(Alignment.CenterVertically)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FitnessCenter,
-                            contentDescription = "Trained muscles",
-                            tint = GreenAccent.copy(alpha = 0.7f),
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
+                            .clip(RoundedCornerShape(8.dp)),
+                        heatmap = recoveryHeatmap
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -603,23 +594,34 @@ fun HomeScreen(
                 // START WORKOUT CTA Button
                 Button(
                     onClick = {
+                        if (activeWorkoutSession != null) {
+                            onNavigateTo(1)
+                            return@Button
+                        }
                         if (isStarting) return@Button
-                        isStarting = true
-                        if (todaySession != null) {
-                            fitnessViewModel.startWorkoutSession(todaySession)
+                        if (isTodayWorkoutCompleted) {
+                            onNavigateTo(1)
+                        } else if (todaySession == null) {
                             onNavigateTo(1)
                         } else {
-                            android.widget.Toast.makeText(
-                                context,
-                                "No workout scheduled for today. Enjoy your rest day!",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
+                            isStarting = true
+                            fitnessViewModel.startWorkoutSession(todaySession)
                         }
                     },
                     enabled = !isStarting,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = OrangeAccent,
-                        contentColor = Color.Black
+                        containerColor = when {
+                            activeWorkoutSession != null -> OrangeAccent
+                            isTodayWorkoutCompleted -> GreenAccent
+                            todaySession == null -> DarkRaised
+                            else -> OrangeAccent
+                        },
+                        contentColor = when {
+                            activeWorkoutSession != null -> Color.Black
+                            isTodayWorkoutCompleted -> Color.Black
+                            todaySession == null -> SecondaryText
+                            else -> Color.Black
+                        }
                     ),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
@@ -633,17 +635,37 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PlayArrow,
+                            imageVector = when {
+                                activeWorkoutSession != null -> Icons.Default.PlayCircle
+                                isTodayWorkoutCompleted -> Icons.Default.CheckCircle
+                                todaySession == null -> Icons.Default.SelfImprovement
+                                else -> Icons.Default.PlayArrow
+                            },
                             contentDescription = null,
-                            tint = Color.Black,
+                            tint = when {
+                                activeWorkoutSession != null -> Color.Black
+                                isTodayWorkoutCompleted -> Color.Black
+                                todaySession == null -> SecondaryText
+                                else -> Color.Black
+                            },
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "START WORKOUT",
+                            text = when {
+                                activeWorkoutSession != null -> "RESUME WORKOUT"
+                                isTodayWorkoutCompleted -> "WORKOUT DONE  ✓"
+                                todaySession == null -> "LOG CUSTOM WORKOUT"
+                                else -> "START WORKOUT"
+                            },
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.Black,
+                            color = when {
+                                activeWorkoutSession != null -> Color.Black
+                                isTodayWorkoutCompleted -> Color.Black
+                                todaySession == null -> SecondaryText
+                                else -> Color.Black
+                            },
                             letterSpacing = 1.sp
                         )
                     }
@@ -667,20 +689,16 @@ fun HomeScreen(
                 .height(48.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (streakResult.training.current > 0) {
-                Text(
-                    text = "🔥 ${streakResult.training.current} DAY STREAK",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = OrangeAccent
-                )
-            } else {
-                Text(
-                    text = "Log your first workout to start a streak",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color.Gray
-                )
+            when {
+                streakResult.training.current > 0 -> {
+                    Text("🔥 ${streakResult.training.current} DAY STREAK", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
+                }
+                isTodayWorkoutCompleted -> {
+                    Text("🔥 Streak started — keep it going!", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OrangeAccent)
+                }
+                else -> {
+                    Text("Log your first workout to start a streak", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color.Gray)
+                }
             }
         }
 
@@ -710,6 +728,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        .clickable { onNavigateTo(2) }
                         .testTag("nutrition_summary_card"),
                     elevation = 0.dp
                 ) {
@@ -739,7 +758,6 @@ fun HomeScreen(
                                     tint = IndigoAccent.copy(alpha = 0.8f),
                                     modifier = Modifier
                                         .size(16.dp)
-                                        .clickable { onNavigateTo(2) }
                                 )
                             }
 
@@ -844,6 +862,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        .clickable { onNavigateTo(3) }
                         .testTag("body_weight_summary_card"),
                     elevation = 0.dp
                 ) {
@@ -872,7 +891,6 @@ fun HomeScreen(
                                     tint = IndigoAccent.copy(alpha = 0.8f),
                                     modifier = Modifier
                                         .size(16.dp)
-                                        .clickable { onNavigateTo(3) }
                                 )
                             }
 
@@ -887,6 +905,11 @@ fun HomeScreen(
 
                                 if (weightHistory.size >= 2) {
                                     val change = weightHistory.first().weight.toDisplayWeight(units) - weightHistory[1].weight.toDisplayWeight(units)
+                                    val isPositiveChange = when {
+                                        userGoal.equals("Gain Muscle", ignoreCase = true) -> change > 0
+                                        else -> change < 0
+                                    }
+                                    val deltaColor = if (isPositiveChange) GreenAccent else RedAccent
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -895,14 +918,14 @@ fun HomeScreen(
                                             Icon(
                                                 imageVector = Icons.Default.ArrowDownward,
                                                 contentDescription = null,
-                                                tint = GreenAccent,
+                                                tint = deltaColor,
                                                 modifier = Modifier.size(14.dp)
                                             )
                                         } else if (change > 0) {
                                             Icon(
                                                 imageVector = Icons.Default.ArrowUpward,
                                                 contentDescription = null,
-                                                tint = RedAccent,
+                                                tint = deltaColor,
                                                 modifier = Modifier.size(14.dp)
                                             )
                                         }
@@ -911,7 +934,7 @@ fun HomeScreen(
                                             fontSize = 12.sp,
                                             fontFamily = JetBrainsMonoFamily,
                                             fontWeight = FontWeight.Normal,
-                                            color = if (change <= 0) GreenAccent else RedAccent
+                                            color = deltaColor
                                         )
                                         Text(
                                             text = "this week",
@@ -945,11 +968,16 @@ fun HomeScreen(
                             ) {
                                 val daysToShow = when (selectedFilter) { "7D" -> 7; "30D" -> 30; else -> 90 }
                                 val cutoff = System.currentTimeMillis() - (daysToShow.toLong() * 86400000L)
-                                val chartData = weightHistory.filter { entry ->
-                                    try {
-                                        val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(entry.date)
-                                        (d?.time ?: 0L) >= cutoff
-                                    } catch (e: Exception) { true }
+                                val chartDateFormatter = remember {
+                                    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                                }
+                                val chartData = remember(weightHistory, cutoff) {
+                                    weightHistory.filter { entry ->
+                                        try {
+                                            val d = chartDateFormatter.parse(entry.date)
+                                            (d?.time ?: 0L) >= cutoff
+                                        } catch (e: Exception) { true }
+                                    }
                                 }
                                 if (chartData.size >= 2) {
                                     val entries = remember(chartData) {
@@ -958,84 +986,90 @@ fun HomeScreen(
                                     val linePoints = remember(entries, units) { entries.map { it.weight.toDisplayWeight(units) } }
                                     val minWeight = linePoints.minOrNull() ?: 60.0
                                     val maxWeight = linePoints.maxOrNull() ?: 62.0
+                                    val chartGeometry = remember(linePoints) {
+                                        if (linePoints.size < 2) return@remember null
+                                        val minW = linePoints.minOrNull() ?: 60.0
+                                        val maxW = linePoints.maxOrNull() ?: 62.0
+                                        val valRange = if (maxW == minW) 1.0 else maxW - minW
+                                        Triple(minW, maxW, valRange)
+                                    }
+
                                     Canvas(
                                         modifier = Modifier
-                                            .fillMaxSize()
+                                            .fillMaxWidth()
+                                            .height(56.dp)
                                             .semantics {
                                                 contentDescription = "Weight trend chart showing ${entries.size} entries from ${entries.firstOrNull()?.date ?: "N/A"} to ${entries.lastOrNull()?.date ?: "N/A"}, ranging from ${minWeight}kg to ${maxWeight}kg"
                                             }
                                     ) {
-                                        if (linePoints.size >= 2) {
-                                            val minW = linePoints.minOrNull() ?: 60.0
-                                            val maxW = linePoints.maxOrNull() ?: 62.0
-                                            val valRange = if (maxW == minW) 1.0 else (maxW - minW)
-                                            val xSpacing = size.width / (linePoints.size - 1)
+                                        if (linePoints.size < 2 || chartGeometry == null) return@Canvas
+                                        val (minW, maxW, valRange) = chartGeometry
+                                        val xSpacing = size.width / (linePoints.size - 1)
 
-                                            val canvasPoints = linePoints.mapIndexed { index, weightVal ->
-                                                val ptX = index * xSpacing
-                                                val pct = (weightVal - minW) / valRange
-                                                val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
-                                                Offset(ptX, ptY)
-                                            }
+                                        val canvasPoints = linePoints.mapIndexed { index, weightVal ->
+                                            val ptX = index * xSpacing
+                                            val pct = (weightVal - minW) / valRange
+                                            val ptY = size.height - (pct * (size.height - 10.dp.toPx()) + 5.dp.toPx()).toFloat()
+                                            Offset(ptX.toFloat(), ptY)
+                                        }
 
-                                            // Glow gradient area below spline line
-                                            val gradientPath = Path().apply {
-                                                moveTo(canvasPoints.first().x, size.height)
-                                                lineTo(canvasPoints.first().x, canvasPoints.first().y)
-                                                for (i in 0 until canvasPoints.size - 1) {
-                                                    val p0 = canvasPoints[i]
-                                                    val p1 = canvasPoints[i + 1]
-                                                    val conPtX1 = (p0.x + p1.x) / 2
-                                                    val conPtY1 = p0.y
-                                                    val conPtX2 = (p0.x + p1.x) / 2
-                                                    val conPtY2 = p1.y
-                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
-                                                }
-                                                lineTo(canvasPoints.last().x, size.height)
-                                                close()
+                                        // Glow gradient area below spline line
+                                        val gradientPath = Path().apply {
+                                            moveTo(canvasPoints.first().x, size.height)
+                                            lineTo(canvasPoints.first().x, canvasPoints.first().y)
+                                            for (i in 0 until canvasPoints.size - 1) {
+                                                val p0 = canvasPoints[i]
+                                                val p1 = canvasPoints[i + 1]
+                                                val conPtX1 = (p0.x + p1.x) / 2
+                                                val conPtY1 = p0.y
+                                                val conPtX2 = (p0.x + p1.x) / 2
+                                                val conPtY2 = p1.y
+                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
                                             }
-                                            drawPath(
-                                                path = gradientPath,
-                                                brush = Brush.verticalGradient(
-                                                    colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
-                                                    startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
-                                                    endY = size.height
-                                                )
+                                            lineTo(canvasPoints.last().x, size.height)
+                                            close()
+                                        }
+                                        drawPath(
+                                            path = gradientPath,
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
+                                                startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
+                                                endY = size.height
                                             )
+                                        )
 
-                                            // Smooth stroke curve
-                                            val chartPath = Path().apply {
-                                                moveTo(canvasPoints.first().x, canvasPoints.first().y)
-                                                for (i in 0 until canvasPoints.size - 1) {
-                                                    val p0 = canvasPoints[i]
-                                                    val p1 = canvasPoints[i + 1]
-                                                    val conPtX1 = (p0.x + p1.x) / 2
-                                                    val conPtY1 = p0.y
-                                                    val conPtX2 = (p0.x + p1.x) / 2
-                                                    val conPtY2 = p1.y
-                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
-                                                }
+                                        // Smooth stroke curve
+                                        val chartPath = Path().apply {
+                                            moveTo(canvasPoints.first().x, canvasPoints.first().y)
+                                            for (i in 0 until canvasPoints.size - 1) {
+                                                val p0 = canvasPoints[i]
+                                                val p1 = canvasPoints[i + 1]
+                                                val conPtX1 = (p0.x + p1.x) / 2
+                                                val conPtY1 = p0.y
+                                                val conPtX2 = (p0.x + p1.x) / 2
+                                                val conPtY2 = p1.y
+                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
                                             }
-                                            drawPath(
-                                                path = chartPath,
+                                        }
+                                        drawPath(
+                                            path = chartPath,
+                                            color = IndigoAccent,
+                                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                                        )
+
+                                        // Point anchor circles on spline line
+                                        canvasPoints.forEach { pt ->
+                                            drawCircle(
+                                                color = DarkCardSurface,
+                                                radius = 4.dp.toPx(),
+                                                center = pt
+                                            )
+                                            drawCircle(
                                                 color = IndigoAccent,
-                                                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                                                radius = 4.dp.toPx(),
+                                                center = pt,
+                                                style = Stroke(width = 2.dp.toPx())
                                             )
-
-                                            // Point anchor circles on spline line
-                                            canvasPoints.forEach { pt ->
-                                                drawCircle(
-                                                    color = DarkCardSurface,
-                                                    radius = 4.dp.toPx(),
-                                                    center = pt
-                                                )
-                                                drawCircle(
-                                                    color = IndigoAccent,
-                                                    radius = 4.dp.toPx(),
-                                                    center = pt,
-                                                    style = Stroke(width = 2.dp.toPx())
-                                                )
-                                            }
                                         }
                                     }
                                 } else {

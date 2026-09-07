@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -271,8 +272,7 @@ fun ProgramSubTab(
                 }
 
                 // Exercises list
-                items(exercises.size, key = { it }) { index ->
-                    val ex = exercises[index]
+                itemsIndexed(exercises, key = { _, ex -> ex.id }) { index, ex ->
 
                     var isExpanded by rememberSaveable { mutableStateOf(false) }
 

@@ -25,9 +25,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     val allBodyMeasurements: StateFlow<UiState<List<UiBodyMeasurement>>> = dao.getAllBodyMeasurementsFlow()
         .map { entries -> UiState.Success(entries.map { it.toUi() }) as UiState<List<UiBodyMeasurement>> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
 
-    val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "kg")
+    val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), "kg")
 
     fun measurementsForBodyPart(bodyPart: String): Flow<List<UiBodyMeasurement>> {
         return dao.getBodyMeasurementsForPartFlow(bodyPart)
@@ -54,7 +54,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     }
     .flowOn(Dispatchers.Default)
     .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
 
     // 3. Muscle recovery status calculation
     val muscleRecoveryStatuses: StateFlow<UiState<List<MuscleRecoveryStatus>>> = combine(
@@ -65,7 +65,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
     }
     .flowOn(Dispatchers.Default)
     .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
 
     // Log & delete measurements
     fun logMeasurement(bodyPart: String, value: Double) {

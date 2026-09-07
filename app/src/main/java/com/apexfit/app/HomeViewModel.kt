@@ -63,40 +63,40 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val weightHistory: StateFlow<UiState<List<UiWeightEntry>>> = repository.getWeightHistory()
         .map { entries -> UiState.Success(entries.map { it.toUi() }) as UiState<List<UiWeightEntry>> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
 
     val allNutritionHistory: StateFlow<List<UiNutritionEntry>> = dao.getAllNutritionEntriesFlow()
         .map { entries -> entries.map { it.toUi() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
 
     val todayNutrition: StateFlow<List<UiNutritionEntry>> = _todayDate
         .flatMapLatest { date -> dao.getNutritionForDateFlow(date) }
         .map { entries -> entries.map { it.toUi() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
 
     val currentWeight: Flow<Double> = dataStore.currentWeightFlow
     val calorieTargetFlow: Flow<Int> = dataStore.calorieTargetValueFlow
 
     val loggedCalories: StateFlow<Int> = todayNutrition.map { meals ->
         meals.sumOf { it.calories }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), 0)
 
     val loggedProtein: StateFlow<Int> = todayNutrition.map { meals ->
         meals.sumOf { it.protein }.roundToInt()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), 0)
 
     val loggedCarbs: StateFlow<Int> = todayNutrition.map { meals ->
         meals.sumOf { it.carbs }.roundToInt()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), 0)
 
     val loggedFat: StateFlow<Int> = todayNutrition.map { meals ->
         meals.sumOf { it.fat }.roundToInt()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), 0)
 
     val macroTargets: StateFlow<UiState<com.apexfit.app.utils.NutritionTargets>> = targetsFlow
         .map { UiState.Success(it) as UiState<com.apexfit.app.utils.NutritionTargets> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
 
     val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> = repository.getActivePlan().flatMapLatest { plan ->
         val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
@@ -121,13 +121,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         res.toUi()
     }.stateIn(
         viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
+        SharingStarted.WhileSubscribed(500),
         com.apexfit.app.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi()
     )
 
     val complianceScore: StateFlow<Int> = complianceScores
         .map { it.overall }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), 0)
 
     // Home Analytics (Streaks)
     val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> = combine(
@@ -139,7 +139,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(
         viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
+        SharingStarted.WhileSubscribed(500),
         com.apexfit.app.utils.StreakResult(com.apexfit.app.utils.StreakInfo(0), com.apexfit.app.utils.StreakInfo(0))
     )
 

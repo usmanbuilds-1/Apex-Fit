@@ -48,21 +48,21 @@ class FitnessViewModel(
 
     // User preferences & onboarding State (Expose from preferences)
     val isOnboarded: StateFlow<Boolean?> = dataStore.isOnboardedFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-    val username = dataStore.usernameFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
-    val goal = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Gain Muscle")
-    val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.WEIGHT_KG)
-    val goalWeight = dataStore.goalWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.WEIGHT_KG)
-    val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "kg")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), null)
+    val username = dataStore.usernameFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), "")
+    val goal = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), "Gain Muscle")
+    val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.UserDefaults.WEIGHT_KG)
+    val goalWeight = dataStore.goalWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.UserDefaults.WEIGHT_KG)
+    val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), "kg")
     
-    val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.HEIGHT_CM)
-    val userAge = dataStore.ageFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.AGE_YEARS)
-    val userSex = dataStore.sexFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "male")
-    val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 3)
+    val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.UserDefaults.HEIGHT_CM)
+    val userAge = dataStore.ageFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.UserDefaults.AGE_YEARS)
+    val userSex = dataStore.sexFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), "male")
+    val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), 3)
 
-    val calorieTargetManual = dataStore.calorieTargetManualFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val calorieTargetValue = dataStore.calorieTargetValueFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.apexfit.app.UserDefaults.CALORIES)
-    val equipmentAvailable = dataStore.equipmentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Barbell,Dumbbell,Cable,Machine")
+    val calorieTargetManual = dataStore.calorieTargetManualFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), false)
+    val calorieTargetValue = dataStore.calorieTargetValueFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.UserDefaults.CALORIES)
+    val equipmentAvailable = dataStore.equipmentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), "Barbell,Dumbbell,Cable,Machine")
 
     // Navigation Active Tab state (0=Home, 1=Train, 2=Nutrition, 3=Progress, 4=Coach)
     private val _currentTab = MutableStateFlow(
