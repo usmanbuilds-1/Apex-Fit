@@ -392,6 +392,47 @@ interface FitnessDao {
     """)
     suspend fun getExerciseSetsByExerciseIdAndRPE(exerciseId: String, rpe: Int, limit: Int): List<LastSetWithDate>
 
+    /**
+     * Batched progression data query for workout start optimization.
+     * 
+     * For each exercise ID in the request, returns:
+     * - All completed, non-warmup sets from that exercise's latest completed session
+     * - That exercise's stalledSessions count
+     * 
+     * Returns no rows for exercises with no completed working-set history.
+     * Latest session is determined by: session date DESC, session id DESC (tie-breaker).
+     * Sets within latest session ordered by id ASC (insertion order).
+     *
+     * This eliminates 2*N per-exercise queries during startSession.
+     */
+    @Query("""
+        SELECT 
+            es.id, es.sessionId, es.exerciseId, es.exerciseName,
+            es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
+            es.restTaken, es.completed, es.repsInReserve,
+            ts.date AS date,
+            COALESCE(em.stalledSessions, 0) AS stalledSessions
+        FROM exercise_sets es
+        INNER JOIN workout_sessions ts ON es.sessionId = ts.id
+        LEFT JOIN exercise_metadata em ON es.exerciseId = em.exercise_id
+        WHERE es.exerciseId IN (:exerciseIds)
+          AND es.completed = 1
+          AND es.isWarmup = 0
+          AND ts.id = (
+              SELECT ts2.id FROM workout_sessions ts2
+              INNER JOIN exercise_sets es2 ON ts2.id = es2.sessionId
+              WHERE es2.exerciseId = es.exerciseId
+                AND es2.completed = 1
+                AND es2.isWarmup = 0
+              ORDER BY ts2.date DESC, ts2.id DESC
+              LIMIT 1
+          )
+        ORDER BY es.exerciseId ASC, es.id ASC
+    """)
+    suspend fun getProgressionDataForExercises(
+        exerciseIds: List<String>
+    ): List<ProgressionSetWithStalled>
+
     @Transaction
     suspend fun insertSessionAtomic(session: TrainingSession, sets: List<ExerciseSet>) {
         insertTrainingSession(session)
@@ -408,3 +449,40 @@ interface FitnessDao {
     }
 }
 
+/**
+ * Data class for batched progression query result.
+ * Combines ExerciseSet fields with stalledSessions count for progression engine input.
+ */
+data class ProgressionSetWithStalled(
+    val id: Long,
+    val sessionId: String,
+    val exerciseId: String,
+    val exerciseName: String,
+    val muscleGroup: String,
+    val weight: Double,
+    val reps: Int,
+    val rpe: Int,
+    val isWarmup: Int,
+    val restTaken: Int,
+    val completed: Int,
+    val repsInReserve: Int,
+    val date: String,
+    val stalledSessions: Int
+) {
+    fun toExerciseSet(): ExerciseSet = ExerciseSet(
+        id = id,
+        sessionId = sessionId,
+        exerciseId = exerciseId,
+        exerciseName = exerciseName,
+        muscleGroup = muscleGroup,
+        weight = weight,
+        reps = reps,
+        rpe = rpe,
+        isWarmup = isWarmup,
+        restTaken = restTaken,
+        completed = completed,
+        repsInReserve = repsInReserve,
+        effectiveSetValue = 0.0,
+        weightUnit = "kg"
+    )
+}
