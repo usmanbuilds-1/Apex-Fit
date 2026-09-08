@@ -298,6 +298,12 @@ fun HomeScreen(
     val isTodayWorkoutCompleted = remember(completedSessions, todayDateStr) {
         completedSessions.any { it.date == todayDateStr }
     }
+    val isPlannedTrainingToday = remember(todaySession) {
+        todaySession != null &&
+            !todaySession.label.contains("Rest", ignoreCase = true) &&
+            todaySession.focus != "Muscle Recovery & Rest"
+    }
+    val isTodayTrainingDay = isTodayWorkoutCompleted || isPlannedTrainingToday
 
     val lastTrainedDates = remember(richSessionsFlow) {
         val mapping = mutableMapOf<String, String>()
@@ -745,13 +751,31 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "NUTRITION",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = IndigoAccent,
-                                    letterSpacing = 1.sp
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "NUTRITION",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = IndigoAccent,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = if (isTodayTrainingDay) AmberAccent.copy(alpha = 0.2f) else DarkRaised
+                                    ) {
+                                        Text(
+                                            text = if (isTodayTrainingDay) "TRAIN" else "REST",
+                                            fontSize = 9.sp,
+                                            fontFamily = JetBrainsMonoFamily,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isTodayTrainingDay) AmberAccent else SecondaryText,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,

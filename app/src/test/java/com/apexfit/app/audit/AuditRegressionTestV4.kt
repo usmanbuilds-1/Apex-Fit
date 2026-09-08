@@ -129,9 +129,9 @@ class AuditRegressionTestV4 {
                             date = dateStr,
                             name = "Meal $mealIdx",
                             calories = 600,
-                            protein = 37,
-                            carbs = 75,
-                            fat = 15
+                            protein = 37.0,
+                            carbs = 75.0,
+                            fat = 15.0
                         )
                     )
                 }
@@ -143,9 +143,9 @@ class AuditRegressionTestV4 {
                             date = dateStr,
                             name = "Meal $mealIdx",
                             calories = 1200,
-                            protein = 75,
-                            carbs = 150,
-                            fat = 30
+                            protein = 75.0,
+                            carbs = 150.0,
+                            fat = 30.0
                         )
                     )
                 }
@@ -180,9 +180,9 @@ class AuditRegressionTestV4 {
                     date = dateStr,
                     name = "Daily Total",
                     calories = dailyCalories,
-                    protein = 150,
-                    carbs = 200,
-                    fat = 60
+                    protein = 150.0,
+                    carbs = 200.0,
+                    fat = 60.0
                 )
             )
         }
@@ -263,7 +263,7 @@ class AuditRegressionTestV4 {
     @Test
     fun canonicalizeExerciseSetWeightsIfNeeded_runsOnceAndRespectsUnits() = runBlocking {
         val dataStore = DataStoreManager(context)
-        dataStore.clearAll()
+        dataStore.clearAllData()
 
         // 1. Kg user test: DAO conversion should NOT run
         val kgSet = ExerciseSet(
@@ -288,7 +288,7 @@ class AuditRegressionTestV4 {
         assertEquals("lb", currentSet.weightUnit)
 
         // Clear dataStore flag to simulate fresh run for imperial user
-        dataStore.clearAll()
+        dataStore.clearAllData()
 
         // 2. Imperial user test: First invocation converts 220.462 -> 100.0
         dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = true)

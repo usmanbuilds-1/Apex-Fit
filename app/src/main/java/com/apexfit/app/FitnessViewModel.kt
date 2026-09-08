@@ -102,7 +102,7 @@ class FitnessViewModel(
         val validGoalWeight = goalKg.coerceIn(20.0, 500.0)
         val validHeight     = heightCm.coerceIn(100.0, 250.0)
         val validAge       = age.coerceIn(13, 100)
-        val validGoal      = if (goal in listOf("Gain Muscle", "Lose Fat", "Maintain")) goal else "Maintain"
+        val validGoal      = if (goal in listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition")) goal else "Maintain"
         val validName      = username.trim().take(50).ifEmpty { "Athlete" }
         viewModelScope.launch {
             dataStore.saveOnboardingData(validName, validGoal, validWeight, validGoalWeight, validHeight, validAge, sex, weeklyWorkouts)
@@ -119,7 +119,7 @@ class FitnessViewModel(
     fun updateProfile(name: String, userGoal: String, targetUnit: String, equipment: String, height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM, age: Int = com.apexfit.app.UserDefaults.AGE_YEARS, sex: String = "male") {
         val validHeight    = height.coerceIn(100.0, 250.0)
         val validAge       = age.coerceIn(13, 100)
-        val validGoal      = if (userGoal in listOf("Gain Muscle", "Lose Fat", "Maintain")) userGoal else "Maintain"
+        val validGoal      = if (userGoal in listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition")) userGoal else "Maintain"
         val validName      = name.trim().take(50).ifEmpty { "Athlete" }
         viewModelScope.launch {
             dataStore.saveUsername(validName)

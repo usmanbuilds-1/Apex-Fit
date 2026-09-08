@@ -36,14 +36,8 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
 
 
-    val targetsFlow: Flow<com.apexfit.app.utils.NutritionTargets> = combine(
-        dataStore.calorieTargetValueFlow,
-        weightFlow,
-        dataStore.goalFlow
-    ) { calTarget, weights, goal ->
-        val latestTrend = weights.maxByOrNull { it.date }?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-        com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calTarget, latestTrend, goal)
-    }.flowOn(Dispatchers.IO)
+    val targetsFlow: Flow<com.apexfit.app.utils.NutritionTargets> =
+        com.apexfit.app.di.ServiceLocator.sharedTargetsFlow
 
     private val goalFlow: Flow<String> = dataStore.goalFlow
         .flowOn(Dispatchers.IO)

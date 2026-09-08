@@ -374,6 +374,15 @@ data class EffectiveSetsData(
 
 // Consolidated Utility and Algorithm Models
 data class NutritionTargets(val calories: Int, val protein: Int, val carbs: Int, val fat: Int, val weeklyTrainingSessions: Int = 4)
+data class TrainingDayTargets(
+    val trainingDayCalories: Int,
+    val restDayCalories: Int,
+    val trainingDayProtein: Int,
+    val restDayProtein: Int,
+    val trainingDayCarbs: Int,
+    val restDayCarbs: Int,
+    val fat: Int  // fat stays constant both days
+)
 data class TDEEResult(val tdee: Int?, val confidence: String, val avgCalories: Int, val weightChangeKg: Double)
 data class ComplianceResult(val calories: Int, val protein: Int, val training: Int, val overall: Int, val weakestDay: String?)
 data class FatigueResult(val ratio: Double?, val status: String, val statusLabel: String, val recommendation: String, val acuteLoad: Double, val chronicLoad: Double)

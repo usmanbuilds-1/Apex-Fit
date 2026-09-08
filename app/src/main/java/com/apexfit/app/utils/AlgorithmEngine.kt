@@ -1,33 +1,66 @@
 package com.apexfit.app.utils
 
+import com.apexfit.app.UserDefaults
 import com.apexfit.app.data.*
 import kotlin.math.roundToInt
 
 fun calcMacroTargets(
     calorieTarget: Int,
     bodyWeightKg: Double,
-    goal: String
-): com.apexfit.app.data.NutritionTargets = AlgorithmEngine.calcMacroTargets(calorieTarget, bodyWeightKg, goal)
+    goal: String,
+    heightCm: Double = UserDefaults.HEIGHT_CM,
+    sex: String = "male"
+): com.apexfit.app.data.NutritionTargets = AlgorithmEngine.calcMacroTargets(calorieTarget, bodyWeightKg, goal, heightCm, sex)
+
+data class GoalTimeline(
+    val weeksToGoal: Int,
+    val weeklyChangeKg: Double,
+    val isRealistic: Boolean,
+    val adjustedGoalWeightKg: Double,
+    val summaryLine: String
+)
 
 object AlgorithmEngine {
+
+    fun estimateLBM(weightKg: Double, heightCm: Double, sex: String): Double {
+        // Boer formula (Boer, 1984)
+        return if (sex.equals("female", ignoreCase = true)) {
+            (0.252 * weightKg) + (0.473 * heightCm) - 48.3
+        } else {
+            (0.407 * weightKg) + (0.267 * heightCm) - 19.2
+        }
+    }
 
     fun calcMacroTargets(
         calorieTarget: Int,
         bodyWeightKg: Double,
-        goal: String
+        goal: String,
+        heightCm: Double = UserDefaults.HEIGHT_CM,
+        sex: String = "male"
     ): com.apexfit.app.data.NutritionTargets {
-        val proteinMultiplier = when {
-            goal.lowercase().contains("lose") -> 2.2
-            goal.lowercase().contains("gain") -> 2.0
-            else -> 1.8
+        val lbm = estimateLBM(bodyWeightKg, heightCm, sex)
+        val basisKg = minOf(lbm, bodyWeightKg)  // never exceed total weight
+
+        val proteinMultiplier = when (goal.lowercase()) {
+            "lose fat"        -> 2.4
+            "recomposition"   -> 2.8
+            "gain muscle"     -> 2.0
+            else              -> 1.6
         }
-        val proteinG = (bodyWeightKg * proteinMultiplier)
-            .roundToInt().coerceIn(100, 250)
-        val fatG = (calorieTarget * 0.25 / AppConstants.CALORIES_PER_GRAM_FAT)
-            .roundToInt().coerceIn(45, 120)
-        val carbsG = ((calorieTarget - (proteinG * AppConstants.CALORIES_PER_GRAM_PROTEIN.toInt()) -
-            (fatG * AppConstants.CALORIES_PER_GRAM_FAT.toInt())) /
-            AppConstants.CALORIES_PER_GRAM_CARB).roundToInt().coerceIn(100, 500)
+        val proteinG = (basisKg * proteinMultiplier)
+            .roundToInt()
+            .coerceIn(100, 350)  // raise cap from 250 to 350
+
+        val fatG = (bodyWeightKg * when (goal.lowercase()) {
+            "gain muscle", "recomposition" -> 1.0   // 1g/kg supports hormonal function
+            else -> 0.8
+        }).roundToInt().coerceAtLeast(40)
+
+        val proteinCals = proteinG * 4
+        val fatCals     = fatG * 9
+        val carbCals    = (calorieTarget - proteinCals - fatCals).coerceAtLeast(0)
+        val carbsG      = (carbCals / 4).coerceIn(50, 600)
+
         val weeklySessions = when (goal.lowercase()) {
             "gain muscle" -> 4
             "lose fat"    -> 5
@@ -39,6 +72,92 @@ object AlgorithmEngine {
             carbs = carbsG,
             fat = fatG,
             weeklyTrainingSessions = weeklySessions
+        )
+    }
+
+    fun calcCycledTargets(
+        weeklyCalorieTarget: Int,   // total weekly calories / 7 = flat daily
+        weeklyTrainingSessions: Int,
+        goal: String,
+        bodyWeightKg: Double,
+        heightCm: Double,
+        sex: String
+    ): TrainingDayTargets {
+        val safeWeeklySessions = weeklyTrainingSessions.coerceIn(1, 6)
+        val restDays = 7 - safeWeeklySessions
+        val totalWeekly = weeklyCalorieTarget * 7
+
+        val trainingBonus = when (goal.lowercase()) {
+            "gain muscle"   -> 200
+            "lose fat"      -> 100
+            "recomposition" -> 150
+            else -> 0
+        }
+        val trainingDayCals = weeklyCalorieTarget + trainingBonus
+        val restDayCals = ((totalWeekly - (trainingDayCals * safeWeeklySessions))
+            .toDouble() / restDays).roundToInt().coerceAtLeast(1000)
+
+        val lbm = estimateLBM(bodyWeightKg, heightCm, sex)
+        val trainingProtein = (lbm * 2.2).roundToInt()  // higher on training days
+        val restProtein = (lbm * 1.8).roundToInt()
+
+        val fat = (bodyWeightKg * 0.9).roundToInt().coerceAtLeast(40)
+
+        val trainingCarbs = (((trainingDayCals - (trainingProtein * 4) - (fat * 9)).toDouble()) / 4.0)
+            .coerceAtLeast(50.0).roundToInt()
+        val restCarbs = (((restDayCals - (restProtein * 4) - (fat * 9)).toDouble()) / 4.0)
+            .coerceAtLeast(30.0).roundToInt()
+
+        return TrainingDayTargets(
+            trainingDayCals, restDayCals,
+            trainingProtein, restProtein,
+            trainingCarbs, restCarbs,
+            fat
+        )
+    }
+
+    fun calcGoalTimeline(
+        currentWeightKg: Double,
+        goalWeightKg: Double,
+        resolvedGoal: String,
+        heightCm: Double,
+        sex: String
+    ): GoalTimeline {
+        val weeklyRate = when (resolvedGoal.lowercase()) {
+            "gain muscle"   -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
+            "lose fat"      -> (currentWeightKg * 0.008).coerceIn(0.30, 0.70)
+            "recomposition" -> 0.05
+            else            -> 0.0
+        }
+        val distanceKg  = Math.abs(goalWeightKg - currentWeightKg)
+        val weeksRaw    = if (weeklyRate > 0.0) 
+            (distanceKg / weeklyRate).roundToInt() else 0
+        val isRealistic = weeksRaw <= 104
+
+        val direction = if (goalWeightKg >= currentWeightKg) 1.0 else -1.0
+        val adjustedGoal = if (!isRealistic)
+            currentWeightKg + direction * weeklyRate * 52.0
+        else goalWeightKg
+
+        val summaryLine = when {
+            resolvedGoal.equals("Recomposition", ignoreCase = true) ->
+                "Body recomposition: eat at maintenance, lift heavy. " +
+                "Expect visual changes in 3–6 months."
+            !isRealistic ->
+                "At a safe rate that would take over 2 years. " +
+                "First milestone: ${Math.round(adjustedGoal * 10.0) / 10.0} kg."
+            weeksRaw <= 12 ->
+                "~$weeksRaw weeks at ${Math.round(weeklyRate * 100.0) / 100.0} kg/week."
+            else ->
+                "~${(weeksRaw / 4.33).roundToInt()} months at " +
+                "${Math.round(weeklyRate * 100.0) / 100.0} kg/week."
+        }
+        return GoalTimeline(
+            weeksToGoal           = weeksRaw.coerceAtMost(104),
+            weeklyChangeKg        = weeklyRate,
+            isRealistic           = isRealistic,
+            adjustedGoalWeightKg  = adjustedGoal,
+            summaryLine           = summaryLine
         )
     }
 
@@ -159,13 +278,28 @@ object AlgorithmEngine {
         return TDEEResult(tdee, confidence, avgCalories.roundToInt(), Math.round(weightChangeKg * 100.0) / 100.0)
     }
 
-    fun suggestCaloricTarget(tdee: Int, goal: String, rateKgPerWeek: Double = 0.25): Int {
-        val dailyAdjustment = ((rateKgPerWeek * AppConstants.CALORIES_PER_KG_BODYFAT) / 7).roundToInt()
-        val g = goal.lowercase()
-        return when {
-            g.contains("lose") || g.contains("cut") || g.contains("deficit") -> tdee - dailyAdjustment
-            g.contains("gain") || g.contains("bulk") || g.contains("surplus") -> tdee + dailyAdjustment
-            else -> tdee
+    fun suggestCaloricTarget(
+        tdee: Int,
+        goal: String,
+        currentWeightKg: Double,
+        goalWeightKg: Double
+    ): Int {
+        val distanceKg = Math.abs(goalWeightKg - currentWeightKg)
+
+        val rateKgPerWeek = when (goal.lowercase()) {
+            "gain muscle" -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
+            "lose fat"    -> (currentWeightKg * 0.008).coerceIn(0.3, 0.7)
+            "recomposition" -> 0.0
+            else          -> 0.0
+        }
+
+        val dailyAdjustment = ((rateKgPerWeek * 7700.0) / 7.0).roundToInt()
+
+        return when (goal.lowercase()) {
+            "gain muscle"   -> tdee + dailyAdjustment
+            "lose fat"      -> tdee - dailyAdjustment
+            "recomposition" -> tdee  // maintenance
+            else            -> tdee
         }
     }
 

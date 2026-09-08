@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import com.apexfit.app.data.RichTrainingSession
 import com.apexfit.app.data.NutritionTargets
+import com.apexfit.app.data.WeightEntry
 import com.apexfit.app.utils.SessionMapper
 import com.apexfit.app.utils.getDateDaysAgo
 import com.apexfit.app.ui.models.UiSessionReadiness
@@ -135,12 +136,28 @@ object ServiceLocator {
         //                 We intentionally do NOT apply suggestCaloricTarget here;
         //                 rings show raw TDEE, coaching shows goal-adjusted — that
         //                 divergence is a documented product decision (§9).
+        @Suppress("UNCHECKED_CAST")
         combine(
             ds.calorieTargetManualFlow,
             ds.calorieTargetValueFlow,
             ds.goalFlow,
-            weightFlow
-        ) { isManual, manualCals, goal, weights ->
+            weightFlow,
+            ds.heightFlow,
+            ds.ageFlow,
+            ds.sexFlow,
+            ds.weeklyWorkoutsFlow,
+            ds.goalWeightFlow
+        ) { values ->
+            val isManual       = values[0] as Boolean
+            val manualCals     = values[1] as Int
+            val goal           = values[2] as String
+            val weights        = values[3] as List<WeightEntry>
+            val heightCm       = values[4] as Double
+            val age            = values[5] as Int
+            val sex            = values[6] as String
+            val weeklyWorkouts = values[7] as Int
+            val goalWeight     = values[8] as Double
+
             val latestWeight = weights.maxByOrNull { it.date }?.weight
                 ?: com.apexfit.app.UserDefaults.WEIGHT_KG
             val calories: Int = if (isManual) {
@@ -151,17 +168,55 @@ object ServiceLocator {
                     .take(14)
                     .map { com.apexfit.app.utils.WeightEntry(date = it.date, weight = it.weight) }
                 val tdeeResult = AlgorithmEngine.calcAdaptiveTDEE(
-                    weightLog = recentWeights,
-                    nutritionLog = emptyList()
+                    weightLog      = recentWeights,
+                    nutritionLog   = emptyList(),
+                    heightCm       = heightCm,
+                    ageYears       = age,
+                    biologicalSex  = sex,
+                    weeklyWorkouts = weeklyWorkouts
                 )
                 // FIX (§9 item 2): apply goal adjustment so Home ring, Nutrition
                 // ring, and coaching notification all track against the same target.
                 AlgorithmEngine.suggestCaloricTarget(
-                    tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
-                    goal
+                    tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
+                    goal            = goal,
+                    currentWeightKg = latestWeight,
+                    goalWeightKg    = goalWeight
                 )
             }
-            AlgorithmEngine.calcMacroTargets(calories, latestWeight, goal)
+
+            val cycled = AlgorithmEngine.calcCycledTargets(
+                weeklyCalorieTarget    = calories,
+                weeklyTrainingSessions = weeklyWorkouts,
+                goal                   = goal,
+                bodyWeightKg           = latestWeight,
+                heightCm               = heightCm,
+                sex                    = sex
+            )
+
+            val todayDateStr = com.apexfit.app.utils.DateTimeUtils.todayDateString()
+            val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
+            val completedToday = dao.getRecentCompletedSessions(todayDateStr)
+            val activePlan = dao.getActivePlan()
+            val planSessions = if (activePlan != null) dao.getSessionsForPlan(activePlan.id) else emptyList()
+            val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+            val isPlannedTraining = todayPlanned != null &&
+                !todayPlanned.label.contains("Rest", ignoreCase = true) &&
+                todayPlanned.focus != "Muscle Recovery & Rest"
+            val isTodayTraining = completedToday.isNotEmpty() || isPlannedTraining
+
+            val todayCalories = if (isTodayTraining) cycled.trainingDayCalories else cycled.restDayCalories
+            val todayProtein  = if (isTodayTraining) cycled.trainingDayProtein else cycled.restDayProtein
+            val todayCarbs    = if (isTodayTraining) cycled.trainingDayCarbs else cycled.restDayCarbs
+            val todayFat      = cycled.fat
+
+            NutritionTargets(
+                calories               = todayCalories,
+                protein                = todayProtein,
+                carbs                  = todayCarbs,
+                fat                    = todayFat,
+                weeklyTrainingSessions = weeklyWorkouts
+            )
         }.flowOn(Dispatchers.IO).shareIn(appScope, SharingStarted.Lazily, 1)
     }
 

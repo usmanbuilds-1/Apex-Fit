@@ -73,16 +73,58 @@ fun NutritionScreen(
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
+    val currentWeight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
+    val goalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
+    val userHeight by fitnessViewModel.userHeight.collectAsStateWithLifecycle()
+    val userSex by fitnessViewModel.userSex.collectAsStateWithLifecycle()
+    val weeklyWorkouts by fitnessViewModel.weeklyWorkouts.collectAsStateWithLifecycle()
+
+    val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
+    val activePlanSessionsState by fitnessViewModel.trainVM.activePlanSessions.collectAsStateWithLifecycle()
+    val activePlanSessions: List<com.apexfit.app.data.PlanSession> = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
+
+    val todayDateStr = remember { com.apexfit.app.utils.DateTimeUtils.todayDateString() }
+    val todayDayString = remember { java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date()) }
+
+    val isWorkoutCompletedToday = remember(completedSessions, todayDateStr) {
+        completedSessions.any { it.date == todayDateStr }
+    }
+    val todayPlannedSession = remember(activePlanSessions, todayDayString) {
+        activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+    }
+    val isPlannedTrainingToday = remember(todayPlannedSession) {
+        todayPlannedSession != null &&
+            !todayPlannedSession.label.contains("Rest", ignoreCase = true) &&
+            todayPlannedSession.focus != "Muscle Recovery & Rest"
+    }
+    val isTodayTrainingDay = isWorkoutCompletedToday || isPlannedTrainingToday
 
     // Apply goal adjustment so non-manual users see their actual goal-adjusted
     // target, not raw maintenance calories.
-    // suggestCaloricTarget: Lose Fat → TDEE−400, Gain Muscle → TDEE+250, Maintain → TDEE
     val suggestedFromTdee = com.apexfit.app.utils.AlgorithmEngine.suggestCaloricTarget(
-        tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
-        userGoal
+        tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
+        goal            = userGoal,
+        currentWeightKg = currentWeight,
+        goalWeightKg    = goalWeight
     )
-    val calorieTarget = (if (calorieTargetManual) calorieTargetValue else suggestedFromTdee)
+    val baseCalorieTarget = (if (calorieTargetManual) calorieTargetValue else suggestedFromTdee)
         .coerceAtLeast(1)
+
+    val cycledTargets = remember(baseCalorieTarget, weeklyWorkouts, userGoal, currentWeight, userHeight, userSex) {
+        com.apexfit.app.utils.AlgorithmEngine.calcCycledTargets(
+            weeklyCalorieTarget    = baseCalorieTarget,
+            weeklyTrainingSessions = weeklyWorkouts,
+            goal                   = userGoal,
+            bodyWeightKg           = currentWeight,
+            heightCm               = userHeight,
+            sex                    = userSex
+        )
+    }
+
+    val calorieTarget = if (isTodayTrainingDay) cycledTargets.trainingDayCalories else cycledTargets.restDayCalories
+    val targetProtein = if (isTodayTrainingDay) cycledTargets.trainingDayProtein else cycledTargets.restDayProtein
+    val targetCarbs = if (isTodayTrainingDay) cycledTargets.trainingDayCarbs else cycledTargets.restDayCarbs
+    val targetFat = cycledTargets.fat
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -179,14 +221,34 @@ fun NutritionScreen(
         // Calorie and macro overview card
         item {
             PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Nutrition",
-                    fontFamily = SyneFamily,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryText,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Nutrition",
+                        fontFamily = SyneFamily,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SecondaryText
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = if (isTodayTrainingDay) AmberAccent.copy(alpha = 0.15f) else BlueAccent.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = if (isTodayTrainingDay) "TRAINING DAY TARGET" else "REST DAY TARGET",
+                            fontFamily = JetBrainsMonoFamily,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isTodayTrainingDay) AmberAccent else BlueAccent,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -240,9 +302,9 @@ fun NutritionScreen(
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MacroStatMini(label = "Prot:", value = "${loggedProtein.roundToInt()}g", color = Color(0xFFA78BFA))
-                            MacroStatMini(label = "Carb:", value = "${loggedCarbs.roundToInt()}g", color = BlueAccent)
-                            MacroStatMini(label = "Fat:", value = "${loggedFat.roundToInt()}g", color = RedAccent)
+                            MacroStatMini(label = "Prot:", value = "${loggedProtein.roundToInt()}/${targetProtein}g", color = Color(0xFFA78BFA))
+                            MacroStatMini(label = "Carb:", value = "${loggedCarbs.roundToInt()}/${targetCarbs}g", color = BlueAccent)
+                            MacroStatMini(label = "Fat:", value = "${loggedFat.roundToInt()}/${targetFat}g", color = RedAccent)
                         }
                     }
                 }

@@ -531,6 +531,29 @@ fun OnboardingScreen(
 
     val context = LocalContext.current
 
+    val liveCw = currentWeightStr.replace(",", ".").toDoubleOrNull() ?: 70.0
+    val liveGw = goalWeightStr.replace(",", ".").toDoubleOrNull() ?: liveCw
+    val liveHt = heightStr.replace(",", ".").toDoubleOrNull() ?: (if (isImperial) 70.0 else 175.0)
+
+    val liveWeightKg = if (isImperial) liveCw / 2.20462 else liveCw
+    val liveGoalKg = if (isImperial) liveGw / 2.20462 else liveGw
+    val liveHeightCm = if (isImperial) liveHt * 2.54 else liveHt
+    val liveSexStr = sexChoice.lowercase()
+
+    val liveResolvedGoal = when {
+        goalTarget == "Gain Muscle" && liveGw < liveCw -> "Recomposition"
+        goalTarget == "Lose Fat"   && liveGw > liveCw  -> "Gain Muscle"
+        else -> goalTarget
+    }
+
+    val timeline = AlgorithmEngine.calcGoalTimeline(
+        currentWeightKg  = liveWeightKg,
+        goalWeightKg     = liveGoalKg,
+        resolvedGoal     = liveResolvedGoal,
+        heightCm         = liveHeightCm,
+        sex              = liveSexStr
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -866,6 +889,14 @@ fun OnboardingScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                Text(
+                    text = timeline.summaryLine,
+                    color = SecondaryText,
+                    fontSize = 13.sp
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Button(
                     onClick = {
                         nameError = null
@@ -898,27 +929,38 @@ fun OnboardingScreen(
                             val cw = weightVal
                             val gw = goalWeightStr.toDoubleOrNull() ?: cw
 
-                            // Cross-field: goal weight must be consistent with goal direction
-                            val goalWeightOk = when (goalTarget.lowercase()) {
-                                "lose fat"    -> gw < cw
-                                "gain muscle" -> gw >= cw
-                                else          -> true
+                            val resolvedGoal = when {
+                                goalTarget == "Gain Muscle" && gw < cw -> "Recomposition"
+                                goalTarget == "Lose Fat"   && gw > cw  -> "Gain Muscle"
+                                else -> goalTarget
                             }
-                            if (!goalWeightOk) {
-                                weightError = when (goalTarget.lowercase()) {
-                                    "lose fat"    -> "Goal weight must be below current weight for fat loss"
-                                    "gain muscle" -> "Goal weight should be at or above current weight for muscle gain"
-                                    else          -> null
-                                }
-                            } else {
-                                // all valid — proceed
-                                val ht = heightVal
-                                val ag = ageVal
-                                val workouts = if (weeklyWorkoutsStr == "6+") 6 else
-                                    weeklyWorkoutsStr.toIntOrNull() ?: 3
-                                onComplete(trimmedName, goalTarget, cw, gw, selectedUnits, ht, ag,
-                                    sexChoice.lowercase(), workouts)
+
+                            val ht = heightVal
+                            val ag = ageVal
+                            val workouts = if (weeklyWorkoutsStr == "6+") 6 else
+                                weeklyWorkoutsStr.toIntOrNull() ?: 3
+
+                            val weightKg = if (isImperial) cw / 2.20462 else cw
+                            var goalKg = if (isImperial) gw / 2.20462 else gw
+                            val heightCm = if (isImperial) ht * 2.54 else ht
+                            val sexStr = sexChoice.lowercase()
+
+                            val timeline = AlgorithmEngine.calcGoalTimeline(
+                                currentWeightKg  = weightKg,
+                                goalWeightKg     = goalKg,
+                                resolvedGoal     = resolvedGoal,
+                                heightCm         = heightCm,
+                                sex              = sexStr
+                            )
+
+                            if (timeline.isRealistic == false) {
+                                goalKg = timeline.adjustedGoalWeightKg
                             }
+
+                            val finalGoalKg = if (isImperial) goalKg * 2.20462 else goalKg
+
+                            onComplete(trimmedName, resolvedGoal, cw, finalGoalKg, selectedUnits, ht, ag,
+                                sexStr, workouts)
                         }
                     },
                     modifier = Modifier
@@ -933,7 +975,8 @@ fun OnboardingScreen(
                     ),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text(stringResource(R.string.onboarding_get_started),
+                    Text(
+                        text = stringResource(R.string.onboarding_get_started),
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp

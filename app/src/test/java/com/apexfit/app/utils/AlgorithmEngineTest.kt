@@ -39,14 +39,20 @@ class AlgorithmEngineTest {
 
     @Test
     fun testSuggestCaloricTarget_normal() {
-        val res = AlgorithmEngine.suggestCaloricTarget(2500, "lose weight", 0.5)
-        // 0.5kg/week = 3850 kcal/week = 550 kcal/day deficit => 1950
-        assertEquals(1950, res)
+        val res = AlgorithmEngine.suggestCaloricTarget(2500, "lose fat", 70.0, 65.0)
+        // 70kg * 0.008 = 0.56 kg/week -> (0.56 * 7700) / 7 = 616 kcal/day deficit => 2500 - 616 = 1884
+        assertEquals(1884, res)
+    }
+
+    @Test
+    fun testSuggestCaloricTarget_recomposition() {
+        val res = AlgorithmEngine.suggestCaloricTarget(2500, "recomposition", 70.0, 70.0)
+        assertEquals(2500, res)
     }
 
     @Test
     fun testSuggestCaloricTarget_edgeCase_emptyGoal() {
-        val res = AlgorithmEngine.suggestCaloricTarget(2500, "", 0.5)
+        val res = AlgorithmEngine.suggestCaloricTarget(2500, "", 70.0, 65.0)
         assertEquals(2500, res) // maintain
     }
 
@@ -172,5 +178,92 @@ class AlgorithmEngineTest {
     fun testCheckPersonalRecords_edgeCase_empty() {
         val res = AlgorithmEngine.checkPersonalRecords(emptyList(), "bench")
         assertFalse(res.hasPR)
+    }
+
+    @Test
+    fun testEstimateLBM() {
+        val maleLBM = AlgorithmEngine.estimateLBM(80.0, 180.0, "male")
+        assertEquals(61.42, maleLBM, 0.01)
+
+        val femaleLBM = AlgorithmEngine.estimateLBM(60.0, 165.0, "female")
+        assertEquals(44.865, femaleLBM, 0.01)
+    }
+
+    @Test
+    fun testCalcMacroTargets() {
+        val targets = AlgorithmEngine.calcMacroTargets(
+            calorieTarget = 2400,
+            bodyWeightKg  = 80.0,
+            goal          = "gain muscle",
+            heightCm      = 180.0,
+            sex           = "male"
+        )
+        assertEquals(2400, targets.calories)
+        assertEquals(123, targets.protein)
+        assertEquals(80, targets.fat)
+        assertEquals(297, targets.carbs)
+    }
+
+    @Test
+    fun testCalcCycledTargets() {
+        val cycled = AlgorithmEngine.calcCycledTargets(
+            weeklyCalorieTarget = 2500,
+            weeklyTrainingSessions = 4,
+            goal = "gain muscle",
+            bodyWeightKg = 80.0,
+            heightCm = 180.0,
+            sex = "male"
+        )
+        assertEquals(2700, cycled.trainingDayCalories)
+        assertEquals(2233, cycled.restDayCalories)
+        assertEquals(135, cycled.trainingDayProtein)
+        assertEquals(111, cycled.restDayProtein)
+        assertEquals(72, cycled.fat)
+        assertTrue(cycled.trainingDayCarbs > cycled.restDayCarbs)
+    }
+
+    @Test
+    fun testCalcGoalTimeline_realisticFatLoss() {
+        val timeline = AlgorithmEngine.calcGoalTimeline(
+            currentWeightKg = 80.0,
+            goalWeightKg = 76.0,
+            resolvedGoal = "Lose Fat",
+            heightCm = 175.0,
+            sex = "male"
+        )
+        assertEquals(6, timeline.weeksToGoal)
+        assertEquals(0.64, timeline.weeklyChangeKg, 0.001)
+        assertTrue(timeline.isRealistic)
+        assertEquals(76.0, timeline.adjustedGoalWeightKg, 0.001)
+        assertTrue(timeline.summaryLine.contains("~6 weeks at 0.64 kg/week"))
+    }
+
+    @Test
+    fun testCalcGoalTimeline_unrealisticFatLoss() {
+        val timeline = AlgorithmEngine.calcGoalTimeline(
+            currentWeightKg = 150.0,
+            goalWeightKg = 60.0,
+            resolvedGoal = "Lose Fat",
+            heightCm = 175.0,
+            sex = "male"
+        )
+        assertFalse(timeline.isRealistic)
+        assertEquals(104, timeline.weeksToGoal)
+        assertEquals(113.6, timeline.adjustedGoalWeightKg, 0.001)
+        assertTrue(timeline.summaryLine.contains("over 2 years"))
+    }
+
+    @Test
+    fun testCalcGoalTimeline_recomposition() {
+        val timeline = AlgorithmEngine.calcGoalTimeline(
+            currentWeightKg = 75.0,
+            goalWeightKg = 75.0,
+            resolvedGoal = "Recomposition",
+            heightCm = 170.0,
+            sex = "female"
+        )
+        assertTrue(timeline.isRealistic)
+        assertEquals(0.05, timeline.weeklyChangeKg, 0.001)
+        assertTrue(timeline.summaryLine.contains("Body recomposition"))
     }
 }

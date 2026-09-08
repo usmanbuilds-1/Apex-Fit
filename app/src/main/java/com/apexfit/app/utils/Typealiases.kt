@@ -11,6 +11,7 @@ typealias ExerciseSet = com.apexfit.app.data.ExerciseSet
 typealias TrainingSession = com.apexfit.app.data.RichTrainingSession
 typealias ExerciseLog = com.apexfit.app.data.ExerciseLog
 typealias NutritionTargets = com.apexfit.app.data.NutritionTargets
+typealias TrainingDayTargets = com.apexfit.app.data.TrainingDayTargets
 typealias TDEEResult = com.apexfit.app.data.TDEEResult
 typealias ComplianceResult = com.apexfit.app.data.ComplianceResult
 typealias PlateauResult = com.apexfit.app.data.PlateauResult

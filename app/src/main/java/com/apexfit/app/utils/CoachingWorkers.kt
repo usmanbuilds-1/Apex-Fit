@@ -138,10 +138,24 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
         
         val tdeeResult = AlgorithmEngine.calcAdaptiveTDEE(engineWeights, allNutrition)
-        val suggestedCal = AlgorithmEngine.suggestCaloricTarget(tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES, userGoal)
+        val goalWeight = dataStore.goalWeightFlow.first()
+        val suggestedCal = AlgorithmEngine.suggestCaloricTarget(
+            tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
+            goal            = userGoal,
+            currentWeightKg = latestWeightForCoaching,
+            goalWeightKg    = goalWeight
+        )
         
         val calorieTarget = if (isManual) manualValue else suggestedCal
-        val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeightForCoaching, userGoal)
+        val userHeight = dataStore.heightFlow.first()
+        val userSex = dataStore.sexFlow.first()
+        val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(
+            calorieTarget = calorieTarget,
+            bodyWeightKg  = latestWeightForCoaching,
+            goal          = userGoal,
+            heightCm      = userHeight,
+            sex           = userSex
+        )
 
         // Find today session
         val activePlan = dao.getActivePlan()
