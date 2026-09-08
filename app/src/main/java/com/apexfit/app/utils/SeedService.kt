@@ -8,6 +8,9 @@ import com.apexfit.app.data.ExerciseMetadata
 import org.json.JSONArray
 
 object SeedService {
+
+    const val CURRENT_SEED_VERSION = 2
+
     suspend fun seed(context: Context) {
         val db = com.apexfit.app.di.ServiceLocator.database(context)
         val dao = db.fitnessDao()
@@ -15,11 +18,14 @@ object SeedService {
 
         val jsonString = context.assets.open("seed_exercises.json").bufferedReader().use { it.readText() }
         val jsonArray = JSONArray(jsonString)
+
         val exercises = mutableListOf<Exercise>()
         val metadatas = mutableListOf<ExerciseMetadata>()
+
         for (i in 0 until jsonArray.length()) {
             val obj = jsonArray.getJSONObject(i)
             val exerciseId = obj.getString("id")
+
             exercises.add(
                 Exercise(
                     id = exerciseId,
@@ -42,6 +48,7 @@ object SeedService {
                     createdAt = System.currentTimeMillis()
                 )
             )
+
             val metaObj = obj.getJSONObject("metadata")
             metadatas.add(
                 ExerciseMetadata(
@@ -58,9 +65,11 @@ object SeedService {
                 )
             )
         }
+
         dao.insertExercises(exercises)
         dao.insertExerciseMetadataList(metadatas)
         dataStore.setExercisesSeeded(true)
-        android.util.Log.i("SeedService", "Successfully re-seeded ${exercises.size} exercises.")
+        dataStore.setExerciseSeedVersion(CURRENT_SEED_VERSION)
+        android.util.Log.i("SeedService", "Successfully seeded ${exercises.size} exercises (seed version $CURRENT_SEED_VERSION).")
     }
 }

@@ -43,6 +43,7 @@ class DataStoreManager(context: Context) {
         // AUDIT FIX (BUG-V4-015): flag for exercise_sets/PR canonicalization
         val SET_WEIGHTS_CANONICALIZED_KEY = booleanPreferencesKey("set_weights_canonicalized_v2")
         val PLAN_WEIGHTS_CANONICALIZED_KEY = booleanPreferencesKey("plan_weights_canonicalized_v1")
+        val EXERCISE_SEED_VERSION_KEY = intPreferencesKey("exercise_seed_version")
     }
 
     val weightsNormalizedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -79,6 +80,16 @@ class DataStoreManager(context: Context) {
     suspend fun setExercisesSeeded(seeded: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[EXERCISES_SEEDED_KEY] = seeded
+        }
+    }
+
+    val exerciseSeedVersionFlow: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[EXERCISE_SEED_VERSION_KEY] ?: 0
+    }
+
+    suspend fun setExerciseSeedVersion(version: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[EXERCISE_SEED_VERSION_KEY] = version
         }
     }
 

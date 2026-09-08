@@ -30,14 +30,14 @@ class ApexFitApplication : Application(), Configuration.Provider {
 
         com.apexfit.app.utils.WorkoutActiveNotification.createChannel(this)
 
-        // Seed exercises on first launch
+        // Seed exercises on first launch or upgrade to seed version 2
         appScope.launch {
             try {
                 val dataStore = DataStoreManager.getInstance(app)
                 val isSeeded = dataStore.isExercisesSeededFlow.firstOrNull() ?: false
-                if (!isSeeded) {
+                val seedVersion = dataStore.exerciseSeedVersionFlow.firstOrNull() ?: 0
+                if (!isSeeded || seedVersion < SeedService.CURRENT_SEED_VERSION) {
                     SeedService.seed(app)
-                    dataStore.setExercisesSeeded(true)
                 }
             } catch (e: Exception) {
                 Log.e("ApexFitApplication", "Seeding failed", e)
