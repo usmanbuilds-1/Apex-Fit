@@ -5,11 +5,13 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.apexfit.app.data.AppDatabase
 import com.apexfit.app.data.DataStoreManager
+import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.ExerciseSet
 import com.apexfit.app.data.FitnessDao
 import com.apexfit.app.data.NutritionEntry
 import com.apexfit.app.data.PlanExercise
 import com.apexfit.app.data.PlanSession
+import com.apexfit.app.data.TrainingSession
 import com.apexfit.app.data.WorkoutPlan
 import com.apexfit.app.ui.models.UiExerciseSet
 import com.apexfit.app.utils.AppConstants
@@ -45,12 +47,51 @@ class AuditRegressionTestV4 {
     private lateinit var context: Context
 
     @Before
-    fun createDb() {
+    fun createDb() = runBlocking {
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
         dao = db.fitnessDao()
+
+        dao.insertExercises(
+            listOf(
+                Exercise(
+                    id = "bench-press",
+                    name = "Bench Press",
+                    category = "Barbell",
+                    primaryMuscle = "Chest",
+                    equipmentRequired = "Barbell"
+                ),
+                Exercise(
+                    id = "squat",
+                    name = "Squat",
+                    category = "Barbell",
+                    primaryMuscle = "Legs",
+                    equipmentRequired = "Barbell"
+                )
+            )
+        )
+        dao.insertTrainingSession(
+            TrainingSession(
+                id = "session_1",
+                date = "2024-01-01",
+                sessionType = "Upper",
+                completed = true,
+                durationMinutes = 60,
+                sessionFeel = 3
+            )
+        )
+        dao.insertTrainingSession(
+            TrainingSession(
+                id = "session_kg",
+                date = "2024-01-01",
+                sessionType = "Lower",
+                completed = true,
+                durationMinutes = 60,
+                sessionFeel = 3
+            )
+        )
     }
 
     @After
@@ -297,6 +338,27 @@ class AuditRegressionTestV4 {
         assertEquals("kg", currentSet.weightUnit)
 
         // Insert another lb row to test flag guarding
+        dao.insertTrainingSession(
+            TrainingSession(
+                id = "session_imperial_2",
+                date = "2024-01-02",
+                sessionType = "Pull",
+                completed = true,
+                durationMinutes = 60,
+                sessionFeel = 3
+            )
+        )
+        dao.insertExercises(
+            listOf(
+                Exercise(
+                    id = "deadlift",
+                    name = "Deadlift",
+                    category = "Barbell",
+                    primaryMuscle = "Back",
+                    equipmentRequired = "Barbell"
+                )
+            )
+        )
         val secondLbSet = ExerciseSet(
             id = 20L,
             sessionId = "session_imperial_2",

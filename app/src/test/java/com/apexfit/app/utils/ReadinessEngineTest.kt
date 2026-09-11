@@ -30,7 +30,7 @@ class ReadinessEngineTest {
             todaysMuscleGroups = listOf("chest"),
             muscleFatigueHistory = mapOf("chest" to listOf(MuscleFatigueSnapshot("chest", 1.0, 100.0))),
             muscleSessionHistory = mapOf("chest" to listOf(100.0, 120.0, 110.0)),
-            systemicHistory = listOf(SystemicCNSCalculator.SystemicSnapshot(1.0, 200.0)),
+            systemicHistory = listOf(SystemicFatigueCalculator.SystemicSnapshot(1.0, 200.0)),
             systemicCapacity = 1500.0,
             nutritionScore = 90,
             acuteLoad = 1.0,

@@ -472,7 +472,7 @@ fun AddFoodSheet(
 
     val isCalValid = inputCal.isNotEmpty() && inputCal.toIntOrNull()?.let { it in 0..5000 } == true
     val isProtValid = inputProt.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
-    val isCarbValid = inputCarb.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
+    val isCarbValid = inputCarb.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..1000.0 } == true
     val isFatValid = inputFat.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
 
     val computedCalFromMacros = ((inputProt.toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN) + ((inputCarb.toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_CARB) + ((inputFat.toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT)
@@ -592,11 +592,11 @@ fun AddFoodSheet(
                             var error = ""
                             val dVal = clean.toDoubleOrNull()
                             if (dVal != null) {
-                                if (dVal !in 0.0..500.0) {
-                                    error = "Carbs: 0–500g"
+                                if (dVal !in 0.0..1000.0) {
+                                    error = "Carbs: 0–1000g"
                                 }
                             } else if (clean.isNotEmpty()) {
-                                error = "Carbs: 0–500g"
+                                error = "Carbs: 0–1000g"
                             }
                             inputCarb = clean
                             carbError = error
@@ -686,9 +686,9 @@ fun AddFoodSheet(
                     OutlinedButton(
                         onClick = {
                             val curr = inputCarb.toDoubleOrNull() ?: 0.0
-                            val newVal = (curr + 10.0).coerceAtMost(500.0)
+                            val newVal = (curr + 10.0).coerceAtMost(1000.0)
                             inputCarb = if (newVal % 1.0 == 0.0) newVal.toInt().toString() else newVal.toString()
-                            carbError = if (newVal == 500.0) "Carbs: 0–500g" else ""
+                            carbError = if (newVal == 1000.0) "Carbs: 0–1000g" else ""
                         },
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, BorderSubtle),

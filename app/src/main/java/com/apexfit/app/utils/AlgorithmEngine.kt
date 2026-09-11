@@ -47,19 +47,31 @@ object AlgorithmEngine {
             "gain muscle"     -> 2.0
             else              -> 1.6
         }
-        val proteinG = (basisKg * proteinMultiplier)
+        var proteinG = (basisKg * proteinMultiplier)
             .roundToInt()
             .coerceIn(100, 350)  // raise cap from 250 to 350
 
-        val fatG = (bodyWeightKg * when (goal.lowercase()) {
+        var fatG = (bodyWeightKg * when (goal.lowercase()) {
             "gain muscle", "recomposition" -> 1.0   // 1g/kg supports hormonal function
             else -> 0.8
         }).roundToInt().coerceAtLeast(40)
 
-        val proteinCals = proteinG * 4
-        val fatCals     = fatG * 9
+        var proteinCals = proteinG * 4
+        var fatCals     = fatG * 9
+
+        if (proteinCals + fatCals >= calorieTarget) {
+            val totalCals = proteinCals + fatCals
+            if (totalCals > 0) {
+                val scale = (calorieTarget.toDouble() / totalCals.toDouble()).coerceAtLeast(0.0)
+                proteinG = (proteinG * scale).roundToInt()
+                fatG = (fatG * scale).roundToInt()
+                proteinCals = proteinG * 4
+                fatCals = fatG * 9
+            }
+        }
+
         val carbCals    = (calorieTarget - proteinCals - fatCals).coerceAtLeast(0)
-        val carbsG      = (carbCals / 4).coerceIn(50, 600)
+        val carbsG      = (carbCals / 4).coerceIn(0, 600)
 
         val weeklySessions = when (goal.lowercase()) {
             "gain muscle" -> 4
@@ -87,15 +99,37 @@ object AlgorithmEngine {
         val restDays = 7 - safeWeeklySessions
         val totalWeekly = weeklyCalorieTarget * 7
 
-        val trainingBonus = when (goal.lowercase()) {
+        var trainingBonus = when (goal.lowercase()) {
             "gain muscle"   -> 200
             "lose fat"      -> 100
             "recomposition" -> 150
             else -> 0
         }
-        val trainingDayCals = weeklyCalorieTarget + trainingBonus
-        val restDayCals = ((totalWeekly - (trainingDayCals * safeWeeklySessions))
-            .toDouble() / restDays).roundToInt().coerceAtLeast(1000)
+        var trainingDayCals = weeklyCalorieTarget + trainingBonus
+        var restDayCals = if (restDays > 0) {
+            ((totalWeekly - (trainingDayCals * safeWeeklySessions))
+                .toDouble() / restDays).roundToInt()
+        } else {
+            weeklyCalorieTarget
+        }
+
+        if (restDays > 0 && restDayCals < 800) {
+            val proportion = if (weeklyCalorieTarget > restDayCals) {
+                (weeklyCalorieTarget - 800).toDouble() / (weeklyCalorieTarget - restDayCals).toDouble()
+            } else {
+                0.0
+            }
+            trainingBonus = (trainingBonus * proportion).toInt().coerceAtLeast(0)
+            trainingDayCals = weeklyCalorieTarget + trainingBonus
+            restDayCals = ((totalWeekly - (trainingDayCals * safeWeeklySessions))
+                .toDouble() / restDays).roundToInt()
+            while (restDayCals < 800 && trainingBonus > 0) {
+                trainingBonus--
+                trainingDayCals = weeklyCalorieTarget + trainingBonus
+                restDayCals = ((totalWeekly - (trainingDayCals * safeWeeklySessions))
+                    .toDouble() / restDays).roundToInt()
+            }
+        }
 
         val lbm = estimateLBM(bodyWeightKg, heightCm, sex)
         val trainingProtein = (lbm * 2.2).roundToInt()  // higher on training days
@@ -240,7 +274,7 @@ object AlgorithmEngine {
         }
         val fallbackTdee = (bmrBaseline * activityMultiplier).roundToInt()
 
-        if (weightLog.size < 7 || nutritionLog.size < 7) {
+        if (weightLog.size < 7 || nutritionLog.map { it.date }.distinct().size < 7) {
             return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", 0, 0.0)
         }
 
@@ -271,8 +305,8 @@ object AlgorithmEngine {
         val tdee = (avgCalories - calorieImbalancePerDay).roundToInt().coerceAtLeast(800)
         
         val confidence = when {
-            recentNutrition.size >= 12 && recentWeight.size >= 10 -> "high"
-            recentNutrition.size >= 7 && recentWeight.size >= 5 -> "medium"
+            recentNutrition.map { it.date }.distinct().size >= 10 && recentWeight.map { it.date }.distinct().size >= 8 -> "high"
+            recentNutrition.map { it.date }.distinct().size >= 7  && recentWeight.map { it.date }.distinct().size >= 5 -> "medium"
             else -> "low"
         }
         return TDEEResult(tdee, confidence, avgCalories.roundToInt(), Math.round(weightChangeKg * 100.0) / 100.0)
@@ -282,7 +316,10 @@ object AlgorithmEngine {
         tdee: Int,
         goal: String,
         currentWeightKg: Double,
-        goalWeightKg: Double
+        goalWeightKg: Double,
+        heightCm: Double = 170.0,
+        ageYears: Int = 35,
+        sex: String = "male"
     ): Int {
         val distanceKg = Math.abs(goalWeightKg - currentWeightKg)
 
@@ -295,12 +332,18 @@ object AlgorithmEngine {
 
         val dailyAdjustment = ((rateKgPerWeek * 7700.0) / 7.0).roundToInt()
 
-        return when (goal.lowercase()) {
+        val rawTarget = when (goal.lowercase()) {
             "gain muscle"   -> tdee + dailyAdjustment
             "lose fat"      -> tdee - dailyAdjustment
-            "recomposition" -> tdee  // maintenance
+            "recomposition" -> tdee
             else            -> tdee
         }
+
+        val sexOffset = if (sex.equals("female", ignoreCase = true)) -161.0 else 5.0
+        val bmr = ((10.0 * currentWeightKg) + (6.25 * heightCm) - (5.0 * ageYears) + sexOffset).roundToInt()
+        val floor = maxOf(1200, bmr)
+
+        return rawTarget.coerceAtLeast(floor)
     }
 
     // ── COMPLIANCE SCORES ────────────────────────────────────
@@ -395,15 +438,16 @@ object AlgorithmEngine {
             }
         }
 
+        val intervention = when {
+            daysStalled <= 7  -> "Weigh food for 3 days to recheck portions"
+            daysStalled <= 14 -> "Reduce calories by 100-150 kcal/day for 1 week"
+            daysStalled <= 21 -> "Try a 1-day refeed at maintenance calories"
+            else              -> "Add one Zone 2 cardio session (NEAT increase)"
+        }
         return PlateauResult(
             isPlateaued = true,
             severity = if (windowDays >= 14) "confirmed" else "early",
-            interventions = listOf(
-                "Reduce calories by 100-150 kcal/day for 1 week",
-                "Add one Zone 2 cardio session",
-                "Try a 1-day refeed at maintenance calories",
-                "Weigh food for 3 days to recheck portions"
-            ),
+            interventions = listOf(intervention),
             daysStalled = daysStalled
         )
     }
@@ -431,9 +475,13 @@ object AlgorithmEngine {
         }
 
         val sessionLoads = completed.map { session ->
-            val totalSets = session.exercises.flatMap { it.sets }
-                .count { !it.isWarmup && it.completed }
-            val avgRPE = session.exercises.flatMap { it.sets }.filter { !it.isWarmup && it.completed }.map { it.rpe }.average().takeIf { !it.isNaN() } ?: 7.0
+            val workingSets = session.exercises.flatMap { it.sets }.filter { !it.isWarmup && it.completed }
+            val totalSets = workingSets.size
+            val avgRPE = workingSets.map { it.rpe }.average().takeIf { !it.isNaN() } ?: 7.0
+            val avgWeightKg = workingSets.map { it.weight }.average().takeIf { !it.isNaN() } ?: 60.0
+            // Normalize relative to a 60 kg reference load; cap 0.25–4.0 to prevent
+            // extreme values (100 kg deadlift day vs 5 kg curl day) from distorting ACWR.
+            val weightFactor = (avgWeightKg / 60.0).coerceIn(0.25, 4.0)
             val feelModifier = when {
                 session.sessionFeel == 0 -> 1.0
                 session.sessionFeel <= 2 -> 1.4 - (session.sessionFeel - 1) * 0.2   // feel=1→1.4, feel=2→1.2
@@ -441,7 +489,7 @@ object AlgorithmEngine {
                 session.sessionFeel <= 5 -> 1.0 - (session.sessionFeel - 3) * 0.2   // feel=4→0.8, feel=5→0.6
                 else -> 1.0
             }
-            Pair(session.date, totalSets.toDouble() * (avgRPE / 7.0) * feelModifier)
+            Pair(session.date, totalSets.toDouble() * (avgRPE / 7.0) * weightFactor * feelModifier)
         }.sortedBy { it.first }
 
         val chronicCutoff = getDateDaysAgo(28)
@@ -455,11 +503,11 @@ object AlgorithmEngine {
         val recommendation: String
         when {
             ratio == null -> { status = "unknown"; statusLabel = "No Data"; recommendation = "Log more workouts to activate fatigue tracking" }
-            ratio < 0.6 -> { status = "detraining"; statusLabel = "Undertraining"; recommendation = "Increase training load this week" }
+            ratio < 0.6 -> { status = "detraining"; statusLabel = "Low Load"; recommendation = "Load is below your usual baseline — appropriate for a deload or recovery week" }
             ratio < 0.8 -> { status = "low"; statusLabel = "Below optimal"; recommendation = "Slightly increase volume or intensity" }
-            ratio <= 1.3 -> { status = "optimal"; statusLabel = "Sweet spot"; recommendation = "Training load is perfect — maintain this" }
-            ratio <= 1.5 -> { status = "high"; statusLabel = "Pushing hard"; recommendation = "Back off 10-15% next session" }
-            else -> { status = "danger"; statusLabel = "Overreaching"; recommendation = "Reduce load significantly — injury risk elevated" }
+            ratio <= 1.3 -> { status = "optimal"; statusLabel = "Optimal Load"; recommendation = "Training load is in a productive range — maintain this" }
+            ratio <= 1.5 -> { status = "high"; statusLabel = "Elevated Load"; recommendation = "Load is running high — consider backing off 10-15% this week" }
+            else -> { status = "danger"; statusLabel = "High Load Warning"; recommendation = "Load is significantly above baseline — consider reducing volume or taking a lighter week" }
         }
         return FatigueResult(ratio, status, statusLabel, recommendation, acuteLoad, chronicLoad)
     }
@@ -636,54 +684,15 @@ object AlgorithmEngine {
             }
         }
 
-        // Training Streak Implementation: 1 rest day per rolling 7-day window allowed
-        val completedDates = trainingLog.filter { it.completed }.map { it.date }.toSet()
-        var trainingStreak = 0
-        
-        if (completedDates.isNotEmpty()) {
-            val today = getCurrentDate()
-            val yesterday = getPreviousDate(today) ?: ""
-            val sortedDates = completedDates.toList().sortedDescending()
-            val mostRecent = sortedDates.first()
-            
-            // Streak is active if we trained today or yesterday
-            if (mostRecent == today || mostRecent == yesterday) {
-                var currentDate = mostRecent
-                var restDaysInWindow = 0
-                val windowSize = 7
-                val history = mutableListOf<Boolean>() // true = trained, false = rest
-                
-                // Initial backward crawl to establish streak
-                while (true) {
-                    val trained = completedDates.contains(currentDate)
-                    if (trained) {
-                        trainingStreak++
-                        history.add(true)
-                    } else {
-                        // Check if we can afford a rest day: 
-                        // At most 1 rest day in any rolling 7-day window
-                        val recentRestDays = history.takeLast(windowSize - 1).count { !it }
-                        if (recentRestDays == 0) {
-                            trainingStreak++
-                            history.add(false)
-                        } else {
-                            break // Streak broken
-                        }
-                    }
-                    val nextDate = getPreviousDate(currentDate)
-                    if (nextDate == null) break
-                    if (nextDate == currentDate) break
-                    currentDate = nextDate
-                    if (history.size > 1000) break // Safety break
-                }
-                
-                // If the streak ends on a rest day, trim it
-                while (history.isNotEmpty() && !history.last()) {
-                    history.removeAt(history.size - 1)
-                    trainingStreak--
-                }
-            }
-        }
+        // Weekly adherence: how many of this week's planned sessions are completed
+        val currentWeekStart = getDateDaysAgo(java.time.DayOfWeek.from(
+            java.time.LocalDate.parse(getCurrentDate())).value - 1)
+        val completedThisWeek = trainingLog
+            .filter { it.completed && it.date >= currentWeekStart }
+            .map { it.date }
+            .distinct()
+            .size
+        val trainingStreak = completedThisWeek
         
         return StreakResult(
             nutrition = StreakInfo(currentStreak),
@@ -691,7 +700,11 @@ object AlgorithmEngine {
         )
     }
 
-    fun checkPersonalRecords(log: List<RichTrainingSession>, exerciseId: String): PRResult {
+    fun checkPersonalRecords(
+        log: List<RichTrainingSession>,
+        exerciseId: String,
+        preferredUnit: String = "kg"
+    ): PRResult {
         val exerciseSessions = log.filter { it.completed }
             .flatMap { session ->
                 session.exercises.filter { it.id == exerciseId }.map { log -> Pair(session.date, log) }
@@ -710,9 +723,25 @@ object AlgorithmEngine {
 
         val hasNewWeightPR = lastMaxWeight > 0.0 && (prevSessions.isEmpty() || lastMaxWeight > prevMaxWeight)
 
+        val isLb = preferredUnit.lowercase() in listOf("lb", "lbs")
+        val formattedValue = if (isLb) {
+            "${Math.round(lastMaxWeight * 2.20462 * 10.0) / 10.0} lb"
+        } else {
+            "$lastMaxWeight kg"
+        }
+        val formattedPrevious = if (prevMaxWeight > 0.0) {
+            if (isLb) {
+                "${Math.round(prevMaxWeight * 2.20462 * 10.0) / 10.0} lb"
+            } else {
+                "$prevMaxWeight kg"
+            }
+        } else {
+            "None"
+        }
+
         val newPRs = mutableListOf<PREntry>()
         if (hasNewWeightPR) {
-            newPRs.add(PREntry(type = "weight", label = "Weight PR", value = "$lastMaxWeight kg", previous = if (prevMaxWeight > 0.0) "$prevMaxWeight kg" else "None"))
+            newPRs.add(PREntry(type = "weight", label = "Weight PR", value = formattedValue, previous = formattedPrevious))
         }
 
         return PRResult(

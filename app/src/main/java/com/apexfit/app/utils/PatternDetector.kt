@@ -18,7 +18,7 @@ object PatternDetector {
         proteinTarget: Double = 140.0
     ): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
-        if (nutritionLog.size < 14) return patterns
+        if (nutritionLog.map { it.date }.distinct().size < 14) return patterns
 
         patterns.addAll(detectDayOfWeekPatterns(nutritionLog))
         patterns.addAll(detectNutritionPerformancePatterns(nutritionLog, trainingLog, proteinTarget))
@@ -194,13 +194,16 @@ object PatternDetector {
             }
         val trendData = AlgorithmEngine.calcTrendWeight(weightLog)
         val trendMap = trendData.associateBy { it.date }
+        val dailyCarbs: Map<String, Double> = nutritionLog
+            .groupBy { it.date }
+            .mapValues { (_, entries) -> entries.sumOf { it.carbs } }
         val weightChangePairs = mutableListOf<Pair<Int, Double>>()
 
-        nutritionLog.forEach { entry ->
-            val twoDaysLater = getDateDaysFromNow(entry.date, 2) ?: return@forEach
-            val currentTrend = trendMap[entry.date]?.trend ?: return@forEach
+        dailyCarbs.forEach { (date, totalCarbs) ->
+            val twoDaysLater = getDateDaysFromNow(date, 2) ?: return@forEach
+            val currentTrend = trendMap[date]?.trend ?: return@forEach
             val futureTrend = trendMap[twoDaysLater]?.trend ?: return@forEach
-            weightChangePairs.add(Pair(entry.carbs.roundToInt(), futureTrend - currentTrend))
+            weightChangePairs.add(Pair(totalCarbs.roundToInt(), futureTrend - currentTrend))
         }
 
         if (weightChangePairs.size < 8) return patterns

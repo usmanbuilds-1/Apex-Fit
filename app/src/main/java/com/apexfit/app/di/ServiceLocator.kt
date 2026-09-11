@@ -20,6 +20,8 @@ import com.apexfit.app.ui.models.toUi
 import kotlin.math.roundToInt
 import com.apexfit.app.utils.AlgorithmEngine
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.Dispatchers
@@ -136,6 +138,15 @@ object ServiceLocator {
         //                 We intentionally do NOT apply suggestCaloricTarget here;
         //                 rings show raw TDEE, coaching shows goal-adjusted — that
         //                 divergence is a documented product decision (§9).
+        val completedTodayFlow: Flow<Int> = flow {
+            while (true) {
+                emit(dao.getRecentCompletedSessions(
+                    com.apexfit.app.utils.DateTimeUtils.todayDateString()
+                ).size)
+                kotlinx.coroutines.delay(30_000L)
+            }
+        }.distinctUntilChanged()
+
         @Suppress("UNCHECKED_CAST")
         combine(
             ds.calorieTargetManualFlow,
@@ -146,7 +157,8 @@ object ServiceLocator {
             ds.ageFlow,
             ds.sexFlow,
             ds.weeklyWorkoutsFlow,
-            ds.goalWeightFlow
+            ds.goalWeightFlow,
+            completedTodayFlow
         ) { values ->
             val isManual       = values[0] as Boolean
             val manualCals     = values[1] as Int
@@ -157,6 +169,7 @@ object ServiceLocator {
             val sex            = values[6] as String
             val weeklyWorkouts = values[7] as Int
             val goalWeight     = values[8] as Double
+            val completedTodayCount = values[9] as Int
 
             val latestWeight = weights.maxByOrNull { it.date }?.weight
                 ?: com.apexfit.app.UserDefaults.WEIGHT_KG
@@ -194,16 +207,14 @@ object ServiceLocator {
                 sex                    = sex
             )
 
-            val todayDateStr = com.apexfit.app.utils.DateTimeUtils.todayDateString()
             val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
-            val completedToday = dao.getRecentCompletedSessions(todayDateStr)
             val activePlan = dao.getActivePlan()
             val planSessions = if (activePlan != null) dao.getSessionsForPlan(activePlan.id) else emptyList()
             val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
             val isPlannedTraining = todayPlanned != null &&
                 !todayPlanned.label.contains("Rest", ignoreCase = true) &&
                 todayPlanned.focus != "Muscle Recovery & Rest"
-            val isTodayTraining = completedToday.isNotEmpty() || isPlannedTraining
+            val isTodayTraining = completedTodayCount > 0 || isPlannedTraining
 
             val todayCalories = if (isTodayTraining) cycled.trainingDayCalories else cycled.restDayCalories
             val todayProtein  = if (isTodayTraining) cycled.trainingDayProtein else cycled.restDayProtein

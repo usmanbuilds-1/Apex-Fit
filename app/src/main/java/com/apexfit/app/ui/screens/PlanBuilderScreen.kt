@@ -699,11 +699,26 @@ fun PlanBuilderScreen(
     // Add / Edit Exercise Dialog
     if (showAddExerciseDialog) {
         val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
+        val preferredUnits by trainViewModel.units.collectAsStateWithLifecycle()
+        val unitSuffix = if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg"
         var exName by rememberSaveable { mutableStateOf(exercise?.name ?: "") }
         var selectedMuscle by rememberSaveable { mutableStateOf(exercise?.muscleGroup ?: MuscleGroups.ALL.first()) }
         var setsText by rememberSaveable { mutableStateOf(exercise?.sets?.toString() ?: "3") }
         var repsMinText by rememberSaveable { mutableStateOf(exercise?.repsMin?.toString() ?: "8") }
         var repsMaxText by rememberSaveable { mutableStateOf(exercise?.repsMax?.toString() ?: "12") }
+        var weightText by rememberSaveable {
+            mutableStateOf(
+                if (exercise != null && exercise.weight > 0.0) {
+                    if (unitSuffix.lowercase() in listOf("lb", "lbs")) {
+                        (Math.round(exercise.weight * 2.20462 * 10.0) / 10.0).toString()
+                    } else {
+                        exercise.weight.toString()
+                    }
+                } else {
+                    ""
+                }
+            )
+        }
         var restText by rememberSaveable { mutableStateOf(exercise?.restSeconds?.toString() ?: "90") }
         var notesText by rememberSaveable { mutableStateOf(exercise?.notes ?: "") }
 
@@ -844,6 +859,22 @@ fun PlanBuilderScreen(
                     }
 
                     OutlinedTextField(
+                        value = weightText,
+                        onValueChange = { weightText = it },
+                        label = { Text("Starting Weight ($unitSuffix)", color = SecondaryText) },
+                        textStyle = LocalTextStyle.current.copy(color = Color.White),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("exercise_weight_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = OrangeAccent,
+                            unfocusedBorderColor = BorderSubtle
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
                         value = restText,
                         onValueChange = { restText = it },
                         label = { Text(stringResource(R.string.plan_builder_rest_seconds), color = SecondaryText) },
@@ -896,6 +927,18 @@ fun PlanBuilderScreen(
                             return@Button
                         }
 
+                        val maxWeight = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
+                        val rawWeightVal = weightText.replace(',', '.').toDoubleOrNull()
+                        val weightVal = if (rawWeightVal != null && rawWeightVal in 0.0..maxWeight) {
+                            if (unitSuffix.lowercase() in listOf("lb", "lbs")) {
+                                rawWeightVal / 2.20462
+                            } else {
+                                rawWeightVal
+                            }
+                        } else {
+                            0.0
+                        }
+
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 
                         if (editingExerciseId == null) {
@@ -909,7 +952,7 @@ fun PlanBuilderScreen(
                                     sets = setsVal,
                                     repsMin = minRepsVal,
                                     repsMax = maxRepsVal,
-                                    weight = 0.0,
+                                    weight = weightVal,
                                     restSeconds = restVal,
                                     notes = notesText.trim()
                                 )
@@ -924,6 +967,7 @@ fun PlanBuilderScreen(
                                         sets = setsVal,
                                         repsMin = minRepsVal,
                                         repsMax = maxRepsVal,
+                                        weight = weightVal,
                                         restSeconds = restVal,
                                         notes = notesText.trim()
                                     )

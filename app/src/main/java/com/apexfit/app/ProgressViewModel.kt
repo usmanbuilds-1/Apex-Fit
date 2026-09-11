@@ -139,9 +139,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             muscle.contains("shoulder") || muscle.contains("delt") ||
             muscle.contains("bicep") || muscle.contains("tricep") -> 24.0
             muscle.contains("chest") -> 30.0
-            muscle.contains("trap") || muscle.contains("upper back") -> 36.0
+            muscle.contains("lower back") || muscle.contains("lower_back") || muscle.contains("lumbar") -> 60.0
+            muscle.contains("trap") || muscle.contains("upper back") || muscle.contains("upper_back") -> 36.0
             muscle.contains("back") || muscle.contains("lat") -> 40.0
-            muscle.contains("lower back") || muscle.contains("lower_back") -> 60.0
             muscle.contains("quad") || muscle.contains("hamstring") ||
             muscle.contains("glute") || muscle.contains("leg") -> 48.0
             else -> 36.0  // conservative default for unknown muscles

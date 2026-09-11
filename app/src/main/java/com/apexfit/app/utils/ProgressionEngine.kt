@@ -143,15 +143,8 @@ data class ProgressionResult(
             else -> 2.5
         }
 
-        val maxRpe = workingSets.map { it.rpe }.maxOrNull() ?: 0
-        val rpeMultiplier = when {
-            maxRpe <= 8.0 -> 1.0
-            maxRpe <= 9.0 -> 0.5
-            else -> 0.0
-        }
-
         val newWeight = when(outcome) {
-            OutcomeType.SUCCESS -> currentWeight + (baseIncrement * rpeMultiplier * recoveryMultiplier)
+            OutcomeType.SUCCESS -> currentWeight + (baseIncrement * recoveryMultiplier)
             OutcomeType.PLATEAU -> currentWeight * 0.9  // 10% deload in lbs
             else -> currentWeight
         }
@@ -212,7 +205,7 @@ data class ProgressionResult(
 
     fun calculateEffectiveSetValue(rpe: Int): Double {
         return when(rpe) {
-            in 5..6 -> 0.0      // Not tracked
+            in 5..6 -> 0.25
             7 -> 0.5            // 50% effective
             8 -> 0.75           // 75% effective
             9 -> 0.9            // 90% effective
@@ -223,7 +216,8 @@ data class ProgressionResult(
 
     fun getEffectivenessLabel(rpe: Int): String {
         return when(rpe) {
-            in 0..6 -> "Below threshold (not effective)"
+            in 0..4 -> "Too light (technique work only)"
+            in 5..6 -> "Technique volume (25% effective)"
             7 -> "Building zone (50% effective)"
             8 -> "SWEET SPOT (75% effective)"
             9 -> "High effort (90% effective)"

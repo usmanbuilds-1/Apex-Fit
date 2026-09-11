@@ -28,7 +28,7 @@ object MuscleRecoveryData {
         "dumbbell_row" to listOf("Shoulders" to 0.30, "Biceps" to 0.20),
         "cable_lateral_raise" to listOf("Shoulders" to 0.40),
         "face_pull" to listOf("Shoulders" to 0.50, "Biceps" to 0.20),
-        "curl" to listOf("Core" to 0.30),
+        "curl" to listOf("Biceps" to 0.10),
         "leg_press" to listOf("Hamstrings" to 0.35, "Glutes" to 0.30),
         "leg_curl" to listOf("Glutes" to 0.25)
     )
@@ -55,7 +55,7 @@ object MuscleRecoveryData {
         // Fallback to the substring map for exercises without structured data
         val normalized = exerciseName.lowercase().replace(" ", "_")
         return secondaryMap.entries
-            .filter { normalized.contains(it.key) }
+            .filter { normalized == it.key }
             .flatMap { it.value }
             .groupBy { it.first }
             .map { it.key to it.value.maxOf { p -> p.second } }
@@ -127,7 +127,7 @@ object MuscleReadinessCalculator {
     }
 }
 
-object SystemicCNSCalculator {
+object SystemicFatigueCalculator {
     // Single decay - CNS fatigue is one process (motor unit recruitment), not two phases.
     // Recovers faster than muscle tissue but responds harder to compound lifts.
     private const val TAU_DAYS = 1.3
@@ -256,14 +256,14 @@ object ReadinessFinal {
         }
 
         // c) systemicHistory
-        val systemicHistory = mutableListOf<SystemicCNSCalculator.SystemicSnapshot>()
+        val systemicHistory = mutableListOf<SystemicFatigueCalculator.SystemicSnapshot>()
         for (session in completedLast30) {
             val daysAgo = getDaysBetween(session.date, currentDate).toDouble()
             for (exercise in session.exercises) {
                 for (set in exercise.sets) {
                     if (set.isWarmup || !set.completed) continue
-                    val dose = SystemicCNSCalculator.doseForSet(set, exercise.name)
-                    systemicHistory.add(SystemicCNSCalculator.SystemicSnapshot(daysAgo, dose))
+                    val dose = SystemicFatigueCalculator.doseForSet(set, exercise.name)
+                    systemicHistory.add(SystemicFatigueCalculator.SystemicSnapshot(daysAgo, dose))
                 }
             }
         }
@@ -272,7 +272,7 @@ object ReadinessFinal {
         val systemicPastSessionDoses = completedLast30.map { session ->
             session.exercises.sumOf { exercise ->
                 exercise.sets.filter { !it.isWarmup && it.completed }.sumOf { set ->
-                    SystemicCNSCalculator.doseForSet(set, exercise.name)
+                    SystemicFatigueCalculator.doseForSet(set, exercise.name)
                 }
             }
         }
@@ -319,7 +319,7 @@ object ReadinessFinal {
         todaysMuscleGroups: List<String>,
         muscleFatigueHistory: Map<String, List<MuscleFatigueSnapshot>>,
         muscleSessionHistory: Map<String, List<Double>>,
-        systemicHistory: List<SystemicCNSCalculator.SystemicSnapshot>,
+        systemicHistory: List<SystemicFatigueCalculator.SystemicSnapshot>,
         systemicCapacity: Double,
         nutritionScore: Int,
         acuteLoad: Double, // from calcFatigueToFitness(trainingLog).acuteLoad
@@ -344,7 +344,7 @@ object ReadinessFinal {
             else -> 100.0
         }
 
-        val systemicScore = SystemicCNSCalculator.readinessPercent(systemicHistory, systemicCapacity)
+        val systemicScore = SystemicFatigueCalculator.readinessPercent(systemicHistory, systemicCapacity)
         val acrModifier = AcuteChronicRatioModifier.modifier(acuteLoad, chronicLoad)
 
         val wMuscle = 0.45

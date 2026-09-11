@@ -28,7 +28,7 @@ object AppConstants {
     // UI / validation
     const val REST_TIMER_DEFAULT_SECONDS = 90
     const val MAX_NAME_LENGTH = 50
-    const val MIN_AGE = 10
+    const val MIN_AGE = 13
     const val MAX_AGE = 100
     const val MIN_WEIGHT_KG = 20.0
     const val MAX_WEIGHT_KG = 500.0

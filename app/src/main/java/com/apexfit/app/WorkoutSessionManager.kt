@@ -294,8 +294,9 @@ class WorkoutSessionManager(
                 val suggestedPreferred = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
                     suggestedLbs
                 } else {
+                    val stepKg = if (exType == "isolation") 1.25 else 2.5
                     val converted = suggestedLbs / com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                    com.apexfit.app.utils.ProgressionEngine.run { converted.roundToNearest2_5() }
+                    converted.roundToNearestKg(stepKg)
                 }
 
                 suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
@@ -538,7 +539,7 @@ class WorkoutSessionManager(
             id = sessionId,
             date = com.apexfit.app.utils.DateTimeUtils.todayDateString(),
             sessionType = session.sessionType,
-            completed = completedSetsOnly,
+            completed = completedSetsOnly && !isPartial,
             durationMinutes = durationMinutes,
             sessionFeel = sessionFeel.coerceIn(1, 5),
             planSessionId = session.planSessionId.toLongOrNull(),
@@ -656,6 +657,9 @@ class WorkoutSessionManager(
     private fun exerciseNameToSlug(name: String): String {
         return com.apexfit.app.utils.exerciseNameToSlug(name)
     }
+
+    private fun Double.roundToNearestKg(stepKg: Double): Double =
+        (Math.round(this / stepKg) * stepKg * 100.0) / 100.0
 }
 
 // ── Result returned to the session complete screen ───────────────

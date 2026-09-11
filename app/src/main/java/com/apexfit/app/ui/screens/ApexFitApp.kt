@@ -703,6 +703,16 @@ fun OnboardingScreen(
                     }
                 }
 
+                if (liveResolvedGoal != goalTarget) {
+                    Text(
+                        text = "Note: Based on your weights, your goal has been adjusted to $liveResolvedGoal.",
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 12.sp,
+                        color = AmberAccent,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
                 val goalDescription = when (goalTarget) {
                     "Gain Muscle" -> "↑ ~250 kcal above maintenance  ·  High protein  ·  Progressive overload"

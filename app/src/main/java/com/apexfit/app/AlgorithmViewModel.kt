@@ -107,7 +107,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         nutritionFlow, richSessionsFlow, targetsFlow
     ) { nutrition, sessions, targets ->
         withContext(Dispatchers.Default) {
-            val validTargets = targets ?: com.apexfit.app.utils.NutritionTargets(calories = 2650, protein = 160, carbs = 280, fat = 75, weeklyTrainingSessions = 4)
+            val validTargets = targets ?: com.apexfit.app.utils.NutritionTargets(calories = com.apexfit.app.UserDefaults.CALORIES, protein = 160, carbs = 280, fat = 75, weeklyTrainingSessions = 4)
             com.apexfit.app.utils.AlgorithmEngine.calcStreaks(nutrition, sessions, validTargets)
         }
     }.stateIn(
@@ -174,7 +174,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                     fatigueResult = com.apexfit.app.utils.AlgorithmEngine.calcFatigueToFitness(sessions),
                     muscleHeatmap = com.apexfit.app.utils.AlgorithmEngine.calcMuscleHeatmap(sessions, days = 7),
                     injuryRiskSignals = com.apexfit.app.utils.AlgorithmEngine.detectInjuryRiskSignals(sessions)
-                        .ifEmpty { listOf("Recovery indicators normal. High-intensity load distributed optimally within target thresholds.") },
+                        .ifEmpty { listOf("Recovery indicators within normal range.") },
                     weeklyVolume = buildMuscleVolumes(sessions)
                 )
             }
@@ -258,7 +258,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     private fun buildMuscleVolumes(sessions: List<com.apexfit.app.utils.TrainingSession>): Map<String, Int> {
         val muscleSetsMap = mutableMapOf<String, Int>()
         val allKeys = listOf(
-            "chest", "back", "front delts", "side delts", "rear delts",
+            "chest", "back", "shoulders",
             "biceps", "triceps", "forearms", "trapezius", "neck",
             "abs", "obliques", "transverse abdominis", "lower back",
             "glutes", "quadriceps", "hamstrings", "calves",
@@ -276,9 +276,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                     val targetGroup = when {
                         group.contains("chest") || group.contains("pectoral") -> "chest"
                         group.contains("back") && !group.contains("lower") -> "back"
-                        group.contains("front delt") || group.contains("front_delt") || group.contains("anterior delt") -> "front delts"
-                        group.contains("rear delt") || group.contains("rear_delt") || group.contains("posterior delt") -> "rear delts"
-                        group.contains("side delt") || group.contains("side_delt") || group.contains("lateral delt") || group.contains("lateral") || group.contains("shoulder") || group.contains("delt") -> "side delts"
+                        group.contains("front delt") || group.contains("front_delt") || group.contains("anterior delt") -> "shoulders"
+                        group.contains("rear delt") || group.contains("rear_delt") || group.contains("posterior delt") -> "shoulders"
+                        group.contains("side delt") || group.contains("side_delt") || group.contains("lateral delt") || group.contains("lateral") || group.contains("shoulder") || group.contains("delt") -> "shoulders"
                         group.contains("bicep") -> "biceps"
                         group.contains("tricep") -> "triceps"
                         group.contains("forearm") -> "forearms"
@@ -288,7 +288,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                         group.contains("abs") || group.contains("rectus abdominis") || group.contains("rectus_abdominis") || group.contains("abdom") || group.contains("core") -> "abs"
                         group.contains("oblique") -> "obliques"
                         group.contains("transverse abdominis") || group.contains("transverse_abdominis") -> "transverse abdominis"
-                        group.contains("lower back") || group.contains("lumbar") || group.contains("spinal erector") || group.contains("erector") -> "lower back"
+                        group.contains("lower back") || group.contains("lower_back") || group.contains("lumbar") || group.contains("spinal erector") || group.contains("erector") -> "lower back"
                         
                         group.contains("glute") -> "glutes"
                         group.contains("quad") || group.contains("quadriceps") -> "quadriceps"

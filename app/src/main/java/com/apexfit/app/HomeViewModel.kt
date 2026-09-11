@@ -154,14 +154,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val timeStr = try { getCurrentLocalTimeString() } catch (e: Exception) { "12:00" }
                 dao.insertWeightEntry(WeightEntry(date = date, time = timeStr, weight = safeWeightKg, unit = "kg"))
                 val goal = try {
-                    kotlinx.coroutines.withTimeoutOrNull(500) { dataStore.goalWeightFlow.first() } ?: 70.0
+                    kotlinx.coroutines.withTimeoutOrNull(500) { dataStore.goalWeightFlow.first() }
                 } catch (e: Exception) {
-                    70.0
+                    null
                 }
-                try {
-                    dataStore.saveWeight(safeWeightKg, goal)
-                } catch (e: Exception) {
-                    // Ignore preferences errors in test environment
+                if (goal != null) {
+                    try {
+                        dataStore.saveWeight(safeWeightKg, goal)
+                    } catch (e: Exception) { }
                 }
             } catch (e: Throwable) {
                 // Ignore errors

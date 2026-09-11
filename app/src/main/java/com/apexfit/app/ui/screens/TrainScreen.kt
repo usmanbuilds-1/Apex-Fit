@@ -275,6 +275,7 @@ fun ProgramSubTab(
                 itemsIndexed(exercises, key = { _, ex -> ex.id }) { index, ex ->
 
                     var isExpanded by rememberSaveable { mutableStateOf(false) }
+                    val displayWeight = if (units.lowercase() in listOf("lb","lbs")) (ex.weight * 2.20462).let { Math.round(it * 10.0) / 10.0 } else ex.weight
 
                     Box(
                         modifier = Modifier
@@ -301,7 +302,7 @@ fun ProgramSubTab(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "${ex.sets} Sets x ${ex.repsMin}-${ex.repsMax} Reps • ${ex.weight} $units",
+                                        text = "${ex.sets} Sets x ${ex.repsMin}-${ex.repsMax} Reps • $displayWeight $units",
                                         fontFamily = JetBrainsMonoFamily,
                                         fontSize = 11.sp,
                                         color = AmberAccent
@@ -842,6 +843,7 @@ fun WorkoutExecutionSubTab(
                 val setsList = loggedSets[ex.exerciseId] ?: emptyList()
 
                 item {
+                    val displayWeight = if (unitSuffix.lowercase() in listOf("lb","lbs")) (ex.weight * 2.20462).let { Math.round(it * 10.0) / 10.0 } else ex.weight
                     var showPlateCalc by rememberSaveable { mutableStateOf(false) }
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -874,7 +876,7 @@ fun WorkoutExecutionSubTab(
                         
                         if (showPlateCalc) {
                             Spacer(modifier = Modifier.height(10.dp))
-                            PlateCalculatorCard(initialWeight = ex.weight, units = unitSuffix)
+                            PlateCalculatorCard(initialWeight = displayWeight, units = unitSuffix)
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -948,10 +950,13 @@ fun WorkoutExecutionSubTab(
                     var weightError by remember(setObj.id, sIdx) { mutableStateOf("") }
                     var repsError by remember(setObj.id, sIdx) { mutableStateOf("") }
 
+                    val weightMin = 0.25
+                    val weightMax = if (unitSuffix.lowercase() in listOf("lb","lbs")) 660.0 else 300.0
+
                     // Commit helpers — call when editing finishes (focus loss or explicit commit)
                     val commitWeight: () -> Unit = {
                         val w = rawWeight.toDoubleOrNull()
-                        if (w != null && w in 0.25..500.0) {
+                        if (w != null && w in weightMin..weightMax) {
                             val r = rawReps.toIntOrNull() ?: setObj.reps
                             trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, 
                                 setObj.completed, restTakenSeconds = setObj.restTaken)
@@ -966,7 +971,7 @@ fun WorkoutExecutionSubTab(
                         }
                     }
 
-                    val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in 0.25..500.0 } ?: false
+                    val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in weightMin..weightMax } ?: false
                     val isRepsValid = rawReps.toIntOrNull()?.let { it in 1..50 } ?: false
                     val isRpeValid = selectedRpe in 1..10
                     val isSetValid = isWeightValid && isRepsValid && isRpeValid
@@ -1059,18 +1064,18 @@ fun WorkoutExecutionSubTab(
                                             var error = ""
                                             val dVal = clean.toDoubleOrNull()
                                             if (dVal != null) {
-                                                if (dVal > 500.0) {
-                                                    finalStr = "500.0"
-                                                    error = "Weight: 0.25–500 $unitSuffix"
-                                                } else if (dVal < 0.25) {
+                                                if (dVal > weightMax) {
+                                                    finalStr = "$weightMax"
+                                                    error = "Weight: 0.25–$weightMax $unitSuffix"
+                                                } else if (dVal < weightMin) {
                                                     val isTypingPrefix = clean == "0" || clean == "0." || clean == "0.2"
                                                     if (!isTypingPrefix) {
                                                         finalStr = "0.25"
                                                     }
-                                                    error = "Weight: 0.25–500 $unitSuffix"
+                                                    error = "Weight: 0.25–$weightMax $unitSuffix"
                                                 }
                                             } else if (clean.isNotEmpty()) {
-                                                error = "Weight: 0.25–500 $unitSuffix"
+                                                error = "Weight: 0.25–$weightMax $unitSuffix"
                                             }
 
                                             // update local buffer only; do NOT push model update on every keystroke

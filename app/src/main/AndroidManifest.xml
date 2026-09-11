@@ -14,13 +14,10 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Android 14+ (API 34): no user prompt needed for user-triggered alarms -->
-    <uses-permission
-        android:name="android.permission.USE_EXACT_ALARM"
-        android:minSdkVersion="34" />
-    <!-- Android 12-13 (API 31-33): requires Settings opt-in; falls back to inexact -->
-    <uses-permission
-        android:name="android.permission.SCHEDULE_EXACT_ALARM"
-        android:maxSdkVersion="33" />
+    <!-- API 31+: user must opt-in via Settings > Special app access > Alarms & reminders.
+         RestTimerAlarmReceiver checks canScheduleExactAlarms() and falls back to
+         inexact if not granted. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".ApexFitApplication"

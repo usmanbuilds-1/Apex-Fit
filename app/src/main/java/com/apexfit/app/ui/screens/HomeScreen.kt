@@ -1309,7 +1309,7 @@ fun HomeScreen(
                             color = AmberAccent
                         )
                         Text(
-                            text = "Readiness is calculated from your training load, nutrition compliance, and sleep (if tracked).",
+                            text = "Readiness is estimated from your training load and nutrition compliance.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 12.sp,
                             color = SecondaryText,
@@ -1343,7 +1343,7 @@ fun HomeScreen(
                             color = AmberAccent
                         )
                         Text(
-                            text = "Systemic readiness reflects overall CNS fatigue from recent training volume.",
+                            text = "Systemic readiness reflects your overall training load and recovery.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 12.sp,
                             color = SecondaryText,

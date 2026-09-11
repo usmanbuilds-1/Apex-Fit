@@ -478,9 +478,9 @@ data class ProgressionSetWithStalled(
         weight = weight,
         reps = reps,
         rpe = rpe,
-        isWarmup = isWarmup,
+        isWarmup = isWarmup != 0,
         restTaken = restTaken,
-        completed = completed,
+        completed = completed != 0,
         repsInReserve = repsInReserve,
         effectiveSetValue = 0.0,
         weightUnit = "kg"

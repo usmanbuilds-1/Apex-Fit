@@ -62,7 +62,7 @@
     <string name="nutrition_5g_fat">+5g Fat</string>
     <string name="nutrition_cancel">Cancel</string>
     <string name="nutrition_adaptive_calorie_target">ADAPTIVE CALORIE TARGET</string>
-    <string name="nutrition_your_real_calorie_burn_this_we">Your real calorie burn this week: %1$s kcal</string>
+    <string name="nutrition_your_real_calorie_burn_this_we">Estimated calorie burn this week: %1$s kcal</string>
     <string name="nutrition_suggested_target_for_kcal">Suggested target for %1$s: %2$s kcal</string>
     <string name="nutrition_based_on_tdeeresult_weightchan">Based on %1$s kg change across %2$s avg daily intake.</string>
     <string name="nutrition_accept_target">ACCEPT TARGET</string>
@@ -80,7 +80,7 @@
     <string name="progress_save_weight">SAVE WEIGHT</string>
     <string name="progress_undertrained">Undertrained</string>
     <string name="progress_optimal">Optimal</string>
-    <string name="progress_overreaching">Overreaching</string>
+    <string name="progress_overreaching">High Load Warning</string>
     <string name="progress_weight_profile_catalog_update_">Weight profile catalog update saved!</string>
     <string name="progress_enter_numeric_index">Enter numeric index</string>
     <string name="progress_detail_error_loading_recovery_statuse">Error loading recovery statuses</string>
