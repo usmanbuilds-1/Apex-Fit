@@ -167,6 +167,9 @@ interface FitnessDao {
     @Query("SELECT * FROM exercise_metadata WHERE exercise_id = :exerciseId LIMIT 1")
     suspend fun getMetadataForExercise(exerciseId: String): ExerciseMetadata?
 
+    @Query("SELECT * FROM exercise_metadata WHERE exercise_id IN (:exerciseIds)")
+    suspend fun getMetadataForExercises(exerciseIds: List<String>): List<ExerciseMetadata>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExerciseMetadata(metadata: ExerciseMetadata)
 

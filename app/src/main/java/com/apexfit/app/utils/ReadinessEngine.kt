@@ -1,7 +1,9 @@
 package com.apexfit.app.utils
 
+import com.apexfit.app.data.ExerciseMetadata
 import com.apexfit.app.data.ExerciseSet
 import com.apexfit.app.data.TrainingSession
+import com.apexfit.app.data.exerciseId
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
@@ -33,7 +35,8 @@ object MuscleRecoveryData {
         "leg_curl" to listOf("Glutes" to 0.25)
     )
 
-    fun tauFor(muscleGroup: String): Double {
+    fun tauFor(muscleGroup: String, tauOverrideDays: Double? = null): Double {
+        if (tauOverrideDays != null) return tauOverrideDays
         val norm = muscleGroup.lowercase().trim()
         val canonical = com.apexfit.app.utils.MuscleAliases.getCanonical(norm)
         return sizeMap.entries.firstOrNull { 
@@ -103,8 +106,12 @@ object FatigueDoseCalculator {
 data class MuscleFatigueSnapshot(val muscleGroup: String, val daysAgo: Double, val doseAmount: Double)
 
 object MuscleReadinessCalculator {
-    fun remainingFatigue(snapshots: List<MuscleFatigueSnapshot>, muscleGroup: String): Double {
-        val tau = MuscleRecoveryData.tauFor(muscleGroup)
+    fun remainingFatigue(
+        snapshots: List<MuscleFatigueSnapshot>,
+        muscleGroup: String,
+        tauOverrideDays: Double? = null
+    ): Double {
+        val tau = MuscleRecoveryData.tauFor(muscleGroup, tauOverrideDays = tauOverrideDays)
         return snapshots.filter { it.muscleGroup == muscleGroup }
             .sumOf { it.doseAmount * (1.0 - MuscleRecoveryData.recoveredFraction(it.daysAgo, tau)) }
     }
@@ -120,8 +127,13 @@ object MuscleReadinessCalculator {
         return p90.coerceAtLeast(1.0)
     }
 
-    fun readinessPercent(snapshots: List<MuscleFatigueSnapshot>, muscleGroup: String, capacity: Double): Int {
-        val remaining = remainingFatigue(snapshots, muscleGroup)
+    fun readinessPercent(
+        snapshots: List<MuscleFatigueSnapshot>,
+        muscleGroup: String,
+        capacity: Double,
+        tauOverrideDays: Double? = null
+    ): Int {
+        val remaining = remainingFatigue(snapshots, muscleGroup, tauOverrideDays = tauOverrideDays)
         val ratio = (remaining / capacity.coerceAtLeast(1.0)).coerceIn(0.0, 1.0)
         return ((1.0 - ratio) * 100).roundToInt()
     }
@@ -134,11 +146,15 @@ object SystemicFatigueCalculator {
 
     data class SystemicSnapshot(val daysAgo: Double, val doseAmount: Double)
 
-    fun doseForSet(set: ExerciseSet, exerciseName: String): Double {
+    fun doseForSet(
+        set: ExerciseSet,
+        exerciseName: String,
+        systemicMultiplierOverride: Double? = null
+    ): Double {
         if (set.isWarmup || !set.completed) return 0.0
         val volumeLoad = set.weight.coerceAtLeast(0.0) * set.reps.coerceAtLeast(0)
         val mult = FatigueDoseCalculator.fatigueMultiplier(set.rpe.coerceIn(1, 10))
-        val systemicMult = if (FatigueDoseCalculator.isCompound(exerciseName)) 1.4 else 0.7
+        val systemicMult = systemicMultiplierOverride ?: if (FatigueDoseCalculator.isCompound(exerciseName)) 1.4 else 0.7
         return volumeLoad * mult * systemicMult
     }
 
@@ -190,14 +206,16 @@ object ReadinessFinal {
         sessions: List<com.apexfit.app.utils.TrainingSession>,
         nutritionLog: List<com.apexfit.app.utils.NutritionEntry>,
         bodyWeightKg: Double,
-        calorieTarget: Int
+        calorieTarget: Int,
+        metadata: Map<String, ExerciseMetadata> = emptyMap()
     ): ReadinessScore {
         val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, bodyWeightKg, "Maintain Weight")
         return buildReadinessInputs(
             completedSessions = sessions,
             todayExercises = emptyList(),
             nutritionLog = nutritionLog,
-            targets = targets
+            targets = targets,
+            metadata = metadata
         )
     }
 
@@ -205,7 +223,8 @@ object ReadinessFinal {
         completedSessions: List<com.apexfit.app.utils.TrainingSession>,
         todayExercises: List<com.apexfit.app.data.PlanExercise>,
         nutritionLog: List<com.apexfit.app.utils.NutritionEntry>,
-        targets: com.apexfit.app.utils.NutritionTargets
+        targets: com.apexfit.app.utils.NutritionTargets,
+        metadata: Map<String, ExerciseMetadata> = emptyMap()
     ): ReadinessScore {
         val currentDate = getCurrentDate()
         val completedLast30 = completedSessions.filter { session ->
@@ -260,9 +279,14 @@ object ReadinessFinal {
         for (session in completedLast30) {
             val daysAgo = getDaysBetween(session.date, currentDate).toDouble()
             for (exercise in session.exercises) {
+                val exerciseId = exercise.id.ifEmpty { exerciseNameToSlug(exercise.name) }
                 for (set in exercise.sets) {
                     if (set.isWarmup || !set.completed) continue
-                    val dose = SystemicFatigueCalculator.doseForSet(set, exercise.name)
+                    val dose = SystemicFatigueCalculator.doseForSet(
+                        set = set,
+                        exerciseName = exercise.name,
+                        systemicMultiplierOverride = metadata[exerciseId]?.systemicMultiplier
+                    )
                     systemicHistory.add(SystemicFatigueCalculator.SystemicSnapshot(daysAgo, dose))
                 }
             }
@@ -271,8 +295,13 @@ object ReadinessFinal {
         // d) systemicCapacity
         val systemicPastSessionDoses = completedLast30.map { session ->
             session.exercises.sumOf { exercise ->
+                val exerciseId = exercise.id.ifEmpty { exerciseNameToSlug(exercise.name) }
                 exercise.sets.filter { !it.isWarmup && it.completed }.sumOf { set ->
-                    SystemicFatigueCalculator.doseForSet(set, exercise.name)
+                    SystemicFatigueCalculator.doseForSet(
+                        set = set,
+                        exerciseName = exercise.name,
+                        systemicMultiplierOverride = metadata[exerciseId]?.systemicMultiplier
+                    )
                 }
             }
         }
@@ -301,6 +330,17 @@ object ReadinessFinal {
         // i) totalCompletedSessions
         val totalCompletedSessions = completedSessions.count { it.completed }
 
+        val tauOverrides = mutableMapOf<String, Double>()
+        for (exercise in todayExercises) {
+            val exerciseId = exercise.exerciseId
+            val tau = metadata[exerciseId]?.recoveryTauDays
+            if (tau != null) {
+                tauOverrides[exercise.muscleGroup] = tau
+                tauOverrides[exercise.muscleGroup.lowercase()] = tau
+                tauOverrides[MuscleAliases.getCanonical(exercise.muscleGroup)] = tau
+            }
+        }
+
         return calculate(
             totalCompletedSessions = totalCompletedSessions,
             todaysMuscleGroups = todaysMuscleGroups,
@@ -310,7 +350,9 @@ object ReadinessFinal {
             systemicCapacity = systemicCapacity,
             nutritionScore = nutritionScore,
             acuteLoad = acuteLoad,
-            chronicLoad = chronicLoad
+            chronicLoad = chronicLoad,
+            metadata = metadata,
+            tauOverrides = tauOverrides
         )
     }
 
@@ -323,14 +365,27 @@ object ReadinessFinal {
         systemicCapacity: Double,
         nutritionScore: Int,
         acuteLoad: Double, // from calcFatigueToFitness(trainingLog).acuteLoad
-        chronicLoad: Double // from calcFatigueToFitness(trainingLog).chronicLoad
+        chronicLoad: Double, // from calcFatigueToFitness(trainingLog).chronicLoad
+        metadata: Map<String, ExerciseMetadata> = emptyMap(),
+        tauOverrides: Map<String, Double> = emptyMap()
     ): ReadinessScore {
 
         val muscleDetails = todaysMuscleGroups.map { muscle ->
             val history = muscleFatigueHistory[muscle] ?: emptyList()
             val sessionHist = muscleSessionHistory[muscle] ?: emptyList()
             val capacity = MuscleReadinessCalculator.userCapacity(sessionHist)
-            val readiness = MuscleReadinessCalculator.readinessPercent(history, muscle, capacity)
+            val tauOverride = tauOverrides[muscle]
+                ?: tauOverrides[muscle.lowercase()]
+                ?: tauOverrides[MuscleAliases.getCanonical(muscle)]
+                ?: metadata[muscle]?.recoveryTauDays
+                ?: metadata[muscle.lowercase()]?.recoveryTauDays
+                ?: metadata[MuscleAliases.getCanonical(muscle)]?.recoveryTauDays
+            val readiness = MuscleReadinessCalculator.readinessPercent(
+                snapshots = history,
+                muscleGroup = muscle,
+                capacity = capacity,
+                tauOverrideDays = tauOverride
+            )
             val confidence = when {
                 sessionHist.size >= 5 -> "full"
                 sessionHist.size >= 3 -> "limited"

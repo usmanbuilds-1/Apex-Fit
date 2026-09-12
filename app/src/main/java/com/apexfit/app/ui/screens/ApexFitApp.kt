@@ -528,7 +528,6 @@ fun OnboardingScreen(
     var goalWeightError by remember { mutableStateOf<String?>(null) }
     var heightError by remember { mutableStateOf<String?>(null) }
     var ageError by remember { mutableStateOf<String?>(null) }
-    var showAgeGateDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -946,12 +945,10 @@ fun OnboardingScreen(
                             heightError = if (isImperial) "Please enter a valid height in in (39–98)" else "Please enter a valid height in cm (100–250)"
                         } else if (ageVal == null || ageVal < com.apexfit.app.utils.AppConstants.MIN_AGE || ageVal > 100) {
                             ageError = "Please enter a valid age (${com.apexfit.app.utils.AppConstants.MIN_AGE}–100)"
-                        } else if (ageVal < 13) {
-                            showAgeGateDialog = true
                         } else {
                             val cw = weightVal
                             val minGoalWeight = if (isImperial) 66.0 else 30.0
-                            val maxGoalWeight = if (isImperial) 1100.0 else 500.0
+                            val maxGoalWeight = if (isImperial) maxWeightKg * 2.20462 else maxWeightKg
                             val gwRaw = goalWeightStr.replace(",", ".").toDoubleOrNull()
 
                             if (goalWeightStr.isNotBlank() &&
@@ -1013,33 +1010,6 @@ fun OnboardingScreen(
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
-                    )
-                }
-
-                if (showAgeGateDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showAgeGateDialog = false },
-                        containerColor = DarkCardSurface,
-                        title = {
-                            Text("Age Requirement",
-                                fontFamily = SyneFamily,
-                                color = PrimaryText,
-                                fontWeight = FontWeight.Bold)
-                        },
-                        text = {
-                            Text(
-                                "Apex Fit is for users aged 13 and older. " +
-                                "We are unable to create an account for users under 13.",
-                                fontFamily = InterFamily,
-                                color = SecondaryText,
-                                fontSize = 14.sp
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showAgeGateDialog = false }) {
-                                Text("OK", color = AmberAccent, fontFamily = InterFamily)
-                            }
-                        }
                     )
                 }
             }

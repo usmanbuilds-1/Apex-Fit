@@ -98,7 +98,8 @@ data class ProgressionResult(
         recoveryMultiplier: Double,
         currentWeight: Double,
         exerciseType: String,
-        consecutiveStalledSessions: Int = 0
+        consecutiveStalledSessions: Int = 0,
+        incrementOverrideKg: Double? = null
     ): ProgressionResult {
         
         val workingSets = lastSessionSets.filter { !it.isWarmup && it.completed }
@@ -134,13 +135,17 @@ data class ProgressionResult(
         // WorkoutSessionManager converts to lbs before calling and converts back after.  
         // baseIncrement values are lbs-calibrated (e.g. 5.0 = 5 lbs ≈ 2.3 kg for lower body).  
         // Do NOT change these values without updating unit handling in WorkoutSessionManager.  
-        val baseIncrement = when(exerciseType) {
-            "compound_lower" -> 5.0
-            "compound_upper" -> 2.5
-            "dumbbell_upper" -> 2.5
-            "dumbbell_lower" -> 2.5
-            "isolation" -> 1.25
-            else -> 2.5
+        val baseIncrement = if (incrementOverrideKg != null) {
+            incrementOverrideKg * 2.20462
+        } else {
+            when(exerciseType) {
+                "compound_lower" -> 5.0
+                "compound_upper" -> 2.5
+                "dumbbell_upper" -> 2.5
+                "dumbbell_lower" -> 2.5
+                "isolation" -> 1.25
+                else -> 2.5
+            }
         }
 
         // Plate size determines valid increment grid for this exercise type (in lbs).
@@ -176,18 +181,23 @@ data class ProgressionResult(
 
     fun calculateRestTimeSeconds(
         exerciseType: String,  // "compound_upper", "compound_lower", "isolation", etc.
-        rpe: Int               // 5-10
+        rpe: Int,              // 5-10
+        restSecondsOverride: Int? = null
     ): Int {
         // Step 1: Base rest time by exercise type
-        val baseRestSeconds = when(exerciseType) {
-            "compound_upper" -> 180    // 3 minutes
-            "compound_lower" -> 180    // 3 minutes
-            "dumbbell_upper" -> 150    // 2.5 minutes
-            "dumbbell_lower" -> 150    // 2.5 minutes
-            "machine" -> 120           // 2 minutes
-            "isolation" -> 90          // 1.5 minutes
-            "cardio" -> 45             // 45 seconds
-            else -> 120                // Default 2 minutes
+        val baseRestSeconds = if (restSecondsOverride != null) {
+            restSecondsOverride
+        } else {
+            when(exerciseType) {
+                "compound_upper" -> 180    // 3 minutes
+                "compound_lower" -> 180    // 3 minutes
+                "dumbbell_upper" -> 150    // 2.5 minutes
+                "dumbbell_lower" -> 150    // 2.5 minutes
+                "machine" -> 120           // 2 minutes
+                "isolation" -> 90          // 1.5 minutes
+                "cardio" -> 45             // 45 seconds
+                else -> 120                // Default 2 minutes
+            }
         }
         
         // Step 2: Adjust for RPE

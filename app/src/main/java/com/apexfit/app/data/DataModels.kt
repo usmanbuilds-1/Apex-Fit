@@ -166,24 +166,6 @@ data class FatigueRatio(
     val riskStatus: String // Low, Medium, High
 )
 
-data class PRResult(
-    val hasPR: Boolean = false,
-    val newPRs: List<PREntry> = emptyList(),
-    val exerciseId: String = "",
-    val type: String = "", // max_weight, volume, estimated_1rm
-    val previousValue: Double = 0.0,
-    val newValue: Double = 0.0
-) {
-    constructor(exerciseId: String, type: String, previousValue: Double, newValue: Double, isNewRecord: Boolean) : this(
-        hasPR = isNewRecord,
-        newPRs = emptyList(),
-        exerciseId = exerciseId,
-        type = type,
-        previousValue = previousValue,
-        newValue = newValue
-    )
-}
-
 data class VolumeData(
     val muscleGroup: String,
     val setVolume: Int,
@@ -386,7 +368,6 @@ data class TrainingDayTargets(
 data class TDEEResult(val tdee: Int?, val confidence: String, val avgCalories: Int, val weightChangeKg: Double)
 data class ComplianceResult(val calories: Int, val protein: Int, val training: Int, val overall: Int, val weakestDay: String?)
 data class FatigueResult(val ratio: Double?, val status: String, val statusLabel: String, val recommendation: String, val acuteLoad: Double, val chronicLoad: Double)
-data class PREntry(val type: String, val label: String, val value: String, val previous: String)
 data class DiminishingResult(val status: String, val message: String, val suggestions: List<String> = emptyList(), val slope: Double = 0.0)
 data class WeakPoint(val muscle: String, val displayName: String, val overallScore: Int, val trend: String)
 data class DeloadResult(val recommendation: String, val urgency: String, val signals: Int, val protocol: List<String> = emptyList())

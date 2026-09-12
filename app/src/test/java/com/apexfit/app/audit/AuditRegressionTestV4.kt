@@ -418,4 +418,311 @@ class AuditRegressionTestV4 {
         // Progression engine contract requires weight in lbs unconditionally
         assertEquals(220.462, uiSet.weight, 0.01)
     }
+
+    @Test
+    fun testMetricProgressionSuggestions_successAdvancesAndSnapsToGrid() = runBlocking {
+        val dataStore = DataStoreManager(context)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
+        val sessionManager = com.apexfit.app.WorkoutSessionManager(
+            repository = repo,
+            dataStore = dataStore,
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            dao = dao,
+            appContext = context
+        )
+
+        // 1. Acceptance: a metric user at 100.0 kg compound_upper with a SUCCESS outcome is suggested 102.5 kg (not 100.0)
+        dao.insertExerciseSet(
+            ExerciseSet(
+                id = 101L,
+                sessionId = "session_1",
+                exerciseId = "bench-press",
+                exerciseName = "Bench Press",
+                muscleGroup = "Chest",
+                weight = 100.0,
+                reps = 12,
+                rpe = 7,
+                isWarmup = false,
+                completed = true
+            )
+        )
+        val benchExercise = PlanExercise(
+            id = 1L,
+            planSessionId = 1L,
+            name = "Bench Press",
+            muscleGroup = "Chest",
+            sets = 1,
+            repsMin = 8,
+            repsMax = 12,
+            weight = 100.0,
+            restSeconds = 90,
+            notes = ""
+        )
+        val planSession = PlanSession(id = 1L, planId = 1L, label = "Upper", day = "Monday", focus = "Chest")
+        sessionManager.startSession(planSession, listOf(benchExercise), 75.0, 175.0, "kg")
+        val benchActive = sessionManager.activeSession.value?.exercises?.first()
+        assertEquals(102.5, benchActive?.sets?.first()?.weight ?: 0.0, 0.001)
+
+        // 2. Acceptance: a metric user at 30.0 kg isolation with SUCCESS is suggested 31.25 kg (not 30.0)
+        dao.insertExercises(
+            listOf(
+                Exercise(
+                    id = "bicep-curl",
+                    name = "Bicep Curl",
+                    category = "Dumbbell",
+                    primaryMuscle = "Biceps",
+                    equipmentRequired = "Dumbbell"
+                )
+            )
+        )
+        dao.insertExerciseSet(
+            ExerciseSet(
+                id = 102L,
+                sessionId = "session_1",
+                exerciseId = "bicep-curl",
+                exerciseName = "Bicep Curl",
+                muscleGroup = "Biceps",
+                weight = 30.0,
+                reps = 12,
+                rpe = 7,
+                isWarmup = false,
+                completed = true
+            )
+        )
+        val curlExercise = PlanExercise(
+            id = 2L,
+            planSessionId = 1L,
+            name = "Bicep Curl",
+            muscleGroup = "Biceps",
+            sets = 1,
+            repsMin = 8,
+            repsMax = 12,
+            weight = 30.0,
+            restSeconds = 60,
+            notes = ""
+        )
+        val armsSession = PlanSession(id = 2L, planId = 1L, label = "Arms", day = "Tuesday", focus = "Arms")
+        sessionManager.startSession(armsSession, listOf(curlExercise), 75.0, 175.0, "kg")
+        val curlActive = sessionManager.activeSession.value?.exercises?.first()
+        assertEquals(31.25, curlActive?.sets?.first()?.weight ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun testMetricTenSessionSuccessChain_strictlyIncreasesAllFiveExerciseTypes() = runBlocking {
+        val dataStore = DataStoreManager(context)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
+        val sessionManager = com.apexfit.app.WorkoutSessionManager(
+            repository = repo,
+            dataStore = dataStore,
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            dao = dao,
+            appContext = context
+        )
+
+        val exercisesToTest = listOf(
+            Triple("Squat", "Legs", 100.0),
+            Triple("Bench Press", "Chest", 100.0),
+            Triple("Dumbbell Press", "Chest", 20.0),
+            Triple("Dumbbell Squat", "Legs", 20.0),
+            Triple("Bicep Curl", "Biceps", 15.0)
+        )
+
+        dao.insertExercises(
+            exercisesToTest.map { (name, muscle, _) ->
+                Exercise(
+                    id = exerciseNameToSlug(name),
+                    name = name,
+                    category = "Free Weight",
+                    primaryMuscle = muscle,
+                    equipmentRequired = "None"
+                )
+            }
+        )
+
+        for ((name, muscle, initialWeight) in exercisesToTest) {
+            val slug = exerciseNameToSlug(name)
+            var currentWeight = initialWeight
+            for (sessionIdx in 1..10) {
+                val sessionId = "session_${slug}_$sessionIdx"
+                dao.insertTrainingSession(
+                    TrainingSession(
+                        id = sessionId,
+                        date = "2024-01-01",
+                        sessionType = "Custom",
+                        completed = true,
+                        durationMinutes = 45,
+                        sessionFeel = 4
+                    )
+                )
+                dao.insertExerciseSet(
+                    ExerciseSet(
+                        id = (1000 * exercisesToTest.indexOfFirst { it.first == name } + sessionIdx).toLong(),
+                        sessionId = sessionId,
+                        exerciseId = slug,
+                        exerciseName = name,
+                        muscleGroup = muscle,
+                        weight = currentWeight,
+                        reps = 10,
+                        rpe = 7,
+                        isWarmup = false,
+                        completed = true
+                    )
+                )
+
+                val planEx = PlanExercise(
+                    id = (5000 + sessionIdx).toLong(),
+                    planSessionId = 1L,
+                    name = name,
+                    muscleGroup = muscle,
+                    sets = 1,
+                    repsMin = 8,
+                    repsMax = 10,
+                    weight = currentWeight,
+                    restSeconds = 90,
+                    notes = ""
+                )
+                val planSession = PlanSession(id = (100 + sessionIdx).toLong(), planId = 1L, label = "Custom", day = "Monday", focus = muscle)
+                sessionManager.startSession(planSession, listOf(planEx), 75.0, 175.0, "kg")
+                val suggested = sessionManager.activeSession.value?.exercises?.first()?.sets?.first()?.weight ?: 0.0
+                assertTrue(
+                    "Session $sessionIdx for $name should strictly increase: suggested $suggested > current $currentWeight",
+                    suggested > currentWeight
+                )
+                currentWeight = suggested
+            }
+        }
+    }
+
+    @Test
+    fun testImperialSuggestionsSnapToPlateGrid() = runBlocking {
+        val dataStore = DataStoreManager(context)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
+        val sessionManager = com.apexfit.app.WorkoutSessionManager(
+            repository = repo,
+            dataStore = dataStore,
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            dao = dao,
+            appContext = context
+        )
+
+        dao.insertExerciseSet(
+            ExerciseSet(
+                id = 201L,
+                sessionId = "session_1",
+                exerciseId = "bench-press",
+                exerciseName = "Bench Press",
+                muscleGroup = "Chest",
+                weight = 45.4,
+                reps = 10,
+                rpe = 7,
+                isWarmup = false,
+                completed = true
+            )
+        )
+        val planEx = PlanExercise(
+            id = 201L,
+            planSessionId = 1L,
+            name = "Bench Press",
+            muscleGroup = "Chest",
+            sets = 1,
+            repsMin = 8,
+            repsMax = 10,
+            weight = 100.0,
+            restSeconds = 90,
+            notes = ""
+        )
+        val planSession = PlanSession(id = 10L, planId = 1L, label = "Upper", day = "Monday", focus = "Chest")
+        sessionManager.startSession(planSession, listOf(planEx), 165.0, 175.0, "lbs")
+        val suggested = sessionManager.activeSession.value?.exercises?.first()?.sets?.first()?.weight ?: 0.0
+        val rem = (suggested % 2.5)
+        assertTrue("Imperial bench press suggestion $suggested must be on 2.5 lb grid", rem == 0.0 || Math.abs(rem - 2.5) < 0.001)
+
+        dao.insertExercises(
+            listOf(
+                Exercise(
+                    id = "bicep-curl",
+                    name = "Bicep Curl",
+                    category = "Dumbbell",
+                    primaryMuscle = "Biceps",
+                    equipmentRequired = "Dumbbell"
+                )
+            )
+        )
+        dao.insertExerciseSet(
+            ExerciseSet(
+                id = 202L,
+                sessionId = "session_1",
+                exerciseId = "bicep-curl",
+                exerciseName = "Bicep Curl",
+                muscleGroup = "Biceps",
+                weight = 13.7,
+                reps = 10,
+                rpe = 7,
+                isWarmup = false,
+                completed = true
+            )
+        )
+        val curlEx = PlanExercise(
+            id = 202L,
+            planSessionId = 1L,
+            name = "Bicep Curl",
+            muscleGroup = "Biceps",
+            sets = 1,
+            repsMin = 8,
+            repsMax = 10,
+            weight = 30.0,
+            restSeconds = 60,
+            notes = ""
+        )
+        val armsSession = PlanSession(id = 11L, planId = 1L, label = "Arms", day = "Tuesday", focus = "Arms")
+        sessionManager.startSession(armsSession, listOf(curlEx), 165.0, 175.0, "lbs")
+        val curlSuggested = sessionManager.activeSession.value?.exercises?.first()?.sets?.first()?.weight ?: 0.0
+        val curlRem = (curlSuggested % 1.25)
+        assertTrue("Imperial bicep curl suggestion $curlSuggested must be on 1.25 lb grid", curlRem == 0.0 || Math.abs(curlRem - 1.25) < 0.001)
+    }
+
+    @Test
+    fun testNonSuccessOutcomesDoNotUseSuccessFloor() = runBlocking {
+        val dataStore = DataStoreManager(context)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
+        val sessionManager = com.apexfit.app.WorkoutSessionManager(
+            repository = repo,
+            dataStore = dataStore,
+            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            dao = dao,
+            appContext = context
+        )
+
+        // STALLED (reps < repsMin): should hold weight, NOT add stepKg
+        dao.insertExerciseSet(
+            ExerciseSet(
+                id = 301L,
+                sessionId = "session_1",
+                exerciseId = "bench-press",
+                exerciseName = "Bench Press",
+                muscleGroup = "Chest",
+                weight = 100.0,
+                reps = 4,
+                rpe = 9,
+                isWarmup = false,
+                completed = true
+            )
+        )
+        val planEx = PlanExercise(
+            id = 301L,
+            planSessionId = 1L,
+            name = "Bench Press",
+            muscleGroup = "Chest",
+            sets = 1,
+            repsMin = 8,
+            repsMax = 12,
+            weight = 100.0,
+            restSeconds = 90,
+            notes = ""
+        )
+        val planSession = PlanSession(id = 20L, planId = 1L, label = "Upper", day = "Monday", focus = "Chest")
+        sessionManager.startSession(planSession, listOf(planEx), 75.0, 175.0, "kg")
+        val stalledWeight = sessionManager.activeSession.value?.exercises?.first()?.sets?.first()?.weight ?: 0.0
+        assertEquals(100.0, stalledWeight, 0.001)
+    }
 }

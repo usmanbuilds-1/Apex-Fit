@@ -292,8 +292,10 @@ object AlgorithmEngine {
             .groupBy { it.date }
             .map { (_, e) -> e.sumOf { it.calories } }
         val avgCalories = if (dailyCalories.isEmpty()) 0.0 else dailyCalories.average()
-        val trendData = calcTrendWeight(recentWeight)
-        val weightChangeKg = trendData.last().trend - trendData.first().trend
+        val fullTrendData = calcTrendWeight(weightLog.sortedBy { it.date })
+        val trendAtCutoff = fullTrendData.firstOrNull { it.date >= cutoff }?.trend
+            ?: fullTrendData.first().trend
+        val weightChangeKg = fullTrendData.last().trend - trendAtCutoff
         
         // CRITICAL SCIENTIFIC FIX: Divisor must be actual calendar days between weights, not the number of logs
         val oldestEntry = recentWeight.first()

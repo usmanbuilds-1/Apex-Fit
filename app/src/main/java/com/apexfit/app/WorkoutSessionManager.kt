@@ -1,6 +1,7 @@
 package com.apexfit.app
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.data.*
+import com.apexfit.app.utils.ProgressionEngine.OutcomeType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +35,7 @@ class WorkoutSessionManager(
 ) {
 
     private var lastProgressionResults: MutableMap<String, Any> = mutableMapOf()
+    private var metadataMap: Map<String, ExerciseMetadata> = emptyMap()
     private val gson = Gson()
     private val persistJob = MutableStateFlow<kotlinx.coroutines.Job?>(null)
 
@@ -113,6 +115,14 @@ class WorkoutSessionManager(
                 repsInReserve = set.repsInReserve
             )
         }
+    }
+
+    fun calculateRestTimeSeconds(exerciseId: String, exerciseType: String, rpe: Int): Int {
+        return com.apexfit.app.utils.ProgressionEngine.calculateRestTimeSeconds(
+            exerciseType = exerciseType,
+            rpe = rpe,
+            restSecondsOverride = metadataMap[exerciseId]?.defaultRestSeconds
+        )
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -198,17 +208,26 @@ class WorkoutSessionManager(
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.WEIGHT_KG
             val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, userGoal)
 
+            val ids = exercises.map { exerciseNameToSlug(it.name) }
+            metadataMap = dao.getMetadataForExercises(ids)
+                .associateBy { it.exerciseId }
+
             com.apexfit.app.utils.ReadinessFinal.buildReadinessInputs(
                 completedSessions = completedRichSessions,
                 todayExercises = exercises,
                 nutritionLog = nutritionLog,
-                targets = targets
+                targets = targets,
+                metadata = metadataMap
             )
         } catch (e: Exception) {
             null
         }
 
         val ids = exercises.map { exerciseNameToSlug(it.name) }
+        if (metadataMap.isEmpty()) {
+            metadataMap = dao.getMetadataForExercises(ids)
+                .associateBy { it.exerciseId }
+        }
         val lastSets = dao.getLastSetsForExercises(ids)
             .groupBy { it.exerciseId }
             .mapValues { it.value.first() }
@@ -285,18 +304,25 @@ class WorkoutSessionManager(
                     recoveryMultiplier = recoveryMultiplier,  
                     currentWeight = lastWeightLbs,  
                     exerciseType = exType,
-                    consecutiveStalledSessions = stalledCount
+                    consecutiveStalledSessions = stalledCount,
+                    incrementOverrideKg = metadataMap[exerciseNameToSlug(ex.name)]?.defaultProgressionIncrementKg
                 )
                 lastProgressionResults[exerciseNameToSlug(ex.name)] = progressionResult
 
                 val suggestedLbs = progressionResult.newWeight
                 
                 val suggestedPreferred = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
-                    suggestedLbs
+                    val stepLbs = if (exType == "isolation") 1.25 else 2.5
+                    (Math.round(suggestedLbs / stepLbs) * stepLbs * 100.0) / 100.0
                 } else {
                     val stepKg = if (exType == "isolation") 1.25 else 2.5
                     val converted = suggestedLbs / com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                    converted.roundToNearestKg(stepKg)
+                    val rounded = converted.roundToNearestKg(stepKg)
+                    if (progressionResult.outcome == OutcomeType.SUCCESS && rounded <= lastSet.weight) {
+                        lastSet.weight + stepKg
+                    } else {
+                        rounded
+                    }
                 }
 
                 suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred

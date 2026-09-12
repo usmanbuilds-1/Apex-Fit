@@ -245,4 +245,26 @@ class AlgorithmEngineTest {
         assertEquals(0.05, timeline.weeklyChangeKg, 0.001)
         assertTrue(timeline.summaryLine.contains("Body recomposition"))
     }
+
+    @Test
+    fun testCalcAdaptiveTDEE_warmStartedEMA_losingAndGaining() {
+        // 28-day history losing 0.5 kg per 14 days (1.0 kg over 28 days, i.e. 1.0 / 28 kg/day)
+        val wLogLoss = (0..28).map { day ->
+            WeightEntry(date = d(28 - day), weight = 80.0 - (1.0 / 28.0) * day)
+        }
+        val nLog = (0..28).map { day ->
+            NutritionEntry(date = d(day), calories = 2500, protein = 150, carbs = 250, fat = 80)
+        }
+        val resLoss = AlgorithmEngine.calcAdaptiveTDEE(wLogLoss, nLog, windowDays = 14)
+        assertNotNull(resLoss.tdee)
+        assertTrue("TDEE while losing should be within ±30 kcal of 2775, got ${resLoss.tdee}", Math.abs(resLoss.tdee!! - 2775) <= 30)
+
+        // 28-day history gaining 0.5 kg per 14 days (1.0 kg over 28 days)
+        val wLogGain = (0..28).map { day ->
+            WeightEntry(date = d(28 - day), weight = 80.0 + (1.0 / 28.0) * day)
+        }
+        val resGain = AlgorithmEngine.calcAdaptiveTDEE(wLogGain, nLog, windowDays = 14)
+        assertNotNull(resGain.tdee)
+        assertTrue("TDEE while gaining should be within ±30 kcal of 2225, got ${resGain.tdee}", Math.abs(resGain.tdee!! - 2225) <= 30)
+    }
 }
