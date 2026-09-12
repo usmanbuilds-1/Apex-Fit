@@ -77,6 +77,7 @@ fun NutritionScreen(
     val goalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
     val userHeight by fitnessViewModel.userHeight.collectAsStateWithLifecycle()
     val userSex by fitnessViewModel.userSex.collectAsStateWithLifecycle()
+    val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()
     val weeklyWorkouts by fitnessViewModel.weeklyWorkouts.collectAsStateWithLifecycle()
 
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
@@ -105,7 +106,10 @@ fun NutritionScreen(
         tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
         goal            = userGoal,
         currentWeightKg = currentWeight,
-        goalWeightKg    = goalWeight
+        goalWeightKg    = goalWeight,
+        heightCm        = userHeight,
+        ageYears        = userAge,
+        sex             = userSex
     )
     val baseCalorieTarget = (if (calorieTargetManual) calorieTargetValue else suggestedFromTdee)
         .coerceAtLeast(1)

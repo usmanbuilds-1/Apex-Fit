@@ -801,7 +801,7 @@ fun ProgressMainTabContent(
                         color = PrimaryText
                     )
                     Text(
-                        text = "System is fully functional inside adaptive adaptation limits. Continue progressive loading.",
+                        text = fatigueInfo.recommendation,
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
                         color = SecondaryText

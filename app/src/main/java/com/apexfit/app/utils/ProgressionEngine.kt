@@ -143,20 +143,35 @@ data class ProgressionResult(
             else -> 2.5
         }
 
+        // Plate size determines valid increment grid for this exercise type (in lbs).
+        val plateSize = if (exerciseType == "isolation") 1.25 else 2.5
+
+        // §6.3 fix: round the INCREMENT to the plate grid, not the final weight.
+        // This preserves recovery modulation — a 0.6× multiplier on a 2.5 lb
+        // increment gives 1.5 lb → rounds to 1.25 lb (isolation) or 2.5 lb (compound).
+        val rawIncrement = baseIncrement * recoveryMultiplier
+        val roundedIncrement = if (rawIncrement >= plateSize / 2.0) {
+            (Math.round(rawIncrement / plateSize) * plateSize).coerceAtLeast(plateSize)
+        } else {
+            0.0   // Too small to make a valid plate increment — hold
+        }
+
+        // §6.2 fix: for PLATEAU, use floor rounding (always round DOWN) to
+        // guarantee at least 10% deload regardless of plate grid.
         val newWeight = when(outcome) {
-            OutcomeType.SUCCESS -> currentWeight + (baseIncrement * recoveryMultiplier)
-            OutcomeType.PLATEAU -> currentWeight * 0.9  // 10% deload in lbs
-            else -> currentWeight
+            OutcomeType.SUCCESS  -> currentWeight + roundedIncrement
+            OutcomeType.PLATEAU  -> (Math.floor(currentWeight * 0.9 / plateSize) * plateSize)
+            else                 -> currentWeight
         }
-        
+
         val reason = when(outcome) {
-            OutcomeType.SUCCESS -> "Hit all targets at max reps with reserve. Advancing weight."
+            OutcomeType.SUCCESS     -> "Hit all targets at max reps with reserve. Advancing weight."
             OutcomeType.PROGRESSING -> "All sets within rep range. Hold weight and aim for ${repsMax} reps."
-            OutcomeType.STALLED -> "Failed to hit minimum reps/sets target. Holding weight to retry."
-            OutcomeType.PLATEAU -> "Multiple failed sessions. Deloading 10% to recover and break plateau."
+            OutcomeType.STALLED     -> "Failed to hit minimum reps/sets target. Holding weight to retry."
+            OutcomeType.PLATEAU     -> "Multiple failed sessions. Deloading 10% to recover and break plateau."
         }
-        
-        return ProgressionResult(newWeight.roundToNearest2_5(), outcome, reason)
+
+        return ProgressionResult(newWeight, outcome, reason)
     }
 
     fun calculateRestTimeSeconds(

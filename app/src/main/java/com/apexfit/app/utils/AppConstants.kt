@@ -31,5 +31,5 @@ object AppConstants {
     const val MIN_AGE = 13
     const val MAX_AGE = 100
     const val MIN_WEIGHT_KG = 20.0
-    const val MAX_WEIGHT_KG = 500.0
+    const val MAX_WEIGHT_KG = 300.0
 }

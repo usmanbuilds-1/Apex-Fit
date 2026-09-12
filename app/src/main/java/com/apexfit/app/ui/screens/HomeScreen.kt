@@ -696,14 +696,18 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             when {
+                streakResult.training.current >= 7 -> {
+                    Text("🔥 Perfect week — all sessions done!", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
+                }
                 streakResult.training.current > 0 -> {
-                    Text("🔥 ${streakResult.training.current} DAY STREAK", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
+                    val n = streakResult.training.current
+                    Text("🔥 $n session${if (n == 1) "" else "s"} this week", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
                 }
                 isTodayWorkoutCompleted -> {
-                    Text("🔥 Streak started — keep it going!", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OrangeAccent)
+                    Text("🔥 First session logged this week!", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OrangeAccent)
                 }
                 else -> {
-                    Text("Log your first workout to start a streak", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color.Gray)
+                    Text("Log a workout to track your weekly sessions", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color.Gray)
                 }
             }
         }

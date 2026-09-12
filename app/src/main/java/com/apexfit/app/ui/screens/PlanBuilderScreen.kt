@@ -929,6 +929,17 @@ fun PlanBuilderScreen(
 
                         val maxWeight = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
                         val rawWeightVal = weightText.replace(',', '.').toDoubleOrNull()
+
+                        if (weightText.isNotBlank() &&
+                            (rawWeightVal == null || rawWeightVal !in 0.0..maxWeight)) {
+                            Toast.makeText(
+                                context,
+                                "Enter a valid weight (0–$maxWeight $unitSuffix)",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@Button
+                        }
+
                         val weightVal = if (rawWeightVal != null && rawWeightVal in 0.0..maxWeight) {
                             if (unitSuffix.lowercase() in listOf("lb", "lbs")) {
                                 rawWeightVal / 2.20462

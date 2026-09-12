@@ -525,6 +525,7 @@ fun OnboardingScreen(
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var weightError by remember { mutableStateOf<String?>(null) }
+    var goalWeightError by remember { mutableStateOf<String?>(null) }
     var heightError by remember { mutableStateOf<String?>(null) }
     var ageError by remember { mutableStateOf<String?>(null) }
     var showAgeGateDialog by remember { mutableStateOf(false) }
@@ -756,22 +757,30 @@ fun OnboardingScreen(
                         )
                         weightError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                     }
-                    OutlinedTextField(
-                        value = goalWeightStr,
-                        onValueChange = { goalWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
-                        label = { Text(stringResource(R.string.onboarding_goal_wt, unitLabel), color = SecondaryText) },
-                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("onboarding_goal_weight_input"),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = DarkRaised,
-                            unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = AmberAccent,
-                            unfocusedIndicatorColor = BorderSubtle
+                    Column(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = goalWeightStr,
+                            onValueChange = {
+                                goalWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                                goalWeightError = null
+                            },
+                            label = { Text(stringResource(R.string.onboarding_goal_wt, unitLabel), color = SecondaryText) },
+                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("onboarding_goal_weight_input"),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = DarkRaised,
+                                unfocusedContainerColor = DarkRaised,
+                                focusedIndicatorColor = AmberAccent,
+                                unfocusedIndicatorColor = BorderSubtle
+                            )
                         )
-                    )
+                        goalWeightError?.let {
+                            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        }
+                    }
                 }
 
                 // Biological Profile Row (Height, Age)
@@ -911,6 +920,7 @@ fun OnboardingScreen(
                     onClick = {
                         nameError = null
                         weightError = null
+                        goalWeightError = null
                         heightError = null
                         ageError = null
 
@@ -921,23 +931,36 @@ fun OnboardingScreen(
 
                         val isImperial = selectedUnits.lowercase() in listOf("lb", "lbs")
                         val minWeight = if (isImperial) 44.0 else 20.0
-                        val maxWeight = if (isImperial) 1100.0 else 500.0
+                        val maxWeightKg = com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG
+                        val maxWeight = if (isImperial) maxWeightKg * 2.20462 else maxWeightKg
                         val minHeight = if (isImperial) 39.0 else 100.0
                         val maxHeight = if (isImperial) 98.0 else 250.0
 
                         if (trimmedName.isEmpty() || trimmedName.length > 50) {
                             nameError = "Please enter a name (1–50 characters)"
                         } else if (weightVal == null || weightVal < minWeight || weightVal > maxWeight) {
-                            weightError = if (isImperial) "Please enter a valid weight (44–1100)" else "Please enter a valid weight (20–500)"
+                            val maxWeightDisplay = if (isImperial) (maxWeightKg * 2.20462).toInt() else maxWeightKg.toInt()
+                            val minWeightDisplay = if (isImperial) 44 else 20
+                            weightError = "Please enter a valid weight ($minWeightDisplay–$maxWeightDisplay)"
                         } else if (heightVal == null || heightVal < minHeight || heightVal > maxHeight) {
                             heightError = if (isImperial) "Please enter a valid height in in (39–98)" else "Please enter a valid height in cm (100–250)"
-                        } else if (ageVal == null || ageVal < 10 || ageVal > 100) {
-                            ageError = "Please enter a valid age (10–100)"
+                        } else if (ageVal == null || ageVal < com.apexfit.app.utils.AppConstants.MIN_AGE || ageVal > 100) {
+                            ageError = "Please enter a valid age (${com.apexfit.app.utils.AppConstants.MIN_AGE}–100)"
                         } else if (ageVal < 13) {
                             showAgeGateDialog = true
                         } else {
                             val cw = weightVal
-                            val gw = goalWeightStr.toDoubleOrNull() ?: cw
+                            val minGoalWeight = if (isImperial) 66.0 else 30.0
+                            val maxGoalWeight = if (isImperial) 1100.0 else 500.0
+                            val gwRaw = goalWeightStr.replace(",", ".").toDoubleOrNull()
+
+                            if (goalWeightStr.isNotBlank() &&
+                                (gwRaw == null || gwRaw < minGoalWeight || gwRaw > maxGoalWeight)) {
+                                goalWeightError = "Enter a valid goal weight (${minGoalWeight.toInt()}–${maxGoalWeight.toInt()} $selectedUnits)"
+                                return@Button
+                            }
+
+                            val gw = gwRaw ?: cw
 
                             val resolvedGoal = when {
                                 goalTarget == "Gain Muscle" && gw < cw -> "Recomposition"

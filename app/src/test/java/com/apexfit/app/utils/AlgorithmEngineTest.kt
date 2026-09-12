@@ -160,27 +160,6 @@ class AlgorithmEngineTest {
     }
 
     @Test
-    fun testCheckPersonalRecords_normal() {
-        val tLog = listOf(
-            RichTrainingSession(date = d(10), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(
-                ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(ExerciseSet(weight = 100.0, reps = 5, rpe = 8, isWarmup = false, completed = true)))
-            )),
-            RichTrainingSession(date = d(0), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(
-                ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(ExerciseSet(weight = 105.0, reps = 5, rpe = 8, isWarmup = false, completed = true)))
-            ))
-        )
-        val res = AlgorithmEngine.checkPersonalRecords(tLog, "bench")
-        assertTrue(res.hasPR)
-        assertTrue(res.newPRs.any { it.type == "weight" })
-    }
-
-    @Test
-    fun testCheckPersonalRecords_edgeCase_empty() {
-        val res = AlgorithmEngine.checkPersonalRecords(emptyList(), "bench")
-        assertFalse(res.hasPR)
-    }
-
-    @Test
     fun testEstimateLBM() {
         val maleLBM = AlgorithmEngine.estimateLBM(80.0, 180.0, "male")
         assertEquals(61.42, maleLBM, 0.01)

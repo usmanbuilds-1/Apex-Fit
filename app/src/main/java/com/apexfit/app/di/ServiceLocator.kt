@@ -194,7 +194,10 @@ object ServiceLocator {
                     tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
                     goal            = goal,
                     currentWeightKg = latestWeight,
-                    goalWeightKg    = goalWeight
+                    goalWeightKg    = goalWeight,
+                    heightCm        = heightCm,
+                    ageYears        = age,
+                    sex             = sex
                 )
             }
 

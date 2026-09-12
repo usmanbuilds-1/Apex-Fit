@@ -78,8 +78,8 @@
     <string name="progress_error_loading_progress_data">Error loading progress data</string>
     <string name="progress_log_weight_index_e_g_78_5">Log weight index (e.g. 78.5)...</string>
     <string name="progress_save_weight">SAVE WEIGHT</string>
-    <string name="progress_undertrained">Undertrained</string>
-    <string name="progress_optimal">Optimal</string>
+    <string name="progress_undertrained">Low Load</string>
+    <string name="progress_optimal">Optimal Load</string>
     <string name="progress_overreaching">High Load Warning</string>
     <string name="progress_weight_profile_catalog_update_">Weight profile catalog update saved!</string>
     <string name="progress_enter_numeric_index">Enter numeric index</string>

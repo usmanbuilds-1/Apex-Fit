@@ -458,7 +458,7 @@ object AlgorithmEngine {
         val earliestCompleted = completed.minByOrNull { it.date }
         val daysOfHistory = if (earliestCompleted != null) getDaysBetween(earliestCompleted.date, getCurrentDate()) else 0L
 
-        val acuteCutoff = getDateDaysAgo(7)
+        val acuteCutoff = getDateDaysAgo(6)
         val hasPreAcuteWorkouts = completed.any { it.date < acuteCutoff }
 
         val isSparse = completed.size < 7 || daysOfHistory < 7 || !hasPreAcuteWorkouts
@@ -492,7 +492,7 @@ object AlgorithmEngine {
             Pair(session.date, totalSets.toDouble() * (avgRPE / 7.0) * weightFactor * feelModifier)
         }.sortedBy { it.first }
 
-        val chronicCutoff = getDateDaysAgo(28)
+        val chronicCutoff = getDateDaysAgo(27)
         val acuteLoad = sessionLoads.filter { it.first >= acuteCutoff }.sumOf { it.second }
         val chronicSessions = sessionLoads.filter { it.first >= chronicCutoff }
         val chronicLoad = if (chronicSessions.isNotEmpty()) chronicSessions.sumOf { it.second } / 4.0 else acuteLoad
@@ -699,59 +699,6 @@ object AlgorithmEngine {
             training = StreakInfo(trainingStreak)
         )
     }
-
-    fun checkPersonalRecords(
-        log: List<RichTrainingSession>,
-        exerciseId: String,
-        preferredUnit: String = "kg"
-    ): PRResult {
-        val exerciseSessions = log.filter { it.completed }
-            .flatMap { session ->
-                session.exercises.filter { it.id == exerciseId }.map { log -> Pair(session.date, log) }
-            }
-            .sortedBy { it.first }
-
-        if (exerciseSessions.isEmpty()) {
-            return PRResult(hasPR = false)
-        }
-
-        val lastSession = exerciseSessions.last()
-        val prevSessions = exerciseSessions.dropLast(1)
-
-        val lastMaxWeight = lastSession.second.sets.filter { it.completed && !it.isWarmup }.maxOfOrNull { it.weight } ?: 0.0
-        val prevMaxWeight = prevSessions.flatMap { it.second.sets }.filter { it.completed && !it.isWarmup }.maxOfOrNull { it.weight } ?: 0.0
-
-        val hasNewWeightPR = lastMaxWeight > 0.0 && (prevSessions.isEmpty() || lastMaxWeight > prevMaxWeight)
-
-        val isLb = preferredUnit.lowercase() in listOf("lb", "lbs")
-        val formattedValue = if (isLb) {
-            "${Math.round(lastMaxWeight * 2.20462 * 10.0) / 10.0} lb"
-        } else {
-            "$lastMaxWeight kg"
-        }
-        val formattedPrevious = if (prevMaxWeight > 0.0) {
-            if (isLb) {
-                "${Math.round(prevMaxWeight * 2.20462 * 10.0) / 10.0} lb"
-            } else {
-                "$prevMaxWeight kg"
-            }
-        } else {
-            "None"
-        }
-
-        val newPRs = mutableListOf<PREntry>()
-        if (hasNewWeightPR) {
-            newPRs.add(PREntry(type = "weight", label = "Weight PR", value = formattedValue, previous = formattedPrevious))
-        }
-
-        return PRResult(
-            hasPR = hasNewWeightPR,
-            newPRs = newPRs,
-            exerciseId = exerciseId,
-            type = if (hasNewWeightPR) "weight" else "",
-            previousValue = prevMaxWeight,
-            newValue = lastMaxWeight
-        )
-    }
 }
+
 

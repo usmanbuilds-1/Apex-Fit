@@ -19,3 +19,11 @@ debug.keystore
 debug.keystore.base64
 *.keystore
 *.jks
+
+# JVM crash logs
+hs_err_pid*.log
+replay_pid*.log
+
+# Gradle build outputs (belt-and-suspenders)
+**/build/
+*.hprof
