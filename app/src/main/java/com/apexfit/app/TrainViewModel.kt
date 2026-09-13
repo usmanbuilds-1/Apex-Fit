@@ -154,6 +154,10 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         planBuilderExercises.value = planBuilderExercises.value.filter { it.id != exerciseId }
     }
 
+    suspend fun getExerciseAndMetadata(slug: String): Pair<Exercise?, ExerciseMetadata?> {
+        return Pair(dao.getExerciseById(slug), dao.getMetadataForExercise(slug))
+    }
+
     fun getSessionById(id: Long): PlanSession? {
         return planBuilderSessions.value.find { it.id == id }
     }

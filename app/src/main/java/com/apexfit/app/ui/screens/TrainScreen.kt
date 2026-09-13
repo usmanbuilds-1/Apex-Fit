@@ -150,10 +150,14 @@ fun ProgramSubTab(
     var substJob: Job? by remember { mutableStateOf(null) }
     val substitutionList by trainViewModel.substitutionList.collectAsStateWithLifecycle()
     val activeSubstIndex by trainViewModel.activeSubstIndex.collectAsStateWithLifecycle()
+    
+    var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
+    var formGuideContent by remember { mutableStateOf<com.apexfit.app.utils.FormGuideContent?>(null) }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // Horizontal Day Picker Chips
-        LazyRow(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Horizontal Day Picker Chips
+            LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
@@ -344,7 +348,16 @@ fun ProgramSubTab(
                                     // Form Guide button
                                     Button(
                                         onClick = {
-                                            Toast.makeText(context, context.getString(R.string.train_focus_on_compound_control_lock, ex.name), Toast.LENGTH_LONG).show()
+                                            scope.launch {
+                                                val db = com.apexfit.app.data.AppDatabase.getDatabase(context)
+                                                val slug = com.apexfit.app.utils.exerciseNameToSlug(ex.name)
+                                                val exercise = db.fitnessDao().getExerciseById(slug)
+                                                val metadata = db.fitnessDao().getMetadataForExercise(slug)
+                                                if (exercise != null) {
+                                                    formGuideExercise = exercise
+                                                    formGuideContent = com.apexfit.app.utils.FormGuideBuilder.buildFormGuide(exercise, metadata)
+                                                }
+                                            }
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                                         shape = RoundedCornerShape(8.dp),
@@ -418,8 +431,20 @@ fun ProgramSubTab(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
+        } // end if-else
+        } // end Column
+
+        if (formGuideExercise != null && formGuideContent != null) {
+            FormGuideOverlay(
+                exercise = formGuideExercise!!,
+                content = formGuideContent!!,
+                onDismiss = {
+                    formGuideExercise = null
+                    formGuideContent = null
+                }
+            )
         }
-    }
+    } // end Box
 }
 
 @Composable
@@ -1708,5 +1733,98 @@ fun RealTimeEffectiveSetsCard(
                 )
             }
         }
+    }
+}
+@Composable
+fun FormGuideOverlay(
+    exercise: com.apexfit.app.data.Exercise,
+    content: com.apexfit.app.utils.FormGuideContent,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.9f))
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .clickable(enabled = false) {},
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = exercise.name,
+                    fontFamily = SyneFamily,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryText,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Heatmap Data Preparation
+                val heatmap = mutableMapOf<String, com.apexfit.app.data.HeatmapEntry>()
+                heatmap[exercise.primaryMuscle.lowercase()] = com.apexfit.app.data.HeatmapEntry(
+                    volume = 100,
+                    intensity = 80,
+                    level = "high",
+                    colorHex = "#E84040"
+                )
+                exercise.secondaryMuscles.forEach { secondary ->
+                    heatmap[secondary.lowercase()] = com.apexfit.app.data.HeatmapEntry(
+                        volume = 50,
+                        intensity = 40,
+                        level = "medium",
+                        colorHex = "#E8A020"
+                    )
+                }
+
+                com.apexfit.app.ui.components.MuscleHeatmapCanvas(
+                    heatmap = heatmap,
+                    modifier = Modifier.height(200.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    FormGuideSection("SETUP", content.setup)
+                    FormGuideSection("EXECUTION", content.execution)
+                    FormGuideSection("COMMON MISTAKES", content.commonMistake)
+                    FormGuideSection("MUSCLES", content.muscleNote)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FormGuideSection(title: String, text: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = title,
+            fontFamily = SyneFamily,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = AmberAccent
+        )
+        Text(
+            text = text,
+            fontFamily = JetBrainsMonoFamily,
+            fontSize = 12.sp,
+            color = SecondaryText,
+            lineHeight = 16.sp
+        )
     }
 }
