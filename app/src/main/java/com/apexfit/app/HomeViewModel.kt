@@ -193,6 +193,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val weights = dao.getAllWeightEntries()  
                 val nutrition = dao.getAllNutritionEntriesFlow().first()  
                 val sessions = dao.getAllTrainingSessions()  
+                val exerciseSets = dao.getAllExerciseSets()
+                val personalRecords = dao.getAllPRsFlow().first()
+                val bodyMeasurements = dao.getAllBodyMeasurementsFlow().first()
   
                 val exportData = buildString {  
                     appendLine("# Apex Fit Data Export — ${java.util.Date()}")  
@@ -208,6 +211,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     appendLine("## Workout Sessions")  
                     appendLine("date,type,duration_min,feel")  
                     sessions.forEach { appendLine("${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel}") }  
+                    appendLine()  
+                    appendLine("## Exercise Sets")  
+                    appendLine("sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit")  
+                    exerciseSets.forEach { appendLine("${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)}") }  
+                    appendLine()  
+                    appendLine("## Personal Records")  
+                    appendLine("id,exerciseId,type,value,date")  
+                    personalRecords.forEach { appendLine("${csvEscape(it.id)},${csvEscape(it.exerciseId)},${csvEscape(it.type)},${it.value},${csvEscape(it.date)}") }  
+                    appendLine()  
+                    appendLine("## Body Measurements")  
+                    appendLine("date,bodyPart,value,unit")  
+                    bodyMeasurements.forEach { appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }  
                 }  
   
                 val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")  

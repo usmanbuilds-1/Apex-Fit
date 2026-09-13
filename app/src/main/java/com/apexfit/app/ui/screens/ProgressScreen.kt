@@ -32,6 +32,7 @@ import com.apexfit.app.AlgorithmViewModel
 import com.apexfit.app.HomeViewModel
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.ui.models.UiBodyMeasurement
+import com.apexfit.app.ui.models.UiDeloadResult
 import androidx.compose.foundation.text.KeyboardOptions
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
@@ -102,6 +103,74 @@ fun ProgressScreen(
                         subScreen = "measurement_detail"
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun DeloadCard(
+    deloadResult: UiDeloadResult,
+    modifier: Modifier = Modifier
+) {
+    if (deloadResult.urgency.equals("none", ignoreCase = true) || deloadResult.urgency.isEmpty()) return
+
+    androidx.compose.material3.Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = DarkRaised,
+        border = BorderStroke(1.dp, AmberAccent.copy(alpha = 0.5f)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            // Amber left accent bar
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(AmberAccent)
+            )
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "DELOAD RECOMMENDED",
+                    fontFamily = SyneFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = AmberAccent,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = deloadResult.recommendation,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 12.sp,
+                    color = SecondaryText
+                )
+                if (deloadResult.protocol.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    deloadResult.protocol.forEach { action ->
+                        Row(
+                            verticalAlignment = Alignment.Top,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        ) {
+                            Text(
+                                text = "→ ",
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 12.sp,
+                                color = AmberAccent
+                            )
+                            Text(
+                                text = action,
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 12.sp,
+                                color = PrimaryText
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -427,6 +496,7 @@ fun ProgressMainTabContent(
     onOpenMeasurementDetail: (String) -> Unit
 ) {
     val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
+    val deloadResult by algorithmViewModel.deloadRecommendation.collectAsStateWithLifecycle()
     val muscleVolumeMap by algorithmViewModel.muscleVolumes.collectAsStateWithLifecycle()
     val heatmap by algorithmViewModel.muscleHeatmap.collectAsStateWithLifecycle()
     val weightHistoryState by homeViewModel.weightHistory.collectAsStateWithLifecycle()
@@ -806,6 +876,12 @@ fun ProgressMainTabContent(
                         fontSize = 11.sp,
                         color = SecondaryText
                     )
+                }
+            }
+
+            if (deloadResult.urgency != "none") {
+                item {
+                    DeloadCard(deloadResult = deloadResult)
                 }
             }
 

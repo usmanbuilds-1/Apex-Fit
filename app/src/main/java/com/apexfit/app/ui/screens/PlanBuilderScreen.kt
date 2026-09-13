@@ -2,6 +2,7 @@
 package com.apexfit.app.ui.screens
 import com.apexfit.app.ui.models.UiState
 
+import kotlinx.coroutines.launch
 import android.widget.Toast
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -50,6 +51,7 @@ fun PlanBuilderScreen(
     }
 
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val dbSessionsState by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val dbExercises by trainViewModel.allPlanExercises.collectAsStateWithLifecycle()
     val activePlanState by trainViewModel.activePlan.collectAsStateWithLifecycle()
@@ -700,7 +702,8 @@ fun PlanBuilderScreen(
     if (showAddExerciseDialog) {
         val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
         val preferredUnits by trainViewModel.units.collectAsStateWithLifecycle()
-        val unitSuffix = if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg"
+        val defaultUnit = if (!exercise?.weightUnit.isNullOrBlank()) exercise!!.weightUnit else (if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg")
+        var unitSuffix by rememberSaveable { mutableStateOf(defaultUnit) }
         var exName by rememberSaveable { mutableStateOf(exercise?.name ?: "") }
         var selectedMuscle by rememberSaveable { mutableStateOf(exercise?.muscleGroup ?: MuscleGroups.ALL.first()) }
         var setsText by rememberSaveable { mutableStateOf(exercise?.sets?.toString() ?: "3") }
@@ -723,6 +726,30 @@ fun PlanBuilderScreen(
         var notesText by rememberSaveable { mutableStateOf(exercise?.notes ?: "") }
 
         var showMuscleDropdown by rememberSaveable { mutableStateOf(false) }
+
+        LaunchedEffect(editingExerciseId, showAddExerciseDialog) {
+            if (showAddExerciseDialog) {
+                val currentEx = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
+                val initialUnit = if (!currentEx?.weightUnit.isNullOrBlank()) currentEx!!.weightUnit else (if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg")
+                unitSuffix = initialUnit
+                exName = currentEx?.name ?: ""
+                selectedMuscle = currentEx?.muscleGroup ?: MuscleGroups.ALL.first()
+                setsText = currentEx?.sets?.toString() ?: "3"
+                repsMinText = currentEx?.repsMin?.toString() ?: "8"
+                repsMaxText = currentEx?.repsMax?.toString() ?: "12"
+                weightText = if (currentEx != null && currentEx.weight > 0.0) {
+                    if (initialUnit.lowercase() in listOf("lb", "lbs")) {
+                        (Math.round(currentEx.weight * 2.20462 * 10.0) / 10.0).toString()
+                    } else {
+                        currentEx.weight.toString()
+                    }
+                } else {
+                    ""
+                }
+                restText = currentEx?.restSeconds?.toString() ?: "90"
+                notesText = currentEx?.notes ?: ""
+            }
+        }
 
         AlertDialog(
             onDismissRequest = { showAddExerciseDialog = false },
@@ -858,21 +885,72 @@ fun PlanBuilderScreen(
                         )
                     }
 
-                    OutlinedTextField(
-                        value = weightText,
-                        onValueChange = { weightText = it },
-                        label = { Text("Starting Weight ($unitSuffix)", color = SecondaryText) },
-                        textStyle = LocalTextStyle.current.copy(color = Color.White),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("exercise_weight_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = OrangeAccent,
-                            unfocusedBorderColor = BorderSubtle
-                        ),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = weightText,
+                            onValueChange = { weightText = it },
+                            label = { Text("Starting Weight ($unitSuffix)", color = SecondaryText) },
+                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("exercise_weight_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = OrangeAccent,
+                                unfocusedBorderColor = BorderSubtle
+                            ),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true
+                        )
+
+                        // Small kg/lb toggle
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(DarkBackground)
+                                .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(8.dp))
+                                .height(56.dp)
+                                .padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf("kg", "lb").forEach { unit ->
+                                val isSelected = unitSuffix.equals(unit, ignoreCase = true)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isSelected) OrangeAccent else Color.Transparent)
+                                        .clickable {
+                                            if (!unitSuffix.equals(unit, ignoreCase = true)) {
+                                                val currentVal = weightText.replace(',', '.').toDoubleOrNull()
+                                                if (currentVal != null) {
+                                                    val converted = if (unit == "lb") {
+                                                        Math.round(currentVal * 2.20462 * 10.0) / 10.0
+                                                    } else {
+                                                        Math.round((currentVal / 2.20462) * 10.0) / 10.0
+                                                    }
+                                                    weightText = converted.toString()
+                                                }
+                                                unitSuffix = unit
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                        .testTag("unit_toggle_$unit"),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = unit.uppercase(),
+                                        fontFamily = JetBrainsMonoFamily,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color.White else SecondaryText
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     OutlinedTextField(
                         value = restText,
@@ -952,37 +1030,46 @@ fun PlanBuilderScreen(
 
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 
-                        if (editingExerciseId == null) {
+                        val exerciseToSave = if (editingExerciseId == null) {
                             val newId = trainViewModel.generateNewSessionId()
-                            trainViewModel.addCustomExercise(
-                                PlanExercise(
-                                    id = newId,
-                                    planSessionId = targetSessionId,
+                            val newEx = PlanExercise(
+                                id = newId,
+                                planSessionId = targetSessionId,
+                                name = exName.trim(),
+                                muscleGroup = selectedMuscle,
+                                sets = setsVal,
+                                repsMin = minRepsVal,
+                                repsMax = maxRepsVal,
+                                weight = weightVal,
+                                weightUnit = unitSuffix,
+                                restSeconds = restVal,
+                                notes = notesText.trim()
+                            )
+                            trainViewModel.addCustomExercise(newEx)
+                            newEx
+                        } else {
+                            val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
+                            if (exercise != null) {
+                                val updated = exercise.copy(
                                     name = exName.trim(),
                                     muscleGroup = selectedMuscle,
                                     sets = setsVal,
                                     repsMin = minRepsVal,
                                     repsMax = maxRepsVal,
                                     weight = weightVal,
+                                    weightUnit = unitSuffix,
                                     restSeconds = restVal,
                                     notes = notesText.trim()
                                 )
-                            )
-                        } else {
-                            val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
-                            if (exercise != null) {
-                                trainViewModel.updateExercise(
-                                    exercise.copy(
-                                        name = exName.trim(),
-                                        muscleGroup = selectedMuscle,
-                                        sets = setsVal,
-                                        repsMin = minRepsVal,
-                                        repsMax = maxRepsVal,
-                                        weight = weightVal,
-                                        restSeconds = restVal,
-                                        notes = notesText.trim()
-                                    )
-                                )
+                                trainViewModel.updateExercise(updated)
+                                updated
+                            } else null
+                        }
+
+                        if (exerciseToSave != null) {
+                            val dao = com.apexfit.app.di.ServiceLocator.database(context).fitnessDao()
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                dao.insertPlanExercise(exerciseToSave)
                             }
                         }
                         showAddExerciseDialog = false

@@ -2,6 +2,8 @@ package com.apexfit.app
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.data.*
 import com.apexfit.app.utils.ProgressionEngine.OutcomeType
+import com.apexfit.app.utils.toDisplayWeight
+import com.apexfit.app.utils.fromDisplayWeightToKg
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -233,22 +235,31 @@ class WorkoutSessionManager(
             .mapValues { it.value.first() }
 
         exercises.forEach { ex ->
+            val exerciseUnit = ex.weightUnit.ifBlank { preferredUnits }
             val lastSet = lastSets[exerciseNameToSlug(ex.name)]
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
             if (lastSet == null) {
                 // First-time or beginner starting weight
-                suggestedPreferred = com.apexfit.app.utils.ProgressionEngine.calculateBeginnerStartingWeight(
-                    exerciseType = exType,
-                    userBodyWeightKg = userWeight,
-                    userHeightCm = userHeight,
-                    preferredUnits = preferredUnits
-                )
+                suggestedPreferred = if (ex.weight > 0.0) {
+                    ex.weight.toDisplayWeight(exerciseUnit)
+                } else {
+                    com.apexfit.app.utils.ProgressionEngine.calculateBeginnerStartingWeight(
+                        exerciseType = exType,
+                        userBodyWeightKg = userWeight,
+                        userHeightCm = userHeight,
+                        preferredUnits = exerciseUnit
+                    )
+                }
 
                 suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
-                lastWeightMap[exerciseNameToSlug(ex.name)] = if (preferredUnits.lowercase() in listOf("lb", "lbs")) suggestedPreferred / 2.20462 else suggestedPreferred
-                contextLinesMap[exerciseNameToSlug(ex.name)] = "First session suggestion (Beginner Base): $suggestedPreferred $preferredUnits"
+                lastWeightMap[exerciseNameToSlug(ex.name)] = suggestedPreferred.fromDisplayWeightToKg(exerciseUnit)
+                contextLinesMap[exerciseNameToSlug(ex.name)] = if (ex.weight > 0.0) {
+                    "Plan starting weight: $suggestedPreferred $exerciseUnit"
+                } else {
+                    "First session suggestion (Beginner Base): $suggestedPreferred $exerciseUnit"
+                }
             } else {
                 val daysSince = com.apexfit.app.utils.getDaysBetweenClamped(lastSet.date, today)
 
@@ -311,7 +322,7 @@ class WorkoutSessionManager(
 
                 val suggestedLbs = progressionResult.newWeight
                 
-                val suggestedPreferred = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
+                val suggestedPreferred = if (exerciseUnit.lowercase() in listOf("lb", "lbs")) {
                     val stepLbs = if (exType == "isolation") 1.25 else 2.5
                     (Math.round(suggestedLbs / stepLbs) * stepLbs * 100.0) / 100.0
                 } else {
@@ -328,12 +339,8 @@ class WorkoutSessionManager(
                 suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
                 lastWeightMap[exerciseNameToSlug(ex.name)] = lastSet.weight
                 val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
-                val lastWeightDisplay = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
-                    Math.round(lastSet.weight * 2.20462 * 10.0) / 10.0
-                } else {
-                    lastSet.weight
-                }
-                contextLinesMap[exerciseNameToSlug(ex.name)] = "Last: $lastWeightDisplay $preferredUnits @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $preferredUnits. Outcome: ${progressionResult.reason}"
+                val lastWeightDisplay = lastSet.weight.toDisplayWeight(exerciseUnit)
+                contextLinesMap[exerciseNameToSlug(ex.name)] = "Last: $lastWeightDisplay $exerciseUnit @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $exerciseUnit. Outcome: ${progressionResult.reason}"
             }
         }
 
@@ -342,7 +349,8 @@ class WorkoutSessionManager(
 
         // Build the in-memory session with pre-filled sets
         val activeExercises = exercises.map { ex ->
-            val suggestedWeight = suggestionsMap[exerciseNameToSlug(ex.name)] ?: ex.weight
+            val exerciseUnit = ex.weightUnit.ifBlank { preferredUnits }
+            val suggestedWeight = suggestionsMap[exerciseNameToSlug(ex.name)] ?: ex.weight.toDisplayWeight(exerciseUnit)
             ActiveExercise(
                 exerciseId = exerciseNameToSlug(ex.name),
                 exerciseName = ex.name,
@@ -356,7 +364,7 @@ class WorkoutSessionManager(
                         isWarmup = false,
                         restTakenSeconds = 0,
                         completed = false,
-                        weightUnit = preferredUnits
+                        weightUnit = exerciseUnit
                     )
                 }.toMutableList()
             )
@@ -546,9 +554,7 @@ class WorkoutSessionManager(
                         exerciseId = exercise.exerciseId,
                         exerciseName = exercise.exerciseName,
                         muscleGroup = exercise.muscleGroup,
-                        weight = if (activeSet.weightUnit.lowercase() in listOf("lb", "lbs"))
-                            activeSet.weight / 2.20462
-                        else activeSet.weight,
+                        weight = activeSet.weight.fromDisplayWeightToKg(activeSet.weightUnit),
                         reps = activeSet.reps,
                         rpe = activeSet.rpe,
                         isWarmup = activeSet.isWarmup,
