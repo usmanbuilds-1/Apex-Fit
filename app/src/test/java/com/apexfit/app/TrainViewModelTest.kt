@@ -8,6 +8,7 @@ import com.apexfit.app.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.*
@@ -27,23 +28,37 @@ class TrainViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private var testDb: AppDatabase? = null
+    private var testScope: kotlinx.coroutines.CoroutineScope? = null
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         com.apexfit.app.di.ServiceLocator.reset()
         val application = ApplicationProvider.getApplicationContext<Application>()
-        com.apexfit.app.di.ServiceLocator.setAppScope(kotlinx.coroutines.CoroutineScope(testDispatcher), application)
+        val scope = kotlinx.coroutines.CoroutineScope(testDispatcher + kotlinx.coroutines.SupervisorJob())
+        testScope = scope
+        com.apexfit.app.di.ServiceLocator.setAppScope(scope, application)
+        kotlinx.coroutines.runBlocking {
+            DataStoreManager(application).saveActiveSessionJson(null)
+        }
         val db = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
         testDb = db
         AppDatabase.setTestDatabase(db)
         com.apexfit.app.di.ServiceLocator.setDatabase(db)
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
     @After
     fun tearDown() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        kotlinx.coroutines.runBlocking {
+            DataStoreManager(application).saveActiveSessionJson(null)
+        }
+        testScope?.cancel()
+        testScope = null
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         Dispatchers.resetMain()
         testDb?.close()
         testDb = null
@@ -82,7 +97,8 @@ class TrainViewModelTest {
             notes = "Test custom exercise insertion"
         )
         
-        viewModel.addCustomExercise(planExercise).join()
+        val job = viewModel.addCustomExercise(planExercise)
+        job.join()
         testScheduler.advanceUntilIdle()
 
         val inserted = dao.getExerciseById("custom-super-press")

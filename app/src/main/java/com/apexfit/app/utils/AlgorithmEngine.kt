@@ -585,13 +585,7 @@ object AlgorithmEngine {
             session.exercises.forEach { exercise ->
                 val working = exercise.sets.filter { !it.isWarmup && it.completed }
                 working.forEach { set ->
-                    val rpeModifier = when {
-                        set.rpe >= 10 -> 1.0
-                        set.rpe == 9 -> 0.9
-                        set.rpe == 8 -> 0.75
-                        set.rpe == 7 -> 0.5
-                        else -> 0.0
-                    }
+                    val rpeModifier = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(set.rpe)
                     val score = 1.0 * rpeModifier
                     effectiveSets[exercise.muscleGroup] = (effectiveSets[exercise.muscleGroup] ?: 0.0) + score
                 }

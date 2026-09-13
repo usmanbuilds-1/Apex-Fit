@@ -49,6 +49,7 @@ class AuditRegressionTestV4 {
     @Before
     fun createDb() = runBlocking {
         context = ApplicationProvider.getApplicationContext()
+        DataStoreManager(context).saveActiveSessionJson(null)
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
@@ -97,6 +98,9 @@ class AuditRegressionTestV4 {
     @After
     @Throws(IOException::class)
     fun closeDb() {
+        runBlocking {
+            DataStoreManager(context).saveActiveSessionJson(null)
+        }
         db.close()
     }
 

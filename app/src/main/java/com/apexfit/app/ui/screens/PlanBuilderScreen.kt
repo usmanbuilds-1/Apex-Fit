@@ -1030,7 +1030,7 @@ fun PlanBuilderScreen(
 
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 
-                        val exerciseToSave = if (editingExerciseId == null) {
+                        if (editingExerciseId == null) {
                             val newId = trainViewModel.generateNewSessionId()
                             val newEx = PlanExercise(
                                 id = newId,
@@ -1046,7 +1046,6 @@ fun PlanBuilderScreen(
                                 notes = notesText.trim()
                             )
                             trainViewModel.addCustomExercise(newEx)
-                            newEx
                         } else {
                             val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
                             if (exercise != null) {
@@ -1062,16 +1061,9 @@ fun PlanBuilderScreen(
                                     notes = notesText.trim()
                                 )
                                 trainViewModel.updateExercise(updated)
-                                updated
-                            } else null
-                        }
-
-                        if (exerciseToSave != null) {
-                            val dao = com.apexfit.app.di.ServiceLocator.database(context).fitnessDao()
-                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                dao.insertPlanExercise(exerciseToSave)
                             }
                         }
+
                         showAddExerciseDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),

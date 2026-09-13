@@ -363,7 +363,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(500),
-        com.apexfit.app.utils.DeloadResult(recommendation = "No data yet", urgency = "low", signals = 0).toUi()
+        com.apexfit.app.utils.DeloadResult(recommendation = "No data yet", urgency = "none", signals = 0).toUi()
     )
 
     // ─────────────────────────────────────────────────────────────────

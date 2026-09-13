@@ -154,10 +154,6 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         planBuilderExercises.value = planBuilderExercises.value.filter { it.id != exerciseId }
     }
 
-    suspend fun getExerciseAndMetadata(slug: String): Pair<Exercise?, ExerciseMetadata?> {
-        return Pair(dao.getExerciseById(slug), dao.getMetadataForExercise(slug))
-    }
-
     fun getSessionById(id: Long): PlanSession? {
         return planBuilderSessions.value.find { it.id == id }
     }
@@ -587,7 +583,8 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun triggerRestTimer(rpe: Int, exerciseName: String, muscleGroup: String, reps: Int, setIndex: Int, totalSets: Int) {
         val exerciseType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(exerciseName, muscleGroup)
-        val restSeconds = com.apexfit.app.utils.ProgressionEngine.calculateRestTimeSeconds(exerciseType, rpe)
+        val exerciseId = com.apexfit.app.utils.exerciseNameToSlug(exerciseName)
+        val restSeconds = sessionManager.calculateRestTimeSeconds(exerciseId, exerciseType, rpe)
 
         _restTimerLastSetContext.value = "Last set: $reps reps @ RPE $rpe"
 

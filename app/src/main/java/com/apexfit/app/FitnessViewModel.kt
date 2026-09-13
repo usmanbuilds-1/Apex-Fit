@@ -98,8 +98,8 @@ class FitnessViewModel(
         val weightKg = if (isImperial) currentWeight / 2.20462 else currentWeight
         val goalKg   = if (isImperial) goalWeight / 2.20462   else goalWeight
         val heightCm = if (isImperial) height * 2.54           else height
-        val validWeight     = weightKg.coerceIn(20.0, 500.0)
-        val validGoalWeight = goalKg.coerceIn(20.0, 500.0)
+        val validWeight     = weightKg.coerceIn(com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG, com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG)
+        val validGoalWeight = goalKg.coerceIn(com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG, com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG)
         val validHeight     = heightCm.coerceIn(100.0, 250.0)
         val validAge       = age.coerceIn(13, 100)
         val validGoal      = if (goal in listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition")) goal else "Maintain"
