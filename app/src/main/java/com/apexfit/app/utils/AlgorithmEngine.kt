@@ -661,7 +661,9 @@ object AlgorithmEngine {
     ): StreakResult {
         var currentStreak = 0
         val todayStr = getCurrentDate()
-        val yesterdayStr = getPreviousDate(todayStr) ?: ""
+        val yesterdayStr = try {
+            java.time.LocalDate.parse(todayStr).minusDays(1).toString()
+        } catch (e: Exception) { "" }
         
         val dailyNutritionMap = nutritionLog
             .groupBy { it.date }
@@ -683,11 +685,12 @@ object AlgorithmEngine {
                 dayTotals.second >= targets.protein * 0.9 &&
                 Math.abs(dayTotals.first - targets.calories).toDouble() / targets.calories <= 0.15) {
                 currentStreak++
-                val nextDate = getPreviousDate(tempDate)
-                if (nextDate == null) break
-                if (nextDate == tempDate) {
-                    break
+                val nextDate: String? = try {
+                    java.time.LocalDate.parse(tempDate).minusDays(1).toString()
+                } catch (e: Exception) {
+                    null
                 }
+                if (nextDate == null) break
                 tempDate = nextDate
                 iterations++
             } else {

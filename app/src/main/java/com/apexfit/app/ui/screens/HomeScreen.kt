@@ -205,30 +205,10 @@ fun HomeScreen(
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
     val targets = (macroTargetsState as? UiState.Success)?.data
 
-    if (todayExercisesState is UiState.Loading || weightHistoryState is UiState.Loading || macroTargetsState is UiState.Loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = IndigoAccent)
-        }
-        return
-    }
-
-    if (todayExercisesState is UiState.Error || weightHistoryState is UiState.Error || macroTargetsState is UiState.Error) {
-        val msg = (todayExercisesState as? UiState.Error)?.message
-            ?: (weightHistoryState as? UiState.Error)?.message
-            ?: (macroTargetsState as? UiState.Error)?.message ?: "Unknown error"
-        Column(
-            Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(stringResource(R.string.home_failed_to_load, msg), color = Color.White)
-        }
-        return
-    }
-
-    val todayExercises = (todayExercisesState as UiState.Success).data
-    val weightHistory = (weightHistoryState as UiState.Success).data
-    val macroTargets = (macroTargetsState as UiState.Success).data
+    val todayExercises = (todayExercisesState as? UiState.Success)?.data ?: emptyList()
+    val weightHistory = (weightHistoryState as? UiState.Success)?.data ?: emptyList()
+    val macroTargets = targets
+    val isDataLoading = todayExercisesState is UiState.Loading || weightHistoryState is UiState.Loading || macroTargetsState is UiState.Loading
 
     val userHeight by fitnessViewModel.userHeight.collectAsStateWithLifecycle()
     val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()

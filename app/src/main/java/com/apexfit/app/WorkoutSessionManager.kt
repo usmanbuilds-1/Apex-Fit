@@ -1,4 +1,6 @@
 package com.apexfit.app
+import androidx.room.withTransaction
+import com.apexfit.app.di.ServiceLocator
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.data.*
 import com.apexfit.app.utils.ProgressionEngine.OutcomeType
@@ -469,6 +471,7 @@ class WorkoutSessionManager(
     }
 
     fun clearPersistedSession() {
+        lastProgressionResults.clear()
         persistJob.value?.cancel()
         com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
         scope.launch {
@@ -569,17 +572,20 @@ class WorkoutSessionManager(
         val prs = evaluatePRs(allSets)
         repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
 
-        lastProgressionResults.forEach { (exerciseId, result) ->
-            try {
-                val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
-                val current = dao.getStalledCountForExercise(exerciseId)
-                val newCount = when (r.outcome.name) {
-                    "SUCCESS", "PROGRESSING", "PLATEAU" -> 0
-                    "STALLED" -> current + 1
-                    else -> current
-                }
-                dao.updateStalledCount(exerciseId, newCount)
-            } catch (e: Exception) { /* ignore */ }
+        val db = ServiceLocator.database(appContext)
+        db.withTransaction {
+            lastProgressionResults.forEach { (exerciseId, result) ->
+                try {
+                    val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
+                    val current = dao.getStalledCountForExercise(exerciseId)
+                    val newCount = when (r.outcome.name) {
+                        "SUCCESS", "PROGRESSING", "PLATEAU" -> 0
+                        "STALLED" -> current + 1
+                        else -> current
+                    }
+                    dao.updateStalledCount(exerciseId, newCount)
+                } catch (e: Exception) { /* ignore */ }
+            }
         }
         lastProgressionResults.clear()
 

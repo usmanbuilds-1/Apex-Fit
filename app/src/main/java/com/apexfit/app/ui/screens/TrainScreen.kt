@@ -65,6 +65,8 @@ import com.apexfit.app.utils.AlgorithmEngine
 import com.apexfit.app.utils.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
@@ -349,8 +351,11 @@ fun ProgramSubTab(
                                             scope.launch {
                                                 val db = com.apexfit.app.data.AppDatabase.getDatabase(context)
                                                 val slug = com.apexfit.app.utils.exerciseNameToSlug(ex.name)
-                                                val exercise = db.fitnessDao().getExerciseById(slug)
-                                                val metadata = db.fitnessDao().getMetadataForExercise(slug)
+                                                val (exercise, metadata) = withContext(Dispatchers.IO) {
+                                                    val foundEx = db.fitnessDao().getExerciseById(slug)
+                                                    val meta = if (foundEx != null) db.fitnessDao().getMetadataForExercise(slug) else null
+                                                    Pair(foundEx, meta)
+                                                }
                                                 if (exercise != null) {
                                                     formGuideExercise = exercise
                                                     formGuideContent = com.apexfit.app.utils.FormGuideBuilder.buildFormGuide(exercise, metadata)
@@ -1756,20 +1761,23 @@ fun FormGuideOverlay(
                 )
 
                 // Heatmap Data Preparation
-                val heatmap = mutableMapOf<String, com.apexfit.app.data.HeatmapEntry>()
-                heatmap[exercise.primaryMuscle.lowercase()] = com.apexfit.app.data.HeatmapEntry(
-                    volume = 100,
-                    intensity = 80,
-                    level = "high",
-                    colorHex = "#E84040"
-                )
-                exercise.secondaryMuscles.forEach { secondary ->
-                    heatmap[secondary.lowercase()] = com.apexfit.app.data.HeatmapEntry(
-                        volume = 50,
-                        intensity = 40,
-                        level = "medium",
-                        colorHex = "#E8A020"
-                    )
+                val heatmap = remember(exercise) {
+                    buildMap {
+                        this[exercise.primaryMuscle.lowercase()] = com.apexfit.app.data.HeatmapEntry(
+                            volume = 100,
+                            intensity = 80,
+                            level = "high",
+                            colorHex = "#E84040"
+                        )
+                        exercise.secondaryMuscles.forEach { secondary ->
+                            this[secondary.lowercase()] = com.apexfit.app.data.HeatmapEntry(
+                                volume = 50,
+                                intensity = 40,
+                                level = "medium",
+                                colorHex = "#E8A020"
+                            )
+                        }
+                    }
                 }
 
                 com.apexfit.app.ui.components.MuscleHeatmapCanvas(

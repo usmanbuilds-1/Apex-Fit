@@ -79,53 +79,66 @@ fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainVi
                     trackColor = DarkRaised
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    TextButton(
-                        onClick = {
-                            if (seconds >= 15) {
-                                trainViewModel.addRestTimerSeconds(-15)
-                            } else {
-                                trainViewModel.addRestTimerSeconds(-seconds)
-                            }
-                        },
-                        enabled = seconds > 0
-                    ) {
-                        Text(stringResource(R.string.overlay_15s), color = SecondaryText, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            trainViewModel.addRestTimerSeconds(15)
+                RestTimerButtons(
+                    onSkip = { fitnessViewModel.closeRestTimer() },
+                    onAddTime = { trainViewModel.addRestTimerSeconds(15) },
+                    canSubtract = seconds > 0,
+                    onSubtractTime = {
+                        if (seconds >= 15) {
+                            trainViewModel.addRestTimerSeconds(-15)
+                        } else {
+                            trainViewModel.addRestTimerSeconds(-seconds)
                         }
-                    ) {
-                        Text(stringResource(R.string.overlay_15s_1), color = OrangeAccent, fontWeight = FontWeight.Bold)
                     }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = { fitnessViewModel.closeRestTimer() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(stringResource(R.string.overlay_skip), color = SecondaryText, fontWeight = FontWeight.Bold)
-                    }
-                    Button(
-                        onClick = { fitnessViewModel.closeRestTimer() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(stringResource(R.string.overlay_ready), color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                }
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun RestTimerButtons(
+    onSkip: () -> Unit,
+    onAddTime: () -> Unit,
+    canSubtract: Boolean,
+    onSubtractTime: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        TextButton(
+            onClick = onSubtractTime,
+            enabled = canSubtract
+        ) {
+            Text(stringResource(R.string.overlay_15s), color = SecondaryText, fontWeight = FontWeight.Bold)
+        }
+        TextButton(
+            onClick = onAddTime
+        ) {
+            Text(stringResource(R.string.overlay_15s_1), color = OrangeAccent, fontWeight = FontWeight.Bold)
+        }
+    }
+    Spacer(modifier = Modifier.height(16.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Button(
+            onClick = onSkip,
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(stringResource(R.string.overlay_skip), color = SecondaryText, fontWeight = FontWeight.Bold)
+        }
+        Button(
+            onClick = onSkip,
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(stringResource(R.string.overlay_ready), color = Color.Black, fontWeight = FontWeight.Bold)
         }
     }
 }

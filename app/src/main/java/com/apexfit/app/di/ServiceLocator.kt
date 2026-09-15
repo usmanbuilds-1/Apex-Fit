@@ -131,7 +131,7 @@ object ServiceLocator {
     val sharedTargetsFlow: Flow<NutritionTargets> by lazy {
         val dao = database(appContext).fitnessDao()
         val ds = dataStore(appContext)
-        val weightFlow = dao.getAllWeightEntriesFlow()
+        val weightFlow = dao.getWeightEntriesSinceFlow(com.apexfit.app.utils.getDateDaysAgo(90))
             .flowOn(Dispatchers.IO)
         // AUDIT FIX (BUG-V4-014): honour isManual.
         // Manual users  → stored value (manualCals).

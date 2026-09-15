@@ -10,6 +10,7 @@ import com.apexfit.app.utils.*
 import com.apexfit.app.ui.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -68,6 +69,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     val completedSessions: StateFlow<List<UiTrainingSession>> = sessionsFlow
         .map { list -> list.map { it.toUi() } }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val trendWeight: StateFlow<Double?> = weightFlow
@@ -76,6 +78,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 com.apexfit.app.utils.AlgorithmEngine.getCurrentTrendWeight(entries)
             }
         }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val weightDirection: StateFlow<String> = weightFlow
@@ -84,6 +87,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 com.apexfit.app.utils.AlgorithmEngine.getWeightDirection(entries)
             }
         }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit("insufficient_data") }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "insufficient_data")
 
     val tdeeResult: StateFlow<com.apexfit.app.utils.TDEEResult> = combine(
@@ -112,6 +116,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 weeklyWorkouts = bio.weeklyWorkouts
             )
         }
+    }.catch { e ->
+        android.util.Log.e("AlgorithmVM", "flow error", e)
+        emit(com.apexfit.app.utils.TDEEResult(tdee = 0, confidence = "No Data", avgCalories = 0, weightChangeKg = 0.0))
     }.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000),
         com.apexfit.app.utils.TDEEResult(tdee = 0, confidence = "No Data", avgCalories = 0, weightChangeKg = 0.0)
@@ -125,6 +132,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             val validTargets = targets ?: com.apexfit.app.utils.NutritionTargets(calories = com.apexfit.app.UserDefaults.CALORIES, protein = 160, carbs = 280, fat = 75, weeklyTrainingSessions = 4)
             com.apexfit.app.utils.AlgorithmEngine.calcStreaks(nutrition, sessions, validTargets)
         }
+    }.catch { e ->
+        android.util.Log.e("AlgorithmVM", "flow error", e)
+        emit(com.apexfit.app.utils.StreakResult(com.apexfit.app.utils.StreakInfo(0), com.apexfit.app.utils.StreakInfo(0)))
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
@@ -139,6 +149,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             com.apexfit.app.utils.AlgorithmEngine.calcComplianceScores(nutrition, sessions, targets)
         }
         res.toUi()
+    }.catch { e ->
+        android.util.Log.e("AlgorithmVM", "flow error", e)
+        emit(com.apexfit.app.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi())
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
@@ -147,6 +160,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     val complianceScore: StateFlow<Int> = complianceScores
         .map { it.overall }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(0) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val plateauResult: StateFlow<UiPlateauResult> = combine(
@@ -156,6 +170,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             com.apexfit.app.utils.AlgorithmEngine.detectPlateau(weights, nutrition, sessions)
         }
         res.toUi()
+    }.catch { e ->
+        android.util.Log.e("AlgorithmVM", "flow error", e)
+        emit(com.apexfit.app.data.PlateauResult(isPlateaued = false).toUi())
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
@@ -173,6 +190,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 null
             }
         }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private data class SessionDerivedResults(
@@ -196,6 +214,24 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 )
             }
         }
+        .catch { e ->
+            android.util.Log.e("AlgorithmVM", "flow error", e)
+            emit(
+                SessionDerivedResults(
+                    fatigueResult = com.apexfit.app.utils.FatigueResult(
+                        ratio = null,
+                        status = "unknown",
+                        statusLabel = "No Data",
+                        recommendation = "Log workouts to activate fatigue tracking",
+                        acuteLoad = 0.0,
+                        chronicLoad = 0.0
+                    ),
+                    muscleHeatmap = emptyMap(),
+                    injuryRiskSignals = listOf("Log workouts to activate tracking."),
+                    weeklyVolume = emptyMap()
+                )
+            )
+        }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -216,6 +252,19 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     val fatigueResult: StateFlow<UiFatigueResult> = sessionDerived
         .map { it.fatigueResult.toUi() }
+        .catch { e ->
+            android.util.Log.e("AlgorithmVM", "flow error", e)
+            emit(
+                com.apexfit.app.utils.FatigueResult(
+                    ratio = null,
+                    status = "unknown",
+                    statusLabel = "No Data",
+                    recommendation = "Log workouts to activate fatigue tracking",
+                    acuteLoad = 0.0,
+                    chronicLoad = 0.0
+                ).toUi()
+            )
+        }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -236,10 +285,15 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 riskStatus = result.statusLabel
             )
         }
+        .catch { e ->
+            android.util.Log.e("AlgorithmVM", "flow error", e)
+            emit(com.apexfit.app.data.FatigueRatio(0.0, "No Data"))
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.data.FatigueRatio(0.0, "No Data"))
 
     val muscleVolumes: StateFlow<Map<String, Int>> = sessionDerived
         .map { it.weeklyVolume }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyMap()) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -248,24 +302,21 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     val muscleHeatmap: StateFlow<Map<String, HeatmapEntry>> = sessionDerived
         .map { it.muscleHeatmap }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyMap()) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             emptyMap()
         )
 
-    private val _exerciseProgression = MutableStateFlow<List<Pair<String, Double>>>(emptyList())
-    val exerciseProgression: StateFlow<List<Pair<String, Double>>> = _exerciseProgression.asStateFlow()
-
-    private val _progressionStatus = MutableStateFlow("No Data")
-    val progressionStatus: StateFlow<String> = _progressionStatus.asStateFlow()
-
     val allPRs: StateFlow<List<UiPersonalRecord>> = dao.getPersonalRecordsWithNames()
         .map { entries -> entries.map { it.toUi() } }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val injuryRiskSignals: StateFlow<List<String>> = sessionDerived
         .map { it.injuryRiskSignals }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyList()) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -335,6 +386,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 com.apexfit.app.utils.AlgorithmEngine.calcEffectiveSets(sessions)
             }
         }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyMap()) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -348,9 +400,11 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 com.apexfit.app.utils.AlgorithmEngine.calcWeeklyVolumePerMuscle(sessions)
             }
         }
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyMap()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val targets: StateFlow<com.apexfit.app.utils.NutritionTargets?> = targetsFlow
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
 
@@ -368,6 +422,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
 
     val detectedPatterns: StateFlow<List<com.apexfit.app.data.DetectedPatternEntity>> = dao.getAllDetectedPatternsFlow()
+        .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val deloadRecommendation: StateFlow<UiDeloadResult> = combine(
@@ -381,6 +436,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             )
         }
         res.toUi()
+    }.catch { e ->
+        android.util.Log.e("AlgorithmVM", "flow error", e)
+        emit(com.apexfit.app.utils.DeloadResult(recommendation = "No data yet", urgency = "none", signals = 0).toUi())
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
