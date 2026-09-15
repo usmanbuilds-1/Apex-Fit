@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Exercise::class,
         ExerciseMetadata::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -369,6 +369,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_body_weights_date` ON `body_weights` (`date`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_programs_isActive` ON `workout_programs` (`isActive`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_programs_createdAt` ON `workout_programs` (`createdAt`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_body_measurements_date` ON `body_measurements` (`date`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_body_measurements_bodyPart` ON `body_measurements` (`bodyPart`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_sessions_completed` ON `workout_sessions` (`completed`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_sessions_sessionType` ON `workout_sessions` (`sessionType`)")
+            }
+        }
+
         fun setTestDatabase(db: AppDatabase?) {
             INSTANCE = db
         }
@@ -380,8 +392,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                 .fallbackToDestructiveMigrationOnDowngrade()
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                 .build()
                 INSTANCE = instance
                 instance

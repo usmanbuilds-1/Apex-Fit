@@ -118,12 +118,10 @@ fun TrainTab(
             }
         }
 
-        Crossfade(targetState = subTab, label = "trainSubCross") { tab ->
-            when (tab) {
-                0 -> ProgramSubTab(fitnessViewModel, trainViewModel)
-                1 -> WorkoutExecutionSubTab(fitnessViewModel, trainViewModel)
-                2 -> NewPlansSubTab(fitnessViewModel, trainViewModel, onNavigateToPlanBuilder)
-            }
+        when (subTab) {
+            0 -> ProgramSubTab(fitnessViewModel, trainViewModel)
+            1 -> WorkoutExecutionSubTab(fitnessViewModel, trainViewModel)
+            2 -> NewPlansSubTab(fitnessViewModel, trainViewModel, onNavigateToPlanBuilder)
         }
     }
 }
@@ -825,40 +823,27 @@ fun WorkoutExecutionSubTab(
             modifier = Modifier.fillMaxSize()
         ) {
             // Warmup checklist card
-            item {
-                PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "PRE-SESSION WARMUP CHECKLIST",
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AmberAccent,
-                        modifier = Modifier.padding(bottom = 8.dp)
+            items(warmupComp.toList(), key = { it.first }) { (item, comp) ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { trainViewModel.toggleWarmupItem(item) }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Checkbox(
+                        checked = comp,
+                        onCheckedChange = { trainViewModel.toggleWarmupItem(item) },
+                        colors = CheckboxDefaults.colors(checkedColor = AmberAccent, uncheckedColor = MutedText)
                     )
-
-                    for ((item, comp) in warmupComp) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { trainViewModel.toggleWarmupItem(item) }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Checkbox(
-                                checked = comp,
-                                onCheckedChange = { trainViewModel.toggleWarmupItem(item) },
-                                colors = CheckboxDefaults.colors(checkedColor = AmberAccent, uncheckedColor = MutedText)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = item,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                color = if (comp) MutedText else PrimaryText,
-                                textDecoration = if (comp) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None
-                            )
-                        }
-                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = item,
+                        fontFamily = JetBrainsMonoFamily,
+                        fontSize = 11.sp,
+                        color = if (comp) MutedText else PrimaryText,
+                        textDecoration = if (comp) androidx.compose.ui.text.style.TextDecoration.LineThrough else androidx.compose.ui.text.style.TextDecoration.None
+                    )
                 }
             }
 
@@ -935,7 +920,6 @@ fun WorkoutExecutionSubTab(
                         val lastSetWeight = lastCompletedSetObj?.weight ?: 0.0
                         val lastSetReps = lastCompletedSetObj?.reps ?: 0
 
-                        val units by fitnessViewModel.units.collectAsStateWithLifecycle()
                         RealTimeEffectiveSetsCard(
                             exName = ex.name,
                             effData = currEffSetsData,
@@ -943,7 +927,7 @@ fun WorkoutExecutionSubTab(
                             totalSetsNum = totalSetsNum,
                             lastSetWeight = lastSetWeight,
                             lastSetReps = lastSetReps,
-                            units = units
+                            units = preferredUnits
                         )
                     }
                 }

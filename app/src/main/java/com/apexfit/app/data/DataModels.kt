@@ -11,7 +11,10 @@ import androidx.room.ForeignKey
 import androidx.room.Embedded
 import com.apexfit.app.utils.exerciseNameToSlug
 
-@Entity(tableName = "body_weights")
+@Entity(
+    tableName = "body_weights",
+    indices = [Index(value = ["date"])]
+)
 data class WeightEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val date: String, // YYYY-MM-DD
@@ -65,7 +68,11 @@ data class NutritionEntry(
  */
 @Entity(
     tableName = "workout_sessions",
-    indices = [Index(value = ["date"])]
+    indices = [
+        Index(value = ["date"]),
+        Index(value = ["completed"]),
+        Index(value = ["sessionType"])
+    ]
 )
 data class TrainingSession(
     @PrimaryKey val id: String, // unique session UUID or string
@@ -173,7 +180,10 @@ data class VolumeData(
     val hypertrophicScore: Double
 )
 
-@Entity(tableName = "workout_programs")
+@Entity(
+    tableName = "workout_programs",
+    indices = [Index(value = ["isActive"]), Index(value = ["createdAt"])]
+)
 data class WorkoutPlan(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -266,7 +276,10 @@ data class PersonalRecordWithName(
     @ColumnInfo(name = "exerciseName") val displayName: String?
 )
 
-@Entity(tableName = "body_measurements")
+@Entity(
+    tableName = "body_measurements",
+    indices = [Index(value = ["date"]), Index(value = ["bodyPart"])]
+)
 data class BodyMeasurement(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val bodyPart: String, // Neck, Shoulders, Chest, Left Bicep, etc.

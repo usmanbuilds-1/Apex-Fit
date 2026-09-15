@@ -10,6 +10,7 @@ import com.apexfit.app.utils.*
 import com.apexfit.app.ui.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -30,9 +31,20 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     private val nutritionFlow = com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
 
     private val sessionsFlow: Flow<List<com.apexfit.app.data.TrainingSession>> =
-        dao.getRecentCompletedSessionsFlow(
-            getDateDaysAgo(90)
-        ).flowOn(Dispatchers.IO)
+        com.apexfit.app.di.ServiceLocator.richSessionsFlow
+            .map { list ->
+                list.map { rs ->
+                    com.apexfit.app.data.TrainingSession(
+                        id = "",
+                        date = rs.date,
+                        sessionType = rs.sessionType,
+                        completed = rs.completed,
+                        durationMinutes = rs.durationMinutes,
+                        sessionFeel = rs.sessionFeel
+                    )
+                }
+            }
+            .flowOn(Dispatchers.IO)
 
 
 
@@ -78,7 +90,8 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         weightFlow, nutritionFlow, richSessionsFlow
     ) { weights, nutrition, sessions ->
         Triple(weights, nutrition, sessions)
-    }.combine(
+    }.debounce(300L)
+    .combine(
         combine(
             dataStore.heightFlow,
             dataStore.ageFlow,
@@ -88,15 +101,17 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             UserBioProfile(height, age, sex, workouts)
         }
     ) { (weights, nutrition, sessions), bio ->
-        com.apexfit.app.utils.AlgorithmEngine.calcAdaptiveTDEE(
-            weightLog = weights,
-            nutritionLog = nutrition,
-            windowDays = 14,
-            heightCm = bio.height,
-            ageYears = bio.age,
-            biologicalSex = bio.sex,
-            weeklyWorkouts = bio.weeklyWorkouts
-        )
+        withContext(Dispatchers.Default) {
+            com.apexfit.app.utils.AlgorithmEngine.calcAdaptiveTDEE(
+                weightLog = weights,
+                nutritionLog = nutrition,
+                windowDays = 14,
+                heightCm = bio.height,
+                ageYears = bio.age,
+                biologicalSex = bio.sex,
+                weeklyWorkouts = bio.weeklyWorkouts
+            )
+        }
     }.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000),
         com.apexfit.app.utils.TDEEResult(tdee = 0, confidence = "No Data", avgCalories = 0, weightChangeKg = 0.0)
@@ -168,12 +183,14 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     )
 
     private val sessionDerived: StateFlow<SessionDerivedResults> = richSessionsFlow
+        .debounce(300L)
         .map { sessions ->
             withContext(Dispatchers.Default) {
+                val fatigue = com.apexfit.app.utils.AlgorithmEngine.calcFatigueToFitness(sessions)
                 SessionDerivedResults(
-                    fatigueResult = com.apexfit.app.utils.AlgorithmEngine.calcFatigueToFitness(sessions),
+                    fatigueResult = fatigue,
                     muscleHeatmap = com.apexfit.app.utils.AlgorithmEngine.calcMuscleHeatmap(sessions, days = 7),
-                    injuryRiskSignals = com.apexfit.app.utils.AlgorithmEngine.detectInjuryRiskSignals(sessions)
+                    injuryRiskSignals = com.apexfit.app.utils.AlgorithmEngine.detectInjuryRiskSignals(sessions, precomputedFatigue = fatigue)
                         .ifEmpty { listOf("Recovery indicators within normal range.") },
                     weeklyVolume = buildMuscleVolumes(sessions)
                 )
@@ -201,7 +218,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .map { it.fatigueResult.toUi() }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(500),
+            SharingStarted.WhileSubscribed(5_000),
             com.apexfit.app.utils.FatigueResult(
                 ratio = null,
                 status = "unknown",
@@ -219,13 +236,13 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 riskStatus = result.statusLabel
             )
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.data.FatigueRatio(0.0, "No Data"))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.data.FatigueRatio(0.0, "No Data"))
 
     val muscleVolumes: StateFlow<Map<String, Int>> = sessionDerived
         .map { it.weeklyVolume }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(500),
+            SharingStarted.WhileSubscribed(5_000),
             emptyMap()
         )
 
@@ -233,7 +250,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .map { it.muscleHeatmap }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(500),
+            SharingStarted.WhileSubscribed(5_000),
             emptyMap()
         )
 
@@ -245,13 +262,13 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     val allPRs: StateFlow<List<UiPersonalRecord>> = dao.getPersonalRecordsWithNames()
         .map { entries -> entries.map { it.toUi() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val injuryRiskSignals: StateFlow<List<String>> = sessionDerived
         .map { it.injuryRiskSignals }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(500),
+            SharingStarted.WhileSubscribed(5_000),
             emptyList()
         )
 
@@ -320,7 +337,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(500),
+            SharingStarted.WhileSubscribed(5_000),
             emptyMap()
         )
 
@@ -331,10 +348,10 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                 com.apexfit.app.utils.AlgorithmEngine.calcWeeklyVolumePerMuscle(sessions)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyMap())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val targets: StateFlow<com.apexfit.app.utils.NutritionTargets?> = targetsFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
 
 
@@ -351,18 +368,22 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
 
     val detectedPatterns: StateFlow<List<com.apexfit.app.data.DetectedPatternEntity>> = dao.getAllDetectedPatternsFlow()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val deloadRecommendation: StateFlow<UiDeloadResult> = combine(
-        richSessionsFlow, complianceScore
-    ) { sessions, score ->
+        richSessionsFlow, complianceScore, sessionDerived
+    ) { sessions, score, derived ->
         val res = withContext(Dispatchers.Default) {
-            com.apexfit.app.utils.AlgorithmEngine.calcDeloadRecommendation(sessions, score)
+            com.apexfit.app.utils.AlgorithmEngine.calcDeloadRecommendation(
+                trainingLog = sessions,
+                complianceScore = score,
+                precomputedFatigue = derived.fatigueResult
+            )
         }
         res.toUi()
     }.stateIn(
         viewModelScope,
-        SharingStarted.WhileSubscribed(500),
+        SharingStarted.WhileSubscribed(5_000),
         com.apexfit.app.utils.DeloadResult(recommendation = "No data yet", urgency = "none", signals = 0).toUi()
     )
 

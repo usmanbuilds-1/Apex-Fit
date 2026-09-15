@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,6 +44,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlin.math.roundToInt
+
+private data class MealTotals(
+    val calories: Int,
+    val protein: Double,
+    val carbs: Double,
+    val fat: Double
+)
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -134,12 +142,22 @@ fun NutritionScreen(
     val coroutineScope = rememberCoroutineScope()
     val pendingDeletions = remember { mutableStateMapOf<Long, Job>() }
 
-    val visibleMeals = loggedMeals.filter { it.id !in pendingDeletions.keys }
+    val visibleMeals = remember(loggedMeals, pendingDeletions.keys.toSet()) {
+        loggedMeals.filter { it.id !in pendingDeletions.keys }
+    }
 
-    val loggedCalories = visibleMeals.sumOf { it.calories }
-    val loggedProtein = visibleMeals.sumOf { it.protein }
-    val loggedCarbs = visibleMeals.sumOf { it.carbs }
-    val loggedFat = visibleMeals.sumOf { it.fat }
+    val mealTotals = remember(visibleMeals, pendingDeletions.keys.toSet()) {
+        MealTotals(
+            calories = visibleMeals.sumOf { it.calories },
+            protein = visibleMeals.sumOf { it.protein },
+            carbs = visibleMeals.sumOf { it.carbs },
+            fat = visibleMeals.sumOf { it.fat }
+        )
+    }
+    val loggedCalories = mealTotals.calories
+    val loggedProtein = mealTotals.protein
+    val loggedCarbs = mealTotals.carbs
+    val loggedFat = mealTotals.fat
 
     var showAddFoodModal by rememberSaveable { mutableStateOf(false) }
 
@@ -332,99 +350,100 @@ fun NutritionScreen(
 
         // Meals details lists
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Today's Meals",
-                    fontFamily = SyneFamily,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MutedText
-                )
+            Text(
+                text = "Today's Meals",
+                fontFamily = SyneFamily,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MutedText
+            )
+        }
 
-                if (visibleMeals.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(80.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(stringResource(R.string.nutrition_no_meals_logged_yet), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
-                    }
-                } else {
-                    visibleMeals.forEach { meal ->
-                        key(meal.id) {
-                            val dismissState = rememberSwipeToDismissBoxState(
-                                confirmValueChange = { dismissValue ->
-                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
-                                        triggerPendingDeletion(meal)
-                                        true
-                                    } else {
-                                        false
-                                    }
-                                }
-                            )
-
-                            SwipeToDismissBox(
-                                state = dismissState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp)),
-                                backgroundContent = {
-                                    val color = when (dismissState.targetValue) {
-                                        SwipeToDismissBoxValue.EndToStart -> RedAccent.copy(alpha = 0.8f)
-                                        SwipeToDismissBoxValue.StartToEnd -> RedAccent.copy(alpha = 0.8f)
-                                        SwipeToDismissBoxValue.Settled -> Color.Transparent
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(color)
-                                            .padding(horizontal = 20.dp),
-                                        contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Delete,
-                                            contentDescription = "Delete",
-                                            tint = Color.White
-                                        )
-                                    }
-                                },
-                                content = {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(DarkCardSurface)
-                                            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(10.dp))
-                                            .clickable(onClick = {})
-                                            .padding(12.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column {
-                                                Text(stringResource(R.string.nutrition_logged_at, com.apexfit.app.utils.formatTimeForDisplay(LocalContext.current, meal.time)), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
-                                                Text(meal.name.ifEmpty { "Logged Meal" }, fontFamily = SyneFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-                                                Text(
-                                                    text = "${meal.calories} kcal • P: ${meal.protein.roundToInt()}g C: ${meal.carbs.roundToInt()}g F: ${meal.fat.roundToInt()}g",
-                                                    fontFamily = JetBrainsMonoFamily,
-                                                    fontSize = 11.sp,
-                                                    color = SecondaryText
-                                                )
-                                            }
-                                            IconButton(onClick = { triggerPendingDeletion(meal) }) {
-                                                Icon(Icons.Filled.Delete, contentDescription = "Delete entry", tint = MutedText)
-                                            }
-                                        }
-                                    }
-                                }
-                            )
+        if (visibleMeals.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(stringResource(R.string.nutrition_no_meals_logged_yet), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+                }
+            }
+        } else {
+            items(
+                items = visibleMeals,
+                key = { meal -> meal.id }
+            ) { meal ->
+                val dismissState = rememberSwipeToDismissBoxState(
+                    confirmValueChange = { dismissValue ->
+                        if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
+                            triggerPendingDeletion(meal)
+                            true
+                        } else {
+                            false
                         }
                     }
-                }
+                )
+
+                SwipeToDismissBox(
+                    state = dismissState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp)),
+                    backgroundContent = {
+                        val color = when (dismissState.targetValue) {
+                            SwipeToDismissBoxValue.EndToStart -> RedAccent.copy(alpha = 0.8f)
+                            SwipeToDismissBoxValue.StartToEnd -> RedAccent.copy(alpha = 0.8f)
+                            SwipeToDismissBoxValue.Settled -> Color.Transparent
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(color)
+                                .padding(horizontal = 20.dp),
+                            contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = "Delete",
+                                tint = Color.White
+                            )
+                        }
+                    },
+                    content = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(DarkCardSurface)
+                                .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(10.dp))
+                                .clickable(onClick = {})
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(stringResource(R.string.nutrition_logged_at, com.apexfit.app.utils.formatTimeForDisplay(LocalContext.current, meal.time)), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
+                                    Text(meal.name.ifEmpty { "Logged Meal" }, fontFamily = SyneFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+                                    Text(
+                                        text = "${meal.calories} kcal • P: ${meal.protein.roundToInt()}g C: ${meal.carbs.roundToInt()}g F: ${meal.fat.roundToInt()}g",
+                                        fontFamily = JetBrainsMonoFamily,
+                                        fontSize = 11.sp,
+                                        color = SecondaryText
+                                    )
+                                }
+                                IconButton(onClick = { triggerPendingDeletion(meal) }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "Delete entry", tint = MutedText)
+                                }
+                            }
+                        }
+                    }
+                )
             }
         }
 
@@ -930,15 +949,19 @@ fun AdaptiveCalorieTargetCard(
 
 @Composable
 fun ProteinTimingCard(todayEntries: List<com.apexfit.app.ui.models.UiNutritionEntry>) {
-    val preWorkoutProtein = todayEntries
-        .filter { it.time >= "06:00" && it.time < "12:00" }
-        .sumOf { it.protein }
-    val postWorkoutProtein = todayEntries
-        .filter { it.time >= "12:00" && it.time < "16:00" }
-        .sumOf { it.protein }
-    val eveningProtein = todayEntries
-        .filter { it.time >= "20:00" }
-        .sumOf { it.protein }
+    val (preWorkoutProtein, postWorkoutProtein, eveningProtein) = remember(todayEntries) {
+        Triple(
+            todayEntries
+                .filter { it.time >= "06:00" && it.time < "12:00" }
+                .sumOf { it.protein },
+            todayEntries
+                .filter { it.time >= "12:00" && it.time < "16:00" }
+                .sumOf { it.protein },
+            todayEntries
+                .filter { it.time >= "20:00" }
+                .sumOf { it.protein }
+        )
+    }
 
     val tip = when {
         postWorkoutProtein < 20 -> "Log a post-workout meal with 20+ g protein"

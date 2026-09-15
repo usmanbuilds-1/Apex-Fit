@@ -8,6 +8,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,12 +56,18 @@ fun SingleFrontHeatmapCanvas(
     heatmap: Map<String, HeatmapEntry>,
     modifier: Modifier = Modifier
 ) {
+    var cachedSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
+    var cachedPath by remember { mutableStateOf<Path?>(null) }
     Canvas(
         modifier = modifier.semantics {
             contentDescription = buildHeatmapDescription(heatmap, "front")
         }
     ) {
-        drawFrontView(heatmap)
+        if (cachedPath == null || cachedSize != size) {
+            cachedPath = buildBodySilhouette(size.width, size.height)
+            cachedSize = size
+        }
+        drawFrontView(heatmap, prebuiltSilhouette = cachedPath)
     }
 }
 
@@ -87,6 +97,8 @@ fun MuscleHeatmapCanvas(
                     letterSpacing = 1.5.sp
                 )
                 Spacer(Modifier.height(8.dp))
+                var cachedSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
+                var cachedPath by remember { mutableStateOf<Path?>(null) }
                 Canvas(
                     modifier = Modifier
                         .height(280.dp)
@@ -94,7 +106,13 @@ fun MuscleHeatmapCanvas(
                         .semantics {
                             contentDescription = buildHeatmapDescription(heatmap, "front")
                         }
-                ) { drawFrontView(heatmap) }
+                ) {
+                    if (cachedPath == null || cachedSize != size) {
+                        cachedPath = buildBodySilhouette(size.width, size.height)
+                        cachedSize = size
+                    }
+                    drawFrontView(heatmap, prebuiltSilhouette = cachedPath)
+                }
             }
 
             // Back view
@@ -111,6 +129,8 @@ fun MuscleHeatmapCanvas(
                     letterSpacing = 1.5.sp
                 )
                 Spacer(Modifier.height(8.dp))
+                var cachedSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
+                var cachedPath by remember { mutableStateOf<Path?>(null) }
                 Canvas(
                     modifier = Modifier
                         .height(280.dp)
@@ -118,7 +138,13 @@ fun MuscleHeatmapCanvas(
                         .semantics {
                             contentDescription = buildHeatmapDescription(heatmap, "back")
                         }
-                ) { drawBackView(heatmap) }
+                ) {
+                    if (cachedPath == null || cachedSize != size) {
+                        cachedPath = buildBodySilhouette(size.width, size.height)
+                        cachedSize = size
+                    }
+                    drawBackView(heatmap, prebuiltSilhouette = cachedPath)
+                }
             }
         }
 
@@ -156,9 +182,9 @@ private fun Map<String, HeatmapEntry>.getMuscle(key: String): HeatmapEntry? {
     }
 }
 
-private fun DrawScope.drawFrontView(heatmap: Map<String, HeatmapEntry>) {
+private fun DrawScope.drawFrontView(heatmap: Map<String, HeatmapEntry>, prebuiltSilhouette: Path? = null) {
     val w = size.width; val h = size.height
-    drawBodyStructure(w, h)
+    drawBodyStructure(w, h, prebuiltSilhouette)
 
     // Lats (back) visible at the sides on the front view
     val back = heatmap.getMuscle("back").toColorPair()
@@ -208,9 +234,9 @@ private fun DrawScope.drawFrontView(heatmap: Map<String, HeatmapEntry>) {
 // BACK VIEW
 // ─────────────────────────────────────────────────────────────────
 
-private fun DrawScope.drawBackView(heatmap: Map<String, HeatmapEntry>) {
+private fun DrawScope.drawBackView(heatmap: Map<String, HeatmapEntry>, prebuiltSilhouette: Path? = null) {
     val w = size.width; val h = size.height
-    drawBodyStructure(w, h)
+    drawBodyStructure(w, h, prebuiltSilhouette)
 
     val back = heatmap.getMuscle("back").toColorPair()
     drawTrapezius(w, h, back)
@@ -245,8 +271,8 @@ private fun DrawScope.drawBackView(heatmap: Map<String, HeatmapEntry>) {
 // BODY STRUCTURE — replaced with single continuous silhouette path
 // ─────────────────────────────────────────────────────────────────
 
-private fun DrawScope.drawBodyStructure(w: Float, h: Float) {
-    val silhouette = buildBodySilhouette(w, h)
+private fun DrawScope.drawBodyStructure(w: Float, h: Float, prebuiltSilhouette: Path? = null) {
+    val silhouette = prebuiltSilhouette ?: buildBodySilhouette(w, h)
     drawPath(silhouette, BODY_BASE)
     drawPath(silhouette, BODY_OUTLINE, style = Stroke(1.2.dp.toPx()))
 }

@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -1022,6 +1023,60 @@ fun HomeScreen(
                                         Triple(minW, maxW, valRange)
                                     }
 
+                                    val linePath = remember(linePoints) {
+                                        Path().apply {
+                                            if (linePoints.size >= 2) {
+                                                val minW = linePoints.minOrNull() ?: 60.0
+                                                val maxW = linePoints.maxOrNull() ?: 62.0
+                                                val valRange = if (maxW == minW) 1.0 else maxW - minW
+                                                val ratioPoints = linePoints.mapIndexed { index, weightVal ->
+                                                    val rx = index.toFloat() / (linePoints.size - 1)
+                                                    val pct = ((weightVal - minW) / valRange).toFloat()
+                                                    val ry = 1f - (pct * (46f / 56f) + (5f / 56f))
+                                                    Offset(rx, ry)
+                                                }
+                                                moveTo(ratioPoints.first().x, ratioPoints.first().y)
+                                                for (i in 0 until ratioPoints.size - 1) {
+                                                    val p0 = ratioPoints[i]
+                                                    val p1 = ratioPoints[i + 1]
+                                                    val conPtX1 = (p0.x + p1.x) / 2
+                                                    val conPtY1 = p0.y
+                                                    val conPtX2 = (p0.x + p1.x) / 2
+                                                    val conPtY2 = p1.y
+                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    val fillPath = remember(linePoints) {
+                                        Path().apply {
+                                            if (linePoints.size >= 2) {
+                                                val minW = linePoints.minOrNull() ?: 60.0
+                                                val maxW = linePoints.maxOrNull() ?: 62.0
+                                                val valRange = if (maxW == minW) 1.0 else maxW - minW
+                                                val ratioPoints = linePoints.mapIndexed { index, weightVal ->
+                                                    val rx = index.toFloat() / (linePoints.size - 1)
+                                                    val pct = ((weightVal - minW) / valRange).toFloat()
+                                                    val ry = 1f - (pct * (46f / 56f) + (5f / 56f))
+                                                    Offset(rx, ry)
+                                                }
+                                                moveTo(ratioPoints.first().x, 1f)
+                                                lineTo(ratioPoints.first().x, ratioPoints.first().y)
+                                                for (i in 0 until ratioPoints.size - 1) {
+                                                    val p0 = ratioPoints[i]
+                                                    val p1 = ratioPoints[i + 1]
+                                                    val conPtX1 = (p0.x + p1.x) / 2
+                                                    val conPtY1 = p0.y
+                                                    val conPtX2 = (p0.x + p1.x) / 2
+                                                    val conPtY2 = p1.y
+                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
+                                                }
+                                                lineTo(ratioPoints.last().x, 1f)
+                                                close()
+                                             }
+                                        }
+                                    }
+
                                     Canvas(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1041,49 +1096,21 @@ fun HomeScreen(
                                             Offset(ptX.toFloat(), ptY)
                                         }
 
-                                        // Glow gradient area below spline line
-                                        val gradientPath = Path().apply {
-                                            moveTo(canvasPoints.first().x, size.height)
-                                            lineTo(canvasPoints.first().x, canvasPoints.first().y)
-                                            for (i in 0 until canvasPoints.size - 1) {
-                                                val p0 = canvasPoints[i]
-                                                val p1 = canvasPoints[i + 1]
-                                                val conPtX1 = (p0.x + p1.x) / 2
-                                                val conPtY1 = p0.y
-                                                val conPtX2 = (p0.x + p1.x) / 2
-                                                val conPtY2 = p1.y
-                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
-                                            }
-                                            lineTo(canvasPoints.last().x, size.height)
-                                            close()
-                                        }
-                                        drawPath(
-                                            path = gradientPath,
-                                            brush = Brush.verticalGradient(
-                                                colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
-                                                startY = canvasPoints.minOfOrNull { it.y } ?: 0f,
-                                                endY = size.height
+                                        scale(scaleX = size.width, scaleY = size.height, pivot = Offset.Zero) {
+                                            drawPath(
+                                                path = fillPath,
+                                                brush = Brush.verticalGradient(
+                                                    colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
+                                                    startY = 0f,
+                                                    endY = 1f
+                                                )
                                             )
-                                        )
-
-                                        // Smooth stroke curve
-                                        val chartPath = Path().apply {
-                                            moveTo(canvasPoints.first().x, canvasPoints.first().y)
-                                            for (i in 0 until canvasPoints.size - 1) {
-                                                val p0 = canvasPoints[i]
-                                                val p1 = canvasPoints[i + 1]
-                                                val conPtX1 = (p0.x + p1.x) / 2
-                                                val conPtY1 = p0.y
-                                                val conPtX2 = (p0.x + p1.x) / 2
-                                                val conPtY2 = p1.y
-                                                cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
-                                            }
+                                            drawPath(
+                                                path = linePath,
+                                                color = IndigoAccent,
+                                                style = Stroke(width = 3.dp.toPx() / size.height, cap = StrokeCap.Round)
+                                            )
                                         }
-                                        drawPath(
-                                            path = chartPath,
-                                            color = IndigoAccent,
-                                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                                        )
 
                                         // Point anchor circles on spline line
                                         canvasPoints.forEach { pt ->

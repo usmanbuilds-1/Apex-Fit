@@ -21,6 +21,8 @@ data class GoalTimeline(
 )
 
 object AlgorithmEngine {
+    private var cachedTrendInput: List<WeightEntry>? = null
+    private var cachedTrendResult: List<TrendPoint>? = null
 
     fun estimateLBM(weightKg: Double, heightCm: Double, sex: String): Double {
         // Boer formula (Boer, 1984)
@@ -201,6 +203,10 @@ object AlgorithmEngine {
     // Filters daily water and glycogen fluctuations using a 14-day Exponential Moving Average (EMA).
     // Smoothing coefficient α = 2 / (N + 1) where N = 14 days, giving α ≈ 0.133.
     fun calcTrendWeight(log: List<WeightEntry>): List<TrendPoint> {
+        if (log === cachedTrendInput) {
+            val cached = cachedTrendResult
+            if (cached != null) return cached
+        }
         if (log.isEmpty()) return emptyList()
 
         val dailyAveraged = log
@@ -221,6 +227,8 @@ object AlgorithmEngine {
                     Math.round(trend * 100.0) / 100.0))
             }
         }
+        cachedTrendInput = log
+        cachedTrendResult = result
         return result
     }
 
@@ -560,8 +568,12 @@ object AlgorithmEngine {
     }
 
     // ── DELOAD PLANNER ────────────────────────────────────────
-    fun calcDeloadRecommendation(trainingLog: List<TrainingSession>, complianceScore: Int): DeloadResult {
-        val fatigue = calcFatigueToFitness(trainingLog)
+    fun calcDeloadRecommendation(
+        trainingLog: List<TrainingSession>,
+        complianceScore: Int,
+        precomputedFatigue: FatigueResult? = null
+    ): DeloadResult {
+        val fatigue = precomputedFatigue ?: calcFatigueToFitness(trainingLog)
         val recent6 = trainingLog.filter { it.completed }.sortedByDescending { it.date }.take(6)
         val avgFeel = recent6.map { it.sessionFeel }.average().takeIf { !it.isNaN() } ?: 3.0
         var signals = 0
@@ -595,7 +607,10 @@ object AlgorithmEngine {
     }
 
     // ── INJURY RISK SIGNALS ───────────────────────────────────
-    fun detectInjuryRiskSignals(trainingLog: List<TrainingSession>): List<String> {
+    fun detectInjuryRiskSignals(
+        trainingLog: List<TrainingSession>,
+        precomputedFatigue: FatigueResult? = null
+    ): List<String> {
         val signals = mutableListOf<String>()
         val recent = trainingLog.filter { it.completed }.sortedByDescending { it.date }.take(6)
 
@@ -605,7 +620,7 @@ object AlgorithmEngine {
         
         if (highRPEDays >= 4) signals.add("High intensity clustering — heavy RPE sets performed on $highRPEDays distinct days recently")
 
-        val fatigue = calcFatigueToFitness(trainingLog)
+        val fatigue = precomputedFatigue ?: calcFatigueToFitness(trainingLog)
         if ((fatigue.ratio ?: 0.0) >= 1.5) signals.add("Volume load too high relative to baseline — back off this week")
 
         val muscleDays = mutableMapOf<String, MutableSet<String>>()

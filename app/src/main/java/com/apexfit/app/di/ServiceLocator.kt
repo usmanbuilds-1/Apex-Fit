@@ -21,9 +21,11 @@ import kotlin.math.roundToInt
 import com.apexfit.app.utils.AlgorithmEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.flatMapLatest
+import com.apexfit.app.data.PlanSession
+import com.apexfit.app.data.WorkoutPlan
 import kotlinx.coroutines.Dispatchers
 
 object ServiceLocator {
@@ -63,7 +65,7 @@ object ServiceLocator {
 
     val weightEntriesFlow: StateFlow<List<com.apexfit.app.utils.WeightEntry>> by lazy {
         val dao = database(appContext).fitnessDao()
-        dao.getAllWeightEntriesFlow()
+        dao.getWeightEntriesSinceFlow(com.apexfit.app.utils.getDateDaysAgo(90))
             .flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
@@ -138,14 +140,18 @@ object ServiceLocator {
         //                 We intentionally do NOT apply suggestCaloricTarget here;
         //                 rings show raw TDEE, coaching shows goal-adjusted — that
         //                 divergence is a documented product decision (§9).
-        val completedTodayFlow: Flow<Int> = flow {
-            while (true) {
-                emit(dao.getRecentCompletedSessions(
-                    com.apexfit.app.utils.DateTimeUtils.todayDateString()
-                ).size)
-                kotlinx.coroutines.delay(30_000L)
+        val completedTodayFlow: Flow<Int> = dao
+            .getCompletedSessionCountFlow(com.apexfit.app.utils.DateTimeUtils.todayDateString())
+            .distinctUntilChanged()
+
+        val activePlanFlow: kotlinx.coroutines.flow.Flow<com.apexfit.app.data.WorkoutPlan?> =
+            dao.getActivePlanFlow()
+
+        val activePlanSessionsFlow: kotlinx.coroutines.flow.Flow<List<com.apexfit.app.data.PlanSession>> =
+            activePlanFlow.flatMapLatest { plan ->
+                if (plan != null) dao.getSessionsForPlanFlow(plan.id)
+                else kotlinx.coroutines.flow.flowOf(emptyList())
             }
-        }.distinctUntilChanged()
 
         @Suppress("UNCHECKED_CAST")
         combine(
@@ -158,18 +164,22 @@ object ServiceLocator {
             ds.sexFlow,
             ds.weeklyWorkoutsFlow,
             ds.goalWeightFlow,
-            completedTodayFlow
+            completedTodayFlow,
+            activePlanSessionsFlow
         ) { values ->
-            val isManual       = values[0] as Boolean
-            val manualCals     = values[1] as Int
-            val goal           = values[2] as String
-            val weights        = values[3] as List<WeightEntry>
-            val heightCm       = values[4] as Double
-            val age            = values[5] as Int
-            val sex            = values[6] as String
-            val weeklyWorkouts = values[7] as Int
-            val goalWeight     = values[8] as Double
+            val isManual            = values[0] as Boolean
+            val manualCals          = values[1] as Int
+            val goal                = values[2] as String
+            @Suppress("UNCHECKED_CAST")
+            val weights             = values[3] as List<WeightEntry>
+            val heightCm            = values[4] as Double
+            val age                 = values[5] as Int
+            val sex                 = values[6] as String
+            val weeklyWorkouts      = values[7] as Int
+            val goalWeight          = values[8] as Double
             val completedTodayCount = values[9] as Int
+            @Suppress("UNCHECKED_CAST")
+            val planSessions        = values[10] as List<com.apexfit.app.data.PlanSession>
 
             val latestWeight = weights.maxByOrNull { it.date }?.weight
                 ?: com.apexfit.app.UserDefaults.WEIGHT_KG
@@ -211,8 +221,6 @@ object ServiceLocator {
             )
 
             val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
-            val activePlan = dao.getActivePlan()
-            val planSessions = if (activePlan != null) dao.getSessionsForPlan(activePlan.id) else emptyList()
             val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
             val isPlannedTraining = todayPlanned != null &&
                 !todayPlanned.label.contains("Rest", ignoreCase = true) &&

@@ -135,10 +135,6 @@ fun ApexFitApp(
     val coroutineScope = rememberCoroutineScope()
 
     val isOnboarded by fitnessViewModel.isOnboarded.collectAsStateWithLifecycle()
-    val username by fitnessViewModel.username.collectAsStateWithLifecycle()
-    val goal by fitnessViewModel.goal.collectAsStateWithLifecycle()
-    val weight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
-    val gWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
     val activeTab by fitnessViewModel.currentTab.collectAsStateWithLifecycle()
 
     val navController = rememberNavController()
@@ -255,32 +251,8 @@ fun ApexFitApp(
 
     LaunchedEffect(currentRoute) {
         val tab = routes.indexOf(currentRoute)
-        if (tab != -1) {
+        if (tab != -1 && tab != fitnessViewModel.currentTab.value) {
             fitnessViewModel.selectTab(tab)
-        }
-    }
-
-    // Drive navigation from external tab changes (deep links, notifications)
-    LaunchedEffect(activeTab) {
-        val targetRoute = when (activeTab) {
-            0 -> "home"
-            1 -> "train"
-            2 -> "nutrition"
-            3 -> "progress"
-            else -> return@LaunchedEffect
-        }
-        var attempts = 0
-        while (navController.currentDestination == null && attempts < 20) {
-            kotlinx.coroutines.delay(100)
-            attempts++
-        }
-        if (navController.currentDestination == null) return@LaunchedEffect
-        if (navController.currentDestination?.route != targetRoute) {
-            navController.navigate(targetRoute) {
-                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
         }
     }
 
@@ -351,15 +323,13 @@ fun ApexFitApp(
                 if (currentRoute != "plan_builder") {
                     BottomNavBar(
                         activeTab = activeTab,
-                        onTabSelected = {
+                        onTabSelected = { index ->
                             trainViewModel.closeRestTimer()
                             trainViewModel.closeRirSelector()
                             trainViewModel.dismissSessionComplete()
-                            val route = routes.getOrNull(it) ?: "home"
+                            val route = routes[index]
                             navController.navigate(route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                 launchSingleTop = true
                                 restoreState = true
                             }

@@ -14,6 +14,9 @@ interface FitnessDao {
     @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
     fun getAllWeightEntriesFlow(): Flow<List<WeightEntry>>
 
+    @Query("SELECT * FROM body_weights WHERE date >= :since ORDER BY date DESC, time DESC")
+    fun getWeightEntriesSinceFlow(since: String): Flow<List<WeightEntry>>
+
     @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
     suspend fun getAllWeightEntries(): List<WeightEntry>
 
@@ -450,6 +453,9 @@ interface FitnessDao {
             insertPersonalRecord(pr)
         }
     }
+
+    @Query("SELECT COUNT(*) FROM workout_sessions WHERE date = :date AND completed = 1")
+    fun getCompletedSessionCountFlow(date: String): Flow<Int>
 }
 
 /**

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 22,
-    "identityHash": "82c1221e4b79b2c497795f232dff938f",
+    "identityHash": "79f42944f02fc24f34ae2b51e61bc3a2",
     "entities": [
       {
         "tableName": "body_weights",
@@ -44,7 +44,18 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_body_weights_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_body_weights_date` ON `${TABLE_NAME}` (`date`)"
+          }
+        ]
       },
       {
         "tableName": "nutrition_logs",
@@ -209,6 +220,24 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_date` ON `${TABLE_NAME}` (`date`)"
+          },
+          {
+            "name": "index_workout_sessions_completed",
+            "unique": false,
+            "columnNames": [
+              "completed"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_completed` ON `${TABLE_NAME}` (`completed`)"
+          },
+          {
+            "name": "index_workout_sessions_sessionType",
+            "unique": false,
+            "columnNames": [
+              "sessionType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_sessionType` ON `${TABLE_NAME}` (`sessionType`)"
           }
         ]
       },
@@ -425,7 +454,27 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_workout_programs_isActive",
+            "unique": false,
+            "columnNames": [
+              "isActive"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_programs_isActive` ON `${TABLE_NAME}` (`isActive`)"
+          },
+          {
+            "name": "index_workout_programs_createdAt",
+            "unique": false,
+            "columnNames": [
+              "createdAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_programs_createdAt` ON `${TABLE_NAME}` (`createdAt`)"
+          }
+        ]
       },
       {
         "tableName": "plan_sessions",
@@ -702,7 +751,27 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_body_measurements_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_body_measurements_date` ON `${TABLE_NAME}` (`date`)"
+          },
+          {
+            "name": "index_body_measurements_bodyPart",
+            "unique": false,
+            "columnNames": [
+              "bodyPart"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_body_measurements_bodyPart` ON `${TABLE_NAME}` (`bodyPart`)"
+          }
+        ]
       },
       {
         "tableName": "detected_patterns",
@@ -945,7 +1014,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '82c1221e4b79b2c497795f232dff938f')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '79f42944f02fc24f34ae2b51e61bc3a2')"
     ]
   }
 }

@@ -153,51 +153,34 @@ class WorkoutSessionManager(
 
         // Calculate per-muscle readiness
         val readinessScore = try {
-            val cutoff = com.apexfit.app.utils.getDateDaysAgo(90)
-            val sessionsRaw = repository.getRecentCompletedSessions(cutoff)
-            val setsRaw = repository.getRecentExerciseSets(cutoff)
-            android.util.Log.d("WorkoutSessionManager", "Loaded bounded recent sessions, count: ${sessionsRaw.size}")
-            
-            // AUDIT FIX (BUG-V4-013): load secondary muscles once per session start
-            val exerciseIds = setsRaw.map { it.exerciseId }.distinct()
-            val secondaryMusclesMap: Map<String, List<String>> = dao.getExercisesByIds(exerciseIds)
-                .associate { ex ->
-                    val secondaries = ex.secondaryMuscles
-                    ex.id to secondaries
+            // Read the already-cached rich sessions — no DB round-trip needed
+            val completedRichSessions = com.apexfit.app.di.ServiceLocator.richSessionsFlow.value
+                .map { rs ->
+                    com.apexfit.app.utils.TrainingSession(
+                        date = rs.date,
+                        sessionType = rs.sessionType,
+                        completed = rs.completed,
+                        sessionFeel = rs.sessionFeel,
+                        durationMinutes = rs.durationMinutes,
+                        exercises = rs.exercises.map { exercise ->
+                            com.apexfit.app.utils.ExerciseLog(
+                                id = exercise.id,
+                                name = exercise.name,
+                                muscleGroup = exercise.muscleGroup,
+                                secondaryMuscles = exercise.secondaryMuscles,
+                                sets = exercise.sets.map { s ->
+                                    com.apexfit.app.utils.ExerciseSet(
+                                        weight = s.weight,
+                                        reps = s.reps,
+                                        rpe = s.rpe,
+                                        isWarmup = s.isWarmup,
+                                        completed = s.completed
+                                    )
+                                }
+                            )
+                        }
+                    )
                 }
-
-            // Build rich sessions
-            val setsBySession = setsRaw.groupBy { it.sessionId }
-            val completedRichSessions = sessionsRaw.map { sessionObj ->
-                val sessionSets = setsBySession[sessionObj.id] ?: emptyList()
-                val sessionExercises = sessionSets
-                    .groupBy { it.exerciseId }
-                    .map { (exerciseId, exSets) ->
-                        com.apexfit.app.utils.ExerciseLog(
-                            id = exerciseId,
-                            name = exSets.first().exerciseName,
-                            muscleGroup = exSets.first().muscleGroup,
-                            secondaryMuscles = secondaryMusclesMap[exerciseId] ?: emptyList(), // AUDIT FIX (BUG-V4-013)
-                            sets = exSets.map { s ->
-                                com.apexfit.app.utils.ExerciseSet(
-                                    weight = s.weight,
-                                    reps = s.reps,
-                                    rpe = s.rpe,
-                                    isWarmup = s.isWarmup,
-                                    completed = s.completed
-                                )
-                            }
-                        )
-                    }
-                com.apexfit.app.utils.TrainingSession(
-                    date = sessionObj.date,
-                    sessionType = sessionObj.sessionType,
-                    completed = sessionObj.completed,
-                    sessionFeel = sessionObj.sessionFeel,
-                    durationMinutes = sessionObj.durationMinutes,
-                    exercises = sessionExercises
-                )
-            }
 
             // Parallel reads: launch all three concurrently and await together
             val nutritionLogDeferred = async { repository.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList() }

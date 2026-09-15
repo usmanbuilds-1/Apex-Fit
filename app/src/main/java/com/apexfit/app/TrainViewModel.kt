@@ -12,6 +12,7 @@ import com.apexfit.app.utils.AudioService
 import com.apexfit.app.utils.ProgressionEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -59,19 +60,19 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // User weight from preferences for relative calculations
-    val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.UserDefaults.WEIGHT_KG)
-    val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), com.apexfit.app.UserDefaults.HEIGHT_CM)
-    val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), "kg")
+    val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
+    val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.HEIGHT_CM)
+    val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "kg")
 
-    val equipmentAvailable = dataStore.equipmentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), "Barbell,Dumbbell,Cable,Machine")
+    val equipmentAvailable = dataStore.equipmentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Barbell,Dumbbell,Cable,Machine")
 
     val exerciseLibrary: StateFlow<UiState<List<Exercise>>> = dao.getAllExercisesFlow()
         .map { UiState.Success(it) as UiState<List<Exercise>> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     // Training State (Plans, Sessions)
-    val workoutPlans = repository.getWorkoutPlans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
+    val workoutPlans = repository.getWorkoutPlans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val baseActivePlan = repository.getActivePlan()
     private val baseActivePlanSessions = baseActivePlan.flatMapLatest { plan ->
         if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
@@ -80,12 +81,12 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     val activePlan: StateFlow<UiState<WorkoutPlan?>> = baseActivePlan
         .map { UiState.Success(it) as UiState<WorkoutPlan?> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     val activePlanSessions: StateFlow<UiState<List<PlanSession>>> = baseActivePlanSessions
         .map { UiState.Success(it) as UiState<List<PlanSession>> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     // Plan Builder Editing State
     val planBuilderSessions = MutableStateFlow<List<PlanSession>>(emptyList())
@@ -177,15 +178,15 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedDayOfWeek: StateFlow<String> = _selectedDayOfWeek.asStateFlow()
 
     val allPlanExercises = dao.getAllPlanExercisesFlow()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val selectedDaySession = combine(baseActivePlanSessions, _selectedDayOfWeek) { sessions, day ->
         sessions.firstOrNull { it.day.equals(day, ignoreCase = true) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), null)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val selectedDayExercises = selectedDaySession.flatMapLatest { session ->
         if (session != null) repository.getExercisesForSession(session.id) else flowOf(emptyList())
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val todayExercises: StateFlow<UiState<List<PlanExercise>>> = baseActivePlanSessions.flatMapLatest { sessions ->
         val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
@@ -194,7 +195,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
     .map { UiState.Success(it) as UiState<List<PlanExercise>> }
     .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), UiState.Loading)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun selectDay(day: String) {
         _selectedDayOfWeek.value = day
@@ -240,7 +241,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             null
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), null)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val activeExercises: StateFlow<List<PlanExercise>> = sessionManager.activeSession.map { active ->
         active?.exercises?.map { entry ->
@@ -257,7 +258,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 notes = ""
             )
         } ?: emptyList()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyList())
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _currentExerciseIdx = MutableStateFlow(0)
     val currentExerciseIdx: StateFlow<Int> = _currentExerciseIdx.asStateFlow()
@@ -284,7 +285,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             emptyMap()
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyMap())
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val weightContextLines: StateFlow<Map<String, String>> = sessionManager.weightContextLines
 
@@ -324,7 +325,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(500), emptyMap())
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     // Warmup Checklist
     private val _warmupCompleted = MutableStateFlow<Map<String, Boolean>>(

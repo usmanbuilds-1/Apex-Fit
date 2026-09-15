@@ -110,10 +110,14 @@ object AudioService {
                 audioTrack = currentTrack
                 currentTrack.write(generatedSnd, 0, numSamples)
                 currentTrack.play()
-                delay(durationMs.toLong() + 50)
-                currentTrack.release()
-                if (audioTrack == currentTrack) {
-                    audioTrack = null
+                try {
+                    delay(durationMs.toLong() + 50)
+                    currentTrack.stop()
+                } finally {
+                    currentTrack.release()
+                    if (audioTrack == currentTrack) {
+                        audioTrack = null
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("ApexFit", "Error in playSynthesizedAudioTone: ${e.message}", e)
