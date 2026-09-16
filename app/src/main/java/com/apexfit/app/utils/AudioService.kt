@@ -39,7 +39,20 @@ object AudioService {
         }
     }
 
-    suspend fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int, usage: Int = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType: Int = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION) {
+    suspend fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int, context: android.content.Context? = null, usage: Int = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType: Int = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION) {
+        val audioManager = context?.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+        val focusRequest = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && audioManager != null) {
+            android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(usage)
+                        .setContentType(contentType)
+                        .build()
+                )
+                .build()
+                .also { audioManager.requestAudioFocus(it) }
+        } else null
+        try {
         audioMutex.withLock {
             try {
                 val sampleRate = 8000
@@ -121,6 +134,11 @@ object AudioService {
                 }
             } catch (e: Exception) {
                 android.util.Log.e("ApexFit", "Error in playSynthesizedAudioTone: ${e.message}", e)
+            }
+        }
+        } finally {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                focusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
             }
         }
     }

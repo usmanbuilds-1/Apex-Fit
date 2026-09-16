@@ -58,7 +58,7 @@ object ServiceLocator {
         }
         .stateIn(
             scope = appScope,
-            started = SharingStarted.Eagerly,
+            started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
     }
@@ -69,7 +69,7 @@ object ServiceLocator {
             .flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
-                started = SharingStarted.Eagerly,
+                started = SharingStarted.WhileSubscribed(5000),
                 initialValue = emptyList()
             )
     }
@@ -82,7 +82,7 @@ object ServiceLocator {
             .flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
-                started = SharingStarted.Eagerly,
+                started = SharingStarted.WhileSubscribed(5000),
                 initialValue = emptyList()
             )
     }
@@ -121,6 +121,7 @@ object ServiceLocator {
                 null
             }
         }
+        .flowOn(Dispatchers.IO)
         .stateIn(
             scope = appScope,
             started = SharingStarted.WhileSubscribed(5000),

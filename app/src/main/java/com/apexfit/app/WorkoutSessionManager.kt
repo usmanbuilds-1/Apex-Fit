@@ -219,6 +219,9 @@ class WorkoutSessionManager(
             .groupBy { it.exerciseId }
             .mapValues { it.value.first() }
 
+        val allExerciseSlugs = exercises.map { exerciseNameToSlug(it.name) }
+        val allHistorySets = repository.getLastSetsForExercises(allExerciseSlugs).groupBy { it.exerciseId }
+
         exercises.forEach { ex ->
             val exerciseUnit = ex.weightUnit.ifBlank { preferredUnits }
             val lastSet = lastSets[exerciseNameToSlug(ex.name)]
@@ -253,7 +256,7 @@ class WorkoutSessionManager(
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                val _allSets = repository.getLastSetsForExercise(exerciseNameToSlug(ex.name))
+                val _allSets = allHistorySets[exerciseNameToSlug(ex.name)] ?: emptyList()
                     .filter { !it.isWarmup && it.completed }
                 val _latestSessionId = _allSets.firstOrNull()?.sessionId
                 val allLastSets = if (_latestSessionId != null) {
@@ -489,7 +492,12 @@ class WorkoutSessionManager(
      * to show the PR badge in the UI.
      */
     suspend fun checkPRPreview(exerciseId: String, weight: Double, reps: Int) {
-        val prs = repository.getPRsForExercise(exerciseId)
+        val prs = try {
+            repository.getPRsForExercise(exerciseId)
+        } catch (e: Exception) {
+            android.util.Log.e("ApexFit", "checkPRPreview DB read failed", e)
+            return
+        }
         val currentMaxWeight = prs.firstOrNull { it.type == "max_weight" }?.value ?: 0.0
         val currentEstimated1RM = prs.firstOrNull { it.type == "estimated_1rm" }?.value ?: 0.0
         val newEstimated1RM = weight * (1.0 + reps / 30.0)
@@ -569,7 +577,12 @@ class WorkoutSessionManager(
         )
 
         // Single atomic transaction — both rows or neither
-        val prs = evaluatePRs(allSets)
+        val prs = try {
+            evaluatePRs(allSets)
+        } catch (e: Exception) {
+            android.util.Log.e("ApexFit", "evaluatePRs failed, proceeding with no PRs", e)
+            emptyList()
+        }
         repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
 
         val db = ServiceLocator.database(appContext)

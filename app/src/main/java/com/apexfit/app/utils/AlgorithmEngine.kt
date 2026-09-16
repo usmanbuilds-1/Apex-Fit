@@ -386,11 +386,11 @@ object AlgorithmEngine {
 
         val dayNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
         val dayScores = mutableMapOf<String, Pair<Int,Int>>()
-        recentNutrition.groupBy { it.date }.forEach { (dateStr, entries) ->
+        val groupedByDate = recentNutrition.groupBy { it.date }
+        groupedByDate.forEach { (dateStr, entries) ->
             try {
-                val cal = java.util.Calendar.getInstance()
-                cal.time = com.apexfit.app.utils.DateTimeUtils.parseDate(dateStr) ?: return@forEach
-                val day = dayNames[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+                val dow = java.time.LocalDate.parse(dateStr).dayOfWeek.value % 7
+                val day = dayNames[dow]
                 val current = dayScores[day] ?: Pair(0, 0)
                 val totalCal = entries.sumOf { it.calories }
                 val totalProtein = entries.sumOf { it.protein }

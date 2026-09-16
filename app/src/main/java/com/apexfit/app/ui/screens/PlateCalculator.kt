@@ -203,8 +203,8 @@ fun PlateCalculatorCard(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 2.dp)
                     ) {
+                        val maxPlateWeight = loadedPlates.maxOfOrNull { it.weight } ?: 1.0
                         loadedPlates.forEach { plate ->
-                            val maxPlateWeight = loadedPlates.maxOfOrNull { it.weight } ?: 1.0
                             val heightFactor = (0.40f + (0.55f * (plate.weight / maxPlateWeight).toFloat()))
                                 .coerceIn(0.40f, 0.95f)
 

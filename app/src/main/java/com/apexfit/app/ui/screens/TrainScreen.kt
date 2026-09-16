@@ -828,6 +828,18 @@ fun WorkoutExecutionSubTab(
             modifier = Modifier.fillMaxSize()
         ) {
             // Warmup checklist card
+            item {
+                PremiumCard(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "PRE-SESSION WARMUP CHECKLIST",
+                        fontFamily = SyneFamily,
+                        fontSize = 10.sp,
+                        color = AmberAccent,
+                        letterSpacing = 1.5.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            }
             items(warmupComp.toList(), key = { it.first }) { (item, comp) ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -968,22 +980,22 @@ fun WorkoutExecutionSubTab(
                     val weightMax = if (unitSuffix.lowercase() in listOf("lb","lbs")) 660.0 else 300.0
 
                     // Commit helpers — call when editing finishes (focus loss or explicit commit)
-                    val commitWeight: () -> Unit = {
+                    val commitWeight: () -> Unit = remember(set, trainViewModel) { {
                         val w = rawWeight.toDoubleOrNull()
                         if (w != null && w in weightMin..weightMax) {
                             val r = rawReps.toIntOrNull() ?: setObj.reps
                             trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, 
                                 setObj.completed, restTakenSeconds = setObj.restTaken)
                         }
-                    }
-                    val commitReps: () -> Unit = {
+                    } }
+                    val commitReps: () -> Unit = remember(set, trainViewModel) { {
                         val r = rawReps.toIntOrNull()
                         if (r != null && r in 1..50) {
                             val w = rawWeight.toDoubleOrNull() ?: setObj.weight
                             trainViewModel.logWorkoutSetState(ex.exerciseId, sIdx, w, r, selectedRpe, 
                                 setObj.completed, restTakenSeconds = setObj.restTaken)
                         }
-                    }
+                    } }
 
                     val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in weightMin..weightMax } ?: false
                     val isRepsValid = rawReps.toIntOrNull()?.let { it in 1..50 } ?: false

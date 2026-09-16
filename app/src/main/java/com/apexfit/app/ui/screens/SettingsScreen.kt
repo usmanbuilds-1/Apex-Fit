@@ -663,7 +663,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Privacy Policy", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
-                Icon(Icons.Filled.OpenInNew, contentDescription = null,
+                Icon(Icons.Filled.OpenInNew, contentDescription = "Opens Privacy Policy in browser",
                     tint = SecondaryText, modifier = Modifier.size(16.dp))
             }
         }
@@ -704,7 +704,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Terms of Service", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
-                Icon(Icons.Filled.OpenInNew, contentDescription = null,
+                Icon(Icons.Filled.OpenInNew, contentDescription = "Opens Terms of Service in browser",
                     tint = SecondaryText, modifier = Modifier.size(16.dp))
             }
         }

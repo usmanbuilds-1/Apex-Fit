@@ -99,6 +99,9 @@ class FitnessRepositoryImpl(
     override suspend fun getLastSetsForExercise(exerciseId: String): List<com.apexfit.app.data.ExerciseSet> =
         dao.getLastSetsForExercise(exerciseId)
 
+    override suspend fun getLastSetsForExercises(exerciseIds: List<String>): List<ExerciseSet> =
+        dao.getLastSetsForExercises(exerciseIds)
+
     override suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord> {
         return dao.getPRsForExercise(exerciseId)
     }

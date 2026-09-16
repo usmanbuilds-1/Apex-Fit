@@ -28,6 +28,8 @@ import com.apexfit.app.TrainViewModel
 import com.apexfit.app.ui.theme.*
 import kotlin.math.roundToInt
 
+private val RIR_OPTIONS = listOf(0, 1, 2, 3, 4, 5)
+
 @Composable
 fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainViewModel) {
     val seconds by trainViewModel.restTimerSeconds.collectAsStateWithLifecycle()
@@ -151,7 +153,6 @@ private fun formatTimerTime(seconds: Int): String {
 
 @Composable
 fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainViewModel) {
-    val rirOptions = listOf(0, 1, 2, 3, 4, 5)
     val selectedRir by trainViewModel.selectedRir.collectAsStateWithLifecycle()
     val weight by trainViewModel.rirSelectorWeight.collectAsStateWithLifecycle()
     val reps by trainViewModel.rirSelectorReps.collectAsStateWithLifecycle()
@@ -209,7 +210,7 @@ fun RirSelectorOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: Train
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        rirOptions.forEach { rir ->
+                        RIR_OPTIONS.forEach { rir ->
                             val isSelected = selectedRir == rir
                             Box(
                                 modifier = Modifier
@@ -321,9 +322,10 @@ fun SessionCompleteOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: T
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val sessionDuration = sessionStats.first
 
-    val totalVolume = sessionSets.filter { !it.isWarmup }.sumOf { it.weight * it.reps }
-    val totalSets = sessionSets.filter { !it.isWarmup }.size
-    val totalReps = sessionSets.filter { !it.isWarmup }.sumOf { it.reps }
+    val (totalVolume, totalSets, totalReps) = remember(sessionSets) {
+        val workSets = sessionSets.filter { !it.isWarmup }
+        Triple(workSets.sumOf { it.weight * it.reps }, workSets.size, workSets.sumOf { it.reps })
+    }
 
     Box(
         modifier = Modifier

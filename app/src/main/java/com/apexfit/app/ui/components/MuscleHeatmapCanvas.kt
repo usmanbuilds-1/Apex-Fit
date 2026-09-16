@@ -58,6 +58,7 @@ fun SingleFrontHeatmapCanvas(
 ) {
     var cachedSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
     var cachedPath by remember { mutableStateOf<Path?>(null) }
+    val colorMap = remember(heatmap) { heatmap.mapValues { (_, entry) -> entry.toColorPair() } }
     Canvas(
         modifier = modifier.semantics {
             contentDescription = buildHeatmapDescription(heatmap, "front")
@@ -67,7 +68,7 @@ fun SingleFrontHeatmapCanvas(
             cachedPath = buildBodySilhouette(size.width, size.height)
             cachedSize = size
         }
-        drawFrontView(heatmap, prebuiltSilhouette = cachedPath)
+        drawFrontView(heatmap, prebuiltSilhouette = cachedPath, colorMap = colorMap)
     }
 }
 
@@ -76,6 +77,7 @@ fun MuscleHeatmapCanvas(
     heatmap: Map<String, HeatmapEntry>,
     modifier: Modifier = Modifier
 ) {
+    val colorMap = remember(heatmap) { heatmap.mapValues { (_, entry) -> entry.toColorPair() } }
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -111,7 +113,7 @@ fun MuscleHeatmapCanvas(
                         cachedPath = buildBodySilhouette(size.width, size.height)
                         cachedSize = size
                     }
-                    drawFrontView(heatmap, prebuiltSilhouette = cachedPath)
+                    drawFrontView(heatmap, prebuiltSilhouette = cachedPath, colorMap = colorMap)
                 }
             }
 
@@ -143,7 +145,7 @@ fun MuscleHeatmapCanvas(
                         cachedPath = buildBodySilhouette(size.width, size.height)
                         cachedSize = size
                     }
-                    drawBackView(heatmap, prebuiltSilhouette = cachedPath)
+                    drawBackView(heatmap, prebuiltSilhouette = cachedPath, colorMap = colorMap)
                 }
             }
         }
@@ -182,22 +184,22 @@ private fun Map<String, HeatmapEntry>.getMuscle(key: String): HeatmapEntry? {
     }
 }
 
-private fun DrawScope.drawFrontView(heatmap: Map<String, HeatmapEntry>, prebuiltSilhouette: Path? = null) {
+private fun DrawScope.drawFrontView(heatmap: Map<String, HeatmapEntry>, prebuiltSilhouette: Path? = null, colorMap: Map<String, Pair<Color, Float>> = emptyMap()) {
     val w = size.width; val h = size.height
     drawBodyStructure(w, h, prebuiltSilhouette)
 
     // Lats (back) visible at the sides on the front view
-    val back = heatmap.getMuscle("back").toColorPair()
+    val back = colorMap["back"] ?: heatmap.getMuscle("back").toColorPair()
     drawLat(w, h, isLeft = true, back)
     drawLat(w, h, isLeft = false, back)
 
     // Chest — overlapping ovals create a natural pec shape
-    val chest = heatmap.getMuscle("chest").toColorPair()
+    val chest = colorMap["chest"] ?: heatmap.getMuscle("chest").toColorPair()
     drawOvalMuscle(w * 0.370f, h * 0.248f, w * 0.092f, h * 0.068f, chest)
     drawOvalMuscle(w * 0.630f, h * 0.248f, w * 0.092f, h * 0.068f, chest)
 
     // Core — 3 pairs of oval segments
-    val core = heatmap.getMuscle("core").toColorPair()
+    val core = colorMap["core"] ?: heatmap.getMuscle("core").toColorPair()
     drawOvalMuscle(w * 0.440f, h * 0.370f, w * 0.062f, h * 0.038f, core)
     drawOvalMuscle(w * 0.560f, h * 0.370f, w * 0.062f, h * 0.038f, core)
     drawOvalMuscle(w * 0.440f, h * 0.425f, w * 0.062f, h * 0.036f, core)
@@ -206,24 +208,24 @@ private fun DrawScope.drawFrontView(heatmap: Map<String, HeatmapEntry>, prebuilt
     drawOvalMuscle(w * 0.560f, h * 0.476f, w * 0.058f, h * 0.034f, core)
 
     // Shoulders (Front + Side delts)
-    val shoulders = heatmap.getMuscle("shoulders").toColorPair()
+    val shoulders = colorMap["shoulders"] ?: heatmap.getMuscle("shoulders").toColorPair()
     drawOvalMuscle(w * 0.238f, h * 0.200f, w * 0.062f, h * 0.048f, shoulders)
     drawOvalMuscle(w * 0.762f, h * 0.200f, w * 0.062f, h * 0.048f, shoulders)
     drawOvalMuscle(w * 0.172f, h * 0.215f, w * 0.042f, h * 0.062f, shoulders)
     drawOvalMuscle(w * 0.828f, h * 0.215f, w * 0.042f, h * 0.062f, shoulders)
 
     // Biceps (inner upper arm)
-    val biceps = heatmap.getMuscle("biceps").toColorPair()
+    val biceps = colorMap["biceps"] ?: heatmap.getMuscle("biceps").toColorPair()
     drawOvalMuscle(w * 0.185f, h * 0.318f, w * 0.035f, h * 0.082f, biceps)
     drawOvalMuscle(w * 0.815f, h * 0.318f, w * 0.035f, h * 0.082f, biceps)
 
     // Triceps (outer upper arm in front view)
-    val triceps = heatmap.getMuscle("triceps").toColorPair()
+    val triceps = colorMap["triceps"] ?: heatmap.getMuscle("triceps").toColorPair()
     drawOvalMuscle(w * 0.145f, h * 0.325f, w * 0.030f, h * 0.078f, triceps)
     drawOvalMuscle(w * 0.855f, h * 0.325f, w * 0.030f, h * 0.078f, triceps)
 
     // Quads — 2 visible heads per leg
-    val quads = heatmap.getMuscle("quads").toColorPair()
+    val quads = colorMap["quads"] ?: heatmap.getMuscle("quads").toColorPair()
     drawOvalMuscle(w * 0.330f, h * 0.645f, w * 0.052f, h * 0.082f, quads)
     drawOvalMuscle(w * 0.388f, h * 0.638f, w * 0.048f, h * 0.082f, quads)
     drawOvalMuscle(w * 0.612f, h * 0.638f, w * 0.048f, h * 0.082f, quads)
@@ -234,35 +236,35 @@ private fun DrawScope.drawFrontView(heatmap: Map<String, HeatmapEntry>, prebuilt
 // BACK VIEW
 // ─────────────────────────────────────────────────────────────────
 
-private fun DrawScope.drawBackView(heatmap: Map<String, HeatmapEntry>, prebuiltSilhouette: Path? = null) {
+private fun DrawScope.drawBackView(heatmap: Map<String, HeatmapEntry>, prebuiltSilhouette: Path? = null, colorMap: Map<String, Pair<Color, Float>> = emptyMap()) {
     val w = size.width; val h = size.height
     drawBodyStructure(w, h, prebuiltSilhouette)
 
-    val back = heatmap.getMuscle("back").toColorPair()
+    val back = colorMap["back"] ?: heatmap.getMuscle("back").toColorPair()
     drawTrapezius(w, h, back)
     drawLat(w, h, isLeft = true, back)
     drawLat(w, h, isLeft = false, back)
 
     // Shoulders
-    val shoulders = heatmap.getMuscle("shoulders").toColorPair()
+    val shoulders = colorMap["shoulders"] ?: heatmap.getMuscle("shoulders").toColorPair()
     drawOvalMuscle(w * 0.238f, h * 0.205f, w * 0.065f, h * 0.046f, shoulders)
     drawOvalMuscle(w * 0.762f, h * 0.205f, w * 0.065f, h * 0.046f, shoulders)
     drawOvalMuscle(w * 0.172f, h * 0.215f, w * 0.042f, h * 0.062f, shoulders)
     drawOvalMuscle(w * 0.828f, h * 0.215f, w * 0.042f, h * 0.062f, shoulders)
 
-    val triceps = heatmap.getMuscle("triceps").toColorPair()
+    val triceps = colorMap["triceps"] ?: heatmap.getMuscle("triceps").toColorPair()
     drawOvalMuscle(w * 0.172f, h * 0.318f, w * 0.048f, h * 0.082f, triceps)
     drawOvalMuscle(w * 0.828f, h * 0.318f, w * 0.048f, h * 0.082f, triceps)
 
-    val glutes = heatmap.getMuscle("glutes").toColorPair()
+    val glutes = colorMap["glutes"] ?: heatmap.getMuscle("glutes").toColorPair()
     drawOvalMuscle(w * 0.378f, h * 0.592f, w * 0.082f, h * 0.068f, glutes)
     drawOvalMuscle(w * 0.622f, h * 0.592f, w * 0.082f, h * 0.068f, glutes)
 
-    val hamstrings = heatmap.getMuscle("hamstrings").toColorPair()
+    val hamstrings = colorMap["hamstrings"] ?: heatmap.getMuscle("hamstrings").toColorPair()
     drawOvalMuscle(w * 0.370f, h * 0.672f, w * 0.068f, h * 0.085f, hamstrings)
     drawOvalMuscle(w * 0.630f, h * 0.672f, w * 0.068f, h * 0.085f, hamstrings)
 
-    val calves = heatmap.getMuscle("calves").toColorPair()
+    val calves = colorMap["calves"] ?: heatmap.getMuscle("calves").toColorPair()
     drawOvalMuscle(w * 0.368f, h * 0.805f, w * 0.055f, h * 0.072f, calves)
     drawOvalMuscle(w * 0.632f, h * 0.805f, w * 0.055f, h * 0.072f, calves)
 }

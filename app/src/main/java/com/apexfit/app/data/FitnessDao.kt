@@ -86,6 +86,9 @@ interface FitnessDao {
     """)
     suspend fun getLastSetsForExercise(exerciseId: String): List<ExerciseSet>
 
+    @Query("SELECT * FROM exercise_sets WHERE exerciseId IN (:exerciseIds) ORDER BY exerciseId, id DESC")
+    suspend fun getLastSetsForExercises(exerciseIds: List<String>): List<ExerciseSet>
+
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId")
     fun getSetsForExerciseFlow(exerciseId: String): Flow<List<ExerciseSet>>
 

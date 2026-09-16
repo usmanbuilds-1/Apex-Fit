@@ -82,6 +82,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+private val BOTTOM_NAV_ROUTES = listOf("home", "train", "nutrition", "progress")
 
 // Standard glass-like premium card modifier
 @Composable
@@ -159,15 +163,20 @@ fun ApexFitApp(
             hasPromptedResume = true
         }
         if (isOnboarded == true && activeSession != null) {
-            val prefs = context.getSharedPreferences("apex_prefs", Context.MODE_PRIVATE)
-            val handled = prefs.getBoolean("notification_permission_handled", false)
+            val handled = withContext(Dispatchers.IO) {
+                context.getSharedPreferences("apex_prefs", Context.MODE_PRIVATE)
+                    .getBoolean("notification_permission_handled", false)
+            }
             if (!handled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val granted = ContextCompat.checkSelfPermission(
                     context, Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED
                 if (!granted) {
                     permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    prefs.edit().putBoolean("notification_permission_handled", true).apply()
+                    withContext(Dispatchers.IO) {
+                        context.getSharedPreferences("apex_prefs", Context.MODE_PRIVATE)
+                            .edit().putBoolean("notification_permission_handled", true).apply()
+                    }
                 }
             }
         }
@@ -243,16 +252,27 @@ fun ApexFitApp(
 
     var showSettingsSheet by rememberSaveable { mutableStateOf(false) }
 
-    val routes = listOf("home", "train", "nutrition", "progress")
     val startDest = remember {
         val initialTab = fitnessViewModel.currentTab.value
-        if (initialTab in routes.indices) routes[initialTab] else "home"
+        if (initialTab in BOTTOM_NAV_ROUTES.indices) BOTTOM_NAV_ROUTES[initialTab] else "home"
     }
 
     LaunchedEffect(currentRoute) {
-        val tab = routes.indexOf(currentRoute)
+        val tab = BOTTOM_NAV_ROUTES.indexOf(currentRoute)
         if (tab != -1 && tab != fitnessViewModel.currentTab.value) {
             fitnessViewModel.selectTab(tab)
+        }
+    }
+
+    LaunchedEffect(activeTab) {
+        val route = BOTTOM_NAV_ROUTES.getOrNull(activeTab) ?: return@LaunchedEffect
+        val currentDest = navController.currentBackStackEntry?.destination?.route
+        if (currentDest != route) {
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
     }
 
@@ -327,7 +347,7 @@ fun ApexFitApp(
                             trainViewModel.closeRestTimer()
                             trainViewModel.closeRirSelector()
                             trainViewModel.dismissSessionComplete()
-                            val route = routes[index]
+                            val route = BOTTOM_NAV_ROUTES[index]
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                 launchSingleTop = true
@@ -362,7 +382,7 @@ fun ApexFitApp(
                             trainViewModel = trainViewModel,
                             nutritionViewModel = nutritionViewModel,
                             onNavigateTo = { tabIndex ->
-                                val route = routes.getOrNull(tabIndex) ?: "home"
+                                val route = BOTTOM_NAV_ROUTES.getOrNull(tabIndex) ?: "home"
                                 navController.navigate(route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
@@ -397,7 +417,7 @@ fun ApexFitApp(
                             algorithmViewModel = algorithmViewModel,
                             nutritionViewModel = nutritionViewModel,
                             onNavigateTo = { tabIndex ->
-                                val route = routes.getOrNull(tabIndex) ?: "home"
+                                val route = BOTTOM_NAV_ROUTES.getOrNull(tabIndex) ?: "home"
                                 navController.navigate(route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
@@ -415,7 +435,7 @@ fun ApexFitApp(
                             progressViewModel = progressViewModel,
                             homeViewModel = homeViewModel,
                             onNavigateTo = { tabIndex ->
-                                val route = routes.getOrNull(tabIndex) ?: "home"
+                                val route = BOTTOM_NAV_ROUTES.getOrNull(tabIndex) ?: "home"
                                 navController.navigate(route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true

@@ -200,6 +200,7 @@ fun HomeScreen(
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val todayExercisesState by trainViewModel.todayExercises.collectAsStateWithLifecycle()
     val weightHistoryState by homeViewModel.weightHistory.collectAsStateWithLifecycle()
+    val weightLogError by homeViewModel.weightLogError.collectAsStateWithLifecycle()
     val macroTargetsState by homeViewModel.macroTargets.collectAsStateWithLifecycle()
     val plateauResult by algorithmViewModel.plateauResult.collectAsStateWithLifecycle()
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
@@ -209,6 +210,27 @@ fun HomeScreen(
     val weightHistory = (weightHistoryState as? UiState.Success)?.data ?: emptyList()
     val macroTargets = targets
     val isDataLoading = todayExercisesState is UiState.Loading || weightHistoryState is UiState.Loading || macroTargetsState is UiState.Loading
+    if (isDataLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = AmberAccent)
+        }
+        return
+    }
+
+    weightLogError?.let { errorMsg ->
+        LaunchedEffect(errorMsg) {
+            kotlinx.coroutines.delay(3000)
+            homeViewModel.clearWeightLogError()
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(RedAccent.copy(alpha = 0.9f))
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Text(text = errorMsg, color = PrimaryText, fontSize = 13.sp)
+        }
+    }
 
     val userHeight by fitnessViewModel.userHeight.collectAsStateWithLifecycle()
     val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()
@@ -1003,60 +1025,6 @@ fun HomeScreen(
                                         Triple(minW, maxW, valRange)
                                     }
 
-                                    val linePath = remember(linePoints) {
-                                        Path().apply {
-                                            if (linePoints.size >= 2) {
-                                                val minW = linePoints.minOrNull() ?: 60.0
-                                                val maxW = linePoints.maxOrNull() ?: 62.0
-                                                val valRange = if (maxW == minW) 1.0 else maxW - minW
-                                                val ratioPoints = linePoints.mapIndexed { index, weightVal ->
-                                                    val rx = index.toFloat() / (linePoints.size - 1)
-                                                    val pct = ((weightVal - minW) / valRange).toFloat()
-                                                    val ry = 1f - (pct * (46f / 56f) + (5f / 56f))
-                                                    Offset(rx, ry)
-                                                }
-                                                moveTo(ratioPoints.first().x, ratioPoints.first().y)
-                                                for (i in 0 until ratioPoints.size - 1) {
-                                                    val p0 = ratioPoints[i]
-                                                    val p1 = ratioPoints[i + 1]
-                                                    val conPtX1 = (p0.x + p1.x) / 2
-                                                    val conPtY1 = p0.y
-                                                    val conPtX2 = (p0.x + p1.x) / 2
-                                                    val conPtY2 = p1.y
-                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    val fillPath = remember(linePoints) {
-                                        Path().apply {
-                                            if (linePoints.size >= 2) {
-                                                val minW = linePoints.minOrNull() ?: 60.0
-                                                val maxW = linePoints.maxOrNull() ?: 62.0
-                                                val valRange = if (maxW == minW) 1.0 else maxW - minW
-                                                val ratioPoints = linePoints.mapIndexed { index, weightVal ->
-                                                    val rx = index.toFloat() / (linePoints.size - 1)
-                                                    val pct = ((weightVal - minW) / valRange).toFloat()
-                                                    val ry = 1f - (pct * (46f / 56f) + (5f / 56f))
-                                                    Offset(rx, ry)
-                                                }
-                                                moveTo(ratioPoints.first().x, 1f)
-                                                lineTo(ratioPoints.first().x, ratioPoints.first().y)
-                                                for (i in 0 until ratioPoints.size - 1) {
-                                                    val p0 = ratioPoints[i]
-                                                    val p1 = ratioPoints[i + 1]
-                                                    val conPtX1 = (p0.x + p1.x) / 2
-                                                    val conPtY1 = p0.y
-                                                    val conPtX2 = (p0.x + p1.x) / 2
-                                                    val conPtY2 = p1.y
-                                                    cubicTo(conPtX1, conPtY1, conPtX2, conPtY2, p1.x, p1.y)
-                                                }
-                                                lineTo(ratioPoints.last().x, 1f)
-                                                close()
-                                             }
-                                        }
-                                    }
-
                                     Canvas(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1076,20 +1044,31 @@ fun HomeScreen(
                                             Offset(ptX.toFloat(), ptY)
                                         }
 
-                                        scale(scaleX = size.width, scaleY = size.height, pivot = Offset.Zero) {
-                                            drawPath(
-                                                path = fillPath,
-                                                brush = Brush.verticalGradient(
-                                                    colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
-                                                    startY = 0f,
-                                                    endY = 1f
-                                                )
-                                            )
-                                            drawPath(
-                                                path = linePath,
-                                                color = IndigoAccent,
-                                                style = Stroke(width = 3.dp.toPx() / size.height, cap = StrokeCap.Round)
-                                            )
+                                        if (canvasPoints.size >= 2) {
+                                            val localFillPath = Path().apply {
+                                                moveTo(canvasPoints.first().x, size.height)
+                                                lineTo(canvasPoints.first().x, canvasPoints.first().y)
+                                                for (i in 0 until canvasPoints.size - 1) {
+                                                    val p0 = canvasPoints[i]; val p1 = canvasPoints[i + 1]
+                                                    val cx = (p0.x + p1.x) / 2f
+                                                    cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                                                }
+                                                lineTo(canvasPoints.last().x, size.height)
+                                                close()
+                                            }
+                                            val localLinePath = Path().apply {
+                                                moveTo(canvasPoints.first().x, canvasPoints.first().y)
+                                                for (i in 0 until canvasPoints.size - 1) {
+                                                    val p0 = canvasPoints[i]; val p1 = canvasPoints[i + 1]
+                                                    val cx = (p0.x + p1.x) / 2f
+                                                    cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                                                }
+                                            }
+                                            drawPath(localFillPath, brush = Brush.verticalGradient(
+                                                colors = listOf(IndigoAccent.copy(alpha = 0.25f), Color.Transparent),
+                                                startY = 0f, endY = size.height))
+                                            drawPath(localLinePath, color = IndigoAccent,
+                                                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
                                         }
 
                                         // Point anchor circles on spline line
