@@ -14,12 +14,12 @@ object AudioService {
     private var audioTrack: AudioTrack? = null
 
     suspend fun playBeep() {
-        playSynthesizedAudioTone(880.0, 150, android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        playSynthesizedAudioTone(880.0, 150, usage = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
 
     suspend fun playRestTimerComplete(context: android.content.Context) {
         vibrate(context, 500)
-        playSynthesizedAudioTone(1100.0, 350, android.media.AudioAttributes.USAGE_NOTIFICATION, android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        playSynthesizedAudioTone(1100.0, 350, context = context, usage = android.media.AudioAttributes.USAGE_NOTIFICATION, contentType = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
 
     private fun vibrate(context: android.content.Context, durationMs: Long) {

@@ -215,7 +215,7 @@ class WorkoutSessionManager(
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
         }
-        val lastSets = dao.getLastSetsForExercises(ids)
+        val lastSets = dao.getLastSetsWithDateForExercises(ids)
             .groupBy { it.exerciseId }
             .mapValues { it.value.first() }
 

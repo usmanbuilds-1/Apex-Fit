@@ -980,7 +980,7 @@ fun WorkoutExecutionSubTab(
                     val weightMax = if (unitSuffix.lowercase() in listOf("lb","lbs")) 660.0 else 300.0
 
                     // Commit helpers — call when editing finishes (focus loss or explicit commit)
-                    val commitWeight: () -> Unit = remember(set, trainViewModel) { {
+                    val commitWeight: () -> Unit = remember(setObj, trainViewModel) { {
                         val w = rawWeight.toDoubleOrNull()
                         if (w != null && w in weightMin..weightMax) {
                             val r = rawReps.toIntOrNull() ?: setObj.reps
@@ -988,7 +988,7 @@ fun WorkoutExecutionSubTab(
                                 setObj.completed, restTakenSeconds = setObj.restTaken)
                         }
                     } }
-                    val commitReps: () -> Unit = remember(set, trainViewModel) { {
+                    val commitReps: () -> Unit = remember(setObj, trainViewModel) { {
                         val r = rawReps.toIntOrNull()
                         if (r != null && r in 1..50) {
                             val w = rawWeight.toDoubleOrNull() ?: setObj.weight

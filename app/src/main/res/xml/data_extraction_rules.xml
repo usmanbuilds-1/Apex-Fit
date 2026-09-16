@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
+        <!-- Exclude raw SQLite files — unsafe to back up mid-write -->
         <exclude domain="database" path="." />
-        <exclude domain="sharedpref" path="." />
+        <!-- Exclude only the internal Datastore proto files, not all prefs -->
+        <exclude domain="sharedpref" path="androidx.datastore" />
     </cloud-backup>
     <device-transfer>
+        <!-- Exclude databases from device-to-device transfer -->
         <exclude domain="database" path="." />
     </device-transfer>
 </data-extraction-rules>

@@ -292,7 +292,7 @@ interface FitnessDao {
           AND es.completed = 1
         ORDER BY es.id DESC
     """)
-    suspend fun getLastSetsForExercises(
+    suspend fun getLastSetsWithDateForExercises(
         exerciseIds: List<String>
     ): List<LastSetWithDate>
 

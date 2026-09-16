@@ -14,6 +14,9 @@ import com.apexfit.app.utils.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -29,6 +32,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _todayDate = MutableStateFlow(getTodayDateString())
     val todayDate: StateFlow<String> = _todayDate.asStateFlow()
+
+    private val _weightLogError = MutableStateFlow<String?>(null)
+    val weightLogError: StateFlow<String?> = _weightLogError.asStateFlow()
 
     fun refreshTodayDate() {
         _todayDate.value = getTodayDateString()
@@ -163,8 +169,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         dataStore.saveWeight(safeWeightKg, goal)
                     } catch (e: Exception) { }
                 }
-            } catch (e: Throwable) {
-                // Ignore errors
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _weightLogError.value = "Failed to save weight. Please try again."
             } finally {
                 _isLoggingWeight.set(false)
             }
@@ -252,4 +260,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
         viewModelScope.cancel()
     }
+
+    fun clearWeightLogError() { _weightLogError.value = null }
 }
