@@ -256,7 +256,7 @@ class WorkoutSessionManager(
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                val _allSets = allHistorySets[exerciseNameToSlug(ex.name)] ?: emptyList()
+                val _allSets = (allHistorySets[exerciseNameToSlug(ex.name)] ?: emptyList<ExerciseSet>())
                     .filter { !it.isWarmup && it.completed }
                 val _latestSessionId = _allSets.firstOrNull()?.sessionId
                 val allLastSets = if (_latestSessionId != null) {
