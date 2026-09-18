@@ -632,7 +632,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 sessionManager.incrementRestSeconds()
 
                 if (remaining in 1..3) {
-                    AudioService.playBeep()
+                    AudioService.playBeep(getApplication())
                 } else if (remaining == 0 && prev > 0) {
                     AudioService.playRestTimerComplete(getApplication())
                 }

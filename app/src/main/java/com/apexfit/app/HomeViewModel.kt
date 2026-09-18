@@ -14,9 +14,6 @@ import com.apexfit.app.utils.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -157,6 +154,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         )
         return viewModelScope.launch {
             try {
+                _weightLogError.value = null
                 val timeStr = try { getCurrentLocalTimeString() } catch (e: Exception) { "12:00" }
                 dao.insertWeightEntry(WeightEntry(date = date, time = timeStr, weight = safeWeightKg, unit = "kg"))
                 val goal = try {

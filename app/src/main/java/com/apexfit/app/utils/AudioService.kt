@@ -13,8 +13,11 @@ object AudioService {
     @Volatile
     private var audioTrack: AudioTrack? = null
 
-    suspend fun playBeep() {
-        playSynthesizedAudioTone(880.0, 150, usage = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+    suspend fun playBeep(context: android.content.Context? = null) {
+        playSynthesizedAudioTone(880.0, 150,
+            context = context,
+            usage = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION,
+            contentType = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
 
     suspend fun playRestTimerComplete(context: android.content.Context) {
@@ -122,8 +125,8 @@ object AudioService {
                 
                 audioTrack = currentTrack
                 currentTrack.write(generatedSnd, 0, numSamples)
-                currentTrack.play()
                 try {
+                    currentTrack.play()
                     delay(durationMs.toLong() + 50)
                     currentTrack.stop()
                 } finally {

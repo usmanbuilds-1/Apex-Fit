@@ -267,7 +267,7 @@ fun ApexFitApp(
     LaunchedEffect(activeTab) {
         val route = BOTTOM_NAV_ROUTES.getOrNull(activeTab) ?: return@LaunchedEffect
         val currentDest = navController.currentBackStackEntry?.destination?.route
-        if (currentDest != route) {
+        if (currentDest != null && currentDest != route) {
             navController.navigate(route) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true
