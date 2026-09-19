@@ -252,18 +252,20 @@ fun HomeScreen(
     val focusMuscles = (todaySession?.focus ?: "Active Recovery").replace(", ", " • ").replace(",", " • ")
 
     // Calculate precise metabolic duration based on specific exercise sets
-    val estimatedWorkoutDurationMin = if (todaySession == null || todaySession.focus == "Muscle Recovery & Rest") {
-        0
-    } else if (todayExercises.isEmpty()) {
-        42
-    } else {
-        val rawTime = todayExercises.sumOf { 
-            val setMinutes = com.apexfit.app.utils.AlgorithmEngine.estimateSetDurationMinutes(it.repsMin, it.repsMax)
-            it.sets * (setMinutes + it.restSeconds / 60.0) 
+    val estimatedWorkoutDurationMin = remember(todayExercises, todaySession) {
+        if (todaySession == null || todaySession.focus == "Muscle Recovery & Rest") {
+            0
+        } else if (todayExercises.isEmpty()) {
+            42
+        } else {
+            val rawTime = todayExercises.sumOf { 
+                val setMinutes = com.apexfit.app.utils.AlgorithmEngine.estimateSetDurationMinutes(it.repsMin, it.repsMax)
+                it.sets * (setMinutes + it.restSeconds / 60.0) 
+            }
+            val transitionTime = (todayExercises.size - 1).coerceAtLeast(0) * 2.0
+            val warmUp = 5.0
+            (rawTime + transitionTime + warmUp).roundToInt()
         }
-        val transitionTime = (todayExercises.size - 1).coerceAtLeast(0) * 2.0
-        val warmUp = 5.0
-        (rawTime + transitionTime + warmUp).roundToInt()
     }
 
     val finalWorkoutDurationMin = estimatedWorkoutDurationMin

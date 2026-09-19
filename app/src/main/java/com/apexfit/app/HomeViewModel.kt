@@ -99,10 +99,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val sessionReadiness: StateFlow<UiSessionReadiness?> =
         com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
 
+    private val mappedNutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> =
+        com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
+            .map { list ->
+                list.map {
+                    com.apexfit.app.utils.NutritionEntry(
+                        date = it.date,
+                        calories = it.calories,
+                        protein = it.protein.roundToInt(),
+                        carbs = it.carbs.roundToInt(),
+                        fat = it.fat.roundToInt()
+                    )
+                }
+            }
+
     // Compliance
     val complianceScores: StateFlow<UiComplianceResult> = combine(
-        com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
-            .map { list -> list.map { com.apexfit.app.utils.NutritionEntry(date = it.date, calories = it.calories, protein = it.protein.roundToInt(), carbs = it.carbs.roundToInt(), fat = it.fat.roundToInt()) } },
+        mappedNutritionFlow,
         richSessionsFlow,
         targetsFlow
     ) { nutrition, sessions, targets ->
@@ -122,8 +135,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     // Home Analytics (Streaks)
     val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> = combine(
-        com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
-            .map { list -> list.map { com.apexfit.app.utils.NutritionEntry(date = it.date, calories = it.calories, protein = it.protein.roundToInt(), carbs = it.carbs.roundToInt(), fat = it.fat.roundToInt()) } },
+        mappedNutritionFlow,
         richSessionsFlow,
         targetsFlow
     ) { nutrition, sessions, targets ->

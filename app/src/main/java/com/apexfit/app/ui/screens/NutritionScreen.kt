@@ -16,6 +16,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
@@ -92,8 +96,18 @@ fun NutritionScreen(
     val activePlanSessionsState by fitnessViewModel.trainVM.activePlanSessions.collectAsStateWithLifecycle()
     val activePlanSessions: List<com.apexfit.app.data.PlanSession> = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
 
-    val todayDateStr = remember { com.apexfit.app.utils.DateTimeUtils.todayDateString() }
-    val todayDayString = remember { java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date()) }
+    var todayDateStr by remember { mutableStateOf(com.apexfit.app.utils.DateTimeUtils.todayDateString()) }
+    var todayDayString by remember { mutableStateOf(java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val newDate = com.apexfit.app.utils.DateTimeUtils.todayDateString()
+            val newDay = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
+            if (newDate != todayDateStr) todayDateStr = newDate
+            if (newDay != todayDayString) todayDayString = newDay
+            kotlinx.coroutines.delay(60_000L)
+        }
+    }
 
     val isWorkoutCompletedToday = remember(completedSessions, todayDateStr) {
         completedSessions.any { it.date == todayDateStr }
@@ -512,7 +526,10 @@ fun AddFoodSheet(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "STATUS: Auto-tracking local time (${java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())})",
+                    text = run {
+                        val fmt = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.US) }
+                        "STATUS: Auto-tracking local time (${fmt.format(java.util.Date())})"
+                    },
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
                     color = AmberAccent,
