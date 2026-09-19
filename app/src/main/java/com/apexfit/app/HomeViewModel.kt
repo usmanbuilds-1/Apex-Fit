@@ -76,10 +76,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayMacros(0, 0, 0, 0))
 
-    val loggedCalories: StateFlow<Int> get() = todayMacros.map { it.calories }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
-    val loggedProtein:  StateFlow<Int> get() = todayMacros.map { it.protein }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
-    val loggedCarbs:    StateFlow<Int> get() = todayMacros.map { it.carbs }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
-    val loggedFat:      StateFlow<Int> get() = todayMacros.map { it.fat }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val loggedCalories: StateFlow<Int> = todayMacros.map { it.calories }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val loggedProtein:  StateFlow<Int> = todayMacros.map { it.protein }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val loggedCarbs:    StateFlow<Int> = todayMacros.map { it.carbs }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val loggedFat:      StateFlow<Int> = todayMacros.map { it.fat }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val macroTargets: StateFlow<UiState<com.apexfit.app.utils.NutritionTargets>> = targetsFlow
         .map { UiState.Success(it) as UiState<com.apexfit.app.utils.NutritionTargets> }

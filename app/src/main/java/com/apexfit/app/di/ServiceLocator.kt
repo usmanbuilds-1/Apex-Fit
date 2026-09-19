@@ -48,6 +48,8 @@ object ServiceLocator {
     private val appContext get() = _appContext
         ?: error("appContext not set — call ServiceLocator.setAppScope() in Application.onCreate()")
 
+    private val DAY_OF_WEEK_FORMAT = java.text.SimpleDateFormat("EEEE", java.util.Locale.US)
+
     val richSessionsFlow: StateFlow<List<RichTrainingSession>> by lazy {
         val dao = database(appContext).fitnessDao()
         val cutoff = getDateDaysAgo(90)
@@ -223,7 +225,7 @@ object ServiceLocator {
                 sex                    = sex
             )
 
-            val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
+            val todayDayString = DAY_OF_WEEK_FORMAT.format(java.util.Date())
             val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
             val isPlannedTraining = todayPlanned != null &&
                 !todayPlanned.label.contains("Rest", ignoreCase = true) &&

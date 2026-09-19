@@ -61,7 +61,17 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
 
     private val richSessionsFlow: Flow<List<com.apexfit.app.utils.TrainingSession>> =
-        com.apexfit.app.di.ServiceLocator.richSessionsFlow
+        sessionsFlow.map { list ->
+            list.map { ts ->
+                com.apexfit.app.utils.TrainingSession(
+                    date = ts.date,
+                    sessionType = ts.sessionType,
+                    completed = ts.completed,
+                    durationMinutes = ts.durationMinutes,
+                    sessionFeel = ts.sessionFeel
+                )
+            }
+        }
 
     // ─────────────────────────────────────────────────────────────────
     // SECTION 3 — PUBLIC STATEFLOWS
