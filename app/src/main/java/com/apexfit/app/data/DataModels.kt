@@ -300,7 +300,10 @@ data class MuscleRecoveryStatus(
     val lastTrainedDate: String
 )
 
-@Entity(tableName = "detected_patterns")
+@Entity(
+    tableName = "detected_patterns",
+    indices = [Index(value = ["confidence"])]
+)
 data class DetectedPatternEntity(
     @PrimaryKey val id: String,
     val type: String,

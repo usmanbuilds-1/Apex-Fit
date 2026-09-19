@@ -31,24 +31,6 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val nutritionFlow = com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
 
-    private val sessionsFlow: Flow<List<com.apexfit.app.data.TrainingSession>> =
-        com.apexfit.app.di.ServiceLocator.richSessionsFlow
-            .map { list ->
-                list.map { rs ->
-                    com.apexfit.app.data.TrainingSession(
-                        id = "",
-                        date = rs.date,
-                        sessionType = rs.sessionType,
-                        completed = rs.completed,
-                        durationMinutes = rs.durationMinutes,
-                        sessionFeel = rs.sessionFeel
-                    )
-                }
-            }
-            .flowOn(Dispatchers.IO)
-
-
-
     val targetsFlow: Flow<com.apexfit.app.utils.NutritionTargets> =
         com.apexfit.app.di.ServiceLocator.sharedTargetsFlow
 
@@ -59,26 +41,23 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // SECTION 2 — INTERMEDIATE COMPUTED FLOWS
     // ─────────────────────────────────────────────────────────────────
 
-
-    private val richSessionsFlow: Flow<List<com.apexfit.app.utils.TrainingSession>> =
-        sessionsFlow.map { list ->
-            list.map { ts ->
-                com.apexfit.app.utils.TrainingSession(
-                    date = ts.date,
-                    sessionType = ts.sessionType,
-                    completed = ts.completed,
-                    durationMinutes = ts.durationMinutes,
-                    sessionFeel = ts.sessionFeel
-                )
-            }
-        }
-
     // ─────────────────────────────────────────────────────────────────
     // SECTION 3 — PUBLIC STATEFLOWS
     // ─────────────────────────────────────────────────────────────────
 
-    val completedSessions: StateFlow<List<UiTrainingSession>> = sessionsFlow
-        .map { list -> list.map { it.toUi() } }
+    val completedSessions: StateFlow<List<UiTrainingSession>> = com.apexfit.app.di.ServiceLocator.richSessionsFlow
+        .map { list ->
+            list.map { rs ->
+                UiTrainingSession(
+                    id = "",
+                    name = rs.sessionType,
+                    date = rs.date,
+                    duration = rs.durationMinutes,
+                    feelRating = rs.sessionFeel,
+                    isCompleted = rs.completed
+                )
+            }
+        }
         .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

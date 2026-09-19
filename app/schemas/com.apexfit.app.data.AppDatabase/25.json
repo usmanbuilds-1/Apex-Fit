@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 25,
-    "identityHash": "7651e1d55370faafb4ec8d5dafb644b2",
+    "identityHash": "185bb366609148f4c879ab76b6a16f5b",
     "entities": [
       {
         "tableName": "body_weights",
@@ -877,7 +877,18 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_detected_patterns_confidence",
+            "unique": false,
+            "columnNames": [
+              "confidence"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_detected_patterns_confidence` ON `${TABLE_NAME}` (`confidence`)"
+          }
+        ]
       },
       {
         "tableName": "exercises",
@@ -1066,7 +1077,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7651e1d55370faafb4ec8d5dafb644b2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '185bb366609148f4c879ab76b6a16f5b')"
     ]
   }
 }

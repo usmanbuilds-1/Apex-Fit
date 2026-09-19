@@ -10,8 +10,11 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+
+import androidx.room.withTransaction
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "apex_fit_preferences")
 
@@ -48,7 +51,7 @@ class DataStoreManager(context: Context) {
 
     val weightsNormalizedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[WEIGHTS_NORMALIZED_KEY] ?: false
-    }
+    }.distinctUntilChanged()
 
     suspend fun markWeightsNormalized() {
         context.dataStore.edit { preferences ->
@@ -71,11 +74,11 @@ class DataStoreManager(context: Context) {
 
     val isOnboardedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[ONBOARDED_KEY] ?: false
-    }
+    }.distinctUntilChanged()
 
     val isExercisesSeededFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[EXERCISES_SEEDED_KEY] ?: false
-    }
+    }.distinctUntilChanged()
 
     suspend fun setExercisesSeeded(seeded: Boolean) {
         context.dataStore.edit { preferences ->
@@ -85,7 +88,7 @@ class DataStoreManager(context: Context) {
 
     val exerciseSeedVersionFlow: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[EXERCISE_SEED_VERSION_KEY] ?: 0
-    }
+    }.distinctUntilChanged()
 
     suspend fun setExerciseSeedVersion(version: Int) {
         context.dataStore.edit { preferences ->
@@ -95,55 +98,55 @@ class DataStoreManager(context: Context) {
 
     val usernameFlow: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[USER_NAME_KEY] ?: ""
-    }
+    }.distinctUntilChanged()
 
     val goalFlow: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[GOAL_KEY] ?: "Gain Muscle"
-    }
+    }.distinctUntilChanged()
 
     val currentWeightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
         preferences[CURRENT_WEIGHT_KEY] ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-    }
+    }.distinctUntilChanged()
 
     val goalWeightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
         preferences[GOAL_WEIGHT_KEY] ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-    }
+    }.distinctUntilChanged()
 
     val unitsFlow: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[UNITS_KEY] ?: "kg"
-    }
+    }.distinctUntilChanged()
 
     val heightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
         preferences[HEIGHT_KEY] ?: com.apexfit.app.UserDefaults.HEIGHT_CM
-    }
+    }.distinctUntilChanged()
 
     val ageFlow: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[AGE_KEY] ?: com.apexfit.app.UserDefaults.AGE_YEARS
-    }
+    }.distinctUntilChanged()
 
     val sexFlow: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[SEX_KEY] ?: "male"
-    }
+    }.distinctUntilChanged()
 
     val weeklyWorkoutsFlow: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[WEEKLY_WORKOUTS_KEY] ?: 3
-    }
+    }.distinctUntilChanged()
 
     val calorieTargetManualFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[CALORIE_TARGET_MANUAL_KEY] ?: false
-    }
+    }.distinctUntilChanged()
 
     val calorieTargetValueFlow: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[CALORIE_TARGET_VALUE_KEY] ?: com.apexfit.app.UserDefaults.CALORIES
-    }
+    }.distinctUntilChanged()
 
     val equipmentFlow: Flow<String> = context.dataStore.data.map { preferences ->
         preferences[EQUIPMENT_KEY] ?: com.apexfit.app.UserDefaults.DEFAULT_EQUIPMENT
-    }
+    }.distinctUntilChanged()
 
     val activeSessionJsonFlow: Flow<String?> = context.dataStore.data.map { preferences ->
         preferences[ACTIVE_SESSION_JSON_KEY]
-    }
+    }.distinctUntilChanged()
 
     suspend fun saveActiveSessionJson(json: String?) {
         context.dataStore.edit { preferences ->
@@ -246,7 +249,8 @@ class DataStoreManager(context: Context) {
      */
     suspend fun canonicalizeExerciseSetWeightsIfNeeded(
         dao: com.apexfit.app.data.FitnessDao,
-        isImperial: Boolean
+        isImperial: Boolean,
+        db: com.apexfit.app.data.AppDatabase = com.apexfit.app.data.AppDatabase.getDatabase(context)
     ) {
         val alreadyDone = context.dataStore.data
             .map { prefs -> prefs[SET_WEIGHTS_CANONICALIZED_KEY] ?: false }
@@ -254,10 +258,13 @@ class DataStoreManager(context: Context) {
         if (alreadyDone) return
 
         if (isImperial) {
-            dao.convertAllExerciseSetWeightsToKg()
-            dao.convertAllPersonalRecordValuesToKg()
+            db.withTransaction {
+                dao.convertAllExerciseSetWeightsToKg()
+                dao.convertAllPersonalRecordValuesToKg()
+            }
         }
 
+        // Only write flag after successful transaction
         context.dataStore.edit { prefs ->
             prefs[SET_WEIGHTS_CANONICALIZED_KEY] = true
         }
@@ -265,7 +272,8 @@ class DataStoreManager(context: Context) {
 
     suspend fun canonicalizePlanExerciseWeightsIfNeeded(
         dao: com.apexfit.app.data.FitnessDao,
-        isImperial: Boolean
+        isImperial: Boolean,
+        db: com.apexfit.app.data.AppDatabase = com.apexfit.app.data.AppDatabase.getDatabase(context)
     ) {
         val alreadyDone = context.dataStore.data
             .map { prefs -> prefs[PLAN_WEIGHTS_CANONICALIZED_KEY] ?: false }
@@ -273,9 +281,12 @@ class DataStoreManager(context: Context) {
         if (alreadyDone) return
 
         if (isImperial) {
-            dao.convertAllPlanExerciseWeightsToKg()
+            db.withTransaction {
+                dao.convertAllPlanExerciseWeightsToKg()
+            }
         }
 
+        // Only write flag after successful transaction
         context.dataStore.edit { prefs ->
             prefs[PLAN_WEIGHTS_CANONICALIZED_KEY] = true
         }

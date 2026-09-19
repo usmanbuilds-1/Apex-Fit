@@ -11,8 +11,12 @@ import kotlinx.coroutines.flow.Flow
 interface FitnessDao {
 
     // Weight Entry Queries
+    @Deprecated("Use getWeightEntriesSinceFlow or getWeightEntriesFromFlow with a date window instead", replaceWith = ReplaceWith("getWeightEntriesFromFlow"))
     @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
     fun getAllWeightEntriesFlow(): Flow<List<WeightEntry>>
+
+    @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC")
+    fun getWeightEntriesFromFlow(cutoffDate: String): Flow<List<WeightEntry>>
 
     @Query("SELECT * FROM body_weights WHERE date >= :since ORDER BY date DESC, time DESC")
     fun getWeightEntriesSinceFlow(since: String): Flow<List<WeightEntry>>
@@ -20,8 +24,12 @@ interface FitnessDao {
     @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC")
     suspend fun getWeightEntriesSince(cutoffDate: String): List<WeightEntry>
 
+    @Deprecated("Use getWeightEntriesSince or getWeightEntries with a limit instead", replaceWith = ReplaceWith("getWeightEntries"))
     @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
     suspend fun getAllWeightEntries(): List<WeightEntry>
+
+    @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC LIMIT :limit")
+    suspend fun getWeightEntries(limit: Int = 365): List<WeightEntry>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWeightEntry(entry: WeightEntry)
@@ -33,8 +41,12 @@ interface FitnessDao {
     suspend fun deleteWeightEntry(date: String)
 
     // Nutrition Queries
+    @Deprecated("Use getNutritionEntriesSinceFlow or getNutritionEntriesFromFlow with a date window instead", replaceWith = ReplaceWith("getNutritionEntriesFromFlow"))
     @Query("SELECT * FROM nutrition_logs ORDER BY date DESC, time DESC")
     fun getAllNutritionEntriesFlow(): Flow<List<NutritionEntry>>
+
+    @Query("SELECT * FROM nutrition_logs WHERE date >= :cutoffDate ORDER BY date DESC")
+    fun getNutritionEntriesFromFlow(cutoffDate: String): Flow<List<NutritionEntry>>
 
     @Query("""
         SELECT * FROM nutrition_logs
@@ -62,6 +74,7 @@ interface FitnessDao {
     suspend fun deleteNutritionEntry(date: String)
 
     // Training Sessions
+    @Deprecated("Use getRecentCompletedSessionsFlow with a date window instead", replaceWith = ReplaceWith("getRecentCompletedSessionsFlow"))
     @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     fun getAllTrainingSessionsFlow(): Flow<List<TrainingSession>>
 
@@ -81,6 +94,7 @@ interface FitnessDao {
     @Query("SELECT * FROM exercise_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     suspend fun getSetsForSession(sessionId: String): List<ExerciseSet>
 
+    @Deprecated(message = "Use getRecentExerciseSetsFlow/getRecentExerciseSets with a date window instead", replaceWith = ReplaceWith("getRecentExerciseSetsFlow"))
     @Query("SELECT * FROM exercise_sets ORDER BY id DESC")
     suspend fun getAllExerciseSets(): List<ExerciseSet>
 
@@ -92,7 +106,13 @@ interface FitnessDao {
     """)
     suspend fun getLastSetsForExercise(exerciseId: String): List<ExerciseSet>
 
-    @Query("SELECT * FROM exercise_sets WHERE exerciseId IN (:exerciseIds) ORDER BY exerciseId, id DESC")
+    @Query("""
+        SELECT es.* FROM exercise_sets es
+        WHERE es.exerciseId IN (:exerciseIds)
+          AND es.id = (
+              SELECT MAX(id) FROM exercise_sets WHERE exerciseId = es.exerciseId
+          )
+    """)
     suspend fun getLastSetsForExercises(exerciseIds: List<String>): List<ExerciseSet>
 
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId")
@@ -126,7 +146,7 @@ interface FitnessDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWorkoutPlan(plan: WorkoutPlan): Long
 
-    @Query("UPDATE workout_programs SET isActive = 0")
+    @Query("UPDATE workout_programs SET isActive = 0 WHERE isActive = 1")
     suspend fun deactivateAllPlans()
 
     @Query("UPDATE workout_programs SET isActive = 1 WHERE id = :planId")
@@ -162,7 +182,9 @@ interface FitnessDao {
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     suspend fun getAllExercises(): List<Exercise>
 
-    @Query("SELECT * FROM exercises WHERE is_deleted = 0 AND name LIKE '%' || :query || '%' ORDER BY name ASC")
+    // Note: A true full-text search requires an FTS5 virtual table.
+    // Interim prefix/word-boundary match allows B-tree index utilization on exercise name.
+    @Query("SELECT * FROM exercises WHERE is_deleted = 0 AND (name LIKE :query || '%' OR name LIKE '% ' || :query || '%') ORDER BY name ASC")
     suspend fun searchExercisesByName(query: String): List<Exercise>
 
     @Query("SELECT * FROM exercises WHERE id = :id LIMIT 1")
@@ -222,6 +244,7 @@ interface FitnessDao {
 
 
     // Personal Records
+    @Deprecated("Use getRecentPersonalRecordsWithNames or getPRsForExercise with a limit/exercise filter instead", replaceWith = ReplaceWith("getRecentPersonalRecordsWithNames"))
     @Query("SELECT * FROM personal_records ORDER BY date DESC")
     fun getAllPRsFlow(): Flow<List<PersonalRecord>>
 
@@ -232,6 +255,15 @@ interface FitnessDao {
         ORDER BY pr.date DESC
     """)
     fun getPersonalRecordsWithNames(): Flow<List<PersonalRecordWithName>>
+
+    @Query("""
+        SELECT pr.*, e.name as exerciseName
+        FROM personal_records pr
+        INNER JOIN exercises e ON pr.exerciseId = e.id
+        ORDER BY pr.date DESC
+        LIMIT :limit
+    """)
+    fun getRecentPersonalRecordsWithNames(limit: Int = 200): Flow<List<PersonalRecordWithName>>
 
     @Query("SELECT * FROM personal_records WHERE exerciseId = :exerciseId")
     suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord>
@@ -376,6 +408,7 @@ interface FitnessDao {
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId AND isWarmup = 0 AND completed = 1 ORDER BY id DESC")
     fun getExerciseSetsByExerciseIdFlow(exerciseId: String): Flow<List<ExerciseSet>>
 
+    @Deprecated(message = "Use getRecentExerciseSetsFlow/getRecentExerciseSets with a date window instead", replaceWith = ReplaceWith("getRecentExerciseSetsFlow"))
     @Query("SELECT * FROM exercise_sets WHERE completed = 1 ORDER BY id DESC")
     fun getAllExerciseSetsFlow(): Flow<List<ExerciseSet>>
 

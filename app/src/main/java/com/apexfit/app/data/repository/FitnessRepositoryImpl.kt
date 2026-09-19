@@ -47,15 +47,9 @@ class FitnessRepositoryImpl(
         }
         val newPlanId = dao.insertWorkoutPlan(plan)
         val resolvedPlanId = if (plan.id == 0L) newPlanId else plan.id
-        // Clean up old sessions and their exercises
-        val oldSessions = dao.getSessionsForPlan(plan.id)
-        oldSessions.forEach {
-            dao.deleteExercisesForPlanSession(it.id)
-        }
-        dao.deleteSessionsForPlan(plan.id)
-        // Insert new ones
-        sessions.forEach { dao.insertPlanSession(it.copy(planId = resolvedPlanId)) }
-        exercises.forEach { dao.insertPlanExercise(it) }
+        dao.deleteSessionsForPlan(plan.id) // CASCADE removes exercises automatically
+        dao.insertPlanSessions(sessions.map { it.copy(planId = resolvedPlanId) })
+        dao.insertPlanExercises(exercises)
     }
 
     override fun getWeightHistory(): Flow<List<WeightEntry>> {
@@ -213,7 +207,9 @@ class FitnessRepositoryImpl(
                 detectedAt = p.detectedAt
             )
         }
-        dao.clearAllDetectedPatterns()
-        dao.insertDetectedPatterns(entities)
+        db.withTransaction {
+            dao.clearAllDetectedPatterns()
+            dao.insertDetectedPatterns(entities)
+        }
     }
 }
