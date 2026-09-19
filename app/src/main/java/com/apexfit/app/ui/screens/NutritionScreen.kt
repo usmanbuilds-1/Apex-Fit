@@ -110,15 +110,17 @@ fun NutritionScreen(
 
     // Apply goal adjustment so non-manual users see their actual goal-adjusted
     // target, not raw maintenance calories.
-    val suggestedFromTdee = com.apexfit.app.utils.AlgorithmEngine.suggestCaloricTarget(
-        tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
-        goal            = userGoal,
-        currentWeightKg = currentWeight,
-        goalWeightKg    = goalWeight,
-        heightCm        = userHeight,
-        ageYears        = userAge,
-        sex             = userSex
-    )
+    val suggestedFromTdee = remember(tdeeResult.tdee, userGoal, currentWeight, goalWeight, userHeight, userAge, userSex) {
+        com.apexfit.app.utils.AlgorithmEngine.suggestCaloricTarget(
+            tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
+            goal            = userGoal,
+            currentWeightKg = currentWeight,
+            goalWeightKg    = goalWeight,
+            heightCm        = userHeight,
+            ageYears        = userAge,
+            sex             = userSex
+        )
+    }
     val baseCalorieTarget = (if (calorieTargetManual) calorieTargetValue else suggestedFromTdee)
         .coerceAtLeast(1)
 

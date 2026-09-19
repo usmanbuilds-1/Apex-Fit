@@ -20,6 +20,7 @@ import com.apexfit.app.ui.models.toUi
 import kotlin.math.roundToInt
 import com.apexfit.app.utils.AlgorithmEngine
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.shareIn
@@ -121,6 +122,7 @@ object ServiceLocator {
                 null
             }
         }
+        .debounce(300L)
         .flowOn(Dispatchers.IO)
         .stateIn(
             scope = appScope,
@@ -240,7 +242,7 @@ object ServiceLocator {
                 fat                    = todayFat,
                 weeklyTrainingSessions = weeklyWorkouts
             )
-        }.flowOn(Dispatchers.IO).shareIn(appScope, SharingStarted.Lazily, 1)
+        }.debounce(300L).flowOn(Dispatchers.IO).shareIn(appScope, SharingStarted.WhileSubscribed(5_000), 1)
     }
 
     fun database(context: Context): AppDatabase =

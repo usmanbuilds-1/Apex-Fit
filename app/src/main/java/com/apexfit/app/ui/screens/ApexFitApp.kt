@@ -87,6 +87,13 @@ import kotlinx.coroutines.withContext
 
 private val BOTTOM_NAV_ROUTES = listOf("home", "train", "nutrition", "progress")
 
+private val BOTTOM_NAV_TABS = listOf(
+    Triple("Home", Icons.Default.Home, 0),
+    Triple("Train", Icons.Default.FitnessCenter, 1),
+    Triple("Nutrition", Icons.Default.RestaurantMenu, 2),
+    Triple("Progress", Icons.Default.Insights, 3)
+)
+
 // Standard glass-like premium card modifier
 @Composable
 fun PremiumCard(
@@ -536,13 +543,15 @@ fun OnboardingScreen(
         else -> goalTarget
     }
 
-    val timeline = AlgorithmEngine.calcGoalTimeline(
-        currentWeightKg  = liveWeightKg,
-        goalWeightKg     = liveGoalKg,
-        resolvedGoal     = liveResolvedGoal,
-        heightCm         = liveHeightCm,
-        sex              = liveSexStr
-    )
+    val timeline = remember(liveWeightKg, liveGoalKg, liveResolvedGoal, liveHeightCm, liveSexStr) {
+        AlgorithmEngine.calcGoalTimeline(
+            currentWeightKg  = liveWeightKg,
+            goalWeightKg     = liveGoalKg,
+            resolvedGoal     = liveResolvedGoal,
+            heightCm         = liveHeightCm,
+            sex              = liveSexStr
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -1026,12 +1035,7 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val tabs = listOf(
-                Triple("Home", Icons.Default.Home, 0),
-                Triple("Train", Icons.Default.FitnessCenter, 1),
-                Triple("Nutrition", Icons.Default.RestaurantMenu, 2),
-                Triple("Progress", Icons.Default.Insights, 3)
-            )
+            val tabs = BOTTOM_NAV_TABS
 
             tabs.forEach { (label, icon, index) ->
                 val isSelected = activeTab == index

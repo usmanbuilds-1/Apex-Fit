@@ -40,20 +40,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     // Raw database/preference flows
     private val weightFlow = com.apexfit.app.di.ServiceLocator.weightEntriesFlow
 
-    private val nutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> = dao.getNutritionEntriesSince(getDateDaysAgo(30))
-        .map { list ->
-            list.map {
-                com.apexfit.app.utils.NutritionEntry(
-                    date = it.date,
-                    calories = it.calories,
-                    protein = it.protein.roundToInt(),
-                    carbs = it.carbs.roundToInt(),
-                    fat = it.fat.roundToInt()
-                )
-            }
-        }
-        .flowOn(Dispatchers.IO)
-
     val targetsFlow: Flow<com.apexfit.app.data.NutritionTargets> =
         com.apexfit.app.di.ServiceLocator.sharedTargetsFlow
 
@@ -79,21 +65,21 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val currentWeight: Flow<Double> = dataStore.currentWeightFlow
     val calorieTargetFlow: Flow<Int> = dataStore.calorieTargetValueFlow
 
-    val loggedCalories: StateFlow<Int> = todayNutrition.map { meals ->
-        meals.sumOf { it.calories }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    data class TodayMacros(val calories: Int, val protein: Int, val carbs: Int, val fat: Int)
 
-    val loggedProtein: StateFlow<Int> = todayNutrition.map { meals ->
-        meals.sumOf { it.protein }.roundToInt()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    private val todayMacros: StateFlow<TodayMacros> = todayNutrition.map { meals ->
+        TodayMacros(
+            calories = meals.sumOf { it.calories },
+            protein  = meals.sumOf { it.protein }.roundToInt(),
+            carbs    = meals.sumOf { it.carbs }.roundToInt(),
+            fat      = meals.sumOf { it.fat }.roundToInt()
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayMacros(0, 0, 0, 0))
 
-    val loggedCarbs: StateFlow<Int> = todayNutrition.map { meals ->
-        meals.sumOf { it.carbs }.roundToInt()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
-
-    val loggedFat: StateFlow<Int> = todayNutrition.map { meals ->
-        meals.sumOf { it.fat }.roundToInt()
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val loggedCalories: StateFlow<Int> get() = todayMacros.map { it.calories }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val loggedProtein:  StateFlow<Int> get() = todayMacros.map { it.protein }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val loggedCarbs:    StateFlow<Int> get() = todayMacros.map { it.carbs }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    val loggedFat:      StateFlow<Int> get() = todayMacros.map { it.fat }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val macroTargets: StateFlow<UiState<com.apexfit.app.utils.NutritionTargets>> = targetsFlow
         .map { UiState.Success(it) as UiState<com.apexfit.app.utils.NutritionTargets> }
@@ -115,13 +101,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     // Compliance
     val complianceScores: StateFlow<UiComplianceResult> = combine(
-        nutritionFlow, richSessionsFlow, targetsFlow
+        com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
+            .map { list -> list.map { com.apexfit.app.utils.NutritionEntry(date = it.date, calories = it.calories, protein = it.protein.roundToInt(), carbs = it.carbs.roundToInt(), fat = it.fat.roundToInt()) } },
+        richSessionsFlow,
+        targetsFlow
     ) { nutrition, sessions, targets ->
-        val res = withContext(Dispatchers.Default) {
-            com.apexfit.app.utils.AlgorithmEngine.calcComplianceScores(nutrition, sessions, targets)
-        }
+        val res = com.apexfit.app.utils.AlgorithmEngine.calcComplianceScores(nutrition, sessions, targets)
         res.toUi()
-    }.stateIn(
+    }.debounce(300L)
+    .flowOn(Dispatchers.Default)
+    .stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         com.apexfit.app.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi()
@@ -133,13 +122,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     // Home Analytics (Streaks)
     val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> = combine(
-        nutritionFlow, richSessionsFlow, targetsFlow
+        com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
+            .map { list -> list.map { com.apexfit.app.utils.NutritionEntry(date = it.date, calories = it.calories, protein = it.protein.roundToInt(), carbs = it.carbs.roundToInt(), fat = it.fat.roundToInt()) } },
+        richSessionsFlow,
+        targetsFlow
     ) { nutrition, sessions, targets ->
-        withContext(Dispatchers.Default) {
-            val validTargets = targets
-            com.apexfit.app.utils.AlgorithmEngine.calcStreaks(nutrition, sessions, validTargets)
-        }
-    }.stateIn(
+        val validTargets = targets
+        com.apexfit.app.utils.AlgorithmEngine.calcStreaks(nutrition, sessions, validTargets)
+    }.debounce(300L)
+    .flowOn(Dispatchers.Default)
+    .stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         com.apexfit.app.utils.StreakResult(com.apexfit.app.utils.StreakInfo(0), com.apexfit.app.utils.StreakInfo(0))

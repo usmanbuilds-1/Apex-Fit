@@ -36,7 +36,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     // 2. Monthly muscle volumes for radar chart
     val monthlyMuscleVolumes: StateFlow<UiState<Map<String, Int>>> = combine(
-        dao.getAllTrainingSessionsFlow(),
+        dao.getRecentCompletedSessionsFlow(com.apexfit.app.utils.getDateDaysAgo(90)),
         dao.getRecentExerciseSetsFlow(com.apexfit.app.utils.getDateDaysAgo(90))
     ) { sessions, allSets ->
         val currentMonthPrefix = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(java.util.Date())
@@ -58,7 +58,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     // 3. Muscle recovery status calculation
     val muscleRecoveryStatuses: StateFlow<UiState<List<MuscleRecoveryStatus>>> = combine(
-        dao.getAllTrainingSessionsFlow(),
+        dao.getRecentCompletedSessionsFlow(com.apexfit.app.utils.getDateDaysAgo(90)),
         dao.getRecentExerciseSetsFlow(com.apexfit.app.utils.getDateDaysAgo(90))
     ) { sessions, allSets ->
         UiState.Success(calculateMuscleRecovery(sessions, allSets)) as UiState<List<MuscleRecoveryStatus>>

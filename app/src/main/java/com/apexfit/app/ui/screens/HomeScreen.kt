@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
@@ -245,9 +246,7 @@ fun HomeScreen(
     // Aggregate meal stats
     val latestWeight = weightHistory.firstOrNull()?.weight ?: weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
 
-    val todayDayString = remember {
-        java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
-    }
+    val todayDayString = remember { java.text.SimpleDateFormat("EEEE", java.util.Locale.US) }.format(java.util.Date())
     val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
     val sessionName = todaySession?.label ?: "Rest Day"
     val focusMuscles = (todaySession?.focus ?: "Active Recovery").replace(", ", " • ").replace(",", " • ")
@@ -298,13 +297,17 @@ fun HomeScreen(
         todayNutrition.sumOf { it.protein }.roundToInt()
     }
 
-    val isTodayWorkoutCompleted = remember(completedSessions, todayDateStr) {
-        completedSessions.any { it.date == todayDateStr }
+    val isTodayWorkoutCompleted by remember {
+        derivedStateOf {
+            completedSessions.any { it.date == todayDateStr }
+        }
     }
-    val isPlannedTrainingToday = remember(todaySession) {
-        todaySession != null &&
-            !todaySession.label.contains("Rest", ignoreCase = true) &&
-            todaySession.focus != "Muscle Recovery & Rest"
+    val isPlannedTrainingToday by remember {
+        derivedStateOf {
+            todaySession != null &&
+                !todaySession.label.contains("Rest", ignoreCase = true) &&
+                todaySession.focus != "Muscle Recovery & Rest"
+        }
     }
     val isTodayTrainingDay = isTodayWorkoutCompleted || isPlannedTrainingToday
 
