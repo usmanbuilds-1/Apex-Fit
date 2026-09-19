@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 9,
-    "identityHash": "99c7524bc13b3255789a4e3b2a920f60",
+    "version": 25,
+    "identityHash": "7651e1d55370faafb4ec8d5dafb644b2",
     "entities": [
       {
         "tableName": "body_weights",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `time` TEXT NOT NULL, `weight` REAL NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `date` TEXT NOT NULL, `time` TEXT NOT NULL, `weight` REAL NOT NULL, `unit` TEXT NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -31,6 +31,12 @@
             "columnName": "weight",
             "affinity": "REAL",
             "notNull": true
+          },
+          {
+            "fieldPath": "unit",
+            "columnName": "unit",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -38,7 +44,18 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_body_weights_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_body_weights_date` ON `${TABLE_NAME}` (`date`)"
+          }
+        ]
       },
       {
         "tableName": "nutrition_logs",
@@ -113,7 +130,7 @@
       },
       {
         "tableName": "workout_sessions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `date` TEXT NOT NULL, `sessionType` TEXT NOT NULL, `completed` INTEGER NOT NULL, `durationMinutes` INTEGER NOT NULL, `sessionFeel` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `date` TEXT NOT NULL, `sessionType` TEXT NOT NULL, `completed` INTEGER NOT NULL, `durationMinutes` INTEGER NOT NULL, `sessionFeel` INTEGER NOT NULL, `training_week_id` INTEGER, `plan_session_id` INTEGER, `status` TEXT DEFAULT 'completed', `readiness_score_at_start` INTEGER, `notes` TEXT, `started_at` INTEGER, `completed_at` INTEGER, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -150,6 +167,42 @@
             "columnName": "sessionFeel",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "trainingWeekId",
+            "columnName": "training_week_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "planSessionId",
+            "columnName": "plan_session_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "defaultValue": "'completed'"
+          },
+          {
+            "fieldPath": "readinessScoreAtStart",
+            "columnName": "readiness_score_at_start",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "started_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -167,12 +220,51 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_date` ON `${TABLE_NAME}` (`date`)"
+          },
+          {
+            "name": "index_workout_sessions_completed",
+            "unique": false,
+            "columnNames": [
+              "completed"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_completed` ON `${TABLE_NAME}` (`completed`)"
+          },
+          {
+            "name": "index_workout_sessions_sessionType",
+            "unique": false,
+            "columnNames": [
+              "sessionType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_sessionType` ON `${TABLE_NAME}` (`sessionType`)"
+          },
+          {
+            "name": "index_workout_sessions_completed_date",
+            "unique": false,
+            "columnNames": [
+              "completed",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_completed_date` ON `${TABLE_NAME}` (`completed`, `date`)"
+          },
+          {
+            "name": "index_workout_sessions_sessionType_completed_date",
+            "unique": false,
+            "columnNames": [
+              "sessionType",
+              "completed",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_sessionType_completed_date` ON `${TABLE_NAME}` (`sessionType`, `completed`, `date`)"
           }
         ]
       },
       {
         "tableName": "exercise_sets",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` TEXT NOT NULL, `exerciseId` TEXT NOT NULL, `exerciseName` TEXT NOT NULL, `muscleGroup` TEXT NOT NULL, `weight` REAL NOT NULL, `reps` INTEGER NOT NULL, `rpe` INTEGER NOT NULL, `isWarmup` INTEGER NOT NULL, `restTaken` INTEGER NOT NULL, `completed` INTEGER NOT NULL, `repsInReserve` INTEGER NOT NULL, `effectiveSetValue` REAL NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` TEXT NOT NULL, `exerciseId` TEXT NOT NULL, `exerciseName` TEXT NOT NULL, `muscleGroup` TEXT NOT NULL, `weight` REAL NOT NULL, `reps` INTEGER NOT NULL, `rpe` INTEGER NOT NULL, `isWarmup` INTEGER NOT NULL, `restTaken` INTEGER NOT NULL, `completed` INTEGER NOT NULL, `repsInReserve` INTEGER NOT NULL, `effectiveSetValue` REAL NOT NULL, `weight_unit` TEXT NOT NULL, FOREIGN KEY(`sessionId`) REFERENCES `workout_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`exerciseId`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
             "fieldPath": "id",
@@ -251,6 +343,12 @@
             "columnName": "effectiveSetValue",
             "affinity": "REAL",
             "notNull": true
+          },
+          {
+            "fieldPath": "weightUnit",
+            "columnName": "weight_unit",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -277,12 +375,67 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId` ON `${TABLE_NAME}` (`exerciseId`)"
+          },
+          {
+            "name": "index_exercise_sets_exerciseId_completed_isWarmup",
+            "unique": false,
+            "columnNames": [
+              "exerciseId",
+              "completed",
+              "isWarmup"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId_completed_isWarmup` ON `${TABLE_NAME}` (`exerciseId`, `completed`, `isWarmup`)"
+          },
+          {
+            "name": "index_exercise_sets_muscleGroup",
+            "unique": false,
+            "columnNames": [
+              "muscleGroup"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exercise_sets_muscleGroup` ON `${TABLE_NAME}` (`muscleGroup`)"
+          },
+          {
+            "name": "index_exercise_sets_muscleGroup_completed_isWarmup",
+            "unique": false,
+            "columnNames": [
+              "muscleGroup",
+              "completed",
+              "isWarmup"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exercise_sets_muscleGroup_completed_isWarmup` ON `${TABLE_NAME}` (`muscleGroup`, `completed`, `isWarmup`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "exercises",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "exerciseId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
           }
         ]
       },
       {
         "tableName": "workout_programs",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT NOT NULL, `goal` TEXT NOT NULL, `isActive` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `goal` TEXT NOT NULL, `isActive` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `description` TEXT, `days_per_week` INTEGER DEFAULT 4, `is_template` INTEGER DEFAULT 0, `source` TEXT DEFAULT 'manual', `import_raw_text` TEXT, `activated_at` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -313,18 +466,71 @@
             "columnName": "createdAt",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "daysPerWeek",
+            "columnName": "days_per_week",
+            "affinity": "INTEGER",
+            "defaultValue": "4"
+          },
+          {
+            "fieldPath": "isTemplate",
+            "columnName": "is_template",
+            "affinity": "INTEGER",
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "defaultValue": "'manual'"
+          },
+          {
+            "fieldPath": "importRawText",
+            "columnName": "import_raw_text",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "activatedAt",
+            "columnName": "activated_at",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
-          "autoGenerate": false,
+          "autoGenerate": true,
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_workout_programs_isActive",
+            "unique": false,
+            "columnNames": [
+              "isActive"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_programs_isActive` ON `${TABLE_NAME}` (`isActive`)"
+          },
+          {
+            "name": "index_workout_programs_createdAt",
+            "unique": false,
+            "columnNames": [
+              "createdAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_programs_createdAt` ON `${TABLE_NAME}` (`createdAt`)"
+          }
+        ]
       },
       {
         "tableName": "plan_sessions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `planId` INTEGER NOT NULL, `label` TEXT NOT NULL, `day` TEXT NOT NULL, `focus` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `planId` INTEGER NOT NULL, `label` TEXT NOT NULL, `day` TEXT NOT NULL, `focus` TEXT NOT NULL, FOREIGN KEY(`planId`) REFERENCES `workout_programs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -358,15 +564,39 @@
           }
         ],
         "primaryKey": {
-          "autoGenerate": false,
+          "autoGenerate": true,
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_plan_sessions_planId",
+            "unique": false,
+            "columnNames": [
+              "planId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_plan_sessions_planId` ON `${TABLE_NAME}` (`planId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "workout_programs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "planId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       },
       {
         "tableName": "plan_exercises",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `planSessionId` INTEGER NOT NULL, `name` TEXT NOT NULL, `muscleGroup` TEXT NOT NULL, `sets` INTEGER NOT NULL, `repsMin` INTEGER NOT NULL, `repsMax` INTEGER NOT NULL, `weight` REAL NOT NULL, `restSeconds` INTEGER NOT NULL, `notes` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `planSessionId` INTEGER NOT NULL, `name` TEXT NOT NULL, `muscleGroup` TEXT NOT NULL, `sets` INTEGER NOT NULL, `repsMin` INTEGER NOT NULL, `repsMax` INTEGER NOT NULL, `weight` REAL NOT NULL, `weight_unit` TEXT NOT NULL DEFAULT 'kg', `restSeconds` INTEGER NOT NULL, `notes` TEXT NOT NULL, FOREIGN KEY(`planSessionId`) REFERENCES `plan_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -417,6 +647,13 @@
             "notNull": true
           },
           {
+            "fieldPath": "weightUnit",
+            "columnName": "weight_unit",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'kg'"
+          },
+          {
             "fieldPath": "restSeconds",
             "columnName": "restSeconds",
             "affinity": "INTEGER",
@@ -430,15 +667,39 @@
           }
         ],
         "primaryKey": {
-          "autoGenerate": false,
+          "autoGenerate": true,
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_plan_exercises_planSessionId",
+            "unique": false,
+            "columnNames": [
+              "planSessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_plan_exercises_planSessionId` ON `${TABLE_NAME}` (`planSessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "plan_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "planSessionId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       },
       {
         "tableName": "personal_records",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `exerciseId` TEXT NOT NULL, `type` TEXT NOT NULL, `value` REAL NOT NULL, `date` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `exerciseId` TEXT NOT NULL, `type` TEXT NOT NULL, `value` REAL NOT NULL, `date` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`exerciseId`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -476,37 +737,31 @@
           "columnNames": [
             "id"
           ]
-        }
-      },
-      {
-        "tableName": "weekly_reports",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`weekStart` TEXT NOT NULL, `score` INTEGER NOT NULL, `geminiResponse` TEXT NOT NULL, PRIMARY KEY(`weekStart`))",
-        "fields": [
+        },
+        "indices": [
           {
-            "fieldPath": "weekStart",
-            "columnName": "weekStart",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "score",
-            "columnName": "score",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "geminiResponse",
-            "columnName": "geminiResponse",
-            "affinity": "TEXT",
-            "notNull": true
+            "name": "index_personal_records_exerciseId",
+            "unique": false,
+            "columnNames": [
+              "exerciseId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_personal_records_exerciseId` ON `${TABLE_NAME}` (`exerciseId`)"
           }
         ],
-        "primaryKey": {
-          "autoGenerate": false,
-          "columnNames": [
-            "weekStart"
-          ]
-        }
+        "foreignKeys": [
+          {
+            "table": "exercises",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "exerciseId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       },
       {
         "tableName": "body_measurements",
@@ -548,7 +803,27 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_body_measurements_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_body_measurements_date` ON `${TABLE_NAME}` (`date`)"
+          },
+          {
+            "name": "index_body_measurements_bodyPart",
+            "unique": false,
+            "columnNames": [
+              "bodyPart"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_body_measurements_bodyPart` ON `${TABLE_NAME}` (`bodyPart`)"
+          }
+        ]
       },
       {
         "tableName": "detected_patterns",
@@ -606,7 +881,7 @@
       },
       {
         "tableName": "exercises",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `category` TEXT NOT NULL, `primary_muscle` TEXT NOT NULL, `secondary_muscles` TEXT, `equipment_required` TEXT NOT NULL, `is_bilateral` INTEGER NOT NULL DEFAULT 1, `is_user_created` INTEGER NOT NULL DEFAULT 0, `is_deleted` INTEGER NOT NULL DEFAULT 0, `created_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `category` TEXT NOT NULL, `primary_muscle` TEXT NOT NULL, `secondary_muscles` TEXT NOT NULL, `equipment_required` TEXT NOT NULL, `is_bilateral` INTEGER NOT NULL DEFAULT 1, `is_user_created` INTEGER NOT NULL DEFAULT 0, `is_deleted` INTEGER NOT NULL DEFAULT 0, `created_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -635,7 +910,8 @@
           {
             "fieldPath": "secondaryMuscles",
             "columnName": "secondary_muscles",
-            "affinity": "TEXT"
+            "affinity": "TEXT",
+            "notNull": true
           },
           {
             "fieldPath": "equipmentRequired",
@@ -691,7 +967,7 @@
       },
       {
         "tableName": "exercise_metadata",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`exercise_id` TEXT NOT NULL, `fatigue_cost_coefficient` REAL NOT NULL DEFAULT 1.0, `systemic_multiplier` REAL NOT NULL DEFAULT 1.0, `default_progression_increment_kg` REAL NOT NULL DEFAULT 2.5, `min_reps` INTEGER NOT NULL DEFAULT 1, `max_reps` INTEGER NOT NULL DEFAULT 30, `default_rest_seconds` INTEGER NOT NULL DEFAULT 120, `force_type` TEXT NOT NULL DEFAULT 'push', `recovery_tau_days` REAL NOT NULL DEFAULT 1.2, `notes` TEXT, PRIMARY KEY(`exercise_id`), FOREIGN KEY(`exercise_id`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`exercise_id` TEXT NOT NULL, `fatigue_cost_coefficient` REAL NOT NULL DEFAULT 1.0, `systemic_multiplier` REAL NOT NULL DEFAULT 1.0, `default_progression_increment_kg` REAL NOT NULL DEFAULT 2.5, `min_reps` INTEGER NOT NULL DEFAULT 1, `max_reps` INTEGER NOT NULL DEFAULT 30, `default_rest_seconds` INTEGER NOT NULL DEFAULT 120, `force_type` TEXT NOT NULL DEFAULT 'push', `recovery_tau_days` REAL NOT NULL DEFAULT 1.2, `notes` TEXT, `stalledSessions` INTEGER NOT NULL, PRIMARY KEY(`exercise_id`), FOREIGN KEY(`exercise_id`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "exerciseId",
@@ -759,6 +1035,12 @@
             "fieldPath": "notes",
             "columnName": "notes",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "stalledSessions",
+            "columnName": "stalledSessions",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -784,7 +1066,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '99c7524bc13b3255789a4e3b2a920f60')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7651e1d55370faafb4ec8d5dafb644b2')"
     ]
   }
 }

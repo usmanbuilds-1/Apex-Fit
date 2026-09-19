@@ -3,6 +3,7 @@ package com.apexfit.app.data.repository
 import com.apexfit.app.data.*
 import com.apexfit.app.domain.repository.FitnessRepository
 import androidx.room.withTransaction
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -159,12 +160,14 @@ class FitnessRepositoryImpl(
     }
 
     override suspend fun scanAndSaveWeeklyPatterns() {
-        val dbWeights = dao.getAllWeightEntries()
+        val cutoffDate = LocalDate.now().minusDays(90).toString()
+
+        val dbWeights = dao.getWeightEntriesSince(cutoffDate)
         val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
             com.apexfit.app.utils.WeightEntry(date, list.map { it.weight }.average())
         }.sortedBy { it.date }
         
-        val dbNutrition = dao.getAllNutritionEntriesFlow().first()
+        val dbNutrition = dao.getNutritionEntriesSince(cutoffDate)
         val engineNutrition = dbNutrition.groupBy { it.date }.map { (date, list) ->
             com.apexfit.app.utils.NutritionEntry(
                 date = date,
@@ -175,46 +178,16 @@ class FitnessRepositoryImpl(
             )
         }.sortedBy { it.date }
         
-        val dbSessions = dao.getAllCompletedSessions()
-        val allSets = dao.getAllExerciseSetsForCompletedSessions()
-        val setsBySession = allSets.groupBy { it.sessionId }
+        val dbSessions = dao.getRecentCompletedSessions(cutoffDate)
+        val muscleVolumes = dao.getMuscleGroupVolumesSince(cutoffDate)
         val sessions = dbSessions.map { session ->
-            val dbSets = setsBySession[session.id] ?: emptyList()
-            // AUDIT FIX (BUG-V4-013): load secondary muscle data for all exercises in scan
-            val exerciseIds = dbSets.map { it.exerciseId }.distinct()
-            val exerciseMetaMap: Map<String, List<String>> = dao.getExercisesByIds(exerciseIds)
-                .associate { ex ->
-                    val slugKey = ex.id
-                    val secondaries = ex.secondaryMuscles
-                    slugKey to secondaries
-                }
-            val exerciseLogs = dbSets.groupBy { it.exerciseId }.map { (exId, sets) ->
-                val firstSet = sets.firstOrNull()
-                val name = firstSet?.exerciseName ?: "Exercise"
-                val muscle = firstSet?.muscleGroup ?: "General"
-                com.apexfit.app.utils.ExerciseLog(
-                    id = exId,
-                    name = name,
-                    muscleGroup = muscle,
-                    secondaryMuscles = exerciseMetaMap[exId] ?: emptyList(), // AUDIT FIX (BUG-V4-013)
-                    sets = sets.map { s ->
-                        com.apexfit.app.utils.ExerciseSet(
-                            weight = s.weight,
-                            reps = s.reps,
-                            rpe = s.rpe,
-                            isWarmup = s.isWarmup,
-                            completed = s.completed
-                        )
-                    }
-                )
-            }
             com.apexfit.app.utils.TrainingSession(
                 date = session.date,
                 sessionType = session.sessionType,
                 completed = session.completed,
                 sessionFeel = session.sessionFeel,
                 durationMinutes = session.durationMinutes,
-                exercises = exerciseLogs
+                exercises = emptyList()
             )
         }
         

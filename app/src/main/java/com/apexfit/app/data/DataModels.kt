@@ -71,7 +71,9 @@ data class NutritionEntry(
     indices = [
         Index(value = ["date"]),
         Index(value = ["completed"]),
-        Index(value = ["sessionType"])
+        Index(value = ["sessionType"]),
+        Index(value = ["completed", "date"]),
+        Index(value = ["sessionType", "completed", "date"])
     ]
 )
 data class TrainingSession(
@@ -94,7 +96,10 @@ data class TrainingSession(
     tableName = "exercise_sets",
     indices = [
         Index(value = ["sessionId"]),
-        Index(value = ["exerciseId"])
+        Index(value = ["exerciseId"]),
+        Index(value = ["exerciseId", "completed", "isWarmup"]),
+        Index(value = ["muscleGroup"]),
+        Index(value = ["muscleGroup", "completed", "isWarmup"])
     ],
     foreignKeys = [
         ForeignKey(

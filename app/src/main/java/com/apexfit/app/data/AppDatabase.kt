@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Exercise::class,
         ExerciseMetadata::class
     ],
-    version = 24,
+    version = 25,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -381,10 +381,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Note: Schema planning error — creates indexes that don't match any DAO queries,
+        // retained to preserve migration compatibility for upgrading users.
         val MIGRATION_23_24 = object : androidx.room.migration.Migration(23, 24) {
             override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_sessionId_completed` ON `exercise_sets` (`sessionId`, `completed`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_sessions_date_status` ON `workout_sessions` (`date`, `status`)")
+            }
+        }
+
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Compound index for the most common exercise set query pattern
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId_completed_isWarmup` ON `exercise_sets` (`exerciseId`, `completed`, `isWarmup`)")
+                // Index for muscle group analytics queries
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_muscleGroup` ON `exercise_sets` (`muscleGroup`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_muscleGroup_completed_isWarmup` ON `exercise_sets` (`muscleGroup`, `completed`, `isWarmup`)")
+                // Compound indexes for session queries
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_sessions_completed_date` ON `workout_sessions` (`completed`, `date`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_workout_sessions_sessionType_completed_date` ON `workout_sessions` (`sessionType`, `completed`, `date`)")
             }
         }
 
@@ -399,7 +414,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                 .setQueryExecutor(java.util.concurrent.Executors.newFixedThreadPool(4))
                 .build()

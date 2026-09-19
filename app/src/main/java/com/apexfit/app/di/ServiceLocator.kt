@@ -79,7 +79,7 @@ object ServiceLocator {
 
     val nutritionEntriesFlow: StateFlow<List<com.apexfit.app.utils.NutritionEntry>> by lazy {
         val dao = database(appContext).fitnessDao()
-        dao.getNutritionEntriesSince(
+        dao.getNutritionEntriesSinceFlow(
             com.apexfit.app.utils.getDateDaysAgo(90)
         )
             .flowOn(Dispatchers.IO)

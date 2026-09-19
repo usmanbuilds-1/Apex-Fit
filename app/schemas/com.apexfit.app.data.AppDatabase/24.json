@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 24,
-    "identityHash": "79f42944f02fc24f34ae2b51e61bc3a2",
+    "identityHash": "7651e1d55370faafb4ec8d5dafb644b2",
     "entities": [
       {
         "tableName": "body_weights",
@@ -238,6 +238,27 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_sessionType` ON `${TABLE_NAME}` (`sessionType`)"
+          },
+          {
+            "name": "index_workout_sessions_completed_date",
+            "unique": false,
+            "columnNames": [
+              "completed",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_completed_date` ON `${TABLE_NAME}` (`completed`, `date`)"
+          },
+          {
+            "name": "index_workout_sessions_sessionType_completed_date",
+            "unique": false,
+            "columnNames": [
+              "sessionType",
+              "completed",
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_sessionType_completed_date` ON `${TABLE_NAME}` (`sessionType`, `completed`, `date`)"
           }
         ]
       },
@@ -354,6 +375,37 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId` ON `${TABLE_NAME}` (`exerciseId`)"
+          },
+          {
+            "name": "index_exercise_sets_exerciseId_completed_isWarmup",
+            "unique": false,
+            "columnNames": [
+              "exerciseId",
+              "completed",
+              "isWarmup"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId_completed_isWarmup` ON `${TABLE_NAME}` (`exerciseId`, `completed`, `isWarmup`)"
+          },
+          {
+            "name": "index_exercise_sets_muscleGroup",
+            "unique": false,
+            "columnNames": [
+              "muscleGroup"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exercise_sets_muscleGroup` ON `${TABLE_NAME}` (`muscleGroup`)"
+          },
+          {
+            "name": "index_exercise_sets_muscleGroup_completed_isWarmup",
+            "unique": false,
+            "columnNames": [
+              "muscleGroup",
+              "completed",
+              "isWarmup"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_exercise_sets_muscleGroup_completed_isWarmup` ON `${TABLE_NAME}` (`muscleGroup`, `completed`, `isWarmup`)"
           }
         ],
         "foreignKeys": [
@@ -1014,7 +1066,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '79f42944f02fc24f34ae2b51e61bc3a2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7651e1d55370faafb4ec8d5dafb644b2')"
     ]
   }
 }

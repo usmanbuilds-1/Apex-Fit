@@ -17,6 +17,9 @@ interface FitnessDao {
     @Query("SELECT * FROM body_weights WHERE date >= :since ORDER BY date DESC, time DESC")
     fun getWeightEntriesSinceFlow(since: String): Flow<List<WeightEntry>>
 
+    @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC")
+    suspend fun getWeightEntriesSince(cutoffDate: String): List<WeightEntry>
+
     @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
     suspend fun getAllWeightEntries(): List<WeightEntry>
 
@@ -38,7 +41,10 @@ interface FitnessDao {
         WHERE date >= :since
         ORDER BY date DESC
     """)
-    fun getNutritionEntriesSince(since: String): Flow<List<NutritionEntry>>
+    fun getNutritionEntriesSinceFlow(since: String): Flow<List<NutritionEntry>>
+
+    @Query("SELECT * FROM nutrition_logs WHERE date >= :cutoffDate")
+    suspend fun getNutritionEntriesSince(cutoffDate: String): List<NutritionEntry>
 
     @Query("SELECT * FROM nutrition_logs WHERE date = :date ORDER BY time DESC")
     fun getNutritionForDateFlow(date: String): Flow<List<NutritionEntry>>
@@ -459,7 +465,18 @@ interface FitnessDao {
 
     @Query("SELECT COUNT(*) FROM workout_sessions WHERE date = :date AND completed = 1")
     fun getCompletedSessionCountFlow(date: String): Flow<Int>
+
+    @Query("""
+        SELECT es.muscleGroup, SUM(es.weight * es.reps) as totalVolume
+        FROM exercise_sets es
+        INNER JOIN workout_sessions ts ON es.sessionId = ts.id
+        WHERE ts.date >= :cutoffDate AND es.completed = 1 AND es.isWarmup = 0
+        GROUP BY es.muscleGroup
+    """)
+    suspend fun getMuscleGroupVolumesSince(cutoffDate: String): List<MuscleGroupVolume>
 }
+
+data class MuscleGroupVolume(val muscleGroup: String, val totalVolume: Double)
 
 /**
  * Data class for batched progression query result.
