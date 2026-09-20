@@ -36,8 +36,8 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     // 2. Monthly muscle volumes for radar chart
     val monthlyMuscleVolumes: StateFlow<UiState<Map<String, Int>>> = combine(
-        dao.getRecentCompletedSessionsFlow(com.apexfit.app.utils.getDateDaysAgo(90)),
-        dao.getRecentExerciseSetsFlow(com.apexfit.app.utils.getDateDaysAgo(90))
+        com.apexfit.app.di.ServiceLocator.recent90DaySessionsFlow,
+        com.apexfit.app.di.ServiceLocator.recent90DaySetsFlow
     ) { sessions, allSets ->
         val currentMonthPrefix = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(java.util.Date())
         val thisMonthSessions = sessions.filter { it.date.startsWith(currentMonthPrefix) }
@@ -58,8 +58,8 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     // 3. Muscle recovery status calculation
     val muscleRecoveryStatuses: StateFlow<UiState<List<MuscleRecoveryStatus>>> = combine(
-        dao.getRecentCompletedSessionsFlow(com.apexfit.app.utils.getDateDaysAgo(90)),
-        dao.getRecentExerciseSetsFlow(com.apexfit.app.utils.getDateDaysAgo(90))
+        com.apexfit.app.di.ServiceLocator.recent90DaySessionsFlow,
+        com.apexfit.app.di.ServiceLocator.recent90DaySetsFlow
     ) { sessions, allSets ->
         UiState.Success(calculateMuscleRecovery(sessions, allSets)) as UiState<List<MuscleRecoveryStatus>>
     }
@@ -149,6 +149,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
         val muscles = com.apexfit.app.utils.MuscleGroups.ALL
         val nowMs = System.currentTimeMillis()
+        val sessionsById = sessions.associateBy { it.id }
 
         return muscles.map { muscle ->
             val matchingSets = allSets.filter { set ->
@@ -165,7 +166,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
             } else {
                 // Find the most recent session that trained this muscle
                 val setsWithDates = matchingSets.mapNotNull { set ->
-                    val session = sessions.find { it.id == set.sessionId } ?: return@mapNotNull null
+                    val session = sessionsById[set.sessionId] ?: return@mapNotNull null
                     set to session
                 }.sortedByDescending { it.second.date }
 

@@ -86,68 +86,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
-    val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> = repository.getActivePlan().flatMapLatest { plan ->
-        val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
-        sessions.flatMapLatest { sessionList ->
-            val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
-            val todaySession = sessionList.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-            if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
-        }
-    }.flowOn(Dispatchers.IO)
+    val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> =
+        com.apexfit.app.di.ServiceLocator.todayExercisesFlow
 
     // Readiness
     val sessionReadiness: StateFlow<UiSessionReadiness?> =
         com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
 
-    private val mappedNutritionFlow: Flow<List<com.apexfit.app.utils.NutritionEntry>> =
-        com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
-            .map { list ->
-                list.map {
-                    com.apexfit.app.utils.NutritionEntry(
-                        date = it.date,
-                        calories = it.calories,
-                        protein = it.protein.roundToInt(),
-                        carbs = it.carbs.roundToInt(),
-                        fat = it.fat.roundToInt()
-                    )
-                }
-            }
-
     // Compliance
-    val complianceScores: StateFlow<UiComplianceResult> = combine(
-        mappedNutritionFlow,
-        richSessionsFlow,
-        targetsFlow
-    ) { nutrition, sessions, targets ->
-        val res = com.apexfit.app.utils.AlgorithmEngine.calcComplianceScores(nutrition, sessions, targets)
-        res.toUi()
-    }.debounce(300L)
-    .flowOn(Dispatchers.Default)
-    .stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
-        com.apexfit.app.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi()
-    )
+    val complianceScores: StateFlow<UiComplianceResult> =
+        com.apexfit.app.di.ServiceLocator.complianceScoresFlow
 
     val complianceScore: StateFlow<Int> = complianceScores
         .map { it.overall }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     // Home Analytics (Streaks)
-    val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> = combine(
-        mappedNutritionFlow,
-        richSessionsFlow,
-        targetsFlow
-    ) { nutrition, sessions, targets ->
-        val validTargets = targets
-        com.apexfit.app.utils.AlgorithmEngine.calcStreaks(nutrition, sessions, validTargets)
-    }.debounce(300L)
-    .flowOn(Dispatchers.Default)
-    .stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
-        com.apexfit.app.utils.StreakResult(com.apexfit.app.utils.StreakInfo(0), com.apexfit.app.utils.StreakInfo(0))
-    )
+    val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> =
+        com.apexfit.app.di.ServiceLocator.streakResultFlow
 
     fun logWeight(weight: Double, date: String = getTodayDateString(), preferredUnit: String = "kg"): kotlinx.coroutines.Job? {
         if (!_isLoggingWeight.compareAndSet(false, true)) return null
@@ -256,7 +212,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getCurrentLocalTimeString(): String =
-        java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
+        java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
 
     public override fun onCleared() {
         super.onCleared()

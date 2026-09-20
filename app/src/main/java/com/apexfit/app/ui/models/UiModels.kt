@@ -30,7 +30,7 @@ data class UiNutritionEntry(
         ""
     }
     val time: String get() = try {
-        java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(timestamp))
+        java.time.Instant.ofEpochMilli(timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
     } catch(e: Exception) {
         "12:00"
     }

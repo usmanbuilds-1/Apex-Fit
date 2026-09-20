@@ -27,6 +27,14 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.flatMapLatest
 import com.apexfit.app.data.PlanSession
 import com.apexfit.app.data.WorkoutPlan
+import com.apexfit.app.data.PlanExercise
+import com.apexfit.app.data.TrainingSession
+import com.apexfit.app.data.ExerciseSet
+import com.apexfit.app.ui.models.UiComplianceResult
+import com.apexfit.app.utils.StreakResult
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
 
 object ServiceLocator {
@@ -48,14 +56,49 @@ object ServiceLocator {
     private val appContext get() = _appContext
         ?: error("appContext not set — call ServiceLocator.setAppScope() in Application.onCreate()")
 
-    private val DAY_OF_WEEK_FORMAT = java.text.SimpleDateFormat("EEEE", java.util.Locale.US)
+    private val DAY_OF_WEEK_FORMAT = java.time.format.DateTimeFormatter.ofPattern("EEEE", java.util.Locale.US)
+
+    private val bioProfileFlow: StateFlow<BioProfile> by lazy {
+        val ds = dataStore(appContext)
+        combine(
+            ds.heightFlow,
+            ds.ageFlow,
+            ds.sexFlow,
+            ds.weeklyWorkoutsFlow,
+            ds.goalWeightFlow
+        ) { height, age, sex, weekly, goalWeight ->
+            BioProfile(height, age, sex, weekly, goalWeight)
+        }
+        .distinctUntilChanged()
+        .stateIn(appScope, SharingStarted.WhileSubscribed(5_000), BioProfile.DEFAULT)
+    }
+
+    val recent90DaySessionsFlow: StateFlow<List<TrainingSession>> by lazy {
+        val dao = database(appContext).fitnessDao()
+        dao.getRecentCompletedSessionsFlow(getDateDaysAgo(90))
+            .flowOn(Dispatchers.IO)
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = emptyList()
+            )
+    }
+
+    val recent90DaySetsFlow: StateFlow<List<ExerciseSet>> by lazy {
+        val dao = database(appContext).fitnessDao()
+        dao.getRecentExerciseSetsFlow(getDateDaysAgo(90))
+            .flowOn(Dispatchers.IO)
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = emptyList()
+            )
+    }
 
     val richSessionsFlow: StateFlow<List<RichTrainingSession>> by lazy {
-        val dao = database(appContext).fitnessDao()
-        val cutoff = getDateDaysAgo(90)
         combine(
-            dao.getRecentCompletedSessionsFlow(cutoff),
-            dao.getRecentExerciseSetsFlow(cutoff)
+            recent90DaySessionsFlow,
+            recent90DaySetsFlow
         ) { sessions, sets ->
             SessionMapper.buildRichSessions(sessions, sets)
         }
@@ -164,27 +207,19 @@ object ServiceLocator {
             ds.calorieTargetValueFlow,
             ds.goalFlow,
             weightFlow,
-            ds.heightFlow,
-            ds.ageFlow,
-            ds.sexFlow,
-            ds.weeklyWorkoutsFlow,
-            ds.goalWeightFlow,
             completedTodayFlow,
-            activePlanSessionsFlow
+            activePlanSessionsFlow,
+            bioProfileFlow
         ) { values ->
             val isManual            = values[0] as Boolean
             val manualCals          = values[1] as Int
             val goal                = values[2] as String
             @Suppress("UNCHECKED_CAST")
             val weights             = values[3] as List<WeightEntry>
-            val heightCm            = values[4] as Double
-            val age                 = values[5] as Int
-            val sex                 = values[6] as String
-            val weeklyWorkouts      = values[7] as Int
-            val goalWeight          = values[8] as Double
-            val completedTodayCount = values[9] as Int
+            val completedTodayCount = values[4] as Int
             @Suppress("UNCHECKED_CAST")
-            val planSessions        = values[10] as List<com.apexfit.app.data.PlanSession>
+            val planSessions        = values[5] as List<com.apexfit.app.data.PlanSession>
+            val bio                 = values[6] as BioProfile
 
             val latestWeight = weights.maxByOrNull { it.date }?.weight
                 ?: com.apexfit.app.UserDefaults.WEIGHT_KG
@@ -198,10 +233,10 @@ object ServiceLocator {
                 val tdeeResult = AlgorithmEngine.calcAdaptiveTDEE(
                     weightLog      = recentWeights,
                     nutritionLog   = emptyList(),
-                    heightCm       = heightCm,
-                    ageYears       = age,
-                    biologicalSex  = sex,
-                    weeklyWorkouts = weeklyWorkouts
+                    heightCm       = bio.heightCm,
+                    ageYears       = bio.ageYears,
+                    biologicalSex  = bio.biologicalSex,
+                    weeklyWorkouts = bio.weeklyWorkouts
                 )
                 // FIX (§9 item 2): apply goal adjustment so Home ring, Nutrition
                 // ring, and coaching notification all track against the same target.
@@ -209,23 +244,23 @@ object ServiceLocator {
                     tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
                     goal            = goal,
                     currentWeightKg = latestWeight,
-                    goalWeightKg    = goalWeight,
-                    heightCm        = heightCm,
-                    ageYears        = age,
-                    sex             = sex
+                    goalWeightKg    = bio.goalWeightKg,
+                    heightCm        = bio.heightCm,
+                    ageYears        = bio.ageYears,
+                    sex             = bio.biologicalSex
                 )
             }
 
             val cycled = AlgorithmEngine.calcCycledTargets(
                 weeklyCalorieTarget    = calories,
-                weeklyTrainingSessions = weeklyWorkouts,
+                weeklyTrainingSessions = bio.weeklyWorkouts,
                 goal                   = goal,
                 bodyWeightKg           = latestWeight,
-                heightCm               = heightCm,
-                sex                    = sex
+                heightCm               = bio.heightCm,
+                sex                    = bio.biologicalSex
             )
 
-            val todayDayString = DAY_OF_WEEK_FORMAT.format(java.util.Date())
+            val todayDayString = java.time.LocalDate.now().format(DAY_OF_WEEK_FORMAT)
             val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
             val isPlannedTraining = todayPlanned != null &&
                 !todayPlanned.label.contains("Rest", ignoreCase = true) &&
@@ -242,9 +277,97 @@ object ServiceLocator {
                 protein                = todayProtein,
                 carbs                  = todayCarbs,
                 fat                    = todayFat,
-                weeklyTrainingSessions = weeklyWorkouts
+                weeklyTrainingSessions = bio.weeklyWorkouts
             )
         }.debounce(300L).flowOn(Dispatchers.IO).shareIn(appScope, SharingStarted.WhileSubscribed(5_000), 1)
+    }
+
+    val todayExercisesFlow: StateFlow<List<PlanExercise>> by lazy {
+        val dao = database(appContext).fitnessDao()
+        val repo = repository(appContext)
+        repo.getActivePlan().flatMapLatest { plan ->
+            val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
+            sessions.flatMapLatest { sessionList ->
+                val todayDayString = java.time.LocalDate.now().format(DAY_OF_WEEK_FORMAT)
+                val todaySession = sessionList.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+                if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
+            }
+        }
+        .flowOn(Dispatchers.IO)
+        .catch { e ->
+            android.util.Log.e("ServiceLocator", "todayExercisesFlow error", e)
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = appScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+    }
+
+    val complianceScoresFlow: StateFlow<UiComplianceResult> by lazy {
+        val mappedNutritionFlow = nutritionEntriesFlow.map { list ->
+            list.map {
+                com.apexfit.app.utils.NutritionEntry(
+                    date = it.date,
+                    calories = it.calories,
+                    protein = it.protein.roundToInt(),
+                    carbs = it.carbs.roundToInt(),
+                    fat = it.fat.roundToInt()
+                )
+            }
+        }
+        combine(
+            mappedNutritionFlow,
+            richSessionsFlow,
+            sharedTargetsFlow
+        ) { nutrition, sessions, targets ->
+            val res = AlgorithmEngine.calcComplianceScores(nutrition, sessions, targets)
+            res.toUi()
+        }
+        .debounce(300L)
+        .flowOn(Dispatchers.Default)
+        .catch { e ->
+            android.util.Log.e("ServiceLocator", "complianceScoresFlow error", e)
+            emit(com.apexfit.app.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi())
+        }
+        .stateIn(
+            scope = appScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = com.apexfit.app.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi()
+        )
+    }
+
+    val streakResultFlow: StateFlow<StreakResult> by lazy {
+        val mappedNutritionFlow = nutritionEntriesFlow.map { list ->
+            list.map {
+                com.apexfit.app.utils.NutritionEntry(
+                    date = it.date,
+                    calories = it.calories,
+                    protein = it.protein.roundToInt(),
+                    carbs = it.carbs.roundToInt(),
+                    fat = it.fat.roundToInt()
+                )
+            }
+        }
+        combine(
+            mappedNutritionFlow,
+            richSessionsFlow,
+            sharedTargetsFlow
+        ) { nutrition, sessions, targets ->
+            AlgorithmEngine.calcStreaks(nutrition, sessions, targets)
+        }
+        .debounce(300L)
+        .flowOn(Dispatchers.Default)
+        .catch { e ->
+            android.util.Log.e("ServiceLocator", "streakResultFlow error", e)
+            emit(StreakResult(com.apexfit.app.data.StreakInfo(0), com.apexfit.app.data.StreakInfo(0)))
+        }
+        .stateIn(
+            scope = appScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = StreakResult(com.apexfit.app.data.StreakInfo(0), com.apexfit.app.data.StreakInfo(0))
+        )
     }
 
     fun database(context: Context): AppDatabase =
@@ -277,5 +400,23 @@ object ServiceLocator {
             _appScope = null
             _appContext = null
         }
+    }
+}
+
+data class BioProfile(
+    val heightCm: Double,
+    val ageYears: Int,
+    val biologicalSex: String,
+    val weeklyWorkouts: Int,
+    val goalWeightKg: Double
+) {
+    companion object {
+        val DEFAULT = BioProfile(
+            heightCm = com.apexfit.app.UserDefaults.HEIGHT_CM,
+            ageYears = com.apexfit.app.UserDefaults.AGE_YEARS,
+            biologicalSex = "male",
+            weeklyWorkouts = com.apexfit.app.UserDefaults.WEEKLY_WORKOUTS,
+            goalWeightKg = com.apexfit.app.UserDefaults.WEIGHT_KG
+        )
     }
 }

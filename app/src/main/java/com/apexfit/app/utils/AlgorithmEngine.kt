@@ -21,8 +21,8 @@ data class GoalTimeline(
 )
 
 object AlgorithmEngine {
-    private var cachedTrendInput: List<WeightEntry>? = null
-    private var cachedTrendResult: List<TrendPoint>? = null
+    @Volatile private var cachedTrendInput: List<WeightEntry>? = null
+    @Volatile private var cachedTrendResult: List<TrendPoint>? = null
 
     fun estimateLBM(weightKg: Double, heightCm: Double, sex: String): Double {
         // Boer formula (Boer, 1984)
@@ -202,10 +202,10 @@ object AlgorithmEngine {
     // Science: Helms et al. (The Muscle and Strength Pyramid)
     // Filters daily water and glycogen fluctuations using a 14-day Exponential Moving Average (EMA).
     // Smoothing coefficient α = 2 / (N + 1) where N = 14 days, giving α ≈ 0.133.
+    @Synchronized
     fun calcTrendWeight(log: List<WeightEntry>): List<TrendPoint> {
-        if (log === cachedTrendInput) {
-            val cached = cachedTrendResult
-            if (cached != null) return cached
+        if (log == cachedTrendInput) {
+            return cachedTrendResult ?: emptyList()
         }
         if (log.isEmpty()) return emptyList()
 

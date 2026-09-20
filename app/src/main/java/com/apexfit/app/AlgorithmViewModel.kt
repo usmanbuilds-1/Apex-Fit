@@ -41,6 +41,8 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // SECTION 2 — INTERMEDIATE COMPUTED FLOWS
     // ─────────────────────────────────────────────────────────────────
 
+    private val richSessionsFlow = com.apexfit.app.di.ServiceLocator.richSessionsFlow
+
     // ─────────────────────────────────────────────────────────────────
     // SECTION 3 — PUBLIC STATEFLOWS
     // ─────────────────────────────────────────────────────────────────
@@ -114,38 +116,11 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     )
 
 
-    val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> = combine(
-        nutritionFlow, richSessionsFlow, targetsFlow
-    ) { nutrition, sessions, targets ->
-        withContext(Dispatchers.Default) {
-            val validTargets = targets ?: com.apexfit.app.utils.NutritionTargets(calories = com.apexfit.app.UserDefaults.CALORIES, protein = 160, carbs = 280, fat = 75, weeklyTrainingSessions = 4)
-            com.apexfit.app.utils.AlgorithmEngine.calcStreaks(nutrition, sessions, validTargets)
-        }
-    }.catch { e ->
-        android.util.Log.e("AlgorithmVM", "flow error", e)
-        emit(com.apexfit.app.utils.StreakResult(com.apexfit.app.utils.StreakInfo(0), com.apexfit.app.utils.StreakInfo(0)))
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
-        com.apexfit.app.utils.StreakResult(com.apexfit.app.utils.StreakInfo(0), com.apexfit.app.utils.StreakInfo(0))
-    )
+    val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> =
+        com.apexfit.app.di.ServiceLocator.streakResultFlow
 
-
-    val complianceScores: StateFlow<UiComplianceResult> = combine(
-        nutritionFlow, richSessionsFlow, targetsFlow
-    ) { nutrition, sessions, targets ->
-        val res = withContext(Dispatchers.Default) {
-            com.apexfit.app.utils.AlgorithmEngine.calcComplianceScores(nutrition, sessions, targets)
-        }
-        res.toUi()
-    }.catch { e ->
-        android.util.Log.e("AlgorithmVM", "flow error", e)
-        emit(com.apexfit.app.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi())
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
-        com.apexfit.app.utils.ComplianceResult(calories = 0, protein = 0, training = 0, overall = 0, weakestDay = null).toUi()
-    )
+    val complianceScores: StateFlow<UiComplianceResult> =
+        com.apexfit.app.di.ServiceLocator.complianceScoresFlow
 
     val complianceScore: StateFlow<Int> = complianceScores
         .map { it.overall }
@@ -398,14 +373,8 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
 
 
-    val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> = repository.getActivePlan().flatMapLatest { plan ->
-        val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
-        sessions.flatMapLatest { sessionList ->
-            val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
-            val todaySession = sessionList.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-            if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
-        }
-    }.flowOn(Dispatchers.IO)
+    val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> =
+        com.apexfit.app.di.ServiceLocator.todayExercisesFlow
 
     val sessionReadiness: StateFlow<UiSessionReadiness?> =
         com.apexfit.app.di.ServiceLocator.sessionReadinessFlow

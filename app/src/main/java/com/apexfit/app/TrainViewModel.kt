@@ -188,14 +188,10 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         if (session != null) repository.getExercisesForSession(session.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val todayExercises: StateFlow<UiState<List<PlanExercise>>> = baseActivePlanSessions.flatMapLatest { sessions ->
-        val todayDayString = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
-        val todaySession = sessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-        if (todaySession != null) repository.getExercisesForSession(todaySession.id) else flowOf(emptyList())
-    }
-    .map { UiState.Success(it) as UiState<List<PlanExercise>> }
-    .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
+    val todayExercises: StateFlow<UiState<List<PlanExercise>>> = com.apexfit.app.di.ServiceLocator.todayExercisesFlow
+        .map { UiState.Success(it) as UiState<List<PlanExercise>> }
+        .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun selectDay(day: String) {
         _selectedDayOfWeek.value = day
