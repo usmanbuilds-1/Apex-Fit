@@ -60,6 +60,11 @@ class FitnessViewModel(
     val userSex = dataStore.sexFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "male")
     val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 3)
 
+    val userBioProfile: StateFlow<UserBioProfile> = combine(
+        userHeight, userAge, userSex, weeklyWorkouts, goalWeight
+    ) { h, a, s, w, gw -> UserBioProfile(h, a, s, w, gw) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UserBioProfile.DEFAULT)
+
     val calorieTargetManual = dataStore.calorieTargetManualFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val calorieTargetValue = dataStore.calorieTargetValueFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.CALORIES)
     val equipmentAvailable = dataStore.equipmentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Barbell,Dumbbell,Cable,Machine")
@@ -291,5 +296,23 @@ class FitnessViewModel(
                 FitnessViewModel(app, this.createSavedStateHandle())
             }
         }
+    }
+}
+
+data class UserBioProfile(
+    val height: Double,
+    val age: Int,
+    val sex: String,
+    val weeklyWorkouts: Int,
+    val goalWeight: Double
+) {
+    companion object {
+        val DEFAULT = UserBioProfile(
+            height = com.apexfit.app.UserDefaults.HEIGHT_CM,
+            age = com.apexfit.app.UserDefaults.AGE_YEARS,
+            sex = "male",
+            weeklyWorkouts = 3,
+            goalWeight = com.apexfit.app.UserDefaults.WEIGHT_KG
+        )
     }
 }

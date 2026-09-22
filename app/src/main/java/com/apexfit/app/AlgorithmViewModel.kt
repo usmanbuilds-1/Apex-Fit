@@ -93,7 +93,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
             dataStore.sexFlow,
             dataStore.weeklyWorkoutsFlow
         ) { height, age, sex, workouts ->
-            UserBioProfile(height, age, sex, workouts)
+            AlgorithmBioProfile(height, age, sex, workouts)
         }
     ) { (weights, nutrition, sessions), bio ->
         withContext(Dispatchers.Default) {
@@ -299,12 +299,12 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         )
         allKeys.forEach { muscleSetsMap[it] = 0 }
 
+        // 1. Build a precomputed Map<String, String> from exerciseId -> muscleGroup at the start
+        val exerciseIdToMuscleGroup = mutableMapOf<String, String>()
         sessions.forEach { s ->
-            if (isDateInCurrentWeekSinceMonday(s.date)) {
-                s.exercises.forEach { e ->
-                    val workingSetsCount = e.sets.count { !it.isWarmup && it.completed }
+            s.exercises.forEach { e ->
+                if (!exerciseIdToMuscleGroup.containsKey(e.id)) {
                     val group = e.muscleGroup.lowercase().trim()
-                    
                     val targetGroup = when {
                         group.contains("chest") || group.contains("pectoral") -> "chest"
                         group.contains("back") && !group.contains("lower") -> "back"
@@ -335,6 +335,28 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
                         
                         else -> group
                     }
+                    exerciseIdToMuscleGroup[e.id] = targetGroup
+                }
+            }
+        }
+
+        // 2. Efficient date grouping/filtering using java.time.LocalDate without Calendar allocation
+        val sessionsByYearMonth = sessions
+            .filter { it.completed }
+            .groupBy { session ->
+                val ld = java.time.LocalDate.parse(session.date)
+                ld.year * 100 + ld.monthValue  // int key, no Calendar allocation
+            }
+
+        val today = java.time.LocalDate.now()
+        val monday = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+
+        sessions.forEach { s ->
+            val sessionDate = try { java.time.LocalDate.parse(s.date) } catch (e: Exception) { null }
+            if (sessionDate != null && !sessionDate.isBefore(monday) && !sessionDate.isAfter(today)) {
+                s.exercises.forEach { e ->
+                    val workingSetsCount = e.sets.count { !it.isWarmup && it.completed }
+                    val targetGroup = exerciseIdToMuscleGroup[e.id] ?: e.muscleGroup.lowercase().trim()
                     if (muscleSetsMap.containsKey(targetGroup)) {
                         muscleSetsMap[targetGroup] = (muscleSetsMap[targetGroup] ?: 0) + workingSetsCount
                     }
@@ -410,34 +432,10 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun isDateInCurrentWeekSinceMonday(dateStr: String): Boolean {
         return try {
-            val sessionDate = com.apexfit.app.utils.DateTimeUtils.parseDate(dateStr) ?: return false
-
-            val today = java.util.Date()
-            val cal = java.util.Calendar.getInstance(java.util.Locale.US)
-            cal.time = today
-            cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            cal.set(java.util.Calendar.MINUTE, 0)
-            cal.set(java.util.Calendar.SECOND, 0)
-            cal.set(java.util.Calendar.MILLISECOND, 0)
-
-            val currentDayOfWeek = cal.get(java.util.Calendar.DAY_OF_WEEK)
-            val daysToSubtract = when (currentDayOfWeek) {
-                java.util.Calendar.SUNDAY -> 6
-                java.util.Calendar.MONDAY -> 0
-                else -> currentDayOfWeek - java.util.Calendar.MONDAY
-            }
-            cal.add(java.util.Calendar.DAY_OF_YEAR, -daysToSubtract)
-            val mondayDate = cal.time
-
-            val todayCal = java.util.Calendar.getInstance(java.util.Locale.US)
-            todayCal.time = today
-            todayCal.set(java.util.Calendar.HOUR_OF_DAY, 23)
-            todayCal.set(java.util.Calendar.MINUTE, 59)
-            todayCal.set(java.util.Calendar.SECOND, 59)
-            todayCal.set(java.util.Calendar.MILLISECOND, 999)
-            val endOfTodayStr = todayCal.time
-
-            !sessionDate.before(mondayDate) && !sessionDate.after(endOfTodayStr)
+            val sessionDate = java.time.LocalDate.parse(dateStr)
+            val today = java.time.LocalDate.now()
+            val monday = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+            !sessionDate.isBefore(monday) && !sessionDate.isAfter(today)
         } catch (e: Exception) {
             false
         }
@@ -445,16 +443,9 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
 }
 
-private data class UserBioProfile(
+private data class AlgorithmBioProfile(
     val height: Double,
     val age: Int,
     val sex: String,
     val weeklyWorkouts: Int
 )
-
-private fun <T1, T2, T3, T4, R> Flow<T1>.combine(
-    flow2: Flow<T2>,
-    flow3: Flow<T3>,
-    flow4: Flow<T4>,
-    transform: suspend (T1, T2, T3, T4) -> R
-): Flow<R> = kotlinx.coroutines.flow.combine(this, flow2, flow3, flow4, transform)

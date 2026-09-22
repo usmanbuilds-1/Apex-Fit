@@ -41,7 +41,7 @@ class WorkoutSessionManager(
     private var lastProgressionResults: MutableMap<String, Any> = mutableMapOf()
     private var metadataMap: Map<String, ExerciseMetadata> = emptyMap()
     private val gson = Gson()
-    private val persistJob = MutableStateFlow<kotlinx.coroutines.Job?>(null)
+    private var persistJob: Job? = null
 
     init {
         scope.launch {
@@ -195,7 +195,9 @@ class WorkoutSessionManager(
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.WEIGHT_KG
             val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, userGoal)
 
-            val ids = exercises.map { exerciseNameToSlug(it.name) }
+            val exerciseSlugs = exercises.map { exerciseNameToSlug(it.name) }
+            val slugByExercise = exercises.associate { it.name to exerciseNameToSlug(it.name) }
+            val ids = exerciseSlugs
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
 
@@ -210,7 +212,8 @@ class WorkoutSessionManager(
             null
         }
 
-        val ids = exercises.map { exerciseNameToSlug(it.name) }
+        val slugByExercise = exercises.associate { it.name to exerciseNameToSlug(it.name) }
+        val ids = exercises.map { slugByExercise[it.name] ?: exerciseNameToSlug(it.name) }
         if (metadataMap.isEmpty()) {
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
@@ -219,12 +222,16 @@ class WorkoutSessionManager(
             .groupBy { it.exerciseId }
             .mapValues { it.value.first() }
 
-        val allExerciseSlugs = exercises.map { exerciseNameToSlug(it.name) }
-        val allHistorySets = repository.getLastSetsForExercises(allExerciseSlugs).groupBy { it.exerciseId }
+        val stalledCounts = try {
+            dao.getStalledCountsForExercises(ids).associate { it.exerciseId to it.stalledCount }
+        } catch (e: Exception) {
+            emptyMap()
+        }
 
         exercises.forEach { ex ->
             val exerciseUnit = ex.weightUnit.ifBlank { preferredUnits }
-            val lastSet = lastSets[exerciseNameToSlug(ex.name)]
+            val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
+            val lastSet = lastSets[exerciseSlug]
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
@@ -241,9 +248,9 @@ class WorkoutSessionManager(
                     )
                 }
 
-                suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
-                lastWeightMap[exerciseNameToSlug(ex.name)] = suggestedPreferred.fromDisplayWeightToKg(exerciseUnit)
-                contextLinesMap[exerciseNameToSlug(ex.name)] = if (ex.weight > 0.0) {
+                suggestionsMap[exerciseSlug] = suggestedPreferred
+                lastWeightMap[exerciseSlug] = suggestedPreferred.fromDisplayWeightToKg(exerciseUnit)
+                contextLinesMap[exerciseSlug] = if (ex.weight > 0.0) {
                     "Plan starting weight: $suggestedPreferred $exerciseUnit"
                 } else {
                     "First session suggestion (Beginner Base): $suggestedPreferred $exerciseUnit"
@@ -256,38 +263,28 @@ class WorkoutSessionManager(
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                val _allSets = (allHistorySets[exerciseNameToSlug(ex.name)] ?: emptyList<ExerciseSet>())
-                    .filter { !it.isWarmup && it.completed }
-                val _latestSessionId = _allSets.firstOrNull()?.sessionId
-                val allLastSets = if (_latestSessionId != null) {
-                    _allSets.filter { it.sessionId == _latestSessionId }.take(ex.sets)
-                } else {
-                    emptyList()
-                }.map { s ->
-                        com.apexfit.app.ui.models.UiExerciseSet(
-                            id = s.id,
-                            // AUDIT FIX (BUG-V4-011): progression engine contract is lbs for
-                            // ALL users. s.weight is canonical kg since schema v21, so convert
-                            // unconditionally. The display-unit branch was inverting the contract.
-                            weight = s.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,
-                            reps = s.reps,
-                            rpe = s.rpe,
-                            isWarmup = s.isWarmup,
-                            completed = s.completed,
-                            exerciseName = s.exerciseName,
-                            sessionId = s.sessionId,
-                            muscleGroup = s.muscleGroup
-                        )
-                    }  
+                val allLastSets = listOf(
+                    com.apexfit.app.ui.models.UiExerciseSet(
+                        id = lastSet.id,
+                        weight = lastWeightLbs,
+                        reps = lastSet.reps,
+                        rpe = lastSet.rpe,
+                        isWarmup = lastSet.isWarmup,
+                        completed = lastSet.completed,
+                        exerciseName = lastSet.exerciseName,
+                        sessionId = lastSet.sessionId,
+                        muscleGroup = lastSet.muscleGroup
+                    )
+                )
                   
                 val recoveryMultiplier = readinessPercent  
                     ?.let { it / 100.0 }  
                     ?.coerceIn(0.7, 1.0)  
                     ?: 1.0  
                   
-                val stalledCount = try { dao.getStalledCountForExercise(exerciseNameToSlug(ex.name)) } catch (e: Exception) { 0 }
+                val stalledCount = stalledCounts[exerciseSlug] ?: 0
                 val progressionResult = com.apexfit.app.utils.ProgressionEngine.calculateProgressiveWeight(  
-                    exerciseId = exerciseNameToSlug(ex.name),  
+                    exerciseId = exerciseSlug,  
                     lastSessionSets = allLastSets.ifEmpty {  
                         listOf(com.apexfit.app.ui.models.UiExerciseSet(  
                             weight = lastWeightLbs,  
@@ -304,9 +301,9 @@ class WorkoutSessionManager(
                     currentWeight = lastWeightLbs,  
                     exerciseType = exType,
                     consecutiveStalledSessions = stalledCount,
-                    incrementOverrideKg = metadataMap[exerciseNameToSlug(ex.name)]?.defaultProgressionIncrementKg
+                    incrementOverrideKg = metadataMap[exerciseSlug]?.defaultProgressionIncrementKg
                 )
-                lastProgressionResults[exerciseNameToSlug(ex.name)] = progressionResult
+                lastProgressionResults[exerciseSlug] = progressionResult
 
                 val suggestedLbs = progressionResult.newWeight
                 
@@ -324,11 +321,11 @@ class WorkoutSessionManager(
                     }
                 }
 
-                suggestionsMap[exerciseNameToSlug(ex.name)] = suggestedPreferred
-                lastWeightMap[exerciseNameToSlug(ex.name)] = lastSet.weight
+                suggestionsMap[exerciseSlug] = suggestedPreferred
+                lastWeightMap[exerciseSlug] = lastSet.weight
                 val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
                 val lastWeightDisplay = lastSet.weight.toDisplayWeight(exerciseUnit)
-                contextLinesMap[exerciseNameToSlug(ex.name)] = "Last: $lastWeightDisplay $exerciseUnit @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $exerciseUnit. Outcome: ${progressionResult.reason}"
+                contextLinesMap[exerciseSlug] = "Last: $lastWeightDisplay $exerciseUnit @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $exerciseUnit. Outcome: ${progressionResult.reason}"
             }
         }
 
@@ -338,9 +335,10 @@ class WorkoutSessionManager(
         // Build the in-memory session with pre-filled sets
         val activeExercises = exercises.map { ex ->
             val exerciseUnit = ex.weightUnit.ifBlank { preferredUnits }
-            val suggestedWeight = suggestionsMap[exerciseNameToSlug(ex.name)] ?: ex.weight.toDisplayWeight(exerciseUnit)
+            val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
+            val suggestedWeight = suggestionsMap[exerciseSlug] ?: ex.weight.toDisplayWeight(exerciseUnit)
             ActiveExercise(
-                exerciseId = exerciseNameToSlug(ex.name),
+                exerciseId = exerciseSlug,
                 exerciseName = ex.name,
                 muscleGroup = ex.muscleGroup,
                 sets = (1..ex.sets).map { setNum ->
@@ -393,30 +391,32 @@ class WorkoutSessionManager(
     ) {
         val session = _activeSession.value ?: return
 
-        // Deep copy of exercises list and inner sets to avoid in-place mutation
+        // Structural sharing: only copy the affected exercise
+        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
+        if (setIndex !in exercise.sets.indices) return
+
+        val rpeVal = rpe.coerceIn(1, 10)
         val updatedExercises = session.exercises.map { ex ->
-            val updatedSets = ex.sets.map { it.copy() }.toMutableList()
-            ex.copy(sets = updatedSets)
+            if (ex.exerciseId == exerciseId) {
+                val updatedSets = ex.sets.toMutableList()
+                val rirVal = repsInReserve ?: updatedSets[setIndex].repsInReserve
+                updatedSets[setIndex] = updatedSets[setIndex].copy(
+                    weight = weight,
+                    reps = reps,
+                    rpe = rpeVal,
+                    restTakenSeconds = restTakenSeconds,
+                    completedAt = if (completed) System.currentTimeMillis() else 0L,
+                    completed = completed,
+                    repsInReserve = rirVal
+                )
+                ex.copy(sets = updatedSets)
+            } else {
+                ex
+            }
         }.toMutableList()
 
-        val exercise = updatedExercises.find { it.exerciseId == exerciseId } ?: return
-
-        if (setIndex < exercise.sets.size) {
-            val rpeVal = rpe.coerceIn(1, 10)
-            val rirVal = repsInReserve ?: exercise.sets[setIndex].repsInReserve
-            exercise.sets[setIndex] = exercise.sets[setIndex].copy(
-                weight = weight,
-                reps = reps,
-                rpe = rpeVal,
-                restTakenSeconds = restTakenSeconds,
-                completedAt = if (completed) System.currentTimeMillis() else 0L,
-                completed = completed,
-                repsInReserve = rirVal
-            )
-            // Trigger StateFlow emission with a completely new reference and nested elements
-            _activeSession.value = session.copy(exercises = updatedExercises)
-            persistSession()
-        }
+        _activeSession.value = session.copy(exercises = updatedExercises)
+        persistSession()
     }
 
     /**
@@ -425,40 +425,44 @@ class WorkoutSessionManager(
     fun addCustomSet(exerciseId: String) {
         val session = _activeSession.value ?: return
 
-        // Deep copy of exercises list and inner sets to avoid in-place mutation
-        val updatedExercises = session.exercises.map { ex ->
-            val updatedSets = ex.sets.map { it.copy() }.toMutableList()
-            ex.copy(sets = updatedSets)
-        }.toMutableList()
-
-        val exercise = updatedExercises.find { it.exerciseId == exerciseId } ?: return
+        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
         val lastSet = exercise.sets.lastOrNull()
         val newSetNum = exercise.sets.size + 1
         val suggestedWeight = lastSet?.weight ?: 50.0
         val suggestedReps = lastSet?.reps ?: 10
         val suggestedRpe = lastSet?.rpe ?: 7
         val suggestedWeightUnit = lastSet?.weightUnit ?: "kg"
-        exercise.sets.add(
-            ActiveSet(
-                setNumber = newSetNum,
-                weight = suggestedWeight,
-                reps = suggestedReps,
-                rpe = suggestedRpe,
-                isWarmup = false,
-                restTakenSeconds = 0,
-                completed = false,
-                weightUnit = suggestedWeightUnit
-            )
-        )
-        // Trigger StateFlow emission with a completely new reference and nested elements
+
+        // Structural sharing: only copy the affected exercise
+        val updatedExercises = session.exercises.map { ex ->
+            if (ex.exerciseId == exerciseId) {
+                val updatedSets = ex.sets.toMutableList()
+                updatedSets.add(
+                    ActiveSet(
+                        setNumber = newSetNum,
+                        weight = suggestedWeight,
+                        reps = suggestedReps,
+                        rpe = suggestedRpe,
+                        isWarmup = false,
+                        restTakenSeconds = 0,
+                        completed = false,
+                        weightUnit = suggestedWeightUnit
+                    )
+                )
+                ex.copy(sets = updatedSets)
+            } else {
+                ex
+            }
+        }.toMutableList()
+
         _activeSession.value = session.copy(exercises = updatedExercises)
         persistSession()
     }
 
 
     private fun persistSession() {
-        persistJob.value?.cancel()
-        persistJob.value = scope.launch {
+        persistJob?.cancel()
+        persistJob = scope.launch {
             delay(500)
             val session = _activeSession.value
             try {
@@ -475,7 +479,7 @@ class WorkoutSessionManager(
 
     fun clearPersistedSession() {
         lastProgressionResults.clear()
-        persistJob.value?.cancel()
+        persistJob?.cancel()
         com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
         scope.launch {
             dataStore.saveActiveSessionJson(null)
@@ -528,7 +532,7 @@ class WorkoutSessionManager(
         // AUDIT FIX (BUG-V4-003): cancel any pending persist before we clear
         // state, so a debounced saver cannot write stale data after the commit's
         // null write.
-        persistJob.value?.cancel()
+        persistJob?.cancel()
 
         val session = _activeSession.value
             ?: return@withContext SessionCommitResult.empty()

@@ -55,11 +55,7 @@ data class UiExerciseSet(
     val muscleGroup: String = "",
     val exerciseId: String = "",
     val repsInReserve: Int = 2,
-    val effectiveSetValue: Double = try {
-        com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(rpe)
-    } catch(e: Exception) {
-        0.0
-    },
+    val effectiveSetValue: Double = 0.0,
     val restTaken: Int = 0
 )
 
@@ -143,7 +139,7 @@ fun com.apexfit.app.data.ExerciseSet.toUi(): UiExerciseSet = UiExerciseSet(
     muscleGroup = this.muscleGroup,
     exerciseId = this.exerciseId,
     repsInReserve = this.repsInReserve,
-    effectiveSetValue = this.effectiveSetValue,
+    effectiveSetValue = try { com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(rpe) } catch(e: Exception) { 0.0 },
     restTaken = this.restTaken
 )
 

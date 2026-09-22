@@ -654,6 +654,11 @@ object AlgorithmEngine {
         return (avgReps * timePerRepSeconds) / 60.0
     }
 
+    fun estimateSetDurationMinutes(ex: com.apexfit.app.data.PlanExercise, units: String = "kg"): Int {
+        val setMinutes = estimateSetDurationMinutes(ex.repsMin, ex.repsMax)
+        return (ex.sets * (setMinutes + ex.restSeconds / 60.0)).roundToInt()
+    }
+
     fun calcStreaks(
         nutritionLog: List<NutritionEntry>,
         trainingLog: List<TrainingSession>,

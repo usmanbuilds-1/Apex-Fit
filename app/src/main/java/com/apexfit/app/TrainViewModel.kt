@@ -237,6 +237,8 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             null
         }
+    }.distinctUntilChanged { a, b ->
+        a?.id == b?.id && a?.label == b?.label && a?.focus == b?.focus
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val activeExercises: StateFlow<List<PlanExercise>> = sessionManager.activeSession.map { active ->
@@ -285,23 +287,18 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     val weightContextLines: StateFlow<Map<String, String>> = sessionManager.weightContextLines
 
-    val effectiveSetsStateFlow: StateFlow<Map<String, EffectiveSetsData>> = combine(
-        sessionManager.activeSession,
-        activeExercises
-    ) { activeSession, exercises ->
-        if (activeSession == null) {
-            emptyMap()
-        } else {
+    val effectiveSetsStateFlow: StateFlow<Map<String, EffectiveSetsData>> =
+        sessionManager.activeSession.map { activeSession ->
+            if (activeSession == null) return@map emptyMap()
             activeSession.exercises.associate { exercise ->
                 val completedSets = exercise.sets.filter { it.completed && !it.isWarmup }
                 val currentEff = completedSets.sumOf { setObj ->
                     com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
                 }
-                
-                val planEx = exercises.find { it.id.toString() == exercise.exerciseId || it.name.equals(exercise.exerciseName, ignoreCase = true) }
-                val planSets = planEx?.sets ?: exercise.sets.size
+
+                val planSets = exercise.sets.size
                 val targetEff = planSets * 0.75
-                
+
                 val lastCompletedSet = completedSets.lastOrNull()
                 val lastSetEff = if (lastCompletedSet != null) {
                     com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(lastCompletedSet.rpe)
@@ -310,7 +307,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val lastSetRpe = lastCompletedSet?.rpe ?: 0
                 val prog = if (targetEff > 0) (currentEff / targetEff) * 100.0 else 0.0
-                
+
                 exercise.exerciseId to EffectiveSetsData(
                     exerciseId = exercise.exerciseId,
                     currentEffectiveSets = currentEff,
@@ -320,8 +317,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                     progress = prog
                 )
             }
-        }
-    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+        }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     // Warmup Checklist
     private val _warmupCompleted = MutableStateFlow<Map<String, Boolean>>(
@@ -368,11 +364,55 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     val completedPRsBroken: StateFlow<List<String>> = _completedPRsBroken.asStateFlow()
 
     // RIR Selector Overlay State
-    private val _showRirOverlay = MutableStateFlow(false)
-    val showRirOverlay: StateFlow<Boolean> = _showRirOverlay.asStateFlow()
+    data class RirOverlayState(
+        val isVisible: Boolean = false,
+        val exerciseId: String = "",
+        val exerciseName: String = "",
+        val muscleGroup: String = "",
+        val setIndex: Int = 0,
+        val weight: Double = 0.0,
+        val reps: Int = 0,
+        val totalSets: Int = 0,
+        val selectedRir: Int = 2,
+        val isShowingHistory: Boolean = false,
+        val historicalSets: List<com.apexfit.app.data.LastSetWithDate> = emptyList()
+    )
 
-    private val _isShowingRirHistory = MutableStateFlow(false)
-    val isShowingRirHistory: StateFlow<Boolean> = _isShowingRirHistory.asStateFlow()
+    private val _rirOverlayState = MutableStateFlow(RirOverlayState())
+    val rirOverlayState: StateFlow<RirOverlayState> = _rirOverlayState.asStateFlow()
+
+    val showRirOverlay: StateFlow<Boolean> = _rirOverlayState.map { it.isVisible }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val isShowingRirHistory: StateFlow<Boolean> = _rirOverlayState.map { it.isShowingHistory }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val rirSelectorExerciseId: StateFlow<String> = _rirOverlayState.map { it.exerciseId }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    val rirSelectorExerciseName: StateFlow<String> = _rirOverlayState.map { it.exerciseName }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    val rirSelectorMuscleGroup: StateFlow<String> = _rirOverlayState.map { it.muscleGroup }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    val rirSelectorSetIndex: StateFlow<Int> = _rirOverlayState.map { it.setIndex }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val rirSelectorWeight: StateFlow<Double> = _rirOverlayState.map { it.weight }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+
+    val rirSelectorReps: StateFlow<Int> = _rirOverlayState.map { it.reps }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val rirSelectorTotalSets: StateFlow<Int> = _rirOverlayState.map { it.totalSets }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val selectedRir: StateFlow<Int> = _rirOverlayState.map { it.selectedRir }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 2)
+
+    val rirHistoricalSets: StateFlow<List<com.apexfit.app.data.LastSetWithDate>> = _rirOverlayState.map { it.historicalSets }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _saveError = MutableStateFlow<String?>(null)
     val saveError: StateFlow<String?> = _saveError.asStateFlow()
@@ -380,33 +420,6 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissSaveError() {
         _saveError.value = null
     }
-
-    private val _rirSelectorExerciseId = MutableStateFlow("")
-    val rirSelectorExerciseId: StateFlow<String> = _rirSelectorExerciseId.asStateFlow()
-
-    private val _rirSelectorExerciseName = MutableStateFlow("")
-    val rirSelectorExerciseName: StateFlow<String> = _rirSelectorExerciseName.asStateFlow()
-
-    private val _rirSelectorMuscleGroup = MutableStateFlow("")
-    val rirSelectorMuscleGroup: StateFlow<String> = _rirSelectorMuscleGroup.asStateFlow()
-
-    private val _rirSelectorSetIndex = MutableStateFlow(0)
-    val rirSelectorSetIndex: StateFlow<Int> = _rirSelectorSetIndex.asStateFlow()
-
-    private val _rirSelectorWeight = MutableStateFlow(0.0)
-    val rirSelectorWeight: StateFlow<Double> = _rirSelectorWeight.asStateFlow()
-
-    private val _rirSelectorReps = MutableStateFlow(0)
-    val rirSelectorReps: StateFlow<Int> = _rirSelectorReps.asStateFlow()
-
-    private val _rirSelectorTotalSets = MutableStateFlow(0)
-    val rirSelectorTotalSets: StateFlow<Int> = _rirSelectorTotalSets.asStateFlow()
-
-    private val _selectedRir = MutableStateFlow(2) // Default = 2 (suggested)
-    val selectedRir: StateFlow<Int> = _selectedRir.asStateFlow()
-
-    private val _rirHistoricalSets = MutableStateFlow<List<com.apexfit.app.data.LastSetWithDate>>(emptyList())
-    val rirHistoricalSets: StateFlow<List<com.apexfit.app.data.LastSetWithDate>> = _rirHistoricalSets.asStateFlow()
 
     private val _completedHypertrophyScore = MutableStateFlow(0.0)
     val completedHypertrophyScore: StateFlow<Double> = _completedHypertrophyScore.asStateFlow()
@@ -510,46 +523,54 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         reps: Int,
         totalSets: Int
     ) {
-        _rirSelectorExerciseId.value = exerciseId
-        _rirSelectorExerciseName.value = exerciseName
-        _rirSelectorMuscleGroup.value = muscleGroup
-        _rirSelectorSetIndex.value = setIndex
-        _rirSelectorWeight.value = weight
-        _rirSelectorReps.value = reps
-        _rirSelectorTotalSets.value = totalSets
-        _isShowingRirHistory.value = false
+        _rirOverlayState.value = _rirOverlayState.value.copy(
+            exerciseId = exerciseId,
+            exerciseName = exerciseName,
+            muscleGroup = muscleGroup,
+            setIndex = setIndex,
+            weight = weight,
+            reps = reps,
+            totalSets = totalSets,
+            isShowingHistory = false
+        )
 
         viewModelScope.launch {
             val lastSetForEx = dao.getLastSetForExercise(exerciseId)
-            _selectedRir.value = lastSetForEx?.repsInReserve ?: 2
-            _showRirOverlay.value = true
+            val rir = lastSetForEx?.repsInReserve ?: 2
+            _rirOverlayState.value = _rirOverlayState.value.copy(
+                selectedRir = rir,
+                isVisible = true
+            )
         }
     }
 
     fun selectRirOption(rir: Int) {
-        _selectedRir.value = rir
+        _rirOverlayState.value = _rirOverlayState.value.copy(selectedRir = rir)
     }
 
     fun confirmRirSelection() {
-        val exerciseId = _rirSelectorExerciseId.value
-        val rpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(_selectedRir.value)
+        val exerciseId = _rirOverlayState.value.exerciseId
+        val rpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(_rirOverlayState.value.selectedRir)
 
         viewModelScope.launch {
             val lastSets = dao.getExerciseSetsByExerciseIdAndRPE(exerciseId, rpe, 5)
-            _rirHistoricalSets.value = lastSets
-            _isShowingRirHistory.value = true
+            _rirOverlayState.value = _rirOverlayState.value.copy(
+                historicalSets = lastSets,
+                isShowingHistory = true
+            )
         }
     }
 
     fun confirmRirAndNextSet() {
-        val exId = _rirSelectorExerciseId.value
-        val exName = _rirSelectorExerciseName.value
-        val muscleGroup = _rirSelectorMuscleGroup.value
-        val sIdx = _rirSelectorSetIndex.value
-        val w = _rirSelectorWeight.value
-        val r = _rirSelectorReps.value
-        val totalSets = _rirSelectorTotalSets.value
-        val repsInReserve = _selectedRir.value
+        val s = _rirOverlayState.value
+        val exId = s.exerciseId
+        val exName = s.exerciseName
+        val muscleGroup = s.muscleGroup
+        val sIdx = s.setIndex
+        val w = s.weight
+        val r = s.reps
+        val totalSets = s.totalSets
+        val repsInReserve = s.selectedRir
         val calculatedRpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(repsInReserve)
 
         logWorkoutSetState(
@@ -563,7 +584,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
             repsInReserve = repsInReserve
         )
 
-        _showRirOverlay.value = false
+        _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
         triggerRestTimer(
             rpe = calculatedRpe,
             exerciseName = exName,
@@ -575,7 +596,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeRirSelector() {
-        _showRirOverlay.value = false
+        _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
     }
 
     fun triggerRestTimer(rpe: Int, exerciseName: String, muscleGroup: String, reps: Int, setIndex: Int, totalSets: Int) {
@@ -687,24 +708,27 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _saveError.value = null
             val session = sessionManager.activeSession.value
-            val completedSets = mutableListOf<UiExerciseSet>()
-            session?.exercises?.forEach { ex ->
-                ex.sets.filter { it.completed }.forEach { setObj ->
-                    completedSets.add(
-                        ExerciseSet(
-                            exerciseId = ex.exerciseId,
-                            exerciseName = ex.exerciseName,
-                            muscleGroup = ex.muscleGroup,
-                            weight = setObj.weight,
-                            reps = setObj.reps,
-                            rpe = setObj.rpe,
-                            isWarmup = setObj.isWarmup,
-                            restTaken = setObj.restTakenSeconds,
-                            completed = setObj.completed,
-                            effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
-                        ).toUi()
-                    )
+            val completedSets = withContext(Dispatchers.Default) {
+                val sets = mutableListOf<UiExerciseSet>()
+                session?.exercises?.forEach { ex ->
+                    ex.sets.filter { it.completed }.forEach { setObj ->
+                        sets.add(
+                            ExerciseSet(
+                                exerciseId = ex.exerciseId,
+                                exerciseName = ex.exerciseName,
+                                muscleGroup = ex.muscleGroup,
+                                weight = setObj.weight,
+                                reps = setObj.reps,
+                                rpe = setObj.rpe,
+                                isWarmup = setObj.isWarmup,
+                                restTaken = setObj.restTakenSeconds,
+                                completed = setObj.completed,
+                                effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
+                            ).toUi()
+                        )
+                    }
                 }
+                sets
             }
 
             try {
@@ -718,7 +742,10 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                     "$exerciseName PR Conquered!"
                 }
 
-                generateWorkoutSessionHypertrophyQualityScore(completedSets)
+                val score = withContext(Dispatchers.Default) {
+                    calculateWorkoutSessionHypertrophyQualityScore(completedSets)
+                }
+                _completedHypertrophyScore.value = score
                 
                 // Enqueue PatternScanWorker asynchronously to process patterns off the main commit path
                 try {
@@ -743,10 +770,9 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun generateWorkoutSessionHypertrophyQualityScore(sets: List<UiExerciseSet>) {
+    private fun calculateWorkoutSessionHypertrophyQualityScore(sets: List<UiExerciseSet>): Double {
         if (sets.isEmpty()) {
-            _completedHypertrophyScore.value = 0.0
-            return
+            return 0.0
         }
         var scoreSum = 0.0
         sets.forEach { set ->
@@ -758,7 +784,11 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
             scoreSum += (rpeMod * typeMod)
         }
         val pct = (scoreSum / sets.size) * 10.0
-        _completedHypertrophyScore.value = Math.min(10.0, Math.max(0.0, pct))
+        return Math.min(10.0, Math.max(0.0, pct))
+    }
+
+    private fun generateWorkoutSessionHypertrophyQualityScore(sets: List<UiExerciseSet>) {
+        _completedHypertrophyScore.value = calculateWorkoutSessionHypertrophyQualityScore(sets)
     }
 
     fun dismissSessionComplete() {
@@ -784,24 +814,27 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _saveError.value = null
             val session = sessionManager.activeSession.value
-            val completedSets = mutableListOf<UiExerciseSet>()
-            session?.exercises?.forEach { ex ->
-                ex.sets.filter { it.completed }.forEach { setObj ->
-                    completedSets.add(
-                        ExerciseSet(
-                            exerciseId = ex.exerciseId,
-                            exerciseName = ex.exerciseName,
-                            muscleGroup = ex.muscleGroup,
-                            weight = setObj.weight,
-                            reps = setObj.reps,
-                            rpe = setObj.rpe,
-                            isWarmup = setObj.isWarmup,
-                            restTaken = setObj.restTakenSeconds,
-                            completed = setObj.completed,
-                            effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
-                        ).toUi()
-                    )
+            val completedSets = withContext(Dispatchers.Default) {
+                val sets = mutableListOf<UiExerciseSet>()
+                session?.exercises?.forEach { ex ->
+                    ex.sets.filter { it.completed }.forEach { setObj ->
+                        sets.add(
+                            ExerciseSet(
+                                exerciseId = ex.exerciseId,
+                                exerciseName = ex.exerciseName,
+                                muscleGroup = ex.muscleGroup,
+                                weight = setObj.weight,
+                                reps = setObj.reps,
+                                rpe = setObj.rpe,
+                                isWarmup = setObj.isWarmup,
+                                restTaken = setObj.restTakenSeconds,
+                                completed = setObj.completed,
+                                effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
+                            ).toUi()
+                        )
+                    }
                 }
+                sets
             }
 
             try {
@@ -815,7 +848,11 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
                     "$exerciseName PR Conquered!"
                 }
 
-                generateWorkoutSessionHypertrophyQualityScore(completedSets)
+                val score = withContext(Dispatchers.Default) {
+                    calculateWorkoutSessionHypertrophyQualityScore(completedSets)
+                }
+                _completedHypertrophyScore.value = score
+
                 _showSessionCompleteScreen.value = true
                 isCommitting.set(false)
             } catch (e: Exception) {

@@ -213,6 +213,9 @@ interface FitnessDao {
     @Query("SELECT COALESCE(stalledSessions, 0) FROM exercise_metadata WHERE exercise_id = :exerciseId")
     suspend fun getStalledCountForExercise(exerciseId: String): Int
 
+    @Query("SELECT exercise_id AS exerciseId, COALESCE(stalledSessions, 0) AS stalledCount FROM exercise_metadata WHERE exercise_id IN (:exerciseIds)")
+    suspend fun getStalledCountsForExercises(exerciseIds: List<String>): List<StalledCountResult>
+
     @Query("UPDATE exercise_metadata SET stalledSessions = :count WHERE exercise_id = :exerciseId")
     suspend fun updateStalledCount(exerciseId: String, count: Int)
 
@@ -510,6 +513,11 @@ interface FitnessDao {
 }
 
 data class MuscleGroupVolume(val muscleGroup: String, val totalVolume: Double)
+
+data class StalledCountResult(
+    val exerciseId: String,
+    val stalledCount: Int
+)
 
 /**
  * Data class for batched progression query result.

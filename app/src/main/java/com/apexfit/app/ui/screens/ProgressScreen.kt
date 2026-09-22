@@ -246,6 +246,22 @@ fun MonthlyVolumeRadarChart(
                     Text("Log a workout to see your muscle volume distribution", fontSize = 12.sp, color = MutedText)
                 }
             } else {
+                currentMaxVal = maxVal
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val size = with(density) { Size(160.dp.toPx(), 160.dp.toPx()) }
+
+                val gridPaths = remember(maxVal, size) {
+                    // Build the 3 static pentagon grid paths here
+                    listOf(
+                        buildPentagonPath(size, maxVal * 0.33f),
+                        buildPentagonPath(size, maxVal * 0.66f), 
+                        buildPentagonPath(size, maxVal)
+                    )
+                }
+                val dataPath = remember(vals, size, maxVal) {
+                    buildDataPentagonPath(vals, size, maxVal)
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -265,17 +281,8 @@ fun MonthlyVolumeRadarChart(
                         val center = Offset(size.width / 2, size.height / 2)
                         val r = size.minDimension / 2 - 20.dp.toPx()
 
-                        // Draw grid concentric pentagons (3 levels: 0.33, 0.66, 1.0)
-                        val levels = listOf(0.33f, 0.66f, 1.0f)
-                        levels.forEach { level ->
-                            val path = Path()
-                            for (i in 0 until 5) {
-                                val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-                                val x = center.x + r * level * cos(angle).toFloat()
-                                val y = center.y + r * level * sin(angle).toFloat()
-                                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                            }
-                            path.close()
+                        // Draw grid concentric pentagons
+                        gridPaths.forEach { path ->
                             drawPath(
                                 path = path,
                                 color = BorderSubtle.copy(alpha = 0.4f),
@@ -298,16 +305,6 @@ fun MonthlyVolumeRadarChart(
 
                         // Plot active data path
                         if (maxVal > 0) {
-                            val dataPath = Path()
-                            for (i in 0 until 5) {
-                                val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-                                val normalizedVal = (vals[i].toFloat() / maxVal).coerceAtMost(1.0f)
-                                val x = center.x + r * normalizedVal * cos(angle).toFloat()
-                                val y = center.y + r * normalizedVal * sin(angle).toFloat()
-                                if (i == 0) dataPath.moveTo(x, y) else dataPath.lineTo(x, y)
-                            }
-                            dataPath.close()
-
                             // Drawing filled path with alpha
                             drawPath(
                                 path = dataPath,
@@ -1047,3 +1044,41 @@ fun ProgressMainTabContent(
     }
 }
 }
+
+private var currentMaxVal: Float = 10f
+
+private fun buildPentagonPath(size: Size, scale: Float): Path {
+    val center = Offset(size.width / 2, size.height / 2)
+    val r = size.minDimension / 2 - (size.minDimension * 0.125f)
+    val level = if (scale > 1.0f && currentMaxVal > 0f) {
+        (scale / currentMaxVal).coerceIn(0f, 1f)
+    } else {
+        scale.coerceIn(0f, 1f)
+    }
+    val path = Path()
+    for (i in 0 until 5) {
+        val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
+        val x = center.x + r * level * cos(angle).toFloat()
+        val y = center.y + r * level * sin(angle).toFloat()
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    return path
+}
+
+private fun buildDataPentagonPath(vals: List<Int>, size: Size, maxVal: Float): Path {
+    val dataPath = Path()
+    if (maxVal <= 0f) return dataPath
+    val center = Offset(size.width / 2, size.height / 2)
+    val r = size.minDimension / 2 - (size.minDimension * 0.125f)
+    for (i in 0 until 5) {
+        val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
+        val normalizedVal = if (i < vals.size) (vals[i].toFloat() / maxVal).coerceAtMost(1.0f) else 0f
+        val x = center.x + r * normalizedVal * cos(angle).toFloat()
+        val y = center.y + r * normalizedVal * sin(angle).toFloat()
+        if (i == 0) dataPath.moveTo(x, y) else dataPath.lineTo(x, y)
+    }
+    dataPath.close()
+    return dataPath
+}
+

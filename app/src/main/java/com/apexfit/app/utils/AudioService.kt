@@ -4,6 +4,8 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -63,24 +65,26 @@ object AudioService {
                 val sample = DoubleArray(numSamples)
                 val generatedSnd = ShortArray(numSamples)
 
-                for (i in 0 until numSamples) {
-                    val angle = 2.0 * Math.PI * i / (sampleRate / frequencyHz)
-                    var amplitude = Math.sin(angle)
-                    
-                    // Add linear envelope to prevent popping (fade in/out)
-                    val fadeSamples = (sampleRate * 0.01).toInt().coerceAtMost(numSamples / 2) // 10ms fade
-                    if (i < fadeSamples) {
-                        amplitude *= (i.toDouble() / fadeSamples)
-                    } else if (i > numSamples - fadeSamples) {
-                        amplitude *= ((numSamples - i).toDouble() / fadeSamples)
+                withContext(Dispatchers.Default) {
+                    for (i in 0 until numSamples) {
+                        val angle = 2.0 * Math.PI * i / (sampleRate / frequencyHz)
+                        var amplitude = Math.sin(angle)
+                        
+                        // Add linear envelope to prevent popping (fade in/out)
+                        val fadeSamples = (sampleRate * 0.01).toInt().coerceAtMost(numSamples / 2) // 10ms fade
+                        if (i < fadeSamples) {
+                            amplitude *= (i.toDouble() / fadeSamples)
+                        } else if (i > numSamples - fadeSamples) {
+                            amplitude *= ((numSamples - i).toDouble() / fadeSamples)
+                        }
+                        
+                        sample[i] = amplitude
                     }
-                    
-                    sample[i] = amplitude
-                }
-                var idx = 0
-                for (dVal in sample) {
-                    val val1 = (dVal * 32767).toInt().toShort()
-                    generatedSnd[idx++] = val1
+                    var idx = 0
+                    for (dVal in sample) {
+                        val val1 = (dVal * 32767).toInt().toShort()
+                        generatedSnd[idx++] = val1
+                    }
                 }
 
                 val currentTrack = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {

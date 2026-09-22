@@ -27,8 +27,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isLoggingWeight = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    private val _todayDate = MutableStateFlow(getTodayDateString())
+    private val _todayDate = MutableStateFlow(java.time.LocalDate.now().toString())
     val todayDate: StateFlow<String> = _todayDate.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            while (true) {
+                val tomorrow = java.time.LocalDate.now().plusDays(1).atStartOfDay()
+                val millis = java.time.Duration.between(java.time.LocalDateTime.now(), tomorrow).toMillis()
+                kotlinx.coroutines.delay(millis + 1000)
+                _todayDate.value = java.time.LocalDate.now().toString()
+            }
+        }
+    }
 
     private val _weightLogError = MutableStateFlow<String?>(null)
     val weightLogError: StateFlow<String?> = _weightLogError.asStateFlow()
@@ -88,6 +99,63 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> =
         com.apexfit.app.di.ServiceLocator.todayExercisesFlow
+
+    val units: StateFlow<String> = dataStore.unitsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "kg")
+
+    val completedSessions: Flow<List<com.apexfit.app.data.RichTrainingSession>> = richSessionsFlow
+
+    val exercisesForPlan: Flow<List<com.apexfit.app.data.PlanExercise>> = dao.getAllPlanExercisesFlow()
+
+    val estimatedWorkoutDuration: StateFlow<Int> = combine(
+        todayExercisesFlow, units
+    ) { exercises, units ->
+        exercises.sumOf { ex -> AlgorithmEngine.estimateSetDurationMinutes(ex, units) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    val lastTrainedDateMap: StateFlow<Map<String, String>> = combine(
+        completedSessions, exercisesForPlan
+    ) { sessions, exercises ->
+        // Move the nested-loop + 15-branch when() string matching logic here
+        buildLastTrainedMap(sessions, exercises)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    private fun buildLastTrainedMap(
+        sessions: List<com.apexfit.app.data.RichTrainingSession>,
+        exercises: List<com.apexfit.app.data.PlanExercise>
+    ): Map<String, String> {
+        val exerciseMuscleMap = exercises.associate { it.name.lowercase().trim() to it.muscleGroup }
+        val mapping = mutableMapOf<String, String>()
+        val sortedSessions = sessions.sortedByDescending { it.date }
+        for (session in sortedSessions) {
+            val dateStr = session.date
+            for (exercise in session.exercises) {
+                val rawMuscle = exercise.muscleGroup.ifBlank {
+                    exerciseMuscleMap[exercise.name.lowercase().trim()] ?: ""
+                }
+                val exerciseMuscle = rawMuscle.lowercase().trim()
+                val matchedCanvasMuscle = when {
+                    exerciseMuscle.contains("chest") || exerciseMuscle.contains("pectoral") -> "chest"
+                    exerciseMuscle.contains("back") && !exerciseMuscle.contains("lower") -> "back"
+                    exerciseMuscle.contains("front delt") || exerciseMuscle.contains("front_delt") || exerciseMuscle.contains("anterior delt") -> "front_delt"
+                    exerciseMuscle.contains("rear delt") || exerciseMuscle.contains("rear_delt") || exerciseMuscle.contains("posterior delt") -> "rear_delt"
+                    exerciseMuscle.contains("side delt") || exerciseMuscle.contains("side_delt") || exerciseMuscle.contains("lateral") || exerciseMuscle.contains("shoulder") || exerciseMuscle.contains("delt") -> "side_delt"
+                    exerciseMuscle.contains("bicep") -> "bicep"
+                    exerciseMuscle.contains("tricep") -> "tricep"
+                    exerciseMuscle.contains("quad") || exerciseMuscle.contains("thigh") -> "quad"
+                    exerciseMuscle.contains("hamstring") -> "hamstring"
+                    exerciseMuscle.contains("glute") -> "glute"
+                    exerciseMuscle.contains("calf") || exerciseMuscle.contains("calves") -> "calf"
+                    exerciseMuscle.contains("core") || exerciseMuscle.contains("abs") || exerciseMuscle.contains("abdom") -> "core"
+                    else -> null
+                }
+                if (matchedCanvasMuscle != null && !mapping.containsKey(matchedCanvasMuscle)) {
+                    mapping[matchedCanvasMuscle] = dateStr
+                }
+            }
+        }
+        return mapping
+    }
 
     // Readiness
     val sessionReadiness: StateFlow<UiSessionReadiness?> =
