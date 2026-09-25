@@ -99,7 +99,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun getCurrentLocalTimeString(): String =
-        java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
+        java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
 
     public override fun onCleared() {
         super.onCleared()

@@ -39,7 +39,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
         com.apexfit.app.di.ServiceLocator.recent90DaySessionsFlow,
         com.apexfit.app.di.ServiceLocator.recent90DaySetsFlow
     ) { sessions, allSets ->
-        val currentMonthPrefix = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(java.util.Date())
+        val currentMonthPrefix = java.time.YearMonth.now().toString()
         val thisMonthSessions = sessions.filter { it.date.startsWith(currentMonthPrefix) }
         val thisMonthSessionIds = thisMonthSessions.map { it.id }.toSet()
         val finishedSets = allSets.filter { it.completed && !it.isWarmup && it.sessionId in thisMonthSessionIds }

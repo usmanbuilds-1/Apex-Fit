@@ -29,6 +29,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -88,10 +89,10 @@ import kotlinx.coroutines.withContext
 private val BOTTOM_NAV_ROUTES = listOf("home", "train", "nutrition", "progress")
 
 private val BOTTOM_NAV_TABS = listOf(
-    Triple("Home", Icons.Default.Home, 0),
-    Triple("Train", Icons.Default.FitnessCenter, 1),
-    Triple("Nutrition", Icons.Default.RestaurantMenu, 2),
-    Triple("Progress", Icons.Default.Insights, 3)
+    Triple("Home", R.drawable.ic_home, 0),
+    Triple("Train", R.drawable.ic_fitness_center, 1),
+    Triple("Nutrition", R.drawable.ic_restaurant_menu, 2),
+    Triple("Progress", R.drawable.ic_insights, 3)
 )
 
 // Standard glass-like premium card modifier
@@ -1059,7 +1060,7 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                         verticalArrangement = Arrangement.Center
                     ) {
                         Icon(
-                            imageVector = icon,
+                            painter = painterResource(icon),
                             contentDescription = label,
                             tint = labelColor,
                             modifier = Modifier.size(20.dp)

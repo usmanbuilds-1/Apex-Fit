@@ -232,78 +232,60 @@ object ReadinessFinal {
             session.completed && days in 0..30
         }
 
-        // a) muscleFatigueHistory
+        // Consolidated single pass over completedLast30 (Fix V-M8)
+        // Simultaneously accumulates: muscleFatigueHistory, muscleSessionHistory, systemicHistory, systemicPastSessionDoses
         val muscleFatigueHistory = mutableMapOf<String, MutableList<MuscleFatigueSnapshot>>()
+        val muscleSessionHistory = mutableMapOf<String, MutableList<Double>>()
+        val systemicHistory = mutableListOf<SystemicFatigueCalculator.SystemicSnapshot>()
+        val systemicPastSessionDoses = ArrayList<Double>(completedLast30.size)
+
         for (session in completedLast30) {
             val daysAgo = getDaysBetween(session.date, currentDate).toDouble()
+            val sessionDosesByMuscle = mutableMapOf<String, Double>()
+            var sessionSystemicDose = 0.0
+
             for (exercise in session.exercises) {
+                val exerciseId = exercise.id.ifEmpty { exerciseNameToSlug(exercise.name) }
+                val systemicMultiplier = metadata[exerciseId]?.systemicMultiplier
+                val secondaries = MuscleRecoveryData.getSecondaryMuscles(exercise.name, exercise.secondaryMuscles)
+                val secondaryTotalPct = secondaries.sumOf { it.second }
+                val canonicalExerciseMuscle = com.apexfit.app.utils.MuscleAliases.getCanonical(exercise.muscleGroup)
+
                 for (set in exercise.sets) {
                     if (set.isWarmup || !set.completed) continue
+
+                    // 1) Muscle fatigue dose & secondary muscle distributions
                     val dose = FatigueDoseCalculator.doseForSet(set)
-                    val secondaries = MuscleRecoveryData.getSecondaryMuscles(exercise.name, exercise.secondaryMuscles)
-                    val secondaryTotalPct = secondaries.sumOf { it.second }
                     val primaryDose = dose * (1.0 - secondaryTotalPct.coerceAtMost(1.0))
-                    
                     val primaryList = muscleFatigueHistory.getOrPut(exercise.muscleGroup) { mutableListOf() }
                     primaryList.add(MuscleFatigueSnapshot(exercise.muscleGroup, daysAgo, primaryDose))
-                    
+
                     for ((secMuscle, pct) in secondaries) {
-                        if (com.apexfit.app.utils.MuscleAliases.getCanonical(secMuscle) != com.apexfit.app.utils.MuscleAliases.getCanonical(exercise.muscleGroup)) {
+                        if (com.apexfit.app.utils.MuscleAliases.getCanonical(secMuscle) != canonicalExerciseMuscle) {
                             val secList = muscleFatigueHistory.getOrPut(secMuscle) { mutableListOf() }
                             secList.add(MuscleFatigueSnapshot(secMuscle, daysAgo, dose * pct))
                         }
                     }
-                }
-            }
-        }
 
-        // b) muscleSessionHistory
-        val muscleSessionHistory = mutableMapOf<String, MutableList<Double>>()
-        for (session in completedLast30) {
-            val sessionDosesByMuscle = mutableMapOf<String, Double>()
-            for (exercise in session.exercises) {
-                for (set in exercise.sets) {
-                    if (set.isWarmup || !set.completed) continue
-                    val dose = FatigueDoseCalculator.doseForSet(set)
-                    sessionDosesByMuscle[exercise.muscleGroup] = sessionDosesByMuscle.getOrDefault(exercise.muscleGroup, 0.0) + dose
+                    // 2) Muscle session total dose accumulation
+                    sessionDosesByMuscle[exercise.muscleGroup] = (sessionDosesByMuscle[exercise.muscleGroup] ?: 0.0) + dose
+
+                    // 3) Systemic dose accumulation
+                    val systemicDose = SystemicFatigueCalculator.doseForSet(
+                        set = set,
+                        exerciseName = exercise.name,
+                        systemicMultiplierOverride = systemicMultiplier
+                    )
+                    systemicHistory.add(SystemicFatigueCalculator.SystemicSnapshot(daysAgo, systemicDose))
+                    sessionSystemicDose += systemicDose
                 }
             }
+
             for ((muscle, totalDose) in sessionDosesByMuscle) {
                 val list = muscleSessionHistory.getOrPut(muscle) { mutableListOf() }
                 list.add(totalDose)
             }
-        }
-
-        // c) systemicHistory
-        val systemicHistory = mutableListOf<SystemicFatigueCalculator.SystemicSnapshot>()
-        for (session in completedLast30) {
-            val daysAgo = getDaysBetween(session.date, currentDate).toDouble()
-            for (exercise in session.exercises) {
-                val exerciseId = exercise.id.ifEmpty { exerciseNameToSlug(exercise.name) }
-                for (set in exercise.sets) {
-                    if (set.isWarmup || !set.completed) continue
-                    val dose = SystemicFatigueCalculator.doseForSet(
-                        set = set,
-                        exerciseName = exercise.name,
-                        systemicMultiplierOverride = metadata[exerciseId]?.systemicMultiplier
-                    )
-                    systemicHistory.add(SystemicFatigueCalculator.SystemicSnapshot(daysAgo, dose))
-                }
-            }
-        }
-
-        // d) systemicCapacity
-        val systemicPastSessionDoses = completedLast30.map { session ->
-            session.exercises.sumOf { exercise ->
-                val exerciseId = exercise.id.ifEmpty { exerciseNameToSlug(exercise.name) }
-                exercise.sets.filter { !it.isWarmup && it.completed }.sumOf { set ->
-                    SystemicFatigueCalculator.doseForSet(
-                        set = set,
-                        exerciseName = exercise.name,
-                        systemicMultiplierOverride = metadata[exerciseId]?.systemicMultiplier
-                    )
-                }
-            }
+            systemicPastSessionDoses.add(sessionSystemicDose)
         }
         val systemicCapacity = if (systemicPastSessionDoses.size < 3) 1500.0 else {
             val sorted = systemicPastSessionDoses.sorted()

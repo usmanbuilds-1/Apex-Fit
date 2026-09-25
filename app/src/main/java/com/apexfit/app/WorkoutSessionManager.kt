@@ -146,6 +146,8 @@ class WorkoutSessionManager(
     ) = withContext(Dispatchers.IO) {
         if (_isStartingSession.value) return@withContext
         _isStartingSession.value = true
+        val slugByExercise = exercises.associate { it.name to exerciseNameToSlug(it.name) }
+        val ids = exercises.mapNotNull { slugByExercise[it.name] }
         try {
             val lastWeightMap = mutableMapOf<String, Double>()
             val suggestionsMap = mutableMapOf<String, Double>()
@@ -195,9 +197,6 @@ class WorkoutSessionManager(
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.WEIGHT_KG
             val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, userGoal)
 
-            val exerciseSlugs = exercises.map { exerciseNameToSlug(it.name) }
-            val slugByExercise = exercises.associate { it.name to exerciseNameToSlug(it.name) }
-            val ids = exerciseSlugs
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
 
@@ -212,8 +211,6 @@ class WorkoutSessionManager(
             null
         }
 
-        val slugByExercise = exercises.associate { it.name to exerciseNameToSlug(it.name) }
-        val ids = exercises.map { slugByExercise[it.name] ?: exerciseNameToSlug(it.name) }
         if (metadataMap.isEmpty()) {
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
@@ -589,19 +586,22 @@ class WorkoutSessionManager(
         }
         repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
 
+        // 1. Compute all new stalled counts without hitting the DB per iteration
+        val exerciseIds = lastProgressionResults.keys.toList()
+        val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
+            .associate { it.exerciseId to it.stalledCount }
+
         val db = ServiceLocator.database(appContext)
         db.withTransaction {
             lastProgressionResults.forEach { (exerciseId, result) ->
-                try {
-                    val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
-                    val current = dao.getStalledCountForExercise(exerciseId)
-                    val newCount = when (r.outcome.name) {
-                        "SUCCESS", "PROGRESSING", "PLATEAU" -> 0
-                        "STALLED" -> current + 1
-                        else -> current
-                    }
-                    dao.updateStalledCount(exerciseId, newCount)
-                } catch (e: Exception) { /* ignore */ }
+                val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
+                val current = currentCounts[exerciseId] ?: 0
+                val newCount = when (r.outcome.name) {
+                    "SUCCESS", "PROGRESSING", "PLATEAU" -> 0
+                    "STALLED" -> current + 1
+                    else -> current
+                }
+                dao.updateStalledCount(exerciseId, newCount)
             }
         }
         lastProgressionResults.clear()

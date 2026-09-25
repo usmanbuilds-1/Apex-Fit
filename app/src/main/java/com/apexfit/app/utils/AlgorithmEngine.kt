@@ -387,19 +387,27 @@ object AlgorithmEngine {
         val dayNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
         val dayScores = mutableMapOf<String, Pair<Int,Int>>()
         val groupedByDate = recentNutrition.groupBy { it.date }
-        groupedByDate.forEach { (dateStr, entries) ->
+
+        // Cache LocalDate.parse() once per unique date string (Fix V-M9)
+        val dateParseCache = mutableMapOf<String, java.time.LocalDate>()
+        groupedByDate.keys.forEach { dateStr ->
             try {
-                val dow = java.time.LocalDate.parse(dateStr).dayOfWeek.value % 7
-                val day = dayNames[dow]
-                val current = dayScores[day] ?: Pair(0, 0)
-                val totalCal = entries.sumOf { it.calories }
-                val totalProtein = entries.sumOf { it.protein }
-                val hit = if (totalProtein >= targets.protein &&
-                    Math.abs(totalCal - targets.calories).toDouble() / targets.calories <= 0.10) 1 else 0
-                dayScores[day] = Pair(current.first + hit, current.second + 1)
+                dateParseCache[dateStr] = java.time.LocalDate.parse(dateStr)
             } catch (e: Exception) {
                 // Ignore parse errors safely
             }
+        }
+
+        groupedByDate.forEach { (dateStr, entries) ->
+            val parsedDate = dateParseCache[dateStr] ?: return@forEach
+            val dow = parsedDate.dayOfWeek.value % 7
+            val day = dayNames[dow]
+            val current = dayScores[day] ?: Pair(0, 0)
+            val totalCal = entries.sumOf { it.calories }
+            val totalProtein = entries.sumOf { it.protein }
+            val hit = if (totalProtein >= targets.protein &&
+                Math.abs(totalCal - targets.calories).toDouble() / targets.calories <= 0.10) 1 else 0
+            dayScores[day] = Pair(current.first + hit, current.second + 1)
         }
         val weakestDay = dayScores.entries
             .filter { it.value.second > 0 }

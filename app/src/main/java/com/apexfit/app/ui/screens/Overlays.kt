@@ -8,7 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -353,7 +353,7 @@ fun SessionCompleteOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: T
             ) {
                 // Trophy / celebration icon
                 Icon(
-                    imageVector = Icons.Filled.EmojiEvents,
+                    painter = painterResource(R.drawable.ic_emoji_events),
                     contentDescription = "Workout Complete",
                     tint = OrangeAccent,
                     modifier = Modifier.size(64.dp)

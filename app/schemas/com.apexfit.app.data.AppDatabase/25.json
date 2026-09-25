@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 25,
-    "identityHash": "185bb366609148f4c879ab76b6a16f5b",
+    "identityHash": "718d1510e8dac56553c8f083408ad0a7",
     "entities": [
       {
         "tableName": "body_weights",
@@ -220,24 +220,6 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_date` ON `${TABLE_NAME}` (`date`)"
-          },
-          {
-            "name": "index_workout_sessions_completed",
-            "unique": false,
-            "columnNames": [
-              "completed"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_completed` ON `${TABLE_NAME}` (`completed`)"
-          },
-          {
-            "name": "index_workout_sessions_sessionType",
-            "unique": false,
-            "columnNames": [
-              "sessionType"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_workout_sessions_sessionType` ON `${TABLE_NAME}` (`sessionType`)"
           },
           {
             "name": "index_workout_sessions_completed_date",
@@ -1077,7 +1059,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '185bb366609148f4c879ab76b6a16f5b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '718d1510e8dac56553c8f083408ad0a7')"
     ]
   }
 }

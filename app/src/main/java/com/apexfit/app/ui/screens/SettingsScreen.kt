@@ -32,7 +32,7 @@ import com.apexfit.app.FitnessViewModel
 import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ui.theme.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.ui.res.painterResource
 
 @Composable
 fun SettingsScreen(
@@ -649,7 +649,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Privacy Policy", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
-                Icon(Icons.Filled.OpenInNew, contentDescription = "Opens Privacy Policy in browser",
+                Icon(painter = painterResource(R.drawable.ic_open_in_new), contentDescription = "Opens Privacy Policy in browser",
                     tint = SecondaryText, modifier = Modifier.size(16.dp))
             }
         }
@@ -690,7 +690,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Terms of Service", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
-                Icon(Icons.Filled.OpenInNew, contentDescription = "Opens Terms of Service in browser",
+                Icon(painter = painterResource(R.drawable.ic_open_in_new), contentDescription = "Opens Terms of Service in browser",
                     tint = SecondaryText, modifier = Modifier.size(16.dp))
             }
         }

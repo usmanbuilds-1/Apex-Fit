@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -97,12 +98,12 @@ fun NutritionScreen(
     val activePlanSessions: List<com.apexfit.app.data.PlanSession> = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
 
     var todayDateStr by remember { mutableStateOf(com.apexfit.app.utils.DateTimeUtils.todayDateString()) }
-    var todayDayString by remember { mutableStateOf(java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())) }
+    var todayDayString by remember { mutableStateOf(java.time.LocalDate.now().dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)) }
 
     LaunchedEffect(Unit) {
         while (true) {
             val newDate = com.apexfit.app.utils.DateTimeUtils.todayDateString()
-            val newDay = java.text.SimpleDateFormat("EEEE", java.util.Locale.US).format(java.util.Date())
+            val newDay = java.time.LocalDate.now().dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)
             if (newDate != todayDateStr) todayDateStr = newDate
             if (newDay != todayDayString) todayDayString = newDay
             kotlinx.coroutines.delay(60_000L)
@@ -214,7 +215,7 @@ fun NutritionScreen(
         // Date picker swiping bar
         item {
             val todayDateString = remember {
-                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                java.time.LocalDate.now().toString()
             }
             val isToday = remember(selectedDate, todayDateString) {
                 selectedDate == todayDateString
@@ -532,8 +533,8 @@ fun AddFoodSheet(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = run {
-                        val fmt = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.US) }
-                        "STATUS: Auto-tracking local time (${fmt.format(java.util.Date())})"
+                        val fmt = remember { java.time.format.DateTimeFormatter.ofPattern("HH:mm") }
+                        "STATUS: Auto-tracking local time (${java.time.LocalTime.now().format(fmt)})"
                     },
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
@@ -840,7 +841,7 @@ fun AdaptiveCalorieTargetCard(
                     color = SecondaryText
                 )
                 Icon(
-                    Icons.Default.TrendingUp,
+                    painter = painterResource(R.drawable.ic_trending_up),
                     contentDescription = "Adaptive",
                     tint = OrangeAccent,
                     modifier = Modifier.size(16.dp)

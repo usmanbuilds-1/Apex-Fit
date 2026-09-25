@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -215,7 +216,7 @@ fun MonthlyVolumeRadarChart(
                     modifier = Modifier.background(DarkRaised, RoundedCornerShape(8.dp))
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Shield,
+                        painter = painterResource(R.drawable.ic_shield),
                         contentDescription = "View Recovery",
                         tint = AmberAccent,
                         modifier = Modifier.size(18.dp)
@@ -427,16 +428,16 @@ fun BodyMeasurementsTrackerPanel(
                                     .background(AccentSecondary.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                val icon = when (part) {
-                                    "Chest" -> Icons.Filled.Accessibility
-                                    "Biceps" -> Icons.Filled.FitnessCenter
-                                    "Waist" -> Icons.Filled.LineWeight
-                                    "Thighs" -> Icons.Filled.DirectionsRun
-                                    "Calves" -> Icons.Filled.DirectionsWalk
-                                    else -> Icons.Filled.AccessibilityNew
+                                val iconRes = when (part) {
+                                    "Chest" -> R.drawable.ic_accessibility
+                                    "Biceps" -> R.drawable.ic_fitness_center
+                                    "Waist" -> R.drawable.ic_line_weight
+                                    "Thighs" -> R.drawable.ic_directions_run
+                                    "Calves" -> R.drawable.ic_directions_walk
+                                    else -> R.drawable.ic_accessibility_new
                                 }
                                 Icon(
-                                    imageVector = icon,
+                                    painter = painterResource(iconRes),
                                     contentDescription = part,
                                     tint = AccentSecondary,
                                     modifier = Modifier.size(16.dp)
@@ -474,7 +475,7 @@ fun BodyMeasurementsTrackerPanel(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
-                                imageVector = Icons.Filled.ChevronRight,
+                                painter = painterResource(R.drawable.ic_chevron_right),
                                 contentDescription = "Detail",
                                 tint = MutedText,
                                 modifier = Modifier.size(16.dp)
@@ -580,9 +581,9 @@ fun ProgressMainTabContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val tabs = listOf(
-                    Triple(0, "Muscle Volume", Icons.Filled.FitnessCenter),
-                    Triple(1, "Recovery", Icons.Filled.CheckCircle),
-                    Triple(2, "BODY METRICS", Icons.Filled.BarChart)
+                    Triple(0, "Muscle Volume", R.drawable.ic_fitness_center),
+                    Triple(1, "Recovery", R.drawable.ic_check_circle),
+                    Triple(2, "BODY METRICS", R.drawable.ic_bar_chart)
                 )
                 tabs.forEach { (index, title, icon) ->
                     val isSelected = activeSubTab == index
@@ -601,7 +602,7 @@ fun ProgressMainTabContent(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = icon,
+                                painter = painterResource(icon),
                                 contentDescription = title,
                                 tint = if (isSelected) Color(0xFF0F0F1A) else MutedText,
                                 modifier = Modifier.size(13.dp)

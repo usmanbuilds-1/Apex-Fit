@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -343,7 +344,7 @@ fun ProgramSubTab(
                                     )
                                 }
                                 Icon(
-                                    imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                    painter = painterResource(if (isExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more),
                                     contentDescription = "Expand details",
                                     tint = SecondaryText
                                 )
@@ -1397,7 +1398,7 @@ fun WorkoutExecutionSubTab(
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("skip_exercise_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.SkipNext,
+                                painter = painterResource(R.drawable.ic_skip_next),
                                 contentDescription = "Skip Exercise",
                                 tint = AmberAccent,
                                 modifier = Modifier.size(18.dp)

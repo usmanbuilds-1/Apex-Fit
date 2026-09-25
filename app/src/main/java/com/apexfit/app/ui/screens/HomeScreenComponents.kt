@@ -26,7 +26,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -142,7 +144,10 @@ fun HomeTodayWorkoutCard(
     val todayExercises = (todayExercisesState as? UiState.Success)?.data ?: emptyList()
     val activePlanSessions = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
 
-    val todayDayString = remember { java.text.SimpleDateFormat("EEEE", java.util.Locale.US) }.format(java.util.Date())
+    val todayDayString = remember {
+        java.time.LocalDate.now().dayOfWeek
+            .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)
+    }
     val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
     val sessionName = todaySession?.label ?: "Rest Day"
     val focusMuscles = (todaySession?.focus ?: "Active Recovery").replace(", ", " • ").replace(",", " • ")
@@ -264,7 +269,7 @@ fun HomeTodayWorkoutCard(
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Timer,
+                                painter = painterResource(R.drawable.ic_timer),
                                 contentDescription = null,
                                 tint = AmberAccent,
                                 modifier = Modifier.size(14.dp)
@@ -389,11 +394,11 @@ fun HomeTodayWorkoutCard(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        imageVector = when {
-                            activeWorkoutSession != null -> Icons.Default.PlayCircle
-                            isTodayWorkoutCompleted -> Icons.Default.CheckCircle
-                            todaySession == null -> Icons.Default.SelfImprovement
-                            else -> Icons.Default.PlayArrow
+                        painter = when {
+                            activeWorkoutSession != null -> painterResource(R.drawable.ic_play_circle)
+                            isTodayWorkoutCompleted -> rememberVectorPainter(Icons.Default.CheckCircle)
+                            todaySession == null -> painterResource(R.drawable.ic_self_improvement)
+                            else -> rememberVectorPainter(Icons.Default.PlayArrow)
                         },
                         contentDescription = null,
                         tint = when {
@@ -508,7 +513,10 @@ fun HomeNutritionRingCard(
 
     val targets = (macroTargetsState as? UiState.Success)?.data
     val activePlanSessions = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
-    val todayDayString = remember { java.text.SimpleDateFormat("EEEE", java.util.Locale.US) }.format(java.util.Date())
+    val todayDayString = remember {
+        java.time.LocalDate.now().dayOfWeek
+            .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)
+    }
     val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
 
     val isTodayWorkoutCompleted by remember(completedSessions) {
@@ -585,7 +593,7 @@ fun HomeNutritionRingCard(
                         }
                     }
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
+                        painter = painterResource(R.drawable.ic_chevron_right),
                         contentDescription = null,
                         tint = IndigoAccent.copy(alpha = 0.8f),
                         modifier = Modifier.size(16.dp)
@@ -635,7 +643,7 @@ fun HomeNutritionRingCard(
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.LocalFireDepartment, contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
+                        Icon(painter = painterResource(R.drawable.ic_local_fire_department), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                         Text(
                             text = if (calTarget > 0) "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal left" else "No target",
                             fontSize = 12.sp,
@@ -644,7 +652,7 @@ fun HomeNutritionRingCard(
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.Egg, contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
+                        Icon(painter = painterResource(R.drawable.ic_egg), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                         Text(
                             text = if (proteinTarget > 0) "$proteinLogged / ${proteinTarget}g protein" else "$proteinLogged / — protein",
                             fontSize = 12.sp,
@@ -748,7 +756,7 @@ fun HomeWeightChartCard(
                         letterSpacing = 1.sp
                     )
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
+                        painter = painterResource(R.drawable.ic_chevron_right),
                         contentDescription = null,
                         tint = IndigoAccent.copy(alpha = 0.8f),
                         modifier = Modifier.size(16.dp)
@@ -777,14 +785,14 @@ fun HomeWeightChartCard(
                         ) {
                             if (change < 0) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowDownward,
+                                    painter = painterResource(R.drawable.ic_arrow_downward),
                                     contentDescription = null,
                                     tint = deltaColor,
                                     modifier = Modifier.size(14.dp)
                                 )
                             } else if (change > 0) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowUpward,
+                                    painter = painterResource(R.drawable.ic_arrow_upward),
                                     contentDescription = null,
                                     tint = deltaColor,
                                     modifier = Modifier.size(14.dp)
@@ -828,22 +836,9 @@ fun HomeWeightChartCard(
                 ) {
                     val daysToShow = when (selectedFilter) { "7D" -> 7L; "30D" -> 30L; else -> 90L }
                     val cutoffKey = remember(daysToShow) { java.time.LocalDate.now().minusDays(daysToShow).toString() }
-                    val cutoff = remember(cutoffKey) {
-                        try {
-                            java.time.LocalDate.parse(cutoffKey).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        } catch (e: Exception) {
-                            System.currentTimeMillis() - (daysToShow * 86400000L)
-                        }
-                    }
-                    val chartDateFormatter = remember {
-                        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                    }
                     val chartData = remember(weightHistory, cutoffKey) {
                         weightHistory.filter { entry ->
-                            try {
-                                val d = chartDateFormatter.parse(entry.date)
-                                (d?.time ?: 0L) >= cutoff
-                            } catch (e: Exception) { true }
+                            entry.date >= cutoffKey
                         }
                     }
                     if (chartData.size >= 2) {

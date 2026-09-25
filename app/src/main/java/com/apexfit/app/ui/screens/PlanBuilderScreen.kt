@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -303,7 +304,7 @@ fun PlanBuilderScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.FitnessCenter,
+                                painter = painterResource(R.drawable.ic_fitness_center),
                                 contentDescription = null,
                                 tint = MutedText,
                                 modifier = Modifier.size(48.dp)
@@ -375,7 +376,7 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.ArrowUpward,
+                                            painter = painterResource(R.drawable.ic_arrow_upward),
                                             contentDescription = "Move Up",
                                             tint = if (index > 0) Color.White else MutedText,
                                             modifier = Modifier.size(20.dp)
@@ -391,7 +392,7 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.ArrowDownward,
+                                            painter = painterResource(R.drawable.ic_arrow_downward),
                                             contentDescription = "Move Down",
                                             tint = if (index < sessionsList.size - 1) Color.White else MutedText,
                                             modifier = Modifier.size(20.dp)

@@ -230,44 +230,43 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val exerciseSets = dao.getAllExerciseSets()
                 val personalRecords = dao.getAllPRsFlow().first()
                 val bodyMeasurements = dao.getAllBodyMeasurementsFlow().first()
-  
-                val exportData = buildString {  
-                    appendLine("# Apex Fit Data Export — ${java.util.Date()}")  
-                    appendLine()  
-                    appendLine("## Weight History")  
-                    appendLine("date,time,weight_kg")  
-                    weights.forEach { appendLine("${it.date},${it.time},${it.weight}") }  
-                    appendLine()  
-                    appendLine("## Nutrition Log")  
-                    appendLine("date,name,calories,protein_g,carbs_g,fat_g")  
-                    nutrition.forEach { appendLine("${it.date},${csvEscape(it.name)},${it.calories},${it.protein},${it.carbs},${it.fat}") }  
-                    appendLine()  
-                    appendLine("## Workout Sessions")  
-                    appendLine("date,type,duration_min,feel")  
-                    sessions.forEach { appendLine("${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel}") }  
-                    appendLine()  
-                    appendLine("## Exercise Sets")  
-                    appendLine("sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit")  
-                    exerciseSets.forEach { appendLine("${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)}") }  
-                    appendLine()  
-                    appendLine("## Personal Records")  
-                    appendLine("id,exerciseId,type,value,date")  
-                    personalRecords.forEach { appendLine("${csvEscape(it.id)},${csvEscape(it.exerciseId)},${csvEscape(it.type)},${it.value},${csvEscape(it.date)}") }  
-                    appendLine()  
-                    appendLine("## Body Measurements")  
-                    appendLine("date,bodyPart,value,unit")  
-                    bodyMeasurements.forEach { appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }  
-                }  
-  
-                val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")  
-                file.writeText(exportData)  
+
+                val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    file.bufferedWriter().use { writer ->
+                        writer.appendLine("# Apex Fit Data Export — ${java.util.Date()}")
+                        writer.appendLine()
+                        writer.appendLine("## Weight History")
+                        writer.appendLine("date,time,weight_kg")
+                        weights.forEach { writer.appendLine("${it.date},${it.time},${it.weight}") }
+                        writer.appendLine()
+                        writer.appendLine("## Nutrition Log")
+                        writer.appendLine("date,name,calories,protein_g,carbs_g,fat_g")
+                        nutrition.forEach { writer.appendLine("${it.date},${csvEscape(it.name)},${it.calories},${it.protein},${it.carbs},${it.fat}") }
+                        writer.appendLine()
+                        writer.appendLine("## Workout Sessions")
+                        writer.appendLine("date,type,duration_min,feel")
+                        sessions.forEach { writer.appendLine("${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel}") }
+                        writer.appendLine()
+                        writer.appendLine("## Exercise Sets")
+                        writer.appendLine("sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit")
+                        exerciseSets.forEach { writer.appendLine("${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)}") }
+                        writer.appendLine()
+                        writer.appendLine("## Personal Records")
+                        writer.appendLine("id,exerciseId,type,value,date")
+                        personalRecords.forEach { writer.appendLine("${csvEscape(it.id)},${csvEscape(it.exerciseId)},${csvEscape(it.type)},${it.value},${csvEscape(it.date)}") }
+                        writer.appendLine()
+                        writer.appendLine("## Body Measurements")
+                        writer.appendLine("date,bodyPart,value,unit")
+                        bodyMeasurements.forEach { writer.appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }
+                    }
+                }
+   
                 val uri = androidx.core.content.FileProvider.getUriForFile(  
                     context, "${context.packageName}.fileprovider", file)  
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(uri) }  
-                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    kotlinx.coroutines.delay(60_000)
-                    file.delete()
-                }
+                kotlinx.coroutines.delay(60_000)
+                file.delete()
             } catch (e: Exception) {  
                 android.util.Log.e("Export", "Export failed", e)  
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(null) }  

@@ -294,6 +294,9 @@ interface FitnessDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPersonalRecord(record: PersonalRecord)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPersonalRecords(records: List<PersonalRecord>)
+
     // Body Measurements
     @Query("SELECT * FROM body_measurements ORDER BY date DESC, id DESC")
     fun getAllBodyMeasurementsFlow(): Flow<List<BodyMeasurement>>
@@ -506,9 +509,7 @@ interface FitnessDao {
     suspend fun insertSessionWithPRsAtomic(session: TrainingSession, sets: List<ExerciseSet>, prs: List<PersonalRecord>) {
         insertTrainingSession(session)
         insertExerciseSets(sets)
-        for (pr in prs) {
-            insertPersonalRecord(pr)
-        }
+        insertPersonalRecords(prs)
     }
 
     @Query("SELECT COUNT(*) FROM workout_sessions WHERE date = :date AND completed = 1")
