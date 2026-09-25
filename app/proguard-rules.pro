@@ -12,16 +12,16 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Preserve line number information for debugging stack traces.
+-keepattributes SourceFile,LineNumberTable
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Hide the original source file name.
+-renamesourcefileattribute SourceFile
 
-# Keep Room entities (Room's consumer rules cover this, but be explicit)
--keep class com.apexfit.app.data.** { *; }
+# Only keep classes that are serialized via Gson reflection
+-keep class com.apexfit.app.ActiveSession { *; }
+-keep class com.apexfit.app.ActiveSession$* { *; }
+-keep class com.apexfit.app.ui.models.** { *; }
 
 # Keep BuildConfig
 -keep class com.apexfit.app.BuildConfig { *; }
@@ -40,16 +40,10 @@
 -keepattributes *Annotation*
 -dontwarn sun.misc.**
 
--keep class com.google.gson.** { *; }
 -keep class * implements com.google.gson.TypeAdapterFactory
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
 
 # Keep data classes serialized by Gson
--keep class com.apexfit.app.ActiveSession { *; }
--keep class com.apexfit.app.ActiveSession$* { *; }
 -keep class com.apexfit.app.data.ActiveSession { *; }
 -keep class com.apexfit.app.data.ActiveSession$* { *; }
--keep class com.apexfit.app.ui.models.** { *; }
-
--keepclassmembers class * extends androidx.datastore.preferences.protobuf.GeneratedMessageLite { *; }

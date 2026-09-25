@@ -365,6 +365,12 @@ fun MonthlyVolumeRadarChart(
     }
 }
 
+private fun buildLatestMeasurementsMap(measurements: List<UiBodyMeasurement>): Map<String, UiBodyMeasurement> {
+    return measurements
+        .groupBy { it.bodyPart.lowercase() }
+        .mapValues { (_, list) -> list.maxByOrNull { it.date } ?: list.first() }
+}
+
 @Composable
 fun BodyMeasurementsTrackerPanel(
     measurements: List<UiBodyMeasurement>,
@@ -396,12 +402,11 @@ fun BodyMeasurementsTrackerPanel(
             )
 
             val standardParts = listOf("Chest", "Biceps", "Waist", "Thighs", "Calves", "Shoulders")
+            val latestMeasurements = remember(measurements) { buildLatestMeasurementsMap(measurements) }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 standardParts.forEach { part ->
-                    val latest = measurements
-                        .filter { it.bodyPart.equals(part, ignoreCase = true) }
-                        .maxByOrNull { it.date }
+                    val latest = latestMeasurements[part.lowercase()]
 
                     Row(
                         modifier = Modifier
@@ -546,7 +551,9 @@ fun ProgressMainTabContent(
         }
     }
 
-    val visibleWeights = weightHistory.filter { it.id !in pendingDeletions.keys }
+    val deletionKeys = remember(pendingDeletions) { pendingDeletions.keys.toSet() }
+    val filteredWeights = remember(weightHistory, deletionKeys) { weightHistory.filter { it.id !in deletionKeys } }
+    val visibleWeights = filteredWeights
 
     Scaffold(
         containerColor = DarkBackground,

@@ -1,8 +1,16 @@
 package com.apexfit.app.utils
 
+import android.app.Application
+import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,52 +20,121 @@ import kotlinx.coroutines.sync.withLock
 object AudioService {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
     private val audioMutex = Mutex()
+
     @Volatile
-    private var audioTrack: AudioTrack? = null
+    private var pooledBeepTrack: AudioTrack? = null
+    private var pooledTrackBufferSize: Int = 0
 
-    suspend fun playBeep(context: android.content.Context? = null) {
-        playSynthesizedAudioTone(880.0, 150,
-            context = context,
-            usage = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION,
-            contentType = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+    suspend fun playBeep(context: Context) {
+        val appContext = context.applicationContext ?: context
+        playSynthesizedAudioTone(
+            frequencyHz = 880.0,
+            durationMs = 150,
+            context = appContext,
+            usage = AudioAttributes.USAGE_ASSISTANCE_SONIFICATION,
+            contentType = AudioAttributes.CONTENT_TYPE_SONIFICATION
+        )
     }
 
-    suspend fun playRestTimerComplete(context: android.content.Context) {
-        vibrate(context, 500)
-        playSynthesizedAudioTone(1100.0, 350, context = context, usage = android.media.AudioAttributes.USAGE_NOTIFICATION, contentType = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+    suspend fun playRestTimerComplete(context: Context) {
+        val appContext = context.applicationContext ?: context
+        vibrate(appContext, 500)
+        playSynthesizedAudioTone(
+            frequencyHz = 1100.0,
+            durationMs = 350,
+            context = appContext,
+            usage = AudioAttributes.USAGE_NOTIFICATION,
+            contentType = AudioAttributes.CONTENT_TYPE_SONIFICATION
+        )
     }
 
-    private fun vibrate(context: android.content.Context, durationMs: Long) {
-        val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
-            vibratorManager.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+    private fun vibrate(context: Context, durationMs: Long) {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(durationMs)
+            }
+        } catch (e: Exception) {
+            Log.e("ApexFit", "Error vibrating: ${e.message}", e)
+        }
+    }
+
+    private fun getOrCreateBeepTrack(
+        sampleRate: Int,
+        numSamples: Int,
+        usage: Int = AudioAttributes.USAGE_ASSISTANCE_SONIFICATION,
+        contentType: Int = AudioAttributes.CONTENT_TYPE_SONIFICATION
+    ): AudioTrack {
+        val requiredBytes = numSamples * 2
+        val existing = pooledBeepTrack
+        if (existing != null &&
+            existing.state == AudioTrack.STATE_INITIALIZED &&
+            pooledTrackBufferSize >= requiredBytes
+        ) {
+            return existing
         }
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            vibrator.vibrate(android.os.VibrationEffect.createOneShot(durationMs, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(durationMs)
+        existing?.let {
+            try {
+                it.stop()
+                it.release()
+            } catch (e: Exception) {
+                Log.e("ApexFit", "Error releasing outdated pooled track: ${e.message}", e)
+            }
         }
-    }
 
-    suspend fun playSynthesizedAudioTone(frequencyHz: Double, durationMs: Int, context: android.content.Context? = null, usage: Int = android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION, contentType: Int = android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION) {
-        val audioManager = context?.getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
-        val focusRequest = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && audioManager != null) {
-            android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        val bufferSize = maxOf(requiredBytes, 8000)
+        val track = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            AudioTrack.Builder()
                 .setAudioAttributes(
-                    android.media.AudioAttributes.Builder()
+                    AudioAttributes.Builder()
                         .setUsage(usage)
                         .setContentType(contentType)
                         .build()
                 )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
+                .setBufferSizeInBytes(bufferSize)
+                .setTransferMode(AudioTrack.MODE_STATIC)
                 .build()
-                .also { audioManager.requestAudioFocus(it) }
-        } else null
-        try {
+        } else {
+            @Suppress("DEPRECATION")
+            AudioTrack(
+                AudioManager.STREAM_MUSIC,
+                sampleRate,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                bufferSize,
+                AudioTrack.MODE_STATIC
+            )
+        }
+        pooledBeepTrack = track
+        pooledTrackBufferSize = bufferSize
+        return track
+    }
+
+    suspend fun playSynthesizedAudioTone(
+        frequencyHz: Double,
+        durationMs: Int,
+        context: Context? = null,
+        usage: Int = AudioAttributes.USAGE_ASSISTANCE_SONIFICATION,
+        contentType: Int = AudioAttributes.CONTENT_TYPE_SONIFICATION
+    ) {
         audioMutex.withLock {
             try {
                 val sampleRate = 8000
@@ -69,7 +146,7 @@ object AudioService {
                     for (i in 0 until numSamples) {
                         val angle = 2.0 * Math.PI * i / (sampleRate / frequencyHz)
                         var amplitude = Math.sin(angle)
-                        
+
                         // Add linear envelope to prevent popping (fade in/out)
                         val fadeSamples = (sampleRate * 0.01).toInt().coerceAtMost(numSamples / 2) // 10ms fade
                         if (i < fadeSamples) {
@@ -77,7 +154,7 @@ object AudioService {
                         } else if (i > numSamples - fadeSamples) {
                             amplitude *= ((numSamples - i).toDouble() / fadeSamples)
                         }
-                        
+
                         sample[i] = amplitude
                     }
                     var idx = 0
@@ -87,78 +164,38 @@ object AudioService {
                     }
                 }
 
-                val currentTrack = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    AudioTrack.Builder()
-                        .setAudioAttributes(
-                            android.media.AudioAttributes.Builder()
-                                .setUsage(usage)
-                                .setContentType(contentType)
-                                .build()
-                        )
-                        .setAudioFormat(
-                            android.media.AudioFormat.Builder()
-                                .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
-                                .setSampleRate(sampleRate)
-                                .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
-                                .build()
-                        )
-                        .setBufferSizeInBytes(numSamples * 2)
-                        .setTransferMode(AudioTrack.MODE_STATIC)
-                        .build()
-                } else {
-                    @Suppress("DEPRECATION")
-                    AudioTrack(
-                        AudioManager.STREAM_MUSIC,
-                        sampleRate,
-                        AudioFormat.CHANNEL_OUT_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT,
-                        numSamples * 2,
-                        AudioTrack.MODE_STATIC
-                    )
-                }
-                
-                // Release previous track if still active to avoid native resource exhaustion
-                audioTrack?.let {
+                val currentTrack = getOrCreateBeepTrack(sampleRate, numSamples, usage, contentType)
+                if (currentTrack.state == AudioTrack.STATE_INITIALIZED) {
                     try {
-                        it.stop()
-                        it.release()
-                    } catch (e: Exception) {
-                        android.util.Log.e("ApexFit", "Error playing synthesized frequency preview track stop: ${e.message}", e)
-                    }
+                        currentTrack.stop()
+                    } catch (_: Exception) {}
+                    try {
+                        currentTrack.reloadStaticData()
+                    } catch (_: Exception) {}
                 }
-                
-                audioTrack = currentTrack
+
                 currentTrack.write(generatedSnd, 0, numSamples)
+                currentTrack.play()
+                delay(durationMs.toLong() + 50)
                 try {
-                    currentTrack.play()
-                    delay(durationMs.toLong() + 50)
                     currentTrack.stop()
-                } finally {
-                    currentTrack.release()
-                    if (audioTrack == currentTrack) {
-                        audioTrack = null
-                    }
-                }
+                } catch (_: Exception) {}
             } catch (e: Exception) {
-                android.util.Log.e("ApexFit", "Error in playSynthesizedAudioTone: ${e.message}", e)
-            }
-        }
-        } finally {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                focusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+                Log.e("ApexFit", "Error in playSynthesizedAudioTone: ${e.message}", e)
             }
         }
     }
 
     fun release() {
-        audioTrack?.let {
+        pooledBeepTrack?.let {
             try {
                 it.stop()
                 it.release()
             } catch (e: Exception) {
-                android.util.Log.e("ApexFit", "Error releasing AudioTrack: ${e.message}", e)
+                Log.e("ApexFit", "Error releasing AudioTrack: ${e.message}", e)
             }
         }
-        audioTrack = null
+        pooledBeepTrack = null
+        pooledTrackBufferSize = 0
     }
 }

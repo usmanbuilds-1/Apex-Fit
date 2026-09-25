@@ -109,6 +109,12 @@ interface FitnessDao {
     @Query("""
         SELECT es.* FROM exercise_sets es
         WHERE es.exerciseId IN (:exerciseIds)
+    """)
+    suspend fun getAllSetsForExercises(exerciseIds: List<String>): List<ExerciseSet>
+
+    @Query("""
+        SELECT es.* FROM exercise_sets es
+        WHERE es.exerciseId IN (:exerciseIds)
           AND es.id = (
               SELECT MAX(id) FROM exercise_sets WHERE exerciseId = es.exerciseId
           )
@@ -209,6 +215,12 @@ interface FitnessDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExerciseMetadataList(metadataList: List<ExerciseMetadata>)
+
+    @Transaction
+    suspend fun insertSeed(exercises: List<Exercise>, metadatas: List<ExerciseMetadata>) {
+        insertExercises(exercises)
+        insertExerciseMetadataList(metadatas)
+    }
 
     @Query("SELECT COALESCE(stalledSessions, 0) FROM exercise_metadata WHERE exercise_id = :exerciseId")
     suspend fun getStalledCountForExercise(exerciseId: String): Int

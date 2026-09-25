@@ -154,6 +154,35 @@ fun ProgramSubTab(
     var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var formGuideContent by remember { mutableStateOf<com.apexfit.app.utils.FormGuideContent?>(null) }
 
+    val onOpenFormGuide: (String) -> Unit = remember(scope, context) {
+        { exerciseName ->
+            scope.launch {
+                val db = com.apexfit.app.data.AppDatabase.getDatabase(context)
+                val slug = com.apexfit.app.utils.exerciseNameToSlug(exerciseName)
+                val (exercise, metadata) = withContext(Dispatchers.IO) {
+                    val foundEx = db.fitnessDao().getExerciseById(slug)
+                    val meta = if (foundEx != null) db.fitnessDao().getMetadataForExercise(slug) else null
+                    Pair(foundEx, meta)
+                }
+                if (exercise != null) {
+                    formGuideExercise = exercise
+                    formGuideContent = com.apexfit.app.utils.FormGuideBuilder.buildFormGuide(exercise, metadata)
+                }
+            }
+        }
+    }
+
+    val onSelectSubstitution: (Int, String, String) -> Unit = remember(scope, trainViewModel) {
+        { index, muscleGroup, exerciseName ->
+            trainViewModel.selectSubstIndex(index)
+            substJob?.cancel()
+            substJob = scope.launch {
+                val suggestions = trainViewModel.getSubstitutionSuggestions(muscleGroup, exerciseName)
+                trainViewModel.setSubstitutionList(suggestions)
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Horizontal Day Picker Chips
@@ -203,6 +232,7 @@ fun ProgramSubTab(
                 )
             }
         } else {
+            val isImperial = remember(units) { units.lowercase() in listOf("lb", "lbs") }
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
@@ -279,7 +309,7 @@ fun ProgramSubTab(
                 itemsIndexed(exercises, key = { _, ex -> ex.id }) { index, ex ->
 
                     var isExpanded by rememberSaveable { mutableStateOf(false) }
-                    val displayWeight = if (units.lowercase() in listOf("lb","lbs")) (ex.weight * 2.20462).let { Math.round(it * 10.0) / 10.0 } else ex.weight
+                    val displayWeight = if (isImperial) (ex.weight * 2.20462).let { Math.round(it * 10.0) / 10.0 } else ex.weight
 
                     Box(
                         modifier = Modifier
@@ -347,21 +377,7 @@ fun ProgramSubTab(
                                 ) {
                                     // Form Guide button
                                     Button(
-                                        onClick = {
-                                            scope.launch {
-                                                val db = com.apexfit.app.data.AppDatabase.getDatabase(context)
-                                                val slug = com.apexfit.app.utils.exerciseNameToSlug(ex.name)
-                                                val (exercise, metadata) = withContext(Dispatchers.IO) {
-                                                    val foundEx = db.fitnessDao().getExerciseById(slug)
-                                                    val meta = if (foundEx != null) db.fitnessDao().getMetadataForExercise(slug) else null
-                                                    Pair(foundEx, meta)
-                                                }
-                                                if (exercise != null) {
-                                                    formGuideExercise = exercise
-                                                    formGuideContent = com.apexfit.app.utils.FormGuideBuilder.buildFormGuide(exercise, metadata)
-                                                }
-                                            }
-                                        },
+                                        onClick = { onOpenFormGuide(ex.name) },
                                         colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.weight(1f)
@@ -371,14 +387,7 @@ fun ProgramSubTab(
 
                                     // Replace Exercise button suggestion
                                     Button(
-                                        onClick = {
-                                            trainViewModel.selectSubstIndex(index)
-                                            substJob?.cancel()
-                                            substJob = scope.launch {
-                                                val suggestions = trainViewModel.getSubstitutionSuggestions(ex.muscleGroup, ex.name)
-                                                trainViewModel.setSubstitutionList(suggestions)
-                                            }
-                                        },
+                                        onClick = { onSelectSubstitution(index, ex.muscleGroup, ex.name) },
                                         colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.weight(1f)
@@ -822,7 +831,9 @@ fun WorkoutExecutionSubTab(
         }
     } else {
         // active workout runner layout
-        val unitSuffix = if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg"
+        val isImperial = remember(preferredUnits) { preferredUnits.lowercase() in listOf("lb", "lbs") }
+        val unitSuffix = if (isImperial) "lb" else "kg"
+        val warmupList = remember(warmupComp) { warmupComp.toList() }
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize()
@@ -840,7 +851,7 @@ fun WorkoutExecutionSubTab(
                     )
                 }
             }
-            items(warmupComp.toList(), key = { it.first }) { (item, comp) ->
+            items(warmupList, key = { it.first }) { (item, comp) ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -870,7 +881,7 @@ fun WorkoutExecutionSubTab(
                 val setsList = loggedSets[ex.exerciseId] ?: emptyList()
 
                 item {
-                    val displayWeight = if (unitSuffix.lowercase() in listOf("lb","lbs")) (ex.weight * 2.20462).let { Math.round(it * 10.0) / 10.0 } else ex.weight
+                    val displayWeight = if (isImperial) (ex.weight * 2.20462).let { Math.round(it * 10.0) / 10.0 } else ex.weight
                     var showPlateCalc by rememberSaveable { mutableStateOf(false) }
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -997,10 +1008,12 @@ fun WorkoutExecutionSubTab(
                         }
                     } }
 
-                    val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in weightMin..weightMax } ?: false
-                    val isRepsValid = rawReps.toIntOrNull()?.let { it in 1..50 } ?: false
-                    val isRpeValid = selectedRpe in 1..10
-                    val isSetValid = isWeightValid && isRepsValid && isRpeValid
+                    val isSetValid = remember(rawWeight, rawReps, selectedRpe, weightMin, weightMax) {
+                        val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in weightMin..weightMax } ?: false
+                        val isRepsValid = rawReps.toIntOrNull()?.let { it in 1..50 } ?: false
+                        val isRpeValid = selectedRpe in 1..10
+                        isWeightValid && isRepsValid && isRpeValid
+                    }
 
                     Box(
                         modifier = Modifier
@@ -1125,7 +1138,7 @@ fun WorkoutExecutionSubTab(
                                                 if (rawWeight.isEmpty()) {
                                                     val rawSuggested = lastWeights[ex.exerciseId]
                                                     val suggested = if (rawSuggested != null) {
-                                                        if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
+                                                        if (isImperial) {
                                                             Math.round(rawSuggested * 2.20462 * 10.0) / 10.0
                                                         } else {
                                                             rawSuggested

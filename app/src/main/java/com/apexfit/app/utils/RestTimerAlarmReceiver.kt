@@ -1,14 +1,11 @@
 package com.apexfit.app.utils
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
@@ -94,8 +91,6 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
         Log.i(TAG, "Rest timer alarm received — posting notification")
         val exerciseName = intent.getStringExtra(EXTRA_EXERCISE_NAME) ?: "Rest"
 
-        createNotificationChannel(context)
-
         // Use the existing deep link scheme to return to the Train screen
         val deepLinkUri = Uri.parse("apexfit://screen/train")
         val launchIntent = Intent(Intent.ACTION_VIEW, deepLinkUri).apply {
@@ -146,29 +141,7 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
         }
 
         // NOTE: Do NOT call AudioService.playRestTimerComplete here.
-        // The sound is configured on the notification channel itself (see createNotificationChannel),
+        // The sound is configured on the notification channel itself (see createNotificationChannels in Application),
         // which Android plays reliably without needing the process to stay alive.
-    }
-
-    private fun createNotificationChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Rest Timer",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications when rest timer completes"
-                enableVibration(true)
-                setSound(soundUri, audioAttributes)
-            }
-            val notificationManager = context.getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
-        }
     }
 }

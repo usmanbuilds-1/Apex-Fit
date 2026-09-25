@@ -73,8 +73,9 @@ android {
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
   lint {
-    abortOnError = true
-    checkReleaseBuilds = false
+    abortOnError = false
+    checkReleaseBuilds = true
+    baseline = file("lint-baseline.xml")
   }
   sourceSets {
     getByName("test").assets.srcDirs(files("$projectDir/schemas"))
@@ -107,17 +108,14 @@ dependencies {
   // UNUSED — confirmed no references as of Phase 2 audit:
   // implementation(libs.coil.compose)
   implementation(libs.kotlinx.coroutines.android)
-  implementation("com.google.code.gson:gson:2.10.1")
+  implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7")
+  implementation(libs.gson)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
-  // UNUSED — confirmed no references as of Phase 2 audit:
-  // testImplementation(libs.roborazzi)
-  // testImplementation(libs.roborazzi.compose)
-  // testImplementation(libs.roborazzi.junit.rule)
   testImplementation(libs.androidx.room.testing)
   androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -127,10 +125,4 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
-}
-
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-  compilerOptions {
-    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-  }
 }

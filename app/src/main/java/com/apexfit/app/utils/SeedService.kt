@@ -1,8 +1,9 @@
 package com.apexfit.app.utils
 
 import android.content.Context
-import com.apexfit.app.data.AppDatabase
-import com.apexfit.app.data.DataStoreManager
+import android.util.JsonReader
+import android.util.JsonToken
+import android.util.Log
 import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.ExerciseMetadata
 import org.json.JSONArray
@@ -16,60 +17,173 @@ object SeedService {
         val dao = db.fitnessDao()
         val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(context)
 
-        val jsonString = context.assets.open("seed_exercises.json").bufferedReader().use { it.readText() }
-        val jsonArray = JSONArray(jsonString)
-
         val exercises = mutableListOf<Exercise>()
         val metadatas = mutableListOf<ExerciseMetadata>()
+        val now = System.currentTimeMillis()
 
-        for (i in 0 until jsonArray.length()) {
-            val obj = jsonArray.getJSONObject(i)
-            val exerciseId = obj.getString("id")
-
-            exercises.add(
-                Exercise(
-                    id = exerciseId,
-                    name = obj.getString("name"),
-                    category = obj.getString("category"),
-                    primaryMuscle = obj.getString("primary_muscle"),
-                    secondaryMuscles = run {
-                        val list = mutableListOf<String>()
-                        val json = obj.optString("secondary_muscles", "[]")
-                        val array = JSONArray(json)
-                        for (j in 0 until array.length()) {
-                            list.add(array.getString(j))
-                        }
-                        list
-                    },
-                    equipmentRequired = obj.getString("equipment_required"),
-                    isBilateral = obj.optInt("is_bilateral", 1),
-                    isUserCreated = obj.optInt("is_user_created", 0),
-                    isDeleted = obj.optInt("is_deleted", 0),
-                    createdAt = System.currentTimeMillis()
-                )
-            )
-
-            val metaObj = obj.getJSONObject("metadata")
-            metadatas.add(
-                ExerciseMetadata(
-                    exerciseId = exerciseId,
-                    fatigueCostCoefficient = metaObj.optDouble("fatigue_cost_coefficient", 1.0),
-                    systemicMultiplier = metaObj.optDouble("systemic_multiplier", 1.0),
-                    defaultProgressionIncrementKg = metaObj.optDouble("default_progression_increment_kg", 2.5),
-                    minReps = metaObj.optInt("min_reps", 1),
-                    maxReps = metaObj.optInt("max_reps", 30),
-                    defaultRestSeconds = metaObj.optInt("default_rest_seconds", 120),
-                    forceType = metaObj.optString("force_type", "push"),
-                    recoveryTauDays = metaObj.optDouble("recovery_tau_days", 1.2),
-                    notes = metaObj.optString("notes", null as String?)
-                )
-            )
+        context.assets.open("seed_exercises.json").use { stream ->
+            JsonReader(stream.reader()).use { reader ->
+                reader.beginArray()
+                while (reader.hasNext()) {
+                    val item = parseExerciseItem(reader, now)
+                    if (item != null) {
+                        exercises.add(item.first)
+                        metadatas.add(item.second)
+                    }
+                }
+                reader.endArray()
+            }
         }
 
-        dao.insertExercises(exercises)
-        dao.insertExerciseMetadataList(metadatas)
+        dao.insertSeed(exercises, metadatas)
         dataStore.setExercisesSeeded(true)
         dataStore.setExerciseSeedVersion(CURRENT_SEED_VERSION)
-        android.util.Log.i("SeedService", "Successfully seeded ${exercises.size} exercises (seed version $CURRENT_SEED_VERSION).")
+        Log.i("SeedService", "Successfully seeded ${exercises.size} exercises (seed version $CURRENT_SEED_VERSION).")
+    }
+
+    private fun parseExerciseItem(
+        reader: JsonReader,
+        createdAt: Long
+    ): Pair<Exercise, ExerciseMetadata>? {
+        var id = ""
+        var name = ""
+        var category = ""
+        var primaryMuscle = ""
+        var secondaryMuscles = emptyList<String>()
+        var equipmentRequired = ""
+        var isBilateral = 1
+        var isUserCreated = 0
+        var isDeleted = 0
+        var metadata: ExerciseMetadata? = null
+
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "id" -> id = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
+                "name" -> name = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
+                "category" -> category = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
+                "primary_muscle" -> primaryMuscle = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
+                "secondary_muscles" -> secondaryMuscles = parseSecondaryMuscles(reader)
+                "equipment_required" -> equipmentRequired = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "" } else reader.nextString()
+                "is_bilateral" -> isBilateral = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 1 } else reader.nextInt()
+                "is_user_created" -> isUserCreated = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 0 } else reader.nextInt()
+                "is_deleted" -> isDeleted = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 0 } else reader.nextInt()
+                "metadata" -> metadata = parseMetadata(reader, id)
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+
+        if (id.isEmpty()) return null
+
+        val exercise = Exercise(
+            id = id,
+            name = name,
+            category = category,
+            primaryMuscle = primaryMuscle,
+            secondaryMuscles = secondaryMuscles,
+            equipmentRequired = equipmentRequired,
+            isBilateral = isBilateral,
+            isUserCreated = isUserCreated,
+            isDeleted = isDeleted,
+            createdAt = createdAt
+        )
+
+        val finalMetadata = metadata?.copy(exerciseId = id) ?: ExerciseMetadata(
+            exerciseId = id,
+            fatigueCostCoefficient = 1.0,
+            systemicMultiplier = 1.0,
+            defaultProgressionIncrementKg = 2.5,
+            minReps = 1,
+            maxReps = 30,
+            defaultRestSeconds = 120,
+            forceType = "push",
+            recoveryTauDays = 1.2,
+            notes = null
+        )
+
+        return Pair(exercise, finalMetadata)
+    }
+
+    private fun parseSecondaryMuscles(reader: JsonReader): List<String> {
+        return when (reader.peek()) {
+            JsonToken.BEGIN_ARRAY -> {
+                val list = mutableListOf<String>()
+                reader.beginArray()
+                while (reader.hasNext()) {
+                    if (reader.peek() == JsonToken.NULL) {
+                        reader.nextNull()
+                    } else {
+                        list.add(reader.nextString())
+                    }
+                }
+                reader.endArray()
+                list
+            }
+            JsonToken.STRING -> {
+                val list = mutableListOf<String>()
+                val json = reader.nextString()
+                try {
+                    val array = JSONArray(json)
+                    for (j in 0 until array.length()) {
+                        list.add(array.getString(j))
+                    }
+                } catch (_: Exception) {}
+                list
+            }
+            else -> {
+                reader.skipValue()
+                emptyList()
+            }
+        }
+    }
+
+    private fun parseMetadata(reader: JsonReader, exerciseId: String): ExerciseMetadata {
+        var fatigueCost = 1.0
+        var systemic = 1.0
+        var defaultProgression = 2.5
+        var minReps = 1
+        var maxReps = 30
+        var defaultRestSeconds = 120
+        var forceType = "push"
+        var recoveryTauDays = 1.2
+        var notes: String? = null
+
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "fatigue_cost_coefficient" -> fatigueCost = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 1.0 } else reader.nextDouble()
+                "systemic_multiplier" -> systemic = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 1.0 } else reader.nextDouble()
+                "default_progression_increment_kg" -> defaultProgression = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 2.5 } else reader.nextDouble()
+                "min_reps" -> minReps = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 1 } else reader.nextInt()
+                "max_reps" -> maxReps = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 30 } else reader.nextInt()
+                "default_rest_seconds" -> defaultRestSeconds = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 120 } else reader.nextInt()
+                "force_type" -> forceType = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); "push" } else reader.nextString()
+                "recovery_tau_days" -> recoveryTauDays = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); 1.2 } else reader.nextDouble()
+                "notes" -> {
+                    notes = if (reader.peek() == JsonToken.NULL) {
+                        reader.nextNull()
+                        null
+                    } else {
+                        reader.nextString()
+                    }
+                }
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+
+        return ExerciseMetadata(
+            exerciseId = exerciseId,
+            fatigueCostCoefficient = fatigueCost,
+            systemicMultiplier = systemic,
+            defaultProgressionIncrementKg = defaultProgression,
+            minReps = minReps,
+            maxReps = maxReps,
+            defaultRestSeconds = defaultRestSeconds,
+            forceType = forceType,
+            recoveryTauDays = recoveryTauDays,
+            notes = notes
+        )
     }
 }

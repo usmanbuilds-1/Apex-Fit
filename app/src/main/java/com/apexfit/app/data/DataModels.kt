@@ -70,8 +70,10 @@ data class NutritionEntry(
     tableName = "workout_sessions",
     indices = [
         Index(value = ["date"]),
-        Index(value = ["completed"]),
-        Index(value = ["sessionType"]),
+        // Fix D-L8: The single-column index on 'completed' is made redundant by the compound index
+        // [completed, date] which covers queries filtering on completed (as the leading column).
+        // Similarly, the single-column index on 'sessionType' is made redundant by the compound index
+        // [sessionType, completed, date] which covers queries filtering on sessionType.
         Index(value = ["completed", "date"]),
         Index(value = ["sessionType", "completed", "date"])
     ]

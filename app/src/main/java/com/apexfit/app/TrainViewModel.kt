@@ -73,17 +73,19 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Training State (Plans, Sessions)
     val workoutPlans = repository.getWorkoutPlans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    private val baseActivePlan = repository.getActivePlan()
-    private val baseActivePlanSessions = baseActivePlan.flatMapLatest { plan ->
+    // Fix D-L7: Cached single-subscription flow at ViewModel level
+    private val cachedActivePlan: StateFlow<WorkoutPlan?> = repository.getActivePlan()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val cachedActivePlanSessions: StateFlow<List<PlanSession>> = cachedActivePlan.flatMapLatest { plan ->
         if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
-    }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val activePlan: StateFlow<UiState<WorkoutPlan?>> = baseActivePlan
+    val activePlan: StateFlow<UiState<WorkoutPlan?>> = cachedActivePlan
         .map { UiState.Success(it) as UiState<WorkoutPlan?> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
-    val activePlanSessions: StateFlow<UiState<List<PlanSession>>> = baseActivePlanSessions
+    val activePlanSessions: StateFlow<UiState<List<PlanSession>>> = cachedActivePlanSessions
         .map { UiState.Success(it) as UiState<List<PlanSession>> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
@@ -180,7 +182,7 @@ class TrainViewModel(application: Application) : AndroidViewModel(application) {
     val allPlanExercises = dao.getAllPlanExercisesFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val selectedDaySession = combine(baseActivePlanSessions, _selectedDayOfWeek) { sessions, day ->
+    val selectedDaySession = combine(cachedActivePlanSessions, _selectedDayOfWeek) { sessions, day ->
         sessions.firstOrNull { it.day.equals(day, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

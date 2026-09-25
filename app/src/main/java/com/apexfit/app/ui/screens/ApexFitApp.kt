@@ -170,19 +170,18 @@ fun ApexFitApp(
             hasPromptedResume = true
         }
         if (isOnboarded == true && activeSession != null) {
-            val handled = withContext(Dispatchers.IO) {
-                context.getSharedPreferences("apex_prefs", Context.MODE_PRIVATE)
-                    .getBoolean("notification_permission_handled", false)
-            }
-            if (!handled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val granted = ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-                if (!granted) {
-                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    withContext(Dispatchers.IO) {
-                        context.getSharedPreferences("apex_prefs", Context.MODE_PRIVATE)
-                            .edit().putBoolean("notification_permission_handled", true).apply()
+            coroutineScope.launch(Dispatchers.IO) {
+                val prefs = context.getSharedPreferences("apex_prefs", Context.MODE_PRIVATE)
+                val handled = prefs.getBoolean("notification_permission_handled", false)
+                if (!handled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val granted = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (!granted) {
+                        prefs.edit().putBoolean("notification_permission_handled", true).apply()
+                        withContext(Dispatchers.Main) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
                     }
                 }
             }
@@ -243,16 +242,20 @@ fun ApexFitApp(
         NotificationRationaleDialog(
             onAllow = {
                 showNotificationRationale = false
-                val prefs = context.getSharedPreferences("apex_prefs", android.content.Context.MODE_PRIVATE)
-                prefs.edit().putBoolean("notification_permission_handled", true).apply()
+                coroutineScope.launch(Dispatchers.IO) {
+                    val prefs = context.getSharedPreferences("apex_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putBoolean("notification_permission_handled", true).apply()
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                     permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 }
             },
             onSkip = {
                 showNotificationRationale = false
-                val prefs = context.getSharedPreferences("apex_prefs", android.content.Context.MODE_PRIVATE)
-                prefs.edit().putBoolean("notification_permission_handled", true).apply()
+                coroutineScope.launch(Dispatchers.IO) {
+                    val prefs = context.getSharedPreferences("apex_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putBoolean("notification_permission_handled", true).apply()
+                }
             }
         )
     }

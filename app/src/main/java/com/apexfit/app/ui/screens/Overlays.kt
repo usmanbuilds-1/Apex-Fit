@@ -32,10 +32,6 @@ private val RIR_OPTIONS = listOf(0, 1, 2, 3, 4, 5)
 
 @Composable
 fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainViewModel) {
-    val seconds by trainViewModel.restTimerSeconds.collectAsStateWithLifecycle()
-    val isRunning by trainViewModel.isRestTimerActive.collectAsStateWithLifecycle()
-    val totalSeconds by trainViewModel.restTimerTotal.collectAsStateWithLifecycle()
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -64,37 +60,48 @@ fun RestTimerOverlay(fitnessViewModel: FitnessViewModel, trainViewModel: TrainVi
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = formatTimerTime(seconds),
-                    fontSize = 56.sp,
-                    fontWeight = FontWeight.Black,
-                    color = OrangeAccent,
-                    fontFamily = SyneFamily
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { if (totalSeconds > 0) (totalSeconds - seconds).toFloat() / totalSeconds else 0f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp),
-                    color = OrangeAccent,
-                    trackColor = DarkRaised
-                )
+                RestTimerDisplay(trainViewModel = trainViewModel)
                 Spacer(modifier = Modifier.height(24.dp))
                 RestTimerButtons(
                     onSkip = { fitnessViewModel.closeRestTimer() },
                     onAddTime = { trainViewModel.addRestTimerSeconds(15) },
-                    canSubtract = seconds > 0,
+                    canSubtract = trainViewModel.restTimerSeconds.value > 0,
                     onSubtractTime = {
-                        if (seconds >= 15) {
+                        val current = trainViewModel.restTimerSeconds.value
+                        if (current >= 15) {
                             trainViewModel.addRestTimerSeconds(-15)
-                        } else {
-                            trainViewModel.addRestTimerSeconds(-seconds)
+                        } else if (current > 0) {
+                            trainViewModel.addRestTimerSeconds(-current)
                         }
                     }
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RestTimerDisplay(trainViewModel: TrainViewModel) {
+    val seconds by trainViewModel.restTimerSeconds.collectAsStateWithLifecycle()
+    val totalSeconds by trainViewModel.restTimerTotal.collectAsStateWithLifecycle()
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = formatTimerTime(seconds),
+            fontSize = 56.sp,
+            fontWeight = FontWeight.Black,
+            color = OrangeAccent,
+            fontFamily = SyneFamily
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        LinearProgressIndicator(
+            progress = { if (totalSeconds > 0) (totalSeconds - seconds).toFloat() / totalSeconds else 0f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp),
+            color = OrangeAccent,
+            trackColor = DarkRaised
+        )
     }
 }
 

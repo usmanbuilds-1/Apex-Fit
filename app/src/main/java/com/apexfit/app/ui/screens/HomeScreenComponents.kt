@@ -76,6 +76,16 @@ fun HomeWeightErrorBanner(
     }
 }
 
+private fun computeGreeting(): String {
+    val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return when (currentHour) {
+        in 0..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        in 17..21 -> "Good evening"
+        else -> "Good night"
+    }
+}
+
 @Composable
 fun HomeHeaderSection(
     fitnessViewModel: FitnessViewModel,
@@ -90,13 +100,7 @@ fun HomeHeaderSection(
     val streakResult by algorithmViewModel.streakResult.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxWidth()) {
-        val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        val greeting = when (currentHour) {
-            in 0..11 -> "Good morning"
-            in 12..16 -> "Good afternoon"
-            in 17..21 -> "Good evening"
-            else -> "Good night"
-        }
+        val greeting = remember(java.time.LocalTime.now().hour / 6) { computeGreeting() }
         val displayName = username.ifEmpty { "Athlete" }
         val annotatedGreeting = buildAnnotatedString {
             withStyle(style = SpanStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)) {
@@ -147,7 +151,8 @@ fun HomeTodayWorkoutCard(
     val finalWorkoutDurationMin = estimatedDuration
 
     var showCalculationExplanation by rememberSaveable { mutableStateOf(false) }
-    var isStarting by remember { mutableStateOf(false) }
+    val onShowCalculationExplanation = remember { { showCalculationExplanation = true } }
+    var isStarting by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(isStarting) {
         if (isStarting) {
             delay(1000)
@@ -155,14 +160,17 @@ fun HomeTodayWorkoutCard(
         }
     }
 
-    val todayDateStr = remember { DateTimeUtils.todayDateString() }
-    val isTodayWorkoutCompleted = remember(completedSessions, todayDateStr) {
-        completedSessions.any { it.date == todayDateStr }
+    val isTodayWorkoutCompleted by remember(completedSessions) {
+        derivedStateOf {
+            val todayDateStr = DateTimeUtils.todayDateString()
+            completedSessions.any { it.date == todayDateStr }
+        }
     }
 
     val lastTrainedDates by homeViewModel.lastTrainedDateMap.collectAsStateWithLifecycle()
 
-    val recoveryHeatmap = remember(lastTrainedDates, todaySession, todayDateStr) {
+    val recoveryHeatmap = remember(lastTrainedDates, todaySession) {
+        val todayDateStr = DateTimeUtils.todayDateString()
         val focusText = todaySession?.focus ?: "Chest • Back • Arms"
         val canvasMuscles = listOf(
             "chest", "back", "front_delt", "side_delt", "rear_delt",
@@ -212,7 +220,7 @@ fun HomeTodayWorkoutCard(
                         tint = AmberAccent.copy(alpha = 0.8f),
                         modifier = Modifier
                             .size(16.dp)
-                            .clickable { showCalculationExplanation = true }
+                            .clickable(onClick = onShowCalculationExplanation)
                             .testTag("readiness_info_icon")
                     )
                 }
@@ -448,9 +456,11 @@ fun HomeStreakSection(
 ) {
     val streakResult by algorithmViewModel.streakResult.collectAsStateWithLifecycle()
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
-    val todayDateStr = remember { DateTimeUtils.todayDateString() }
-    val isTodayWorkoutCompleted = remember(completedSessions, todayDateStr) {
-        completedSessions.any { it.date == todayDateStr }
+    val isTodayWorkoutCompleted by remember(completedSessions) {
+        derivedStateOf {
+            val todayDateStr = DateTimeUtils.todayDateString()
+            completedSessions.any { it.date == todayDateStr }
+        }
     }
 
     Row(
@@ -498,12 +508,14 @@ fun HomeNutritionRingCard(
 
     val targets = (macroTargetsState as? UiState.Success)?.data
     val activePlanSessions = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
-    val todayDateStr = remember { DateTimeUtils.todayDateString() }
     val todayDayString = remember { java.text.SimpleDateFormat("EEEE", java.util.Locale.US) }.format(java.util.Date())
     val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
 
-    val isTodayWorkoutCompleted = remember(completedSessions, todayDateStr) {
-        completedSessions.any { it.date == todayDateStr }
+    val isTodayWorkoutCompleted by remember(completedSessions) {
+        derivedStateOf {
+            val todayDateStr = DateTimeUtils.todayDateString()
+            completedSessions.any { it.date == todayDateStr }
+        }
     }
     val isPlannedTrainingToday = remember(todaySession) {
         todaySession != null &&
@@ -527,9 +539,12 @@ fun HomeNutritionRingCard(
     val proteinTarget = targets?.protein ?: 0
     val proteinLogged = loggedProteinTotal
 
+    val onNutritionCardClick = remember(onNavigateTo) { { onNavigateTo(2) } }
+    val onLogFoodClick = remember(onNavigateTo) { { onNavigateTo(2) } }
+
     ApexCard(
         modifier = modifier
-            .clickable { onNavigateTo(2) }
+            .clickable(onClick = onNutritionCardClick)
             .testTag("nutrition_summary_card"),
         elevation = 0.dp
     ) {
@@ -648,7 +663,7 @@ fun HomeNutritionRingCard(
                     .height(48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(DarkRaised)
-                    .clickable { onNavigateTo(2) }
+                    .clickable(onClick = onLogFoodClick)
                     .testTag("log_food_bottom_button"),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -692,9 +707,26 @@ fun HomeWeightChartCard(
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
     var weightInput by rememberSaveable { mutableStateOf("") }
 
+    val onWeightCardClick = remember(onNavigateTo) { { onNavigateTo(3) } }
+    val latestDisplayWeight = remember(latestWeight, units) {
+        String.format(java.util.Locale.US, "%.1f", latestWeight.toDisplayWeight(units))
+    }
+    val weightChangeStr = remember(weightHistory, units) {
+        if (weightHistory.size >= 2) {
+            val change = weightHistory.first().weight.toDisplayWeight(units) - weightHistory[1].weight.toDisplayWeight(units)
+            String.format(java.util.Locale.US, "%.1f", Math.abs(change))
+        } else null
+    }
+    val onLogWeightClick = remember(latestDisplayWeight) {
+        {
+            weightInput = latestDisplayWeight
+            showWeightDialog = true
+        }
+    }
+
     ApexCard(
         modifier = modifier
-            .clickable { onNavigateTo(3) }
+            .clickable(onClick = onWeightCardClick)
             .testTag("body_weight_summary_card"),
         elevation = 0.dp
     ) {
@@ -725,14 +757,14 @@ fun HomeWeightChartCard(
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "${String.format(java.util.Locale.US, "%.1f", latestWeight.toDisplayWeight(units))} $units",
+                        text = "$latestDisplayWeight $units",
                         fontSize = 28.sp,
                         fontFamily = JetBrainsMonoFamily,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
 
-                    if (weightHistory.size >= 2) {
+                    if (weightHistory.size >= 2 && weightChangeStr != null) {
                         val change = weightHistory.first().weight.toDisplayWeight(units) - weightHistory[1].weight.toDisplayWeight(units)
                         val isPositiveChange = when {
                             userGoal.equals("Gain Muscle", ignoreCase = true) -> change > 0
@@ -759,7 +791,7 @@ fun HomeWeightChartCard(
                                 )
                             }
                             Text(
-                                text = "${String.format(java.util.Locale.US, "%.1f", Math.abs(change))} $units",
+                                text = "$weightChangeStr $units",
                                 fontSize = 12.sp,
                                 fontFamily = JetBrainsMonoFamily,
                                 fontWeight = FontWeight.Normal,
@@ -794,12 +826,19 @@ fun HomeWeightChartCard(
                         .height(56.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    val daysToShow = when (selectedFilter) { "7D" -> 7; "30D" -> 30; else -> 90 }
-                    val cutoff = System.currentTimeMillis() - (daysToShow.toLong() * 86400000L)
+                    val daysToShow = when (selectedFilter) { "7D" -> 7L; "30D" -> 30L; else -> 90L }
+                    val cutoffKey = remember(daysToShow) { java.time.LocalDate.now().minusDays(daysToShow).toString() }
+                    val cutoff = remember(cutoffKey) {
+                        try {
+                            java.time.LocalDate.parse(cutoffKey).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        } catch (e: Exception) {
+                            System.currentTimeMillis() - (daysToShow * 86400000L)
+                        }
+                    }
                     val chartDateFormatter = remember {
                         java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
                     }
-                    val chartData = remember(weightHistory, cutoff) {
+                    val chartData = remember(weightHistory, cutoffKey) {
                         weightHistory.filter { entry ->
                             try {
                                 val d = chartDateFormatter.parse(entry.date)
@@ -960,10 +999,7 @@ fun HomeWeightChartCard(
                     .height(48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(DarkRaised)
-                    .clickable {
-                        weightInput = String.format(java.util.Locale.US, "%.1f", latestWeight.toDisplayWeight(units))
-                        showWeightDialog = true
-                    }
+                    .clickable(onClick = onLogWeightClick)
                     .testTag("log_weight_bottom_button"),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically

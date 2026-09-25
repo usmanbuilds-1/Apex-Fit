@@ -11,6 +11,15 @@ import kotlinx.coroutines.flow.flowOf
 /**
  * FitnessRepositoryImpl provides clean, centralized data access delegating to the local database and datastore.
  */
+/**
+ * Implementation of [FitnessRepository].
+ *
+ * Architecture Note (Fix D-L7):
+ * Repository flows return cold Flow instances originating from Room DAOs.
+ * In ViewModels that collect the same repository flow multiple times or across multiple UI states,
+ * repeated calls should be consolidated into a single stateIn-cached flow at the ViewModel level
+ * (using viewModelScope and SharingStarted.WhileSubscribed(5_000)) to prevent redundant Room subscriptions.
+ */
 class FitnessRepositoryImpl(
     private val db: AppDatabase,
     private val dao: FitnessDao,
@@ -93,6 +102,9 @@ class FitnessRepositoryImpl(
 
     override suspend fun getLastSetsForExercise(exerciseId: String): List<com.apexfit.app.data.ExerciseSet> =
         dao.getLastSetsForExercise(exerciseId)
+
+    override suspend fun getAllSetsForExercises(exerciseIds: List<String>): List<ExerciseSet> =
+        dao.getAllSetsForExercises(exerciseIds)
 
     override suspend fun getLastSetsForExercises(exerciseIds: List<String>): List<ExerciseSet> =
         dao.getLastSetsForExercises(exerciseIds)

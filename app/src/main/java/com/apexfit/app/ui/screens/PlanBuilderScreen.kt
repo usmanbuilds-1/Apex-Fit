@@ -98,7 +98,7 @@ fun PlanBuilderScreen(
         }
     }
 
-    LaunchedEffect(activePlan, dbSessions, dbExercises) {
+    LaunchedEffect(activePlan) {
         if (!isInitialized && activePlan != null) {
             planName = activePlan?.name ?: "My Custom Plan"
             planGoal = activePlan?.goal ?: "Gain Muscle"
@@ -186,6 +186,10 @@ fun PlanBuilderScreen(
             )
         }
     ) { innerPadding ->
+        val exercisesBySession = remember(exercisesList) {
+            exercisesList.groupBy { it.planSessionId }
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -321,7 +325,8 @@ fun PlanBuilderScreen(
                 }
             } else {
                 itemsIndexed(sessionsList, key = { _, session -> session.id }) { index, session ->
-                    val sessionExercises = exercisesList.filter { it.planSessionId == session.id }
+                    val exercisesForSession = remember(exercisesList, session.id) { exercisesList.filter { it.planSessionId == session.id } }
+                    val sessionExercises = exercisesForSession
                     
                     Card(
                         modifier = Modifier

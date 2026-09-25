@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.apexfit.app.MainActivity
+import com.apexfit.app.R
 
 object WorkoutActiveNotification {
     private const val CHANNEL_ID = "workout_active_channel"
@@ -39,10 +40,7 @@ object WorkoutActiveNotification {
             context, 0, intent,
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
-        val iconRes = try {
-            val r = context.resources.getIdentifier("ic_notification", "drawable", context.packageName)
-            if (r != 0) r else android.R.drawable.ic_dialog_info
-        } catch (e: Exception) { android.R.drawable.ic_dialog_info }
+        val iconRes = R.drawable.ic_notification
 
         return androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(iconRes)

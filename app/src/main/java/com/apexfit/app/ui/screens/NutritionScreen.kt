@@ -213,8 +213,11 @@ fun NutritionScreen(
         ) {
         // Date picker swiping bar
         item {
-            val isToday = selectedDate == remember {
+            val todayDateString = remember {
                 java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            }
+            val isToday = remember(selectedDate, todayDateString) {
+                selectedDate == todayDateString
             }
             Row(
                 modifier = Modifier
@@ -258,6 +261,27 @@ fun NutritionScreen(
 
         // Calorie and macro overview card
         item {
+            val ringColor = remember(userGoal, loggedCalories, calorieTarget) {
+                when {
+                    userGoal == "Lose Fat" -> {
+                        if (loggedCalories <= calorieTarget * 1.05) GreenAccent
+                        else if (loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B) // Amber
+                        else RedAccent
+                    }
+                    userGoal == "Gain Muscle" -> {
+                        if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) GreenAccent
+                        else if (loggedCalories < calorieTarget * 0.85) RedAccent // Under-eating on gain
+                        else Color(0xFFF59E0B) // Significantly over
+                    }
+                    userGoal.lowercase().contains("maintain") -> {
+                        if (loggedCalories >= calorieTarget * 0.95 && loggedCalories <= calorieTarget * 1.05) GreenAccent
+                        else if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B)
+                        else RedAccent
+                    }
+                    else -> if (loggedCalories >= calorieTarget) GreenAccent else OrangeAccent
+                }
+            }
+
             PremiumCard(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -300,25 +324,6 @@ fun NutritionScreen(
                                 drawCircle(BorderSubtle, size.minDimension / 2, style = Stroke(6.dp.toPx()))
                                 val progress = (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f)
                                 
-                                val ringColor = when {
-                                    userGoal == "Lose Fat" -> {
-                                        if (loggedCalories <= calorieTarget * 1.05) GreenAccent
-                                        else if (loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B) // Amber
-                                        else RedAccent
-                                    }
-                                    userGoal == "Gain Muscle" -> {
-                                        if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) GreenAccent
-                                        else if (loggedCalories < calorieTarget * 0.85) RedAccent // Under-eating on gain
-                                        else Color(0xFFF59E0B) // Significantly over
-                                    }
-                                    userGoal.lowercase().contains("maintain") -> {
-                                        if (loggedCalories >= calorieTarget * 0.95 && loggedCalories <= calorieTarget * 1.05) GreenAccent
-                                        else if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B)
-                                        else RedAccent
-                                    }
-                                    else -> if (loggedCalories >= calorieTarget) GreenAccent else OrangeAccent
-                                }
-
                                 drawArc(
                                     color = ringColor,
                                     startAngle = -90f,
@@ -845,16 +850,19 @@ fun AdaptiveCalorieTargetCard(
             when {
                 // ─ HIGH CONFIDENCE ─────────────────────────────────────
                 tdeeResult.confidence == "high" && tdeeResult.tdee != null -> {
-                    val suggestedCals = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES
-                    val goalLabel = when (userGoal) {
-                        "Gain Muscle" -> "Lean Gain"
-                        "Lose Fat" -> "Fat Loss"
-                        else -> "Maintenance"
-                    }
-                    val targetCals = when (userGoal) {
-                        "Gain Muscle" -> suggestedCals + 300
-                        "Lose Fat" -> suggestedCals - 400
-                        else -> suggestedCals
+                    val (targetCals, goalLabel) = remember(tdeeResult.tdee, userGoal) {
+                        val suggestedCals = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES
+                        val label = when (userGoal) {
+                            "Gain Muscle" -> "Lean Gain"
+                            "Lose Fat" -> "Fat Loss"
+                            else -> "Maintenance"
+                        }
+                        val cals = when (userGoal) {
+                            "Gain Muscle" -> suggestedCals + 300
+                            "Lose Fat" -> suggestedCals - 400
+                            else -> suggestedCals
+                        }
+                        cals to label
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -966,21 +974,26 @@ fun AdaptiveCalorieTargetCard(
     }
 }
 
+private fun partitionMealsByTime(loggedMeals: List<com.apexfit.app.ui.models.UiNutritionEntry>): Triple<List<com.apexfit.app.ui.models.UiNutritionEntry>, List<com.apexfit.app.ui.models.UiNutritionEntry>, List<com.apexfit.app.ui.models.UiNutritionEntry>> {
+    val morning = mutableListOf<com.apexfit.app.ui.models.UiNutritionEntry>()
+    val afternoon = mutableListOf<com.apexfit.app.ui.models.UiNutritionEntry>()
+    val evening = mutableListOf<com.apexfit.app.ui.models.UiNutritionEntry>()
+    for (entry in loggedMeals) {
+        when {
+            entry.time in "06:00"..<"12:00" -> morning.add(entry)
+            entry.time in "12:00"..<"16:00" -> afternoon.add(entry)
+            entry.time >= "20:00" -> evening.add(entry)
+        }
+    }
+    return Triple(morning, afternoon, evening)
+}
+
 @Composable
 fun ProteinTimingCard(todayEntries: List<com.apexfit.app.ui.models.UiNutritionEntry>) {
-    val (preWorkoutProtein, postWorkoutProtein, eveningProtein) = remember(todayEntries) {
-        Triple(
-            todayEntries
-                .filter { it.time >= "06:00" && it.time < "12:00" }
-                .sumOf { it.protein },
-            todayEntries
-                .filter { it.time >= "12:00" && it.time < "16:00" }
-                .sumOf { it.protein },
-            todayEntries
-                .filter { it.time >= "20:00" }
-                .sumOf { it.protein }
-        )
-    }
+    val (morningMeals, afternoonMeals, eveningMeals) = remember(todayEntries) { partitionMealsByTime(todayEntries) }
+    val preWorkoutProtein = remember(morningMeals) { morningMeals.sumOf { it.protein } }
+    val postWorkoutProtein = remember(afternoonMeals) { afternoonMeals.sumOf { it.protein } }
+    val eveningProtein = remember(eveningMeals) { eveningMeals.sumOf { it.protein } }
 
     val tip = when {
         postWorkoutProtein < 20 -> "Log a post-workout meal with 20+ g protein"

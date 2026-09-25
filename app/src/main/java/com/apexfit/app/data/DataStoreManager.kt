@@ -144,6 +144,10 @@ class DataStoreManager(context: Context) {
         preferences[EQUIPMENT_KEY] ?: com.apexfit.app.UserDefaults.DEFAULT_EQUIPMENT
     }.distinctUntilChanged()
 
+    // Architecture Note (Fix D-L5): ActiveSession is currently persisted as a serialized Gson JSON string
+    // in Preferences DataStore (ACTIVE_SESSION_JSON_KEY). While functional for crash recovery, storing
+    // structured relational session data in Preferences DataStore is fragile. This should eventually
+    // be migrated to a dedicated Room table (or DataStore Proto) with structured schema and type safety.
     val activeSessionJsonFlow: Flow<String?> = context.dataStore.data.map { preferences ->
         preferences[ACTIVE_SESSION_JSON_KEY]
     }.distinctUntilChanged()

@@ -1,12 +1,13 @@
 package com.apexfit.app.utils
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
@@ -36,6 +37,10 @@ private fun buildDao(context: Context): com.apexfit.app.data.FitnessDao =
 private fun buildDataStore(context: Context): com.apexfit.app.data.DataStoreManager =
     com.apexfit.app.di.ServiceLocator.dataStore(context)
 
+object CoachingWorkers {
+    const val CHANNEL_ID = "apex_fitness_coaching"
+}
+
 class DelayedNotificationWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val title = inputData.getString("title") ?: "Apex Fit Update"
@@ -54,16 +59,7 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
         }
 
         val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "apex_fitness_coaching"
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Apex Coaching",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
-            notificationManager.createNotificationChannel(channel)
-        }
+        val channelId = CoachingWorkers.CHANNEL_ID
 
         val deepLink = when (id) {
             "weekly_report", "plateau_confirmed" -> "apexfit://screen/progress"
@@ -252,8 +248,14 @@ object CoachingScheduler {
         }
         val initialDelay = dueDate.timeInMillis - currentDate.timeInMillis
         
+        val constraints = Constraints.Builder()
+            .setRequiresBatteryNotLow(true)
+            .build()
+
         val dailyWorkRequest = PeriodicWorkRequestBuilder<DailyCoachingWorker>(24, TimeUnit.HOURS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
             .build()
             
         try {

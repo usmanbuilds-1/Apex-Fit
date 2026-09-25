@@ -1,9 +1,12 @@
 package com.apexfit.app.ui.models
 
-import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.runtime.Immutable
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
+import com.apexfit.app.utils.DateTimeUtils
 
 
 @Immutable
@@ -22,19 +25,10 @@ data class UiNutritionEntry(
     val protein: Double,
     val carbs: Double,
     val fat: Double,
-    val timestamp: Long
-) {
-    val date: String get() = try {
-        com.apexfit.app.utils.DateTimeUtils.formatDate(java.util.Date(timestamp))
-    } catch(e: Exception) {
-        ""
-    }
-    val time: String get() = try {
-        java.time.Instant.ofEpochMilli(timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-    } catch(e: Exception) {
-        "12:00"
-    }
-}
+    val timestamp: Long,
+    val date: String = "",
+    val time: String = "12:00"
+)
 
 sealed class UiState<out T> {
     object Loading : UiState<Nothing>()
@@ -96,7 +90,7 @@ data class UiPlateauResult(
     val daysStalled: Int,
     val recommendation: String,
     val severity: String = "",
-    val interventions: List<String> = emptyList()
+    val interventions: ImmutableList<String> = persistentListOf()
 )
 
 // Data -> Ui conversions
@@ -107,25 +101,32 @@ fun com.apexfit.app.data.WeightEntry.toUi(): UiWeightEntry = UiWeightEntry(
     time = this.time
 )
 
-fun com.apexfit.app.data.NutritionEntry.toUi(): UiNutritionEntry {
-    val dateStr = this.date
-    val timeStr = this.time
-    val ts = try {
-        val format = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-        format.parse("$dateStr $timeStr")?.time ?: 0L
+val com.apexfit.app.data.NutritionEntry.timestamp: Long
+    get() = try {
+        val d = if (this.date.isNotEmpty()) this.date else "1970-01-01"
+        val t = if (this.time.isNotEmpty() && this.time.length == 5) this.time else "12:00"
+        java.time.LocalDateTime.parse("${d}T${t}")
+            .atZone(java.time.ZoneOffset.UTC)
+            .toInstant()
+            .toEpochMilli()
     } catch (e: Exception) {
         0L
     }
-    return UiNutritionEntry(
-        id = this.id,
-        name = this.name,
-        calories = this.calories,
-        protein = this.protein,
-        carbs = this.carbs,
-        fat = this.fat,
-        timestamp = ts
-    )
-}
+
+fun com.apexfit.app.data.NutritionEntry.toUi(): UiNutritionEntry = UiNutritionEntry(
+    id = this.id,
+    name = this.name,
+    calories = this.calories,
+    protein = this.protein,
+    carbs = this.carbs,
+    fat = this.fat,
+    timestamp = this.timestamp,
+    date = try { DateTimeUtils.formatDate(Date(this.timestamp)) } catch(e: Exception) { "" },
+    time = try {
+        java.time.LocalDateTime.ofEpochSecond(this.timestamp / 1000, 0, java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    } catch(e: Exception) { "12:00" }
+)
 
 fun com.apexfit.app.data.ExerciseSet.toUi(): UiExerciseSet = UiExerciseSet(
     id = this.id,
@@ -204,7 +205,7 @@ fun com.apexfit.app.data.PlateauResult.toUi(): UiPlateauResult = UiPlateauResult
     daysStalled = this.daysStalled,
     recommendation = this.interventionRecommendation.ifBlank { this.interventions.joinToString(". ") },
     severity = this.severity,
-    interventions = this.interventions
+    interventions = this.interventions.toPersistentList()
 )
 
 // Ui -> Data conversions (for saving back)
@@ -215,25 +216,21 @@ fun UiWeightEntry.toData(): com.apexfit.app.data.WeightEntry = com.apexfit.app.d
     time = this.time
 )
 
-fun UiNutritionEntry.toData(): com.apexfit.app.data.NutritionEntry {
-    val (dateStr, timeStr) = try {
-        val sdfTime = SimpleDateFormat("HH:mm", Locale.US)
-        val d = Date(this.timestamp)
-        Pair(com.apexfit.app.utils.DateTimeUtils.formatDate(d), sdfTime.format(d))
-    } catch(e: Exception) {
-        Pair("", "12:00")
-    }
-    return com.apexfit.app.data.NutritionEntry(
-        id = this.id,
-        date = dateStr,
-        name = this.name,
-        time = timeStr,
-        calories = this.calories,
-        protein = this.protein,
-        carbs = this.carbs,
-        fat = this.fat
-    )
-}
+fun UiNutritionEntry.toData(): com.apexfit.app.data.NutritionEntry = com.apexfit.app.data.NutritionEntry(
+    id = this.id,
+    date = if (this.date.isNotEmpty()) this.date else try {
+        DateTimeUtils.formatDate(Date(this.timestamp))
+    } catch(e: Exception) { "" },
+    name = this.name,
+    time = if (this.time.isNotEmpty()) this.time else try {
+        java.time.LocalDateTime.ofEpochSecond(this.timestamp / 1000, 0, java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    } catch(e: Exception) { "12:00" },
+    calories = this.calories,
+    protein = this.protein,
+    carbs = this.carbs,
+    fat = this.fat
+)
 
 fun UiExerciseSet.toData(): com.apexfit.app.data.ExerciseSet = com.apexfit.app.data.ExerciseSet(
     id = this.id,
@@ -312,7 +309,7 @@ data class UiDeloadResult(
     val recommendation: String,
     val urgency: String,
     val signals: Int,
-    val protocol: List<String>
+    val protocol: ImmutableList<String> = persistentListOf()
 )
 
 @Immutable
@@ -329,7 +326,7 @@ data class UiSessionReadiness(
     val colorHex: String,
     val prediction: String,
     val recommendation: String,
-    val factors: List<UiReadinessFactor>
+    val factors: ImmutableList<UiReadinessFactor> = persistentListOf()
 )
 
 fun com.apexfit.app.utils.ComplianceResult.toUi(): UiComplianceResult = UiComplianceResult(
@@ -370,7 +367,7 @@ fun com.apexfit.app.utils.DeloadResult.toUi(): UiDeloadResult = UiDeloadResult(
     recommendation = this.recommendation,
     urgency = this.urgency,
     signals = this.signals,
-    protocol = this.protocol
+    protocol = this.protocol.toPersistentList()
 )
 
 fun UiDeloadResult.toData(): com.apexfit.app.utils.DeloadResult = com.apexfit.app.utils.DeloadResult(
@@ -398,7 +395,7 @@ fun com.apexfit.app.utils.SessionReadiness.toUi(): UiSessionReadiness = UiSessio
     colorHex = this.colorHex,
     prediction = this.prediction,
     recommendation = this.recommendation,
-    factors = this.factors.map { it.toUi() }
+    factors = this.factors.map { it.toUi() }.toPersistentList()
 )
 
 fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
@@ -430,7 +427,7 @@ fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
         colorHex = this.colorHex,
         prediction = predictionText,
         recommendation = this.recommendation,
-        factors = factorList
+        factors = factorList.toPersistentList()
     )
 }
 

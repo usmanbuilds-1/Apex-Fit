@@ -57,15 +57,17 @@ fun PlateCalculatorCard(
     units: String = "kg",
     modifier: Modifier = Modifier
 ) {
-    var targetWeightStr by rememberSaveable { mutableStateOf(initialWeight.toString()) }
-    var targetWeight by rememberSaveable { mutableStateOf(initialWeight) }
-
     val isKg = units.lowercase() == "kg"
     val barWeight = if (isKg) 20.0 else 45.0
     val presets = if (isKg) KG_PRESETS else LBS_PRESETS
     val suffix = if (isKg) "kg" else "lb"
     val presetValues = if (isKg) KG_PRESET_VALUES else LBS_PRESET_VALUES
     val plateTypes = if (isKg) KG_PLATE_TYPES else LBS_PLATE_TYPES
+
+    var targetWeightStr by rememberSaveable(initialWeight) { mutableStateOf(initialWeight.toString()) }
+    val targetWeight by remember {
+        derivedStateOf { targetWeightStr.toDoubleOrNull() ?: barWeight }
+    }
 
     Card(
         modifier = modifier,
@@ -92,7 +94,6 @@ fun PlateCalculatorCard(
                     onValueChange = { input ->
                         val normalized = input.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
                         targetWeightStr = normalized
-                        targetWeight = normalized.toDoubleOrNull() ?: barWeight
                     },
                     label = { Text(stringResource(R.string.plate_calc_weight_target, suffix), color = Color(0xFF8A8A9A), fontSize = 11.sp) },
                     textStyle = TextStyle(color = Color(0xFFF0F0F5), fontFamily = JetBrainsMonoFamily, fontSize = 12.sp),
@@ -115,7 +116,6 @@ fun PlateCalculatorCard(
                     presetValues.forEach { preset ->
                         Button(
                             onClick = {
-                                targetWeight = preset
                                 targetWeightStr = preset.toString()
                             },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),

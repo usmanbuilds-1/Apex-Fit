@@ -23,6 +23,7 @@ interface FitnessRepository {
     // SessionManager & GeminiService methods
     suspend fun getLastSetForExercise(exerciseId: String): LastSetWithDate?
     suspend fun getLastSetsForExercise(exerciseId: String): List<com.apexfit.app.data.ExerciseSet>
+    suspend fun getAllSetsForExercises(exerciseIds: List<String>): List<ExerciseSet>
     suspend fun getLastSetsForExercises(exerciseIds: List<String>): List<ExerciseSet>
     suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord>
     suspend fun insertSessionAtomic(session: TrainingSession, sets: List<ExerciseSet>)

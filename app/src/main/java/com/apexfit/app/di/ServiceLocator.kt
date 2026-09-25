@@ -39,7 +39,6 @@ import kotlinx.coroutines.Dispatchers
 
 object ServiceLocator {
     @Volatile private var database: AppDatabase? = null
-    @Volatile private var dataStore: DataStoreManager? = null
     @Volatile private var repository: FitnessRepository? = null
 
     @Volatile private var _appScope: CoroutineScope? = null
@@ -379,10 +378,7 @@ object ServiceLocator {
         database = db
     }
 
-    fun dataStore(context: Context): DataStoreManager =
-        dataStore ?: synchronized(this) {
-            dataStore ?: DataStoreManager(context.applicationContext).also { dataStore = it }
-        }
+    fun dataStore(context: Context): DataStoreManager = DataStoreManager.getInstance(context)
 
     fun repository(context: Context): FitnessRepository {
         val db = database(context)
@@ -395,7 +391,6 @@ object ServiceLocator {
         synchronized(this) {
             database?.close()
             database = null
-            dataStore = null
             repository = null
             _appScope = null
             _appContext = null

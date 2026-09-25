@@ -268,6 +268,9 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(database: SupportSQLiteDatabase) {
+                // Creates foreign key indexes for plan_sessions, plan_exercises, and personal_records.
+                // Note (Fix D-L1): These same 3 indexes are re-created in MIGRATION_19_20 due to historical schema versioning.
+                // This redundancy is harmless because SQLite's CREATE INDEX IF NOT EXISTS ensures idempotency.
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_sessions_planId` ON `plan_sessions` (`planId`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_exercises_planSessionId` ON `plan_exercises` (`planSessionId`)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_personal_records_exerciseId` ON `personal_records` (`exerciseId`)")
@@ -339,6 +342,9 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_19_20 = object : Migration(19, 20) {
             override fun migrate(database: SupportSQLiteDatabase) {
+                // Known redundancy (Fix D-L1): These 3 indexes were already created in MIGRATION_14_15.
+                // The re-creation here is retained for migration chain compatibility, and is completely
+                // harmless because SQLite's CREATE INDEX IF NOT EXISTS makes it idempotent and safe.
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_plan_sessions_planId ON plan_sessions (planId)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_plan_exercises_planSessionId ON plan_exercises (planSessionId)")
                 database.execSQL("CREATE INDEX IF NOT EXISTS index_personal_records_exerciseId ON personal_records (exerciseId)")
@@ -351,10 +357,9 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL(
                     "ALTER TABLE exercise_sets ADD COLUMN weight_unit TEXT NOT NULL DEFAULT 'kg'"
                 )
-                // One-time normalization: rows already in kg need no change.
-                // Rows stored in lbs: none exist pre-launch.
-                // For post-launch users, a separate migration step would
-                // read weight_unit and divide by 2.20462 — not needed here.
+                // Note (Fix D-L4): Weight normalization is now implemented and actively executed
+                // at application startup via DataStoreManager.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial),
+                // converting any legacy pre-v21 imperial (lb) entries to kg and canonicalizing units.
             }
         }
 

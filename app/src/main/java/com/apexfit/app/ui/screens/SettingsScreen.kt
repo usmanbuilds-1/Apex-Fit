@@ -73,33 +73,21 @@ fun SettingsScreen(
     var currentWeightError by remember { mutableStateOf<String?>(null) }
     var goalWeightError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(username) {
+    LaunchedEffect(Unit) {
         if (editName.isEmpty()) editName = username
-    }
-    LaunchedEffect(goal) {
         if (editGoal.isEmpty()) editGoal = goal
-    }
-    LaunchedEffect(manualCalorieVal) {
         if (editedManualCalValue.isEmpty() || editedManualCalValue == "0") {
             editedManualCalValue = manualCalorieVal.toString()
         }
-    }
-    LaunchedEffect(userHeight) {
         if (editHeight.isEmpty() || editHeight == "0" || editHeight == "0.0") {
             editHeight = userHeight.toString()
         }
-    }
-    LaunchedEffect(userAge) {
         if (editAge.isEmpty() || editAge == "0") {
             editAge = userAge.toString()
         }
-    }
-    LaunchedEffect(currentWeightVal) {
         if (editCurrentWeight.isEmpty() || editCurrentWeight == "0.0") {
             editCurrentWeight = currentWeightVal.toDisplayWeight(units).toString()
         }
-    }
-    LaunchedEffect(currentGoalWeight) {
         if (editGoalWeight.isEmpty() || editGoalWeight == "0.0") {
             editGoalWeight = currentGoalWeight.toDisplayWeight(units).toString()
         }
@@ -643,8 +631,6 @@ fun SettingsScreen(
             color = SecondaryText,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
         )
-
-        val context = LocalContext.current
 
         PremiumCard(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
