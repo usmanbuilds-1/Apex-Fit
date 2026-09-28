@@ -2,31 +2,35 @@ package com.apexfit.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val DarkBackground = Color(0xFF000000)
-val DarkCardSurface = Color(0xFF0F0F1A)
-val DarkRaised = Color(0xFF1C1C2E)
-val BorderSubtle = Color(0xFF252535)
-val BorderBright = Color(0xFF32323F)
-val PrimaryText = Color(0xFFFFFFFF)
-val SecondaryText = Color(0xFF9CA3AF)
-val MutedText = Color(0xFF9CA3AF)
-val AmberAccent = Color(0xFFFFB347)
-val GreenAccent = Color(0xFF34D399)
-val RedAccent = Color(0xFFE84040)
-val BlueAccent = Color(0xFF4488EE)
-val OrangeAccent = Color(0xFFFF8C1A)
-val IndigoAccent = Color(0xFF7C3AED)
+// --- LEGACY TOKENS (Preserved so existing screens and PlateCalculator compile cleanly) ---
+val OrangeAccent    = Color(0xFFFF4500)
+val BackgroundDark  = Color(0xFF090B0D)
+val SurfaceDark     = Color(0xFF13171B)
+val CardDark        = Color(0xFF1A1A2E)
+val PrimaryText     = Color(0xFFF2F4F7)
+val SecondaryText   = Color(0xFF8B949E)
+val DividerDark     = Color(0xFF222830)
+val GreenSuccess    = Color(0xFF00FF66)
+val RedError        = Color(0xFFFF2A4B)
 
-val ApexBg       = Color(0xFF0A0A0D)
-val ApexSurf0    = Color(0xFF111116)
-val ApexSurf1    = Color(0xFF17171D)
-val ApexSurf2    = Color(0xFF20202A)
-val ApexAction   = Color(0xFFEF5A27)
-val ApexPositive = Color(0xFF2DC97A)
-val ApexProtein  = Color(0xFF4B85E8)
-val ApexCarb     = Color(0xFFD08A28)
-val ApexFat      = Color(0xFF9264D8)
-val ApexT1       = Color(0xFFEEEEF2)
-val ApexT2       = Color(0xFF95959E)
-val ApexT3       = Color(0xFF585864)
-val ApexLine     = Color(0x12FFFFFF)
+// --- CYBER-INDUSTRIAL DESIGN SYSTEM ---
+object CyberTheme {
+    val ChassisBackground  = Color(0xFF090B0D)
+    val ModuleSurface      = Color(0xFF13171B)
+    val ModuleSurfaceHigh  = Color(0xFF1B2026)
+    val RecessedPit        = Color(0xFF07080A)
+
+    val RimHighlight       = Color(0xFF2E3640)
+    val ReticleBorder      = Color(0xFF222830)
+    val TechnicalCrosshair = Color(0xFF3B4450)
+
+    val ApexOrange         = Color(0xFFFF4500)
+    val CyberYellow        = Color(0xFFFFD000)
+    val AcidLime           = Color(0xFF00FF66)
+    val TelemetryCyan      = Color(0xFF00E5FF)
+    val HazardRed          = Color(0xFFFF2A4B)
+
+    val TextPrimary        = Color(0xFFF2F4F7)
+    val TextSecondary      = Color(0xFF8B949E)
+    val TextTertiary       = Color(0xFF484F58)
+}

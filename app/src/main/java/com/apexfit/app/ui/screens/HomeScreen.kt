@@ -1,202 +1,202 @@
 package com.apexfit.app.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.apexfit.app.AlgorithmViewModel
-import com.apexfit.app.FitnessViewModel
 import com.apexfit.app.HomeViewModel
-import com.apexfit.app.NutritionViewModel
-import com.apexfit.app.TrainViewModel
-import com.apexfit.app.ui.models.UiPlateauResult
-import com.apexfit.app.ui.theme.*
+import com.apexfit.app.ui.components.IndustrialCard
+import com.apexfit.app.ui.components.MuscleSegment
+import com.apexfit.app.ui.components.ReadinessPetalDial
+import com.apexfit.app.ui.components.TactileButton
+import com.apexfit.app.ui.theme.CyberTheme
 
 @Composable
-fun ApexCard(
-    modifier: Modifier = Modifier,
-    elevation: Dp = 1.dp,
-    content: @Composable ColumnScope.() -> Unit
+fun HomeScreen(
+    viewModel: HomeViewModel? = null,
+    onNavigateToTrain: () -> Unit = {},
+    onNavigateToProgress: () -> Unit = {}
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = DarkCardSurface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = elevation
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            content = content
+    val scrollState = rememberScrollState()
+
+    val muscleTelemetry = remember {
+        listOf(
+            MuscleSegment("Chest", 0.92f),
+            MuscleSegment("Shoulders", 0.95f),
+            MuscleSegment("Triceps", 0.94f),
+            MuscleSegment("Lats", 0.88f),
+            MuscleSegment("Biceps", 0.85f),
+            MuscleSegment("Quads", 0.35f),
+            MuscleSegment("Hamstrings", 0.40f),
+            MuscleSegment("Abs", 0.90f)
         )
     }
-}
 
-val UiPlateauResult.isPlateaued: Boolean get() = this.isPlateau
-
-@Composable
-fun PlateauCard(plateauResult: UiPlateauResult) {
-    if (!plateauResult.isPlateaued) return
-
-    val daysText = if (plateauResult.daysStalled > 0)
-        "${plateauResult.daysStalled} days without progress"
-    else "Progress has stalled"
-
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = DarkRaised,
-        border = BorderStroke(1.dp, AmberAccent.copy(alpha = 0.5f)),
-        modifier = Modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CyberTheme.ChassisBackground)
+            .verticalScroll(scrollState)
+            .padding(horizontal = 16.dp, vertical = 24.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "APEX // FIT",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.5.sp,
+                    color = CyberTheme.TextPrimary
+                )
+                Text(
+                    text = "INSTRUMENT CONSOLE // V2.6",
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = CyberTheme.TextSecondary
+                )
+            }
+
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(AmberAccent)
-            )
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-                    .fillMaxWidth()
+                    .background(CyberTheme.RecessedPit)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = "PLATEAU DETECTED",
-                    fontFamily = SyneFamily,
-                    fontSize = 13.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
-                    color = AmberAccent,
-                    letterSpacing = 1.sp
+                    text = "STATUS : SYS.OK",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CyberTheme.AcidLime
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = daysText,
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 12.sp,
-                    color = SecondaryText
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        IndustrialCard(
+            moduleCode = "SYS_MOD // 01",
+            title = "Physiological Readiness Core",
+            accentColor = CyberTheme.AcidLime
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ReadinessPetalDial(
+                    segments = muscleTelemetry,
+                    overallReadiness = 88
                 )
-                if (plateauResult.interventions.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    plateauResult.interventions.take(3).forEach { action ->
-                        Row(
-                            verticalAlignment = Alignment.Top,
-                            modifier = Modifier.padding(bottom = 4.dp)
+            }
+
+            Text(
+                text = "INDEX ANALYSIS",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = CyberTheme.AcidLime
+            )
+            Text(
+                text = "Upper Push complex is 92%+ recovered. Quadriceps remain in active recovery (35%).",
+                fontSize = 13.sp,
+                color = CyberTheme.TextSecondary,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        IndustrialCard(
+            moduleCode = "SYS_MOD // 02",
+            title = "Assigned Microcycle Target",
+            accentColor = CyberTheme.ApexOrange
+        ) {
+            Text(
+                text = "PROTOCOL: UPPER PUSH HYPERTROPHY",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = CyberTheme.TextPrimary
+            )
+            Text(
+                text = "5 Exercises  •  18 Total Sets  •  Est: 52 Minutes",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                color = CyberTheme.TextSecondary,
+                modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
+            )
+
+            TactileButton(
+                text = "ENGAGE PROTOCOL",
+                subText = "Initialize Active Session Tracker",
+                accentColor = CyberTheme.ApexOrange,
+                onClick = onNavigateToTrain
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        IndustrialCard(
+            moduleCode = "SYS_MOD // 03",
+            title = "Weekly Microcycle Register",
+            accentColor = CyberTheme.TelemetryCyan
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                listOf(
+                    "M" to true,
+                    "T" to true,
+                    "W" to false,
+                    "T" to true,
+                    "F" to false,
+                    "S" to false,
+                    "S" to false
+                ).forEach { (day, completed) ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = day,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = CyberTheme.TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(
+                                    if (completed) CyberTheme.TelemetryCyan else CyberTheme.RecessedPit
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "→ ",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 12.sp,
-                                color = AmberAccent
-                            )
-                            Text(
-                                text = action,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 12.sp,
-                                color = PrimaryText
-                            )
+                            if (completed) {
+                                Text(
+                                    text = "■",
+                                    fontSize = 12.sp,
+                                    color = CyberTheme.ChassisBackground
+                                )
+                            }
                         }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun HomeScreen(
-    fitnessViewModel: FitnessViewModel,
-    algorithmViewModel: AlgorithmViewModel,
-    homeViewModel: HomeViewModel,
-    trainViewModel: TrainViewModel,
-    nutritionViewModel: NutritionViewModel,
-    onNavigateTo: (Int) -> Unit
-) {
-    HomeWeightErrorBanner(homeViewModel = homeViewModel)
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 24.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        // 1. Header Section
-        HomeHeaderSection(
-            fitnessViewModel = fitnessViewModel,
-            algorithmViewModel = algorithmViewModel,
-            trainViewModel = trainViewModel,
-            homeViewModel = homeViewModel
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // 2. Today's Training Card
-        HomeTodayWorkoutCard(
-            trainViewModel = trainViewModel,
-            algorithmViewModel = algorithmViewModel,
-            fitnessViewModel = fitnessViewModel,
-            homeViewModel = homeViewModel,
-            onNavigateTo = onNavigateTo
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 3. Algorithm Cards (Plateau Detection, etc.)
-        HomeAlgorithmCards(
-            algorithmViewModel = algorithmViewModel
-        )
-
-        // 4. Streak Section
-        HomeStreakSection(
-            algorithmViewModel = algorithmViewModel
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 5. Matrix Card Row (Nutrition & Body Weight)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Max),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            HomeNutritionRingCard(
-                fitnessViewModel = fitnessViewModel,
-                homeViewModel = homeViewModel,
-                nutritionViewModel = nutritionViewModel,
-                trainViewModel = trainViewModel,
-                algorithmViewModel = algorithmViewModel,
-                onNavigateTo = onNavigateTo,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            )
-
-            HomeWeightChartCard(
-                fitnessViewModel = fitnessViewModel,
-                homeViewModel = homeViewModel,
-                onNavigateTo = onNavigateTo,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            )
-        }
-
-        // 6. Analytics Section
-        HomeAnalyticsSection(
-            homeViewModel = homeViewModel,
-            fitnessViewModel = fitnessViewModel
-        )
     }
 }
