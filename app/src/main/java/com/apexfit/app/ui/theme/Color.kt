@@ -2,7 +2,7 @@ package com.apexfit.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// --- LEGACY TOKENS (Preserved so existing screens and PlateCalculator compile cleanly) ---
+// --- LEGACY TOKENS (Preserved so existing screens compile cleanly) ---
 val OrangeAccent    = Color(0xFFFF4500)
 val BackgroundDark  = Color(0xFF090B0D)
 val SurfaceDark     = Color(0xFF13171B)
@@ -12,6 +12,10 @@ val SecondaryText   = Color(0xFF8B949E)
 val DividerDark     = Color(0xFF222830)
 val GreenSuccess    = Color(0xFF00FF66)
 val RedError        = Color(0xFFFF2A4B)
+
+// --- BORDER DEFINITIONS REQUIRED BY Theme.kt ---
+val BorderSubtle    = Color(0xFF2E3640)
+val BorderBright    = Color(0xFF485464)
 
 // --- CYBER-INDUSTRIAL DESIGN SYSTEM ---
 object CyberTheme {
