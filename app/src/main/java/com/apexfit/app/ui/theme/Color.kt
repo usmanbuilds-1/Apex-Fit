@@ -2,20 +2,26 @@ package com.apexfit.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// --- LEGACY TOKENS (Preserved so existing screens compile cleanly) ---
+// --- LEGACY TOKENS (Expected by ApexFitApp.kt and Theme.kt) ---
+val DarkBackground  = Color(0xFF0A0A0F)
+val DarkRaised      = Color(0xFF15151C)
+val DarkCardSurface = Color(0xFF1D1D26)
+val AmberAccent     = Color(0xFFFFB000)
+val RedAccent       = Color(0xFFE84A4A)
+val GreenAccent     = Color(0xFF4CAF80)
+val PrimaryText     = Color(0xFFF5F5F5)
+val SecondaryText   = Color(0xFFA7A7B3)
+val BorderBright    = Color(0xFF3A3A47)
+val BorderSubtle    = Color(0xFF292934)
+
+// --- ALTERNATE LEGACY TOKENS (Referenced across older screens) ---
 val OrangeAccent    = Color(0xFFFF4500)
 val BackgroundDark  = Color(0xFF090B0D)
 val SurfaceDark     = Color(0xFF13171B)
 val CardDark        = Color(0xFF1A1A2E)
-val PrimaryText     = Color(0xFFF2F4F7)
-val SecondaryText   = Color(0xFF8B949E)
 val DividerDark     = Color(0xFF222830)
 val GreenSuccess    = Color(0xFF00FF66)
 val RedError        = Color(0xFFFF2A4B)
-
-// --- BORDER DEFINITIONS REQUIRED BY Theme.kt ---
-val BorderSubtle    = Color(0xFF2E3640)
-val BorderBright    = Color(0xFF485464)
 
 // --- CYBER-INDUSTRIAL DESIGN SYSTEM ---
 object CyberTheme {

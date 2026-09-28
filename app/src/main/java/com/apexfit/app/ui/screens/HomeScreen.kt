@@ -13,7 +13,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.apexfit.app.AlgorithmViewModel
+import com.apexfit.app.FitnessViewModel
 import com.apexfit.app.HomeViewModel
+import com.apexfit.app.NutritionViewModel
+import com.apexfit.app.TrainViewModel
 import com.apexfit.app.ui.components.IndustrialCard
 import com.apexfit.app.ui.components.MuscleSegment
 import com.apexfit.app.ui.components.ReadinessPetalDial
@@ -22,10 +26,18 @@ import com.apexfit.app.ui.theme.CyberTheme
 
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel? = null,
-    onNavigateToTrain: () -> Unit = {},
-    onNavigateToProgress: () -> Unit = {}
+    fitnessViewModel: FitnessViewModel,
+    algorithmViewModel: AlgorithmViewModel,
+    homeViewModel: HomeViewModel,
+    trainViewModel: TrainViewModel,
+    nutritionViewModel: NutritionViewModel,
+    onNavigateTo: (Int) -> Unit = {}
 ) {
+    // --- Compatibility bridges for internal UI references ---
+    val viewModel = homeViewModel
+    val onNavigateToTrain: () -> Unit = { onNavigateTo(1) }
+    val onNavigateToProgress: () -> Unit = { onNavigateTo(2) }
+
     val scrollState = rememberScrollState()
 
     val muscleTelemetry = remember {
