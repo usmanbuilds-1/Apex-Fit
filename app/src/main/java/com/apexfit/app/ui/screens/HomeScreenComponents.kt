@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,6 +57,24 @@ import com.apexfit.app.utils.toDisplayWeight
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
+@Composable
+fun ApexCard(
+    modifier: Modifier = Modifier,
+    elevation: Dp = 0.dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkCardSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            content = content
+        )
+    }
+}
 @Composable
 fun HomeWeightErrorBanner(
     homeViewModel: HomeViewModel,
