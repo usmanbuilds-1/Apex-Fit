@@ -816,7 +816,7 @@ fun OnboardingScreen(
                         OutlinedTextField(
                             value = ageStr,
                             onValueChange = {
-                                ageStr = iit.filter { c -> c.isDigit() } // Strips spaces and hidden characters instantlyt
+                                ageStr = ageStr = it.filter { c -> c.isDigit() } // Strips spaces and hidden characters instantly
                                 ageError = null
                             },
                             label = { Text(stringResource(R.string.onboarding_age_yrs), color = SecondaryText) },
