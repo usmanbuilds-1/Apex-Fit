@@ -816,7 +816,7 @@ fun OnboardingScreen(
                         OutlinedTextField(
                             value = ageStr,
                             onValueChange = {
-                                ageStr = it
+                                ageStr = iit.filter { c -> c.isDigit() } // Strips spaces and hidden characters instantlyt
                                 ageError = null
                             },
                             label = { Text(stringResource(R.string.onboarding_age_yrs), color = SecondaryText) },
@@ -929,7 +929,7 @@ fun OnboardingScreen(
                         val trimmedName = name.trim()
                         val weightVal = currentWeightStr.replace(",", ".").toDoubleOrNull()
                         val heightVal = heightStr.replace(",", ".").toDoubleOrNull()
-                        val ageVal = ageStr.toIntOrNull()
+                        val ageVal = ageStr.trim().toIntOrNull()
 
                         val isImperial = selectedUnits.lowercase() in listOf("lb", "lbs")
                         val minWeight = if (isImperial) 44.0 else 20.0
