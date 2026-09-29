@@ -461,16 +461,7 @@ fun HomeAlgorithmCards(
     algorithmViewModel: AlgorithmViewModel,
     modifier: Modifier = Modifier
 ) {
-    val plateauResult by algorithmViewModel.plateauResult.collectAsStateWithLifecycle()
-    val fatigueRatio by algorithmViewModel.fatigueRatio.collectAsStateWithLifecycle()
-    val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        PlateauCard(plateauResult = plateauResult)
-        if (plateauResult.isPlateau) {
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
+    // Deprecated: UI has been migrated to CyberTheme IndustrialCards on the main screen.
 }
 
 @Composable
