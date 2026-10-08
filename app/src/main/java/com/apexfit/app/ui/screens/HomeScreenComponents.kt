@@ -29,7 +29,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -46,8 +48,9 @@ import com.apexfit.app.AlgorithmViewModel
 import com.apexfit.app.FitnessViewModel
 import com.apexfit.app.HomeViewModel
 import com.apexfit.app.NutritionViewModel
+import com.apexfit.app.PlanBuilderViewModel
 import com.apexfit.app.R
-import com.apexfit.app.TrainViewModel
+import com.apexfit.app.WorkoutExecutionViewModel
 import com.apexfit.app.ui.components.SingleFrontHeatmapCanvas
 import com.apexfit.app.data.HeatmapEntry
 import com.apexfit.app.ui.models.UiState
@@ -111,12 +114,12 @@ private fun computeGreeting(): String {
 fun HomeHeaderSection(
     fitnessViewModel: FitnessViewModel,
     algorithmViewModel: AlgorithmViewModel,
-    trainViewModel: TrainViewModel,
+    workoutExecutionViewModel: WorkoutExecutionViewModel,
     homeViewModel: HomeViewModel,
     modifier: Modifier = Modifier
 ) {
     val username by fitnessViewModel.username.collectAsStateWithLifecycle()
-    val activeWorkoutSession by trainViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
+    val activeWorkoutSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val readiness by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
     val streakResult by algorithmViewModel.streakResult.collectAsStateWithLifecycle()
 
@@ -147,17 +150,18 @@ fun HomeHeaderSection(
 
 @Composable
 fun HomeTodayWorkoutCard(
-    trainViewModel: TrainViewModel,
+    planBuilderViewModel: PlanBuilderViewModel,
+    workoutExecutionViewModel: WorkoutExecutionViewModel,
     algorithmViewModel: AlgorithmViewModel,
     fitnessViewModel: FitnessViewModel,
     homeViewModel: HomeViewModel,
     onNavigateTo: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val todayExercisesState by trainViewModel.todayExercises.collectAsStateWithLifecycle()
-    val activePlanSessionsState by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val todayExercisesState by planBuilderViewModel.todayExercises.collectAsStateWithLifecycle()
+    val activePlanSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
-    val activeWorkoutSession by trainViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
+    val activeWorkoutSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val readiness by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
 
     val todayExercises = (todayExercisesState as? UiState.Success)?.data ?: emptyList()
@@ -176,13 +180,6 @@ fun HomeTodayWorkoutCard(
 
     var showCalculationExplanation by rememberSaveable { mutableStateOf(false) }
     val onShowCalculationExplanation = remember { { showCalculationExplanation = true } }
-    var isStarting by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(isStarting) {
-        if (isStarting) {
-            delay(1000)
-            isStarting = false
-        }
-    }
 
     val isTodayWorkoutCompleted by remember(completedSessions) {
         derivedStateOf {
@@ -244,7 +241,7 @@ fun HomeTodayWorkoutCard(
                         tint = AmberAccent.copy(alpha = 0.8f),
                         modifier = Modifier
                             .size(16.dp)
-                            .clickable(onClick = onShowCalculationExplanation)
+                            .clickable(role = Role.Button, onClick = onShowCalculationExplanation)
                             .testTag("readiness_info_icon")
                     )
                 }
@@ -376,17 +373,16 @@ fun HomeTodayWorkoutCard(
                         onNavigateTo(1)
                         return@Button
                     }
-                    if (isStarting) return@Button
                     if (isTodayWorkoutCompleted) {
                         onNavigateTo(1)
                     } else if (todaySession == null) {
                         onNavigateTo(1)
                     } else {
-                        isStarting = true
-                        fitnessViewModel.startWorkoutSession(todaySession)
+                        workoutExecutionViewModel.startWorkoutSession(todaySession)
+                        fitnessViewModel.setTrainSubTab(1)
+                        onNavigateTo(1)
                     }
                 },
-                enabled = !isStarting,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = when {
                         activeWorkoutSession != null -> OrangeAccent
@@ -507,7 +503,7 @@ fun HomeNutritionRingCard(
     fitnessViewModel: FitnessViewModel,
     homeViewModel: HomeViewModel,
     nutritionViewModel: NutritionViewModel,
-    trainViewModel: TrainViewModel,
+    planBuilderViewModel: PlanBuilderViewModel,
     algorithmViewModel: AlgorithmViewModel,
     onNavigateTo: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -518,7 +514,7 @@ fun HomeNutritionRingCard(
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
     val macroTargetsState by homeViewModel.macroTargets.collectAsStateWithLifecycle()
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
-    val activePlanSessionsState by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val activePlanSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
 
     val targets = (macroTargetsState as? UiState.Success)?.data
@@ -562,7 +558,7 @@ fun HomeNutritionRingCard(
 
     ApexCard(
         modifier = modifier
-            .clickable(onClick = onNutritionCardClick)
+            .clickable(role = Role.Button, onClick = onNutritionCardClick)
             .testTag("nutrition_summary_card"),
         elevation = 0.dp
     ) {
@@ -681,7 +677,7 @@ fun HomeNutritionRingCard(
                     .height(48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(DarkRaised)
-                    .clickable(onClick = onLogFoodClick)
+                    .clickable(role = Role.Button, onClick = onLogFoodClick)
                     .testTag("log_food_bottom_button"),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -744,7 +740,7 @@ fun HomeWeightChartCard(
 
     ApexCard(
         modifier = modifier
-            .clickable(onClick = onWeightCardClick)
+            .clickable(role = Role.Button, onClick = onWeightCardClick)
             .testTag("body_weight_summary_card"),
         elevation = 0.dp
     ) {
@@ -979,7 +975,8 @@ fun HomeWeightChartCard(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) IndigoAccent else Color.Transparent)
-                                .clickable { selectedFilter = filter }
+                                .semantics { selected = isSelected }
+                                .clickable(role = Role.Tab) { selectedFilter = filter }
                                 .padding(vertical = 12.dp)
                                 .heightIn(min = 48.dp),
                             contentAlignment = Alignment.Center
@@ -1004,7 +1001,7 @@ fun HomeWeightChartCard(
                     .height(48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(DarkRaised)
-                    .clickable(onClick = onLogWeightClick)
+                    .clickable(role = Role.Button, onClick = onLogWeightClick)
                     .testTag("log_weight_bottom_button"),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -1033,7 +1030,7 @@ fun HomeWeightChartCard(
             units = units,
             onDismiss = { showWeightDialog = false },
             onSave = { parsedWeight ->
-                fitnessViewModel.logWeight(parsedWeight, preferredUnit = units)
+                homeViewModel.logWeight(parsedWeight, preferredUnit = units)
                 showWeightDialog = false
             }
         )

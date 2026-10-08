@@ -3,7 +3,6 @@ package com.apexfit.app.ui.screens
 import com.apexfit.app.ui.models.UiState
 
 import kotlinx.coroutines.launch
-import android.widget.Toast
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,29 +35,30 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.apexfit.app.TrainViewModel
+import com.apexfit.app.PlanBuilderViewModel
 import com.apexfit.app.data.WorkoutPlan
 import com.apexfit.app.data.PlanSession
 import com.apexfit.app.data.PlanExercise
 import com.apexfit.app.ui.theme.*
+import com.apexfit.app.utils.AppConstants
 import com.apexfit.app.utils.MuscleGroups
 
 @Composable
 fun PlanBuilderScreen(
-    trainViewModel: TrainViewModel,
+    planBuilderViewModel: PlanBuilderViewModel,
     onNavigateBack: () -> Unit
 ) {
     DisposableEffect(Unit) {
         onDispose {
-            trainViewModel.resetPlanBuilder()
+            planBuilderViewModel.resetPlanBuilder()
         }
     }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val dbSessionsState by trainViewModel.activePlanSessions.collectAsStateWithLifecycle()
-    val dbExercises by trainViewModel.allPlanExercises.collectAsStateWithLifecycle()
-    val activePlanState by trainViewModel.activePlan.collectAsStateWithLifecycle()
+    val dbSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val dbExercises by planBuilderViewModel.allPlanExercises.collectAsStateWithLifecycle()
+    val activePlanState by planBuilderViewModel.activePlan.collectAsStateWithLifecycle()
     
     if (dbSessionsState is UiState.Loading || activePlanState is UiState.Loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -74,12 +77,14 @@ fun PlanBuilderScreen(
     val dbSessions: List<com.apexfit.app.data.PlanSession> = (dbSessionsState as? UiState.Success)?.data ?: emptyList()
     val activePlan: com.apexfit.app.data.WorkoutPlan? = (activePlanState as? UiState.Success)?.data
     
-    val sessionsList by trainViewModel.planBuilderSessions.collectAsStateWithLifecycle()
-    val exercisesList by trainViewModel.planBuilderExercises.collectAsStateWithLifecycle()
+    val sessionsList by planBuilderViewModel.planBuilderSessions.collectAsStateWithLifecycle()
+    val exercisesList by planBuilderViewModel.planBuilderExercises.collectAsStateWithLifecycle()
 
     var planName by rememberSaveable { mutableStateOf("") }
     var planGoal by rememberSaveable { mutableStateOf("") }
     var isInitialized by rememberSaveable { mutableStateOf(false) }
+    var planNameError by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Dialog trigger states
     var showAddDayDialog by rememberSaveable { mutableStateOf(false) }
@@ -92,19 +97,12 @@ fun PlanBuilderScreen(
 
     var isSaving by remember { mutableStateOf(false) }
 
-    LaunchedEffect(isSaving) {
-        if (isSaving) {
-            kotlinx.coroutines.delay(2000)
-            isSaving = false
-        }
-    }
-
     LaunchedEffect(activePlan) {
         if (!isInitialized && activePlan != null) {
             planName = activePlan?.name ?: "My Custom Plan"
             planGoal = activePlan?.goal ?: "Gain Muscle"
             
-            trainViewModel.initializePlanBuilder(
+            planBuilderViewModel.initializePlanBuilder(
                 activePlan,
                 dbSessions,
                 dbExercises
@@ -115,6 +113,7 @@ fun PlanBuilderScreen(
 
     Scaffold(
         containerColor = DarkBackground,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -139,8 +138,10 @@ fun PlanBuilderScreen(
                         onClick = {
                             if (isSaving) return@TextButton
                             if (planName.isBlank()) {
-                                Toast.makeText(context, context.getString(R.string.plan_builder_plan_name_cannot_be_empty), Toast.LENGTH_SHORT).show()
+                                planNameError = context.getString(R.string.plan_builder_plan_name_cannot_be_empty)
                                 return@TextButton
+                            } else {
+                                planNameError = null
                             }
                             isSaving = true
                             val planId = activePlan?.id ?: 1L
@@ -166,8 +167,15 @@ fun PlanBuilderScreen(
                                 exercise.copy(weight = exercise.weight.coerceAtLeast(0.0))
                             }
 
-                            trainViewModel.updateWorkoutPlan(finalPlan, updatedSessions, updatedExercises)
-                            Toast.makeText(context, context.getString(R.string.plan_builder_workout_plan_updated_successfu), Toast.LENGTH_SHORT).show()
+                            coroutineScope.launch {
+                                isSaving = true
+                                try {
+                                    planBuilderViewModel.updateWorkoutPlan(finalPlan, updatedSessions, updatedExercises)
+                                    snackbarHostState.showSnackbar(context.getString(R.string.plan_builder_workout_plan_updated_successfu))
+                                } finally {
+                                    isSaving = false
+                                }
+                            }
                             onNavigateBack()
                         },
                         enabled = !isSaving,
@@ -195,6 +203,7 @@ fun PlanBuilderScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -221,7 +230,12 @@ fun PlanBuilderScreen(
 
                         OutlinedTextField(
                             value = planName,
-                            onValueChange = { planName = it },
+                            onValueChange = {
+                                planName = it
+                                planNameError = null
+                            },
+                            isError = planNameError != null,
+                            supportingText = planNameError?.let { { Text(it) } },
                             label = { Text(stringResource(R.string.plan_builder_plan_name), color = SecondaryText) },
                             textStyle = LocalTextStyle.current.copy(color = PrimaryText),
                             modifier = Modifier
@@ -370,7 +384,7 @@ fun PlanBuilderScreen(
                                     // Move Up
                                     IconButton(
                                         onClick = {
-                                            trainViewModel.reorderSession(index, true)
+                                            planBuilderViewModel.reorderSession(index, true)
                                         },
                                         enabled = index > 0,
                                         modifier = Modifier.size(48.dp)
@@ -386,7 +400,7 @@ fun PlanBuilderScreen(
                                     // Move Down
                                     IconButton(
                                         onClick = {
-                                            trainViewModel.reorderSession(index, false)
+                                            planBuilderViewModel.reorderSession(index, false)
                                         },
                                         enabled = index < sessionsList.size - 1,
                                         modifier = Modifier.size(48.dp)
@@ -584,8 +598,9 @@ fun PlanBuilderScreen(
 
     // Add / Edit Day Dialog
     if (showAddDayDialog) {
-        val session = editingSessionId?.let { trainViewModel.getSessionById(it) }
+        val session = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
         var dayLabel by rememberSaveable { mutableStateOf(session?.label ?: "") }
+        var dayLabelError by remember { mutableStateOf<String?>(null) }
         var selectedDayOfWeek by rememberSaveable { mutableStateOf(session?.day ?: "Monday") }
         
         val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
@@ -609,7 +624,12 @@ fun PlanBuilderScreen(
                 ) {
                     OutlinedTextField(
                         value = dayLabel,
-                        onValueChange = { dayLabel = it },
+                        onValueChange = {
+                            dayLabel = it
+                            dayLabelError = null
+                        },
+                        isError = dayLabelError != null,
+                        supportingText = dayLabelError?.let { { Text(it) } },
                         label = { Text(stringResource(R.string.plan_builder_session_name_e_g_upper_a), color = SecondaryText) },
                         textStyle = LocalTextStyle.current.copy(color = Color.White),
                         modifier = Modifier
@@ -643,7 +663,8 @@ fun PlanBuilderScreen(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(if (isSelected) OrangeAccent else DarkBackground)
                                     .border(BorderStroke(1.dp, if (isSelected) OrangeAccent else BorderSubtle), RoundedCornerShape(8.dp))
-                                    .clickable { selectedDayOfWeek = day }
+                                    .semantics { selected = isSelected }
+                                    .clickable(role = Role.Tab) { selectedDayOfWeek = day }
                                     .padding(horizontal = 12.dp, vertical = 8.dp)
                             ) {
                                 Text(
@@ -662,13 +683,15 @@ fun PlanBuilderScreen(
                 Button(
                     onClick = {
                         if (dayLabel.isBlank()) {
-                            Toast.makeText(context, context.getString(R.string.plan_builder_session_name_is_required), Toast.LENGTH_SHORT).show()
+                            dayLabelError = context.getString(R.string.plan_builder_session_name_is_required)
                             return@Button
+                        } else {
+                            dayLabelError = null
                         }
                         
                         if (editingSessionId == null) {
-                            val newId = trainViewModel.generateNewSessionId()
-                            trainViewModel.addSession(
+                            val newId = planBuilderViewModel.generateNewSessionId()
+                            planBuilderViewModel.addSession(
                                 PlanSession(
                                     id = newId,
                                     planId = activePlan?.id ?: 1L,
@@ -678,9 +701,9 @@ fun PlanBuilderScreen(
                                 )
                             )
                         } else {
-                            val session = editingSessionId?.let { trainViewModel.getSessionById(it) }
+                            val session = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
                             if (session != null) {
-                                trainViewModel.updateSession(
+                                planBuilderViewModel.updateSession(
                                     session.copy(
                                         label = dayLabel.trim(),
                                         day = selectedDayOfWeek
@@ -706,8 +729,8 @@ fun PlanBuilderScreen(
 
     // Add / Edit Exercise Dialog
     if (showAddExerciseDialog) {
-        val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
-        val preferredUnits by trainViewModel.units.collectAsStateWithLifecycle()
+        val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
+        val preferredUnits by planBuilderViewModel.units.collectAsStateWithLifecycle()
         val defaultUnit = if (!exercise?.weightUnit.isNullOrBlank()) exercise!!.weightUnit else (if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg")
         var unitSuffix by rememberSaveable { mutableStateOf(defaultUnit) }
         var exName by rememberSaveable { mutableStateOf(exercise?.name ?: "") }
@@ -719,7 +742,7 @@ fun PlanBuilderScreen(
             mutableStateOf(
                 if (exercise != null && exercise.weight > 0.0) {
                     if (unitSuffix.lowercase() in listOf("lb", "lbs")) {
-                        (Math.round(exercise.weight * 2.20462 * 10.0) / 10.0).toString()
+                        (Math.round(exercise.weight * AppConstants.KG_TO_LBS * 10.0) / 10.0).toString()
                     } else {
                         exercise.weight.toString()
                     }
@@ -731,11 +754,16 @@ fun PlanBuilderScreen(
         var restText by rememberSaveable { mutableStateOf(exercise?.restSeconds?.toString() ?: "90") }
         var notesText by rememberSaveable { mutableStateOf(exercise?.notes ?: "") }
 
+        var exNameError by remember { mutableStateOf<String?>(null) }
+        var setsError by remember { mutableStateOf<String?>(null) }
+        var repsMinError by remember { mutableStateOf<String?>(null) }
+        var weightError by remember { mutableStateOf<String?>(null) }
+
         var showMuscleDropdown by rememberSaveable { mutableStateOf(false) }
 
         LaunchedEffect(editingExerciseId, showAddExerciseDialog) {
             if (showAddExerciseDialog) {
-                val currentEx = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
+                val currentEx = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
                 val initialUnit = if (!currentEx?.weightUnit.isNullOrBlank()) currentEx!!.weightUnit else (if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg")
                 unitSuffix = initialUnit
                 exName = currentEx?.name ?: ""
@@ -745,7 +773,7 @@ fun PlanBuilderScreen(
                 repsMaxText = currentEx?.repsMax?.toString() ?: "12"
                 weightText = if (currentEx != null && currentEx.weight > 0.0) {
                     if (initialUnit.lowercase() in listOf("lb", "lbs")) {
-                        (Math.round(currentEx.weight * 2.20462 * 10.0) / 10.0).toString()
+                        (Math.round(currentEx.weight * AppConstants.KG_TO_LBS * 10.0) / 10.0).toString()
                     } else {
                         currentEx.weight.toString()
                     }
@@ -778,7 +806,12 @@ fun PlanBuilderScreen(
                 ) {
                     OutlinedTextField(
                         value = exName,
-                        onValueChange = { exName = it },
+                        onValueChange = {
+                            exName = it
+                            exNameError = null
+                        },
+                        isError = exNameError != null,
+                        supportingText = exNameError?.let { { Text(it) } },
                         label = { Text(stringResource(R.string.plan_builder_exercise_name), color = SecondaryText) },
                         textStyle = LocalTextStyle.current.copy(color = Color.White),
                         modifier = Modifier
@@ -844,7 +877,12 @@ fun PlanBuilderScreen(
                     ) {
                         OutlinedTextField(
                             value = setsText,
-                            onValueChange = { setsText = it },
+                            onValueChange = {
+                                setsText = it
+                                setsError = null
+                            },
+                            isError = setsError != null,
+                            supportingText = setsError?.let { { Text(it) } },
                             label = { Text(stringResource(R.string.plan_builder_sets), color = SecondaryText, fontSize = 11.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
@@ -860,7 +898,12 @@ fun PlanBuilderScreen(
 
                         OutlinedTextField(
                             value = repsMinText,
-                            onValueChange = { repsMinText = it },
+                            onValueChange = {
+                                repsMinText = it
+                                repsMinError = null
+                            },
+                            isError = repsMinError != null,
+                            supportingText = repsMinError?.let { { Text(it) } },
                             label = { Text(stringResource(R.string.plan_builder_min_reps), color = SecondaryText, fontSize = 11.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
@@ -876,7 +919,11 @@ fun PlanBuilderScreen(
 
                         OutlinedTextField(
                             value = repsMaxText,
-                            onValueChange = { repsMaxText = it },
+                            onValueChange = {
+                                repsMaxText = it
+                                repsMinError = null
+                            },
+                            isError = repsMinError != null,
                             label = { Text(stringResource(R.string.plan_builder_max_reps), color = SecondaryText, fontSize = 11.sp) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
@@ -898,7 +945,12 @@ fun PlanBuilderScreen(
                     ) {
                         OutlinedTextField(
                             value = weightText,
-                            onValueChange = { weightText = it },
+                            onValueChange = {
+                                weightText = it
+                                weightError = null
+                            },
+                            isError = weightError != null,
+                            supportingText = weightError?.let { { Text(it) } },
                             label = { Text("Starting Weight ($unitSuffix)", color = SecondaryText) },
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier
@@ -928,14 +980,15 @@ fun PlanBuilderScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
                                         .background(if (isSelected) OrangeAccent else Color.Transparent)
-                                        .clickable {
+                                        .semantics { selected = isSelected }
+                                        .clickable(role = Role.Tab) {
                                             if (!unitSuffix.equals(unit, ignoreCase = true)) {
                                                 val currentVal = weightText.replace(',', '.').toDoubleOrNull()
                                                 if (currentVal != null) {
                                                     val converted = if (unit == "lb") {
-                                                        Math.round(currentVal * 2.20462 * 10.0) / 10.0
+                                                        Math.round(currentVal * AppConstants.KG_TO_LBS * 10.0) / 10.0
                                                     } else {
-                                                        Math.round((currentVal / 2.20462) * 10.0) / 10.0
+                                                        Math.round((currentVal / AppConstants.KG_TO_LBS) * 10.0) / 10.0
                                                     }
                                                     weightText = converted.toString()
                                                 }
@@ -994,8 +1047,10 @@ fun PlanBuilderScreen(
                 Button(
                     onClick = {
                         if (exName.isBlank()) {
-                            Toast.makeText(context, context.getString(R.string.plan_builder_exercise_name_is_required), Toast.LENGTH_SHORT).show()
+                            exNameError = context.getString(R.string.plan_builder_exercise_name_is_required)
                             return@Button
+                        } else {
+                            exNameError = null
                         }
                         val setsVal = setsText.toIntOrNull() ?: 3
                         val minRepsVal = repsMinText.toIntOrNull() ?: 8
@@ -1003,12 +1058,16 @@ fun PlanBuilderScreen(
                         val restVal = restText.toIntOrNull() ?: 90
 
                         if (setsVal <= 0 || minRepsVal <= 0 || maxRepsVal <= 0 || restVal < 0) {
-                            Toast.makeText(context, context.getString(R.string.plan_builder_numeric_values_must_be_valid), Toast.LENGTH_SHORT).show()
+                            setsError = context.getString(R.string.plan_builder_numeric_values_must_be_valid)
                             return@Button
+                        } else {
+                            setsError = null
                         }
                         if (minRepsVal > maxRepsVal) {
-                            Toast.makeText(context, context.getString(R.string.plan_builder_min_reps_greater_than_max), Toast.LENGTH_SHORT).show()
+                            repsMinError = context.getString(R.string.plan_builder_min_reps_greater_than_max)
                             return@Button
+                        } else {
+                            repsMinError = null
                         }
 
                         val maxWeight = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
@@ -1016,17 +1075,15 @@ fun PlanBuilderScreen(
 
                         if (weightText.isNotBlank() &&
                             (rawWeightVal == null || rawWeightVal !in 0.0..maxWeight)) {
-                            Toast.makeText(
-                                context,
-                                "Enter a valid weight (0–$maxWeight $unitSuffix)",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            weightError = "Enter a valid weight (0–$maxWeight $unitSuffix)"
                             return@Button
+                        } else {
+                            weightError = null
                         }
 
                         val weightVal = if (rawWeightVal != null && rawWeightVal in 0.0..maxWeight) {
                             if (unitSuffix.lowercase() in listOf("lb", "lbs")) {
-                                rawWeightVal / 2.20462
+                                rawWeightVal / AppConstants.KG_TO_LBS
                             } else {
                                 rawWeightVal
                             }
@@ -1037,7 +1094,7 @@ fun PlanBuilderScreen(
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 
                         if (editingExerciseId == null) {
-                            val newId = trainViewModel.generateNewSessionId()
+                            val newId = planBuilderViewModel.generateNewSessionId()
                             val newEx = PlanExercise(
                                 id = newId,
                                 planSessionId = targetSessionId,
@@ -1051,9 +1108,9 @@ fun PlanBuilderScreen(
                                 restSeconds = restVal,
                                 notes = notesText.trim()
                             )
-                            trainViewModel.addCustomExercise(newEx)
+                            planBuilderViewModel.addCustomExercise(newEx)
                         } else {
-                            val exercise = editingExerciseId?.let { trainViewModel.getExerciseById(it) }
+                            val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
                             if (exercise != null) {
                                 val updated = exercise.copy(
                                     name = exName.trim(),
@@ -1066,7 +1123,7 @@ fun PlanBuilderScreen(
                                     restSeconds = restVal,
                                     notes = notesText.trim()
                                 )
-                                trainViewModel.updateExercise(updated)
+                                planBuilderViewModel.updateExercise(updated)
                             }
                         }
 
@@ -1111,7 +1168,7 @@ fun PlanBuilderScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        sessionToDelete?.let { trainViewModel.deleteSession(it.id) }
+                        sessionToDelete?.let { planBuilderViewModel.deleteSession(it.id) }
                         sessionToDelete = null
                     }
                 ) {
@@ -1151,7 +1208,7 @@ fun PlanBuilderScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        exerciseToDelete?.let { trainViewModel.deleteExercise(it.id) }
+                        exerciseToDelete?.let { planBuilderViewModel.deleteExercise(it.id) }
                         exerciseToDelete = null
                     }
                 ) {

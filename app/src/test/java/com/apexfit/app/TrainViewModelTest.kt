@@ -33,29 +33,23 @@ class TrainViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        com.apexfit.app.di.ServiceLocator.reset()
         val application = ApplicationProvider.getApplicationContext<Application>()
         val scope = kotlinx.coroutines.CoroutineScope(testDispatcher + kotlinx.coroutines.SupervisorJob())
         testScope = scope
-        com.apexfit.app.di.ServiceLocator.setAppScope(scope, application)
         kotlinx.coroutines.runBlocking {
-            DataStoreManager(application).saveActiveSessionJson(null)
+            DataStoreManager.getInstance(application).saveActiveSessionJson(null)
         }
         val db = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
         testDb = db
         AppDatabase.setTestDatabase(db)
-        com.apexfit.app.di.ServiceLocator.setDatabase(db)
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
     @After
     fun tearDown() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        kotlinx.coroutines.runBlocking {
-            DataStoreManager(application).saveActiveSessionJson(null)
-        }
         testScope?.cancel()
         testScope = null
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
@@ -63,7 +57,9 @@ class TrainViewModelTest {
         testDb?.close()
         testDb = null
         AppDatabase.setTestDatabase(null)
-        com.apexfit.app.di.ServiceLocator.reset()
+        kotlinx.coroutines.runBlocking {
+            DataStoreManager.getInstance(application).saveActiveSessionJson(null)
+        }
     }
 
     @Test
@@ -81,7 +77,7 @@ class TrainViewModelTest {
             )
         )
         
-        val viewModel = TrainViewModel(application)
+        val viewModel = PlanBuilderViewModel(application)
         testScheduler.advanceUntilIdle()
 
         val planExercise = PlanExercise(
@@ -139,7 +135,7 @@ class TrainViewModelTest {
         dao.insertWorkoutPlan(plan1)
         dao.insertWorkoutPlan(plan2)
 
-        val viewModel = TrainViewModel(application)
+        val viewModel = PlanBuilderViewModel(application)
         testScheduler.advanceUntilIdle()
 
         viewModel.activatePlan(2020L).join()

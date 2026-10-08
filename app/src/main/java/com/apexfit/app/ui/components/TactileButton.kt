@@ -7,12 +7,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -26,59 +28,80 @@ fun TactileButton(
     subText: String? = null,
     accentColor: Color = CyberTheme.ApexOrange,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    isLoading: Boolean = false
 ) {
+    val isInteractive = enabled && !isLoading
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val topPadding = if (isPressed) 4.dp else 0.dp
-    val shadowHeight = if (isPressed) 0.dp else 4.dp
+    val topPadding = if (isInteractive && isPressed) 4.dp else 0.dp
+    val shadowHeight = if (isInteractive && isPressed) 0.dp else 4.dp
 
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier.alpha(if (isInteractive) 1f else 0.38f)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = topPadding)
                 .background(accentColor, RoundedCornerShape(6.dp))
                 .border(1.dp, CyberTheme.RimHighlight, RoundedCornerShape(6.dp))
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick
+                .then(
+                    if (isInteractive) {
+                        Modifier.clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = onClick
+                        )
+                    } else {
+                        Modifier
+                    }
                 )
                 .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .align(Alignment.Center),
+                    color = Color.Black,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = text.uppercase(),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp,
+                            letterSpacing = 1.sp,
+                            color = Color.Black
+                        )
+                        if (subText != null) {
+                            Text(
+                                text = subText.uppercase(),
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+
                     Text(
-                        text = text.uppercase(),
+                        text = if (isInteractive && isPressed) ">>" else "->",
+                        fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Black,
-                        fontSize = 15.sp,
-                        letterSpacing = 1.sp,
+                        fontSize = 18.sp,
                         color = Color.Black
                     )
-                    if (subText != null) {
-                        Text(
-                            text = subText.uppercase(),
-                            fontSize = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black.copy(alpha = 0.7f)
-                        )
-                    }
                 }
-
-                Text(
-                    text = if (isPressed) ">>" else "->",
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 18.sp,
-                    color = Color.Black
-                )
             }
         }
 

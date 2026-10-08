@@ -29,7 +29,7 @@ class WeightNormalizationTest {
 
     @Test
     fun proteinTarget_180lbsUser_isNotClamped() {
-        val storedKg = 176.0 / 2.20462
+        val storedKg = 176.0 / AppConstants.KG_TO_LBS
         val protein = (storedKg * 1.8).toInt().coerceIn(100, 250)
         assertTrue("Expected ~143-148g, got ${protein}g", protein in 140..155)
     }

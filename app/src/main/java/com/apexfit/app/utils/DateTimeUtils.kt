@@ -1,21 +1,32 @@
 package com.apexfit.app.utils
 
-import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.time.DayOfWeek
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 object DateTimeUtils {
-    private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    fun formatDate(date: Date): String =
+        Instant.ofEpochMilli(date.time).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
-    fun formatDate(date: Date): String = synchronized(DATE_FORMAT) { DATE_FORMAT.format(date) }
     fun parseDate(dateStr: String): Date? = try {
-        synchronized(DATE_FORMAT) { DATE_FORMAT.parse(dateStr) }
+        val localDate = LocalDate.parse(dateStr)
+        Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant())
     } catch (e: Exception) {
         null
     }
-    fun todayDateString(): String = synchronized(DATE_FORMAT) { DATE_FORMAT.format(Date()) }
+
+    fun todayDateString(): String = LocalDate.now().toString()
+
+    fun formatDateForDisplay(localDate: LocalDate): String =
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()).format(localDate)
 }
 
 fun getTodayDateString(): String {
@@ -28,53 +39,34 @@ fun getCurrentDate(): String {
 
 fun getPreviousDate(dateStr: String): String? {
     return try {
-        val date = DateTimeUtils.parseDate(dateStr) ?: return null
-        val cal = Calendar.getInstance()
-        cal.time = date
-        cal.add(Calendar.DAY_OF_YEAR, -1)
-        DateTimeUtils.formatDate(cal.time)
+        LocalDate.parse(dateStr).minusDays(1).toString()
     } catch (e: Exception) {
         null
     }
 }
 
-fun getDaysBetween(dateStr1: String, dateStr2: String): Long {
-    return try {
-        val d1 = DateTimeUtils.parseDate(dateStr1) ?: return 0L
-        val d2 = DateTimeUtils.parseDate(dateStr2) ?: return 0L
-        val diff = d2.time - d1.time
-        Math.round(diff.toDouble() / (1000 * 60 * 60 * 24)).coerceAtLeast(0L)
-    } catch (e: Exception) {
-        0L
-    }
-}
+fun getDaysBetween(dateStr1: String, dateStr2: String): Long =
+    ChronoUnit.DAYS.between(LocalDate.parse(dateStr1), LocalDate.parse(dateStr2))
+// Signed: negative if dateStr2 is before dateStr1
+
+fun getDaysBetweenAbs(dateStr1: String, dateStr2: String): Long =
+    kotlin.math.abs(getDaysBetween(dateStr1, dateStr2))
 
 fun getDateDaysFromNow(dateStr: String, days: Int): String? {
     return try {
-        val date = DateTimeUtils.parseDate(dateStr) ?: return null
-        val cal = Calendar.getInstance()
-        cal.time = date
-        cal.add(Calendar.DAY_OF_YEAR, days)
-        DateTimeUtils.formatDate(cal.time)
+        LocalDate.parse(dateStr).plusDays(days.toLong()).toString()
     } catch (e: Exception) {
         null
     }
 }
 
 fun getDateDaysAgo(days: Int): String {
-    val cal = Calendar.getInstance()
-    cal.add(Calendar.DAY_OF_YEAR, -days)
-    return DateTimeUtils.formatDate(cal.time)
+    return LocalDate.now().minusDays(days.toLong()).toString()
 }
 
 fun getWeekKey(dateStr: String): String {
     return try {
-        val cal = Calendar.getInstance()
-        cal.firstDayOfWeek = Calendar.MONDAY
-        cal.minimalDaysInFirstWeek = 4
-        cal.time = DateTimeUtils.parseDate(dateStr) ?: return dateStr
-        cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        DateTimeUtils.formatDate(cal.time)
+        LocalDate.parse(dateStr).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toString()
     } catch (e: Exception) { 
         dateStr 
     }
@@ -86,17 +78,8 @@ fun getWeekKey(dateStr: String): String {
  */
 fun getDaysBetweenClamped(lastDate: String, today: String): Int {
     return try {
-        val last = DateTimeUtils.parseDate(lastDate)
-        val current = DateTimeUtils.parseDate(today)
-        if (last != null && current != null) {
-            val diffInMillis = current.time - last.time
-            // AUDIT FIX (BUG-V4-004): use rounding not truncation so a 23-hour
-            // DST spring-forward day still counts as 1 day, not 0.
-            val days = Math.round(diffInMillis.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
-            if (days < 0) 2 else days
-        } else {
-            2
-        }
+        val days = getDaysBetween(lastDate, today).toInt()
+        if (days < 0) 2 else days
     } catch (e: Exception) {
         2
     }
@@ -105,13 +88,9 @@ fun getDaysBetweenClamped(lastDate: String, today: String): Int {
 fun formatTimeForDisplay(context: android.content.Context, timeStr: String): String {
     if (timeStr.isEmpty()) return ""
     return try {
-        val parser = SimpleDateFormat("HH:mm", Locale.US)
-        val date = parser.parse(timeStr)
-        if (date != null) {
-            android.text.format.DateFormat.getTimeFormat(context).format(date)
-        } else {
-            timeStr
-        }
+        val localTime = LocalTime.parse(timeStr, DateTimeFormatter.ofPattern("HH:mm", Locale.US))
+        val date = Date.from(localTime.atDate(LocalDate.now()).atZone(ZoneId.systemDefault()).toInstant())
+        android.text.format.DateFormat.getTimeFormat(context).format(date)
     } catch (e: Exception) {
         timeStr
     }

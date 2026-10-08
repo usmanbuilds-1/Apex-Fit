@@ -5,46 +5,27 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.lifecycle.createSavedStateHandle
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.apexfit.app.data.*
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import com.apexfit.app.ui.models.*
+import com.apexfit.app.utils.AppConstants
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 
-class FitnessViewModel(
+@HiltViewModel
+class FitnessViewModel @Inject constructor(
     application: Application,
-    private val savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle,
+    private val db: AppDatabase = AppDatabase.getDatabase(application),
+    private val dao: FitnessDao = db.fitnessDao(),
+    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
 ) : AndroidViewModel(application) {
-
-    private val db = com.apexfit.app.di.ServiceLocator.database(application)
-    private val dao = db.fitnessDao()
-    private val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(application)
-    private val repository = com.apexfit.app.di.ServiceLocator.repository(application)
-
-    private val childStore = ViewModelStore()
-    private val childFactory = ViewModelProvider.AndroidViewModelFactory(application)
-
-    val homeVM: HomeViewModel by lazy {
-        ViewModelProvider(childStore, childFactory)[HomeViewModel::class.java]
-    }
-    val trainVM: TrainViewModel by lazy {
-        ViewModelProvider(childStore, childFactory)[TrainViewModel::class.java]
-    }
-    val progressVM: ProgressViewModel by lazy {
-        ViewModelProvider(childStore, childFactory)[ProgressViewModel::class.java]
-    }
-    val nutritionVM: NutritionViewModel by lazy {
-        ViewModelProvider(childStore, childFactory)[NutritionViewModel::class.java]
-    }
 
     // User preferences & onboarding State (Expose from preferences)
     val isOnboarded: StateFlow<Boolean?> = dataStore.isOnboardedFlow
@@ -69,23 +50,12 @@ class FitnessViewModel(
     val calorieTargetValue = dataStore.calorieTargetValueFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.CALORIES)
     val equipmentAvailable = dataStore.equipmentFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Barbell,Dumbbell,Cable,Machine")
 
-    // Navigation Active Tab state (0=Home, 1=Train, 2=Nutrition, 3=Progress, 4=Coach)
-    private val _currentTab = MutableStateFlow(
-        savedStateHandle.get<Int>("current_tab") ?: 0
-    )
-    val currentTab: StateFlow<Int> = _currentTab.asStateFlow()
-
     // Train sub-tab state (0=PROGRAM, 1=WORKOUTS, 2=PLANS)
     private val _trainSubTab = MutableStateFlow(0)
     val trainSubTab: StateFlow<Int> = _trainSubTab.asStateFlow()
 
     fun setTrainSubTab(subTab: Int) {
         _trainSubTab.value = subTab
-    }
-
-    fun selectTab(tab: Int) {
-        _currentTab.value = tab
-        savedStateHandle["current_tab"] = tab
     }
 
     fun completeOnboarding(
@@ -100,15 +70,15 @@ class FitnessViewModel(
         weeklyWorkouts: Int = 3
     ) {
         val isImperial = units.lowercase() in listOf("lb", "lbs")
-        val weightKg = if (isImperial) currentWeight / 2.20462 else currentWeight
-        val goalKg   = if (isImperial) goalWeight / 2.20462   else goalWeight
+        val weightKg = if (isImperial) currentWeight / AppConstants.KG_TO_LBS else currentWeight
+        val goalKg   = if (isImperial) goalWeight / AppConstants.KG_TO_LBS   else goalWeight
         val heightCm = if (isImperial) height * 2.54           else height
-        val validWeight     = weightKg.coerceIn(com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG, com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG)
-        val validGoalWeight = goalKg.coerceIn(com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG, com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG)
-        val validHeight     = heightCm.coerceIn(100.0, 250.0)
-        val validAge       = age.coerceIn(13, 100)
+        val validWeight     = weightKg.coerceIn(AppConstants.MIN_WEIGHT_KG, AppConstants.MAX_WEIGHT_KG)
+        val validGoalWeight = goalKg.coerceIn(AppConstants.MIN_WEIGHT_KG, AppConstants.MAX_WEIGHT_KG)
+        val validHeight     = heightCm.coerceIn(AppConstants.MIN_HEIGHT_CM, AppConstants.MAX_HEIGHT_CM)
+        val validAge       = age.coerceIn(AppConstants.MIN_AGE, AppConstants.MAX_AGE)
         val validGoal      = if (goal in listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition")) goal else "Maintain"
-        val validName      = username.trim().take(50).ifEmpty { "Athlete" }
+        val validName      = username.trim().take(AppConstants.MAX_NAME_LENGTH).ifEmpty { "Athlete" }
         viewModelScope.launch {
             dataStore.saveOnboardingData(validName, validGoal, validWeight, validGoalWeight, validHeight, validAge, sex, weeklyWorkouts)
             dataStore.saveUnits(units)
@@ -122,10 +92,10 @@ class FitnessViewModel(
     }
 
     fun updateProfile(name: String, userGoal: String, targetUnit: String, equipment: String, height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM, age: Int = com.apexfit.app.UserDefaults.AGE_YEARS, sex: String = "male") {
-        val validHeight    = height.coerceIn(100.0, 250.0)
-        val validAge       = age.coerceIn(13, 100)
+        val validHeight    = height.coerceIn(AppConstants.MIN_HEIGHT_CM, AppConstants.MAX_HEIGHT_CM)
+        val validAge       = age.coerceIn(AppConstants.MIN_AGE, AppConstants.MAX_AGE)
         val validGoal      = if (userGoal in listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition")) userGoal else "Maintain"
-        val validName      = name.trim().take(50).ifEmpty { "Athlete" }
+        val validName      = name.trim().take(AppConstants.MAX_NAME_LENGTH).ifEmpty { "Athlete" }
         viewModelScope.launch {
             dataStore.saveUsername(validName)
             dataStore.saveGoal(validGoal)
@@ -149,105 +119,16 @@ class FitnessViewModel(
 
     fun setGoalWeight(value: Double, preferredUnit: String = "kg") {
         viewModelScope.launch {
-            val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / 2.20462 else value
+            val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / AppConstants.KG_TO_LBS else value
             dataStore.saveWeight(currentWeight.value, valueKg)
         }
     }
 
     fun setBodyWeight(value: Double, preferredUnit: String = "kg") {
         viewModelScope.launch {
-            val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / 2.20462 else value
+            val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / AppConstants.KG_TO_LBS else value
             dataStore.saveWeight(valueKg, goalWeight.value)
         }
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    // Delegated actions and methods relocated to specialized ViewModels
-    // ─────────────────────────────────────────────────────────────────
-
-    // Training methods
-    fun startWorkoutSession(planSession: PlanSession) {
-        trainVM.startWorkoutSession(planSession)
-        setTrainSubTab(1)
-        selectTab(1)
-    }
-
-    fun selectDay(day: String) {
-        trainVM.selectDay(day)
-    }
-
-    fun cancelActiveWorkout() {
-        trainVM.cancelActiveWorkout()
-    }
-
-    fun logWorkoutSetState(exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int = 0, repsInReserve: Int? = null) {
-        trainVM.logWorkoutSetState(exerciseId, setIndex, weight, reps, rpe, completed, restTakenSeconds, repsInReserve)
-    }
-
-    fun openRirSelector(exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int) {
-        trainVM.openRirSelector(exerciseId, exerciseName, muscleGroup, setIndex, weight, reps, totalSets)
-    }
-
-    fun selectRirOption(rir: Int) {
-        trainVM.selectRirOption(rir)
-    }
-
-    fun confirmRirSelection() {
-        trainVM.confirmRirSelection()
-    }
-
-    fun confirmRirAndNextSet() {
-        trainVM.confirmRirAndNextSet()
-    }
-
-    fun closeRirSelector() {
-        trainVM.closeRirSelector()
-    }
-
-    fun addRestTimerSeconds(secs: Int) {
-        trainVM.addRestTimerSeconds(secs)
-    }
-
-    fun closeRestTimer() {
-        trainVM.closeRestTimer()
-    }
-
-    fun dismissSessionComplete() {
-        trainVM.dismissSessionComplete()
-    }
-
-    // Weight and measurements methods delegated to HomeViewModel & ProgressViewModel
-    fun logWeight(weight: Double, date: String = getTodayDateString(), preferredUnit: String = "kg") {
-        homeVM.logWeight(weight, date, preferredUnit)
-    }
-
-    fun logBodyMeasurement(bodyPart: String, value: Double, unit: String, date: String = getTodayDateString()) {
-        progressVM.logBodyMeasurement(bodyPart, value, unit, date)
-    }
-
-    fun deleteBodyMeasurement(id: Long) {
-        progressVM.deleteBodyMeasurement(id)
-    }
-
-    // Nutrition methods delegated to NutritionViewModel
-    fun logNutrition(calories: Int, protein: Double, carbs: Double, fat: Double, date: String = getTodayDateString(), name: String = "Logged Meal") {
-        nutritionVM.logNutrition(calories, protein, carbs, fat, date, name)
-    }
-
-    fun deleteNutritionEntryById(id: Long) {
-        nutritionVM.deleteNutritionEntryById(id)
-    }
-
-    fun changeNutritionDate(offsetDays: Int) {
-        nutritionVM.changeNutritionDate(offsetDays)
-    }
-
-    fun deleteWeightById(id: Long) {
-        homeVM.deleteWeightById(id)
-    }
-
-    fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {
-        homeVM.exportUserData(context, onComplete)
     }
 
     // Database wipes CTA
@@ -261,13 +142,14 @@ class FitnessViewModel(
         viewModelScope.launch {
             _isResetting.value = true
             _resetError.value = null
-            trainVM.cancelActiveWorkout()
+            com.apexfit.app.utils.WorkoutForegroundService.stop(getApplication())
+            com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())
             try {
                 withContext(Dispatchers.IO) {
                     db.clearAllTables()
                     dataStore.clearAllData()
                     com.apexfit.app.utils.SeedService.seed(getApplication())
-                    trainVM.seedDefaultWorkoutPlan()
+                    seedDefaultWorkoutPlan()
                     dataStore.setExercisesSeeded(true)
                 }
             } catch (e: Exception) {
@@ -280,22 +162,65 @@ class FitnessViewModel(
         }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        childStore.clear()
+    private suspend fun seedDefaultWorkoutPlan() {
+        val plan = WorkoutPlan(
+            id = 0,
+            name = "Scientific Hypertrophy Split",
+            goal = "Gain Muscle",
+            isActive = true,
+            createdAt = System.currentTimeMillis()
+        )
+
+        dao.deleteAllPlans()
+        val generatedPlanId = dao.insertWorkoutPlan(plan)
+
+        val sessions = listOf(
+            PlanSession(id = 0, planId = generatedPlanId, label = "Upper A", day = "Monday", focus = "Chest, Back, Arms"),
+            PlanSession(id = 0, planId = generatedPlanId, label = "Lower A", day = "Tuesday", focus = "Quads, Hamstrings, Calves"),
+            PlanSession(id = 0, planId = generatedPlanId, label = "Upper B", day = "Thursday", focus = "Shoulders, Chest, Back"),
+            PlanSession(id = 0, planId = generatedPlanId, label = "Lower B", day = "Friday", focus = "Hamstrings, Glutes, Quads")
+        )
+
+        val sessionIds = dao.insertPlanSessions(sessions)
+        val upperASessionId = sessionIds[0]
+        val lowerASessionId = sessionIds[1]
+        val upperBSessionId = sessionIds[2]
+        val lowerBSessionId = sessionIds[3]
+
+        val exercises = listOf(
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Incline Barbell Bench Press", muscleGroup = "Chest", sets = 4, repsMin = 6, repsMax = 10, weight = 80.0, restSeconds = 120, notes = "Focus on the deep stretch at chest level."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Weighted Pull-Up", muscleGroup = "Back", sets = 4, repsMin = 6, repsMax = 10, weight = 5.0, restSeconds = 120, notes = "Control the eccentric descent."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Dumbbell Lateral Raise", muscleGroup = "Shoulders", sets = 3, repsMin = 10, repsMax = 15, weight = 12.5, restSeconds = 90, notes = "Slight torso lean forward."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Incline Dumbbell Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 8, repsMax = 12, weight = 14.0, restSeconds = 90, notes = "Biceps fully stretched at bottom."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Dual Rope Tricep Pushdown", muscleGroup = "Triceps", sets = 3, repsMin = 10, repsMax = 15, weight = 25.0, restSeconds = 90, notes = "Flare ropes outward at end of range."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Barbell Back Squat", muscleGroup = "Quads", sets = 4, repsMin = 6, repsMax = 8, weight = 100.0, restSeconds = 180, notes = "Keep knees tracking over toes."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Romanian Deadlift", muscleGroup = "Hamstrings", sets = 4, repsMin = 8, repsMax = 12, weight = 90.0, restSeconds = 120, notes = "Hinge at hips, keep back flat."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Leg Press (High & Wide)", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 12, weight = 160.0, restSeconds = 120, notes = "Aesthetic emphasis on quad sweep."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Seated Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 15, weight = 50.0, restSeconds = 90, notes = "Hard squeeze at full flexion."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Standing Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 60.0, restSeconds = 60, notes = "2-second pause at full stretch."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Standing Overhead Press", muscleGroup = "Shoulders", sets = 4, repsMin = 6, repsMax = 10, weight = 50.0, restSeconds = 120, notes = "Press overhead in a straight line."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Chest-Supported Dumbbell Row", muscleGroup = "Back", sets = 4, repsMin = 8, repsMax = 12, weight = 25.0, restSeconds = 120, notes = "Squeeze shoulder blades together."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Flat Dumbbell Press", muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 30.0, restSeconds = 120, notes = "Drive dumbbells toward center on press."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Lat Pulldown (Neutral Grip)", muscleGroup = "Back", sets = 3, repsMin = 8, repsMax = 12, weight = 65.0, restSeconds = 90, notes = "Pull down to upper collarbone."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Hammer Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 10, repsMax = 15, weight = 15.0, restSeconds = 90, notes = "Focus on brachialis and forearm development."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Conventional Deadlift", muscleGroup = "Back", sets = 3, repsMin = 5, repsMax = 5, weight = 120.0, restSeconds = 180, notes = "Full reset each rep, do not bounce."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Bulgarian Split Squat", muscleGroup = "Quads", sets = 3, repsMin = 8, repsMax = 12, weight = 16.0, restSeconds = 90, notes = "Load front heel, maintain vertical spine."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Leg Extension", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 15, weight = 60.0, restSeconds = 90, notes = "Peak contraction at top."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Lying Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 12, weight = 40.0, restSeconds = 90, notes = "Keep hips flat against the pad."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Seated Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 40.0, restSeconds = 60, notes = "Slow stretch at bottom range.")
+        )
+
+        val resolvedExercises = exercises.map { exercise ->
+            val exerciseId = dao.getExerciseByName(exercise.name)?.id
+                ?: com.apexfit.app.utils.exerciseNameToSlug(exercise.name)
+            exercise.copy(exerciseId = exerciseId)
+        }
+
+        dao.insertPlanExercises(resolvedExercises)
     }
 
     private fun getTodayDateString(): String {
         return com.apexfit.app.utils.DateTimeUtils.todayDateString()
-    }
-
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = this[APPLICATION_KEY] as Application
-                FitnessViewModel(app, this.createSavedStateHandle())
-            }
-        }
     }
 }
 

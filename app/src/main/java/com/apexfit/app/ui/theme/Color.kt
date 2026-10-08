@@ -45,5 +45,5 @@ object CyberTheme {
 
     val TextPrimary        = Color(0xFFF2F4F7)
     val TextSecondary      = Color(0xFF8B949E)
-    val TextTertiary       = Color(0xFF484F58)
+    val TextTertiary       = Color(0xFF6B7280)
 }

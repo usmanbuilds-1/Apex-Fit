@@ -23,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Exercise::class,
         ExerciseMetadata::class
     ],
-    version = 25,
+    version = 27,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -259,21 +259,14 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Schema version 14 adds no tables, columns, or indexes.
-                // The version bump was introduced to force a clean re-seed
-                // of the exercises table via SeedService on app update.
-                // Verified against: app/schemas/.../13.json vs 14.json diff.
+                // No-op migration. Exercise seeding is controlled solely by DataStore's exerciseSeedVersion.
             }
         }
 
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Creates foreign key indexes for plan_sessions, plan_exercises, and personal_records.
-                // Note (Fix D-L1): These same 3 indexes are re-created in MIGRATION_19_20 due to historical schema versioning.
-                // This redundancy is harmless because SQLite's CREATE INDEX IF NOT EXISTS ensures idempotency.
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_sessions_planId` ON `plan_sessions` (`planId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_exercises_planSessionId` ON `plan_exercises` (`planSessionId`)")
-                database.execSQL("CREATE INDEX IF NOT EXISTS `index_personal_records_exerciseId` ON `personal_records` (`exerciseId`)")
+                // Note (Fix D-L1): Foreign key indexes for plan_sessions, plan_exercises, and personal_records
+                // are created in MIGRATION_19_20 to match the v20+ Room schema.
             }
         }
 
@@ -408,6 +401,118 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Drop orphan indexes from MIGRATION_22_23 (never matched entity schema)
+                database.execSQL("DROP INDEX IF EXISTS `index_workout_sessions_completed`")
+                database.execSQL("DROP INDEX IF EXISTS `index_workout_sessions_sessionType`")
+                // Drop orphan indexes from MIGRATION_23_24 (schema planning error)
+                database.execSQL("DROP INDEX IF EXISTS `index_exercise_sets_sessionId_completed`")
+                database.execSQL("DROP INDEX IF EXISTS `index_workout_sessions_date_status`")
+                // Create missing index declared in DetectedPatternEntity but never added via migration
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_detected_patterns_confidence` ON `detected_patterns` (`confidence`)")
+
+                // Normalize body_weights to include DEFAULT 'kg' on unit column
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `body_weights_v26` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `time` TEXT NOT NULL,
+                        `weight` REAL NOT NULL,
+                        `unit` TEXT NOT NULL DEFAULT 'kg'
+                    )
+                """.trimIndent())
+                database.execSQL("INSERT INTO `body_weights_v26` (`id`, `date`, `time`, `weight`, `unit`) SELECT `id`, `date`, `time`, `weight`, `unit` FROM `body_weights`")
+                database.execSQL("DROP TABLE `body_weights`")
+                database.execSQL("ALTER TABLE `body_weights_v26` RENAME TO `body_weights`")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_body_weights_date` ON `body_weights` (`date`)")
+
+                // Normalize exercise_sets so weight_unit matches @ColumnInfo(name = "weight_unit") without SQL default mismatch
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_sets_v26` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `sessionId` TEXT NOT NULL,
+                        `exerciseId` TEXT NOT NULL,
+                        `exerciseName` TEXT NOT NULL,
+                        `muscleGroup` TEXT NOT NULL,
+                        `weight` REAL NOT NULL,
+                        `reps` INTEGER NOT NULL,
+                        `rpe` INTEGER NOT NULL,
+                        `isWarmup` INTEGER NOT NULL,
+                        `restTaken` INTEGER NOT NULL,
+                        `completed` INTEGER NOT NULL,
+                        `repsInReserve` INTEGER NOT NULL,
+                        `effectiveSetValue` REAL NOT NULL,
+                        `weight_unit` TEXT NOT NULL,
+                        FOREIGN KEY(`sessionId`) REFERENCES `workout_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE ,
+                        FOREIGN KEY(`exerciseId`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                """.trimIndent())
+                database.execSQL("INSERT INTO `exercise_sets_v26` (`id`, `sessionId`, `exerciseId`, `exerciseName`, `muscleGroup`, `weight`, `reps`, `rpe`, `isWarmup`, `restTaken`, `completed`, `repsInReserve`, `effectiveSetValue`, `weight_unit`) SELECT `id`, `sessionId`, `exerciseId`, `exerciseName`, `muscleGroup`, `weight`, `reps`, `rpe`, `isWarmup`, `restTaken`, `completed`, `repsInReserve`, `effectiveSetValue`, `weight_unit` FROM `exercise_sets`")
+                database.execSQL("DROP TABLE `exercise_sets`")
+                database.execSQL("ALTER TABLE `exercise_sets_v26` RENAME TO `exercise_sets`")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_sessionId` ON `exercise_sets` (`sessionId`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId` ON `exercise_sets` (`exerciseId`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_exerciseId_completed_isWarmup` ON `exercise_sets` (`exerciseId`, `completed`, `isWarmup`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_muscleGroup` ON `exercise_sets` (`muscleGroup`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_sets_muscleGroup_completed_isWarmup` ON `exercise_sets` (`muscleGroup`, `completed`, `isWarmup`)")
+
+                // Normalize exercise_metadata so stalledSessions has DEFAULT 0
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `exercise_metadata_v26` (
+                        `exercise_id` TEXT NOT NULL,
+                        `fatigue_cost_coefficient` REAL NOT NULL DEFAULT 1.0,
+                        `systemic_multiplier` REAL NOT NULL DEFAULT 1.0,
+                        `default_progression_increment_kg` REAL NOT NULL DEFAULT 2.5,
+                        `min_reps` INTEGER NOT NULL DEFAULT 1,
+                        `max_reps` INTEGER NOT NULL DEFAULT 30,
+                        `default_rest_seconds` INTEGER NOT NULL DEFAULT 120,
+                        `force_type` TEXT NOT NULL DEFAULT 'push',
+                        `recovery_tau_days` REAL NOT NULL DEFAULT 1.2,
+                        `notes` TEXT,
+                        `stalledSessions` INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(`exercise_id`),
+                        FOREIGN KEY(`exercise_id`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                database.execSQL("INSERT INTO `exercise_metadata_v26` (`exercise_id`, `fatigue_cost_coefficient`, `systemic_multiplier`, `default_progression_increment_kg`, `min_reps`, `max_reps`, `default_rest_seconds`, `force_type`, `recovery_tau_days`, `notes`, `stalledSessions`) SELECT `exercise_id`, `fatigue_cost_coefficient`, `systemic_multiplier`, `default_progression_increment_kg`, `min_reps`, `max_reps`, `default_rest_seconds`, `force_type`, `recovery_tau_days`, `notes`, `stalledSessions` FROM `exercise_metadata`")
+                database.execSQL("DROP TABLE `exercise_metadata`")
+                database.execSQL("ALTER TABLE `exercise_metadata_v26` RENAME TO `exercise_metadata`")
+            }
+        }
+
+        val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `plan_exercises_v27` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `planSessionId` INTEGER NOT NULL,
+                        `exerciseId` TEXT NOT NULL DEFAULT '',
+                        `name` TEXT NOT NULL,
+                        `muscleGroup` TEXT NOT NULL,
+                        `sets` INTEGER NOT NULL,
+                        `repsMin` INTEGER NOT NULL,
+                        `repsMax` INTEGER NOT NULL,
+                        `weight` REAL NOT NULL,
+                        `weight_unit` TEXT NOT NULL DEFAULT 'kg',
+                        `restSeconds` INTEGER NOT NULL,
+                        `notes` TEXT NOT NULL,
+                        FOREIGN KEY(`planSessionId`) REFERENCES `plan_sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE ,
+                        FOREIGN KEY(`exerciseId`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                """.trimIndent())
+                database.execSQL("""
+                    INSERT INTO `plan_exercises_v27` (`id`, `planSessionId`, `exerciseId`, `name`, `muscleGroup`, `sets`, `repsMin`, `repsMax`, `weight`, `weight_unit`, `restSeconds`, `notes`)
+                    SELECT `id`, `planSessionId`, COALESCE((SELECT `id` FROM `exercises` WHERE `name` = `plan_exercises`.`name`), ''), `name`, `muscleGroup`, `sets`, `repsMin`, `repsMax`, `weight`, `weight_unit`, `restSeconds`, `notes`
+                    FROM `plan_exercises`
+                """.trimIndent())
+                database.execSQL("DROP TABLE `plan_exercises`")
+                database.execSQL("ALTER TABLE `plan_exercises_v27` RENAME TO `plan_exercises`")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_exercises_planSessionId` ON `plan_exercises` (`planSessionId`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_plan_exercises_exerciseId` ON `plan_exercises` (`exerciseId`)")
+            }
+        }
+
         fun setTestDatabase(db: AppDatabase?) {
             INSTANCE = db
         }
@@ -419,7 +524,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27)
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                 .build()
                 INSTANCE = instance

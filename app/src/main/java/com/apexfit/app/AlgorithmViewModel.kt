@@ -15,24 +15,30 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import com.apexfit.app.domain.repository.FitnessRepository
+import com.apexfit.app.data.repository.FitnessRepositoryImpl
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
-class AlgorithmViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val db = com.apexfit.app.di.ServiceLocator.database(application)
-    private val dao = db.fitnessDao()
-    private val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(application)
-    private val repository = com.apexfit.app.di.ServiceLocator.repository(application)
+@HiltViewModel
+class AlgorithmViewModel @Inject constructor(
+    application: Application,
+    private val db: AppDatabase = AppDatabase.getDatabase(application),
+    private val dao: FitnessDao = db.fitnessDao(),
+    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+) : AndroidViewModel(application) {
 
     // ─────────────────────────────────────────────────────────────────
     // SECTION 1 — RAW ROOM FLOWS
     // ─────────────────────────────────────────────────────────────────
 
-    private val weightFlow = com.apexfit.app.di.ServiceLocator.weightEntriesFlow
+    private val weightFlow = repository.weightEntriesFlow
 
-    private val nutritionFlow = com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
+    private val nutritionFlow = repository.nutritionEntriesFlow
 
     val targetsFlow: Flow<com.apexfit.app.utils.NutritionTargets> =
-        com.apexfit.app.di.ServiceLocator.sharedTargetsFlow
+        repository.sharedTargetsFlow
 
     private val goalFlow: Flow<String> = dataStore.goalFlow
         .flowOn(Dispatchers.IO)
@@ -41,13 +47,13 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
     // SECTION 2 — INTERMEDIATE COMPUTED FLOWS
     // ─────────────────────────────────────────────────────────────────
 
-    private val richSessionsFlow = com.apexfit.app.di.ServiceLocator.richSessionsFlow
+    private val richSessionsFlow = repository.richSessionsFlow
 
     // ─────────────────────────────────────────────────────────────────
     // SECTION 3 — PUBLIC STATEFLOWS
     // ─────────────────────────────────────────────────────────────────
 
-    val completedSessions: StateFlow<List<UiTrainingSession>> = com.apexfit.app.di.ServiceLocator.richSessionsFlow
+    val completedSessions: StateFlow<List<UiTrainingSession>> = repository.richSessionsFlow
         .map { list ->
             list.map { rs ->
                 UiTrainingSession(
@@ -97,7 +103,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         }
     ) { (weights, nutrition, sessions), bio ->
         withContext(Dispatchers.Default) {
-            com.apexfit.app.utils.AlgorithmEngine.calcAdaptiveTDEE(
+            com.apexfit.app.utils.TdeeEngine.calcAdaptiveTDEE(
                 weightLog = weights,
                 nutritionLog = nutrition,
                 windowDays = 14,
@@ -117,10 +123,10 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
 
     val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> =
-        com.apexfit.app.di.ServiceLocator.streakResultFlow
+        repository.streakResultFlow
 
     val complianceScores: StateFlow<UiComplianceResult> =
-        com.apexfit.app.di.ServiceLocator.complianceScoresFlow
+        repository.complianceScoresFlow
 
     val complianceScore: StateFlow<Int> = complianceScores
         .map { it.overall }
@@ -131,7 +137,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         weightFlow, nutritionFlow, richSessionsFlow
     ) { weights: List<com.apexfit.app.utils.WeightEntry>, nutrition: List<com.apexfit.app.utils.NutritionEntry>, sessions: List<com.apexfit.app.utils.TrainingSession> ->
         val res = withContext(Dispatchers.Default) {
-            com.apexfit.app.utils.AlgorithmEngine.detectPlateau(weights, nutrition, sessions)
+            com.apexfit.app.utils.PlateauEngine.detectPlateau(weights, nutrition, sessions)
         }
         res.toUi()
     }.catch { e ->
@@ -168,10 +174,10 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         .debounce(300L)
         .map { sessions ->
             withContext(Dispatchers.Default) {
-                val fatigue = com.apexfit.app.utils.AlgorithmEngine.calcFatigueToFitness(sessions)
+                val fatigue = com.apexfit.app.utils.FatigueEngine.calcFatigueToFitnessRatio(sessions)
                 SessionDerivedResults(
                     fatigueResult = fatigue,
-                    muscleHeatmap = com.apexfit.app.utils.AlgorithmEngine.calcMuscleHeatmap(sessions, days = 7),
+                    muscleHeatmap = com.apexfit.app.utils.FatigueEngine.calcMuscleHeatmap(sessions, days = 7),
                     injuryRiskSignals = com.apexfit.app.utils.AlgorithmEngine.detectInjuryRiskSignals(sessions, precomputedFatigue = fatigue)
                         .ifEmpty { listOf("Recovery indicators within normal range.") },
                     weeklyVolume = buildMuscleVolumes(sessions)
@@ -396,10 +402,10 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
 
 
     val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> =
-        com.apexfit.app.di.ServiceLocator.todayExercisesFlow
+        repository.todayExercisesFlow
 
     val sessionReadiness: StateFlow<UiSessionReadiness?> =
-        com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
+        repository.sessionReadinessFlow
 
     val detectedPatterns: StateFlow<List<com.apexfit.app.data.DetectedPatternEntity>> = dao.getAllDetectedPatternsFlow()
         .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyList()) }
@@ -409,7 +415,7 @@ class AlgorithmViewModel(application: Application) : AndroidViewModel(applicatio
         richSessionsFlow, complianceScore, sessionDerived
     ) { sessions, score, derived ->
         val res = withContext(Dispatchers.Default) {
-            com.apexfit.app.utils.AlgorithmEngine.calcDeloadRecommendation(
+            com.apexfit.app.utils.PlateauEngine.calcDeloadRecommendation(
                 trainingLog = sessions,
                 complianceScore = score,
                 precomputedFatigue = derived.fatigueResult

@@ -3,7 +3,6 @@ package com.apexfit.app.utils
 import com.apexfit.app.data.ExerciseMetadata
 import com.apexfit.app.data.ExerciseSet
 import com.apexfit.app.data.TrainingSession
-import com.apexfit.app.data.exerciseId
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
@@ -172,11 +171,11 @@ object AcuteChronicRatioModifier {
         if (chronicLoad < 1.0) return 1.0
         val ratio = acuteLoad / chronicLoad
         return when {
-            ratio in 0.8..1.3 -> 1.0
-            ratio in 1.3..1.5 -> 0.92
-            ratio > 1.5       -> 0.80
-            ratio in 0.5..0.8 -> 0.95
-            else              -> 0.90
+            ratio in 0.8..1.3 -> 1.0   // Optimal — no penalty
+            ratio in 1.3..1.5 -> 0.90  // Approaching overtraining — slight penalty
+            ratio > 1.5       -> 0.80  // Overtraining — significant penalty
+            ratio in 0.5..0.8 -> 0.95  // Below optimal but safe — minimal penalty
+            else              -> 0.98  // ratio < 0.5 = undertraining/resting — almost no penalty
         }
     }
 }
@@ -198,7 +197,8 @@ data class ReadinessScore(
     val nutritionScore: Int,
     val sleepScore: Int?,
     val acrModifier: Double,
-    val dataConfidence: String
+    val dataConfidence: String,
+    val finalScore: Int? = overallPercent
 )
 
 object ReadinessFinal {
@@ -209,7 +209,7 @@ object ReadinessFinal {
         calorieTarget: Int,
         metadata: Map<String, ExerciseMetadata> = emptyMap()
     ): ReadinessScore {
-        val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, bodyWeightKg, "Maintain Weight")
+        val targets = com.apexfit.app.utils.MacroEngine.calcMacroTargets(calorieTarget, bodyWeightKg, "Maintain Weight")
         return buildReadinessInputs(
             completedSessions = sessions,
             todayExercises = emptyList(),
@@ -301,11 +301,11 @@ object ReadinessFinal {
         val todaysMuscleGroups = todayExercises.map { it.muscleGroup }.distinct()
 
         // f) nutritionScore
-        val compliance = AlgorithmEngine.calcComplianceScores(nutritionLog, completedLast30, targets)
+        val compliance = ComplianceEngine.calcComplianceScores(nutritionLog, completedLast30, targets)
         val nutritionScore = (compliance.calories + compliance.protein) / 2
 
         // h) acuteLoad and chronicLoad
-        val fatigueResult = AlgorithmEngine.calcFatigueToFitness(completedLast30)
+        val fatigueResult = FatigueEngine.calcFatigueToFitnessRatio(completedLast30)
         val acuteLoad = fatigueResult.acuteLoad
         val chronicLoad = fatigueResult.chronicLoad
 
@@ -378,7 +378,7 @@ object ReadinessFinal {
         val avgMuscle = when {
             muscleDetails.isNotEmpty() -> muscleDetails.map { it.readinessPercent }.average()
             todaysMuscleGroups.isEmpty() -> 75.0  // non-training day — neutral
-            else -> 100.0
+            else -> 75.0  // Unknown muscle — neutral until training history exists
         }
 
         val systemicScore = SystemicFatigueCalculator.readinessPercent(systemicHistory, systemicCapacity)
@@ -392,14 +392,16 @@ object ReadinessFinal {
         val otherPart = nutritionScore * wNutrition
         val combined = musclePart + otherPart
 
-        val finalScore = combined.roundToInt().coerceIn(0, 100)
+        val computedScore = combined.roundToInt().coerceIn(0, 100)
+        var finalScore: Int? = computedScore
 
         // Cold start: fewer than 3 sessions ever -> override label/copy only, not the raw score.
         // The score is mathematically "100%" because there's no fatigue data, not because
         // we've verified they're actually recovered. Be honest about that in the UI.
         if (totalCompletedSessions < 3) {
+            finalScore = null
             return ReadinessScore(
-                overallPercent = finalScore,
+                overallPercent = computedScore,
                 label = "Building Baseline",
                 colorHex = "#6366F1",
                 recommendation = "Not enough history yet to score recovery accurately. Train your plan as scheduled - readiness gets reliable after a few sessions.",
@@ -408,15 +410,16 @@ object ReadinessFinal {
                 nutritionScore = nutritionScore,
                 sleepScore = null,
                 acrModifier = acrModifier,
-                dataConfidence = "limited - building baseline"
+                dataConfidence = "limited - building baseline",
+                finalScore = finalScore
             )
         }
 
         val (label, color, rec) = when {
-            finalScore >= 85 -> Triple("Excellent", "#34D399", "Recovered and ready. Good day to push hard or chase a PR.")
-            finalScore >= 70 -> Triple("Good", "#6366F1", "Train as programmed.")
-            finalScore >= 55 -> Triple("Moderate", "#A78BFA", "Reduce load ~5%, prioritise technique.")
-            finalScore >= 35 -> Triple("Low", "#F59E0B", "Drop volume ~40% or pick a lighter session.")
+            computedScore >= 85 -> Triple("Excellent", "#34D399", "Recovered and ready. Good day to push hard or chase a PR.")
+            computedScore >= 70 -> Triple("Good", "#6366F1", "Train as programmed.")
+            computedScore >= 55 -> Triple("Moderate", "#A78BFA", "Reduce load ~5%, prioritise technique.")
+            computedScore >= 35 -> Triple("Low", "#F59E0B", "Drop volume ~40% or pick a lighter session.")
             else             -> Triple("Poor", "#E84040", "Rest or active recovery only today.")
         }
 
@@ -425,7 +428,7 @@ object ReadinessFinal {
             else -> "full"
         }
 
-        return ReadinessScore(finalScore, label, color, rec, muscleDetails, systemicScore,
-            nutritionScore, null, acrModifier, confidenceFlag)
+        return ReadinessScore(computedScore, label, color, rec, muscleDetails, systemicScore,
+            nutritionScore, null, acrModifier, confidenceFlag, finalScore)
     }
 }

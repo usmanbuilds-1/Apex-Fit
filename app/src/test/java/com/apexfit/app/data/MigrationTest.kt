@@ -18,7 +18,7 @@ import java.util.Calendar
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@SQLiteMode(SQLiteMode.Mode.LEGACY)
+@SQLiteMode(SQLiteMode.Mode.NATIVE)
 class MigrationTest {
 
     @get:Rule
@@ -407,5 +407,50 @@ class MigrationTest {
         assert(columns.contains("weight_unit")) {
             "weight_unit column missing after MIGRATION_20_21"
         }
+    }
+
+    @Test
+    fun migrate25To26() {
+        val db = helper.createDatabase(TEST_DB, 25)
+        db.close()
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 26, true, AppDatabase.MIGRATION_25_26)
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate26To27() {
+        val db = helper.createDatabase(TEST_DB, 26)
+        db.execSQL("INSERT INTO exercises (id, name, category, primary_muscle, secondary_muscles, equipment_required, created_at) VALUES ('bench-press', 'Bench Press', 'Barbell', 'Chest', '[]', 'Barbell', 1000)")
+        db.execSQL("INSERT INTO workout_programs (id, name, goal, isActive, createdAt) VALUES (1, 'Plan', 'Strength', 1, 1000)")
+        db.execSQL("INSERT INTO plan_sessions (id, planId, label, day, focus) VALUES (10, 1, 'Upper', 'Monday', 'Chest')")
+        db.execSQL("INSERT INTO plan_exercises (id, planSessionId, name, muscleGroup, sets, repsMin, repsMax, weight, weight_unit, restSeconds, notes) VALUES (100, 10, 'Bench Press', 'Chest', 3, 8, 12, 80.0, 'kg', 90, '')")
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 27, true, AppDatabase.MIGRATION_26_27)
+        val cursor = migratedDb.query("SELECT exerciseId FROM plan_exercises WHERE id = 100")
+        assertTrue(cursor.moveToFirst())
+        assertEquals("bench-press", cursor.getString(0))
+        cursor.close()
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrateAll8To26() {
+        val db = helper.createDatabase(TEST_DB, 8)
+        db.close()
+        val migratedDb = helper.runMigrationsAndValidate(
+            TEST_DB, 27, true,
+            AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
+            AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
+            AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14,
+            AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16,
+            AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18,
+            AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20,
+            AppDatabase.MIGRATION_20_21, AppDatabase.MIGRATION_21_22,
+            AppDatabase.MIGRATION_22_23, AppDatabase.MIGRATION_23_24,
+            AppDatabase.MIGRATION_24_25, AppDatabase.MIGRATION_25_26,
+            AppDatabase.MIGRATION_26_27
+        )
+        migratedDb.close()
     }
 }

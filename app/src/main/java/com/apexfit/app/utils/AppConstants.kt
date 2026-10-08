@@ -9,7 +9,7 @@ object AppConstants {
 
     // Unit conversion
     const val KG_TO_LBS = 2.20462
-    const val LBS_TO_KG = 0.453592
+    const val LBS_TO_KG = 1.0 / KG_TO_LBS
     const val CM_TO_INCHES = 0.393701
     const val INCHES_TO_CM = 2.54
 
@@ -27,9 +27,15 @@ object AppConstants {
 
     // UI / validation
     const val REST_TIMER_DEFAULT_SECONDS = 90
-    const val MAX_NAME_LENGTH = 50
-    const val MIN_AGE = 13
-    const val MAX_AGE = 100
     const val MIN_WEIGHT_KG = 20.0
     const val MAX_WEIGHT_KG = 300.0
+    const val MIN_WEIGHT_LB = 44.0
+    const val MAX_WEIGHT_LB = 660.0
+    const val MIN_HEIGHT_CM = 100.0
+    const val MAX_HEIGHT_CM = 250.0
+    const val MIN_HEIGHT_IN = 39.0
+    const val MAX_HEIGHT_IN = 98.0
+    const val MIN_AGE = 13
+    const val MAX_AGE = 100
+    const val MAX_NAME_LENGTH = 50
 }

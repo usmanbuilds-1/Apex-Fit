@@ -3,6 +3,7 @@
 // for historical reasons. Always import from com.apexfit.app.data directly.
 package com.apexfit.app.data
 
+import androidx.annotation.Keep
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.Index
@@ -20,7 +21,7 @@ data class WeightEntry(
     val date: String, // YYYY-MM-DD
     val time: String = "12:00", // HH:mm
     val weight: Double,
-    @ColumnInfo(name = "unit") val unit: String = "kg"
+    @ColumnInfo(name = "unit", defaultValue = "'kg'") val unit: String = "kg"
 ) {
     constructor(date: String, weight: Double) : this(id = 0, date = date, time = "12:00", weight = weight)
 }
@@ -227,19 +228,30 @@ data class PlanSession(
 
 @Entity(
     tableName = "plan_exercises",
-    indices = [Index(value = ["planSessionId"])],
+    indices = [
+        Index(value = ["planSessionId"]),
+        Index(value = ["exerciseId"])
+    ],
     foreignKeys = [
         ForeignKey(
             entity = PlanSession::class,
             parentColumns = ["id"],
             childColumns = ["planSessionId"],
             onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = Exercise::class,
+            parentColumns = ["id"],
+            childColumns = ["exerciseId"],
+            onDelete = ForeignKey.NO_ACTION
         )
     ]
 )
 data class PlanExercise(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val planSessionId: Long,
+    @ColumnInfo(name = "exerciseId", defaultValue = "")
+    var exerciseId: String = "",
     val name: String,
     val muscleGroup: String,
     val sets: Int,
@@ -254,9 +266,6 @@ data class PlanExercise(
     val restSeconds: Int,
     val notes: String
 )
-
-val PlanExercise.exerciseId: String
-    get() = com.apexfit.app.utils.exerciseNameToSlug(name)
 
 @Entity(
     tableName = "personal_records",
@@ -318,6 +327,7 @@ data class DetectedPatternEntity(
 
 // ── Active session state — lives in memory during a workout ──────
 
+@Keep
 data class ActiveSet(
     val setNumber: Int,
     val weight: Double,
@@ -331,6 +341,7 @@ data class ActiveSet(
     val weightUnit: String = "kg"
 )
 
+@Keep
 data class ActiveExercise(
     val exerciseId: String,
     val exerciseName: String,
@@ -338,6 +349,7 @@ data class ActiveExercise(
     val sets: MutableList<ActiveSet>
 )
 
+@Keep
 data class ActiveSession(
     val planSessionId: String,
     val sessionType: String,
@@ -501,6 +513,6 @@ data class ExerciseMetadata(
     @ColumnInfo(name = "force_type", defaultValue = "'push'") val forceType: String = "push",
     @ColumnInfo(name = "recovery_tau_days", defaultValue = "1.2") val recoveryTauDays: Double = 1.2,
     @ColumnInfo(name = "notes") val notes: String? = null,
-    @ColumnInfo(name = "stalledSessions") val stalledSessions: Int = 0
+    @ColumnInfo(name = "stalledSessions", defaultValue = "0") val stalledSessions: Int = 0
 )
 

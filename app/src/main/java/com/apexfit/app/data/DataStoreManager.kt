@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 import androidx.room.withTransaction
+import com.apexfit.app.utils.AppConstants
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "apex_fit_preferences")
 
@@ -43,10 +44,9 @@ class DataStoreManager(context: Context) {
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
         val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
-        // AUDIT FIX (BUG-V4-015): flag for exercise_sets/PR canonicalization
-        val SET_WEIGHTS_CANONICALIZED_KEY = booleanPreferencesKey("set_weights_canonicalized_v2")
-        val PLAN_WEIGHTS_CANONICALIZED_KEY = booleanPreferencesKey("plan_weights_canonicalized_v1")
         val EXERCISE_SEED_VERSION_KEY = intPreferencesKey("exercise_seed_version")
+        val EXERCISE_SETS_CANONICALIZED_KEY = booleanPreferencesKey("exercise_sets_canonicalized_v1")
+        val PLAN_EXERCISES_CANONICALIZED_KEY = booleanPreferencesKey("plan_exercises_canonicalized_v1")
     }
 
     val weightsNormalizedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -65,8 +65,8 @@ class DataStoreManager(context: Context) {
             if (units.lowercase() in listOf("lb", "lbs")) {
                 val currentW = preferences[CURRENT_WEIGHT_KEY]
                 val goalW = preferences[GOAL_WEIGHT_KEY]
-                if (currentW != null) preferences[CURRENT_WEIGHT_KEY] = currentW / 2.20462
-                if (goalW != null) preferences[GOAL_WEIGHT_KEY] = goalW / 2.20462
+                if (currentW != null) preferences[CURRENT_WEIGHT_KEY] = currentW / AppConstants.KG_TO_LBS
+                if (goalW != null) preferences[GOAL_WEIGHT_KEY] = goalW / AppConstants.KG_TO_LBS
             }
             preferences[WEIGHTS_NORMALIZED_KEY] = true
         }
@@ -256,10 +256,14 @@ class DataStoreManager(context: Context) {
         isImperial: Boolean,
         db: com.apexfit.app.data.AppDatabase = com.apexfit.app.data.AppDatabase.getDatabase(context)
     ) {
-        val alreadyDone = context.dataStore.data
-            .map { prefs -> prefs[SET_WEIGHTS_CANONICALIZED_KEY] ?: false }
-            .first()
-        if (alreadyDone) return
+        val alreadyCanonicalized = context.dataStore.data.map { it[EXERCISE_SETS_CANONICALIZED_KEY] ?: false }.first()
+        if (alreadyCanonicalized) return
+
+        val needsCanonicalization = dao.countExerciseSetsWithImperialUnit() > 0
+        if (!needsCanonicalization) {
+            context.dataStore.edit { it[EXERCISE_SETS_CANONICALIZED_KEY] = true }
+            return
+        }
 
         if (isImperial) {
             db.withTransaction {
@@ -267,11 +271,7 @@ class DataStoreManager(context: Context) {
                 dao.convertAllPersonalRecordValuesToKg()
             }
         }
-
-        // Only write flag after successful transaction
-        context.dataStore.edit { prefs ->
-            prefs[SET_WEIGHTS_CANONICALIZED_KEY] = true
-        }
+        context.dataStore.edit { it[EXERCISE_SETS_CANONICALIZED_KEY] = true }
     }
 
     suspend fun canonicalizePlanExerciseWeightsIfNeeded(
@@ -279,20 +279,20 @@ class DataStoreManager(context: Context) {
         isImperial: Boolean,
         db: com.apexfit.app.data.AppDatabase = com.apexfit.app.data.AppDatabase.getDatabase(context)
     ) {
-        val alreadyDone = context.dataStore.data
-            .map { prefs -> prefs[PLAN_WEIGHTS_CANONICALIZED_KEY] ?: false }
-            .first()
-        if (alreadyDone) return
+        val alreadyCanonicalized = context.dataStore.data.map { it[PLAN_EXERCISES_CANONICALIZED_KEY] ?: false }.first()
+        if (alreadyCanonicalized) return
+
+        val needsCanonicalization = dao.countPlanExercisesWithImperialUnit() > 0
+        if (!needsCanonicalization) {
+            context.dataStore.edit { it[PLAN_EXERCISES_CANONICALIZED_KEY] = true }
+            return
+        }
 
         if (isImperial) {
             db.withTransaction {
                 dao.convertAllPlanExerciseWeightsToKg()
             }
         }
-
-        // Only write flag after successful transaction
-        context.dataStore.edit { prefs ->
-            prefs[PLAN_WEIGHTS_CANONICALIZED_KEY] = true
-        }
+        context.dataStore.edit { it[PLAN_EXERCISES_CANONICALIZED_KEY] = true }
     }
 }

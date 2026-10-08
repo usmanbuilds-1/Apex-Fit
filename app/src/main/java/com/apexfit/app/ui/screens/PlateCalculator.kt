@@ -18,6 +18,8 @@ import com.apexfit.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -174,12 +176,24 @@ fun PlateCalculatorCard(
                         .padding(vertical = 10.dp)
                 )
             } else {
+                val achievedWeight = barWeight + loadedPlates.sumOf { it.weight } * 2.0
+                val remainingDifference = kotlin.math.abs(targetWeight - achievedWeight)
+                val isExact = remainingDifference < 0.01
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(72.dp)
                         .background(Color(0xFF0F0F1A), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 10.dp)
+                        .semantics {
+                            contentDescription = buildString {
+                                append("Barbell plate calculator. ")
+                                append("Target: $targetWeight$suffix. ")
+                                if (isExact) append("Exact match.")
+                                else append("Closest: $achievedWeight$suffix, remaining: $remainingDifference$suffix.")
+                            }
+                        },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Core barbell sleeve

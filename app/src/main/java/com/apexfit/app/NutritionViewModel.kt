@@ -12,13 +12,17 @@ import com.apexfit.app.utils.*
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
-class NutritionViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val db = com.apexfit.app.di.ServiceLocator.database(application)
-    private val dao = db.fitnessDao()
-    private val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(application)
-    private val repository = com.apexfit.app.di.ServiceLocator.repository(application)
+@HiltViewModel
+class NutritionViewModel @Inject constructor(
+    application: Application,
+    private val db: AppDatabase = AppDatabase.getDatabase(application),
+    private val dao: FitnessDao = db.fitnessDao(),
+    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+) : AndroidViewModel(application) {
 
     private val _isLoggingNutrition = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -72,24 +76,10 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun changeNutritionDate(offsetDays: Int) {
-        viewModelScope.launch {
-            try {
-                val dateObj = com.apexfit.app.utils.DateTimeUtils.parseDate(_selectedNutritionDate.value) ?: java.util.Date()
-                val cal = java.util.Calendar.getInstance()
-                cal.time = dateObj
-                cal.add(java.util.Calendar.DAY_OF_YEAR, offsetDays)
-
-                // Clamp to today (no future dates)
-                val today = java.util.Calendar.getInstance()
-                if (cal.after(today)) {
-                    cal.time = today.time
-                }
-
-                _selectedNutritionDate.value = com.apexfit.app.utils.DateTimeUtils.formatDate(cal.time)
-            } catch (e: Exception) {
-                android.util.Log.e("NutritionViewModel", "Date change failed", e)
-            }
-        }
+        val today = java.time.LocalDate.now()
+        val newDate = java.time.LocalDate.parse(_selectedNutritionDate.value).plusDays(offsetDays.toLong())
+        val finalDate = if (newDate.isAfter(today)) today else newDate
+        _selectedNutritionDate.value = finalDate.toString()
     }
 
 

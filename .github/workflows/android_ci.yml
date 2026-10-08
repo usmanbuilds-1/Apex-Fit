@@ -16,10 +16,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: gradle
 
@@ -27,7 +27,14 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace -x test
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: app/build/test-results/testDebugUnitTest/*.xml
 
       - name: Upload Installable APK Artifact
         uses: actions/upload-artifact@v4

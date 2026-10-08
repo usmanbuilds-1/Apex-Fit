@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -91,11 +90,9 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
         Log.i(TAG, "Rest timer alarm received — posting notification")
         val exerciseName = intent.getStringExtra(EXTRA_EXERCISE_NAME) ?: "Rest"
 
-        // Use the existing deep link scheme to return to the Train screen
-        val deepLinkUri = Uri.parse("apexfit://screen/train")
-        val launchIntent = Intent(Intent.ACTION_VIEW, deepLinkUri).apply {
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            setClass(context, MainActivity::class.java)
+            putExtra("destination", "train")
         }
         val pendingIntent = PendingIntent.getActivity(
             context,

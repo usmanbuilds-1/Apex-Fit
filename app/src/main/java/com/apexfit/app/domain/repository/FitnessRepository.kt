@@ -1,9 +1,26 @@
 package com.apexfit.app.domain.repository
 
 import com.apexfit.app.data.*
+import com.apexfit.app.ui.models.UiComplianceResult
+import com.apexfit.app.ui.models.UiSessionReadiness
+import com.apexfit.app.utils.StreakResult
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 interface FitnessRepository {
+    val appScope: CoroutineScope
+    val recent90DaySessionsFlow: StateFlow<List<TrainingSession>>
+    val recent90DaySetsFlow: StateFlow<List<ExerciseSet>>
+    val richSessionsFlow: StateFlow<List<RichTrainingSession>>
+    val weightEntriesFlow: StateFlow<List<WeightEntry>>
+    val nutritionEntriesFlow: StateFlow<List<NutritionEntry>>
+    val sessionReadinessFlow: StateFlow<UiSessionReadiness?>
+    val sharedTargetsFlow: Flow<NutritionTargets>
+    val todayExercisesFlow: StateFlow<List<PlanExercise>>
+    val complianceScoresFlow: StateFlow<UiComplianceResult>
+    val streakResultFlow: StateFlow<StreakResult>
+
     suspend fun logWeightEntry(entry: WeightEntry)
     suspend fun logNutritionEntry(entry: NutritionEntry)
     suspend fun logExerciseSet(set: ExerciseSet)

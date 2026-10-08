@@ -5,16 +5,14 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
+import com.apexfit.app.utils.AppConstants
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FitnessDao {
 
     // Weight Entry Queries
-    @Deprecated("Use getWeightEntriesSinceFlow or getWeightEntriesFromFlow with a date window instead", replaceWith = ReplaceWith("getWeightEntriesFromFlow"))
-    @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
-    fun getAllWeightEntriesFlow(): Flow<List<WeightEntry>>
-
     @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC")
     fun getWeightEntriesFromFlow(cutoffDate: String): Flow<List<WeightEntry>>
 
@@ -24,14 +22,10 @@ interface FitnessDao {
     @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC")
     suspend fun getWeightEntriesSince(cutoffDate: String): List<WeightEntry>
 
-    @Deprecated("Use getWeightEntriesSince or getWeightEntries with a limit instead", replaceWith = ReplaceWith("getWeightEntries"))
-    @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC")
-    suspend fun getAllWeightEntries(): List<WeightEntry>
-
     @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC LIMIT :limit")
     suspend fun getWeightEntries(limit: Int = 365): List<WeightEntry>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertWeightEntry(entry: WeightEntry)
 
     @Query("DELETE FROM body_weights WHERE id = :id")
@@ -41,10 +35,6 @@ interface FitnessDao {
     suspend fun deleteWeightEntry(date: String)
 
     // Nutrition Queries
-    @Deprecated("Use getNutritionEntriesSinceFlow or getNutritionEntriesFromFlow with a date window instead", replaceWith = ReplaceWith("getNutritionEntriesFromFlow"))
-    @Query("SELECT * FROM nutrition_logs ORDER BY date DESC, time DESC")
-    fun getAllNutritionEntriesFlow(): Flow<List<NutritionEntry>>
-
     @Query("SELECT * FROM nutrition_logs WHERE date >= :cutoffDate ORDER BY date DESC")
     fun getNutritionEntriesFromFlow(cutoffDate: String): Flow<List<NutritionEntry>>
 
@@ -64,7 +54,7 @@ interface FitnessDao {
     @Query("SELECT * FROM nutrition_logs WHERE date = :date ORDER BY time DESC")
     suspend fun getNutritionForDate(date: String): List<NutritionEntry>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertNutritionEntry(entry: NutritionEntry)
 
     @Query("DELETE FROM nutrition_logs WHERE id = :id")
@@ -74,15 +64,20 @@ interface FitnessDao {
     suspend fun deleteNutritionEntry(date: String)
 
     // Training Sessions
-    @Deprecated("Use getRecentCompletedSessionsFlow with a date window instead", replaceWith = ReplaceWith("getRecentCompletedSessionsFlow"))
-    @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
-    fun getAllTrainingSessionsFlow(): Flow<List<TrainingSession>>
-
     @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     suspend fun getAllTrainingSessions(): List<TrainingSession>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTrainingSession(session: TrainingSession)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTrainingSession(session: TrainingSession): Long
+
+    @Update
+    suspend fun updateTrainingSession(session: TrainingSession)
+
+    @Transaction
+    suspend fun upsertTrainingSession(session: TrainingSession) {
+        val id = insertTrainingSession(session)
+        if (id == -1L) updateTrainingSession(session)
+    }
 
     @Query("DELETE FROM workout_sessions WHERE id = :id")
     suspend fun deleteTrainingSession(id: String)
@@ -93,10 +88,6 @@ interface FitnessDao {
 
     @Query("SELECT * FROM exercise_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     suspend fun getSetsForSession(sessionId: String): List<ExerciseSet>
-
-    @Deprecated(message = "Use getRecentExerciseSetsFlow/getRecentExerciseSets with a date window instead", replaceWith = ReplaceWith("getRecentExerciseSetsFlow"))
-    @Query("SELECT * FROM exercise_sets ORDER BY id DESC")
-    suspend fun getAllExerciseSets(): List<ExerciseSet>
 
     @Query("""
         SELECT es.* FROM exercise_sets es
@@ -124,10 +115,10 @@ interface FitnessDao {
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId")
     fun getSetsForExerciseFlow(exerciseId: String): Flow<List<ExerciseSet>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertExerciseSets(sets: List<ExerciseSet>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertExerciseSet(set: ExerciseSet)
 
     @Query("DELETE FROM exercise_sets WHERE id = :id")
@@ -149,8 +140,21 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_programs WHERE isActive = 1 LIMIT 1")
     suspend fun getActivePlan(): WorkoutPlan?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertWorkoutPlan(plan: WorkoutPlan): Long
+
+    @Update
+    suspend fun updateWorkoutPlan(plan: WorkoutPlan)
+
+    @Transaction
+    suspend fun upsertWorkoutPlan(plan: WorkoutPlan): Long {
+        val id = insertWorkoutPlan(plan)
+        if (id == -1L) {
+            updateWorkoutPlan(plan)
+            return plan.id
+        }
+        return id
+    }
 
     @Query("UPDATE workout_programs SET isActive = 0 WHERE isActive = 1")
     suspend fun deactivateAllPlans()
@@ -170,11 +174,24 @@ interface FitnessDao {
     @Query("SELECT * FROM plan_sessions WHERE planId = :planId ORDER BY id ASC")
     suspend fun getSessionsForPlan(planId: Long): List<PlanSession>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPlanSessions(sessions: List<PlanSession>): List<Long>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPlanSession(session: PlanSession): Long
+
+    @Update
+    suspend fun updatePlanSession(session: PlanSession)
+
+    @Transaction
+    suspend fun upsertPlanSession(session: PlanSession): Long {
+        val id = insertPlanSession(session)
+        if (id == -1L) {
+            updatePlanSession(session)
+            return session.id
+        }
+        return id
+    }
 
     @Query("DELETE FROM plan_sessions WHERE planId = :planId")
     suspend fun deleteSessionsForPlan(planId: Long)
@@ -196,13 +213,28 @@ interface FitnessDao {
     @Query("SELECT * FROM exercises WHERE id = :id LIMIT 1")
     suspend fun getExerciseById(id: String): Exercise?
 
+    @Query("SELECT * FROM exercises WHERE name = :name LIMIT 1")
+    suspend fun getExerciseByName(name: String): Exercise?
+
     @Query("SELECT * FROM exercises WHERE id IN (:ids)")
     suspend fun getExercisesByIds(ids: List<String>): List<Exercise>
 
 
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertExercises(exercises: List<Exercise>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertExercise(exercise: Exercise): Long
+
+    @Update
+    suspend fun updateExercise(exercise: Exercise)
+
+    @Transaction
+    suspend fun upsertExercise(exercise: Exercise) {
+        val id = insertExercise(exercise)
+        if (id == -1L) updateExercise(exercise)
+    }
 
     @Query("SELECT * FROM exercise_metadata WHERE exercise_id = :exerciseId LIMIT 1")
     suspend fun getMetadataForExercise(exerciseId: String): ExerciseMetadata?
@@ -210,10 +242,19 @@ interface FitnessDao {
     @Query("SELECT * FROM exercise_metadata WHERE exercise_id IN (:exerciseIds)")
     suspend fun getMetadataForExercises(exerciseIds: List<String>): List<ExerciseMetadata>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExerciseMetadata(metadata: ExerciseMetadata)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertExerciseMetadata(metadata: ExerciseMetadata): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Update
+    suspend fun updateExerciseMetadata(metadata: ExerciseMetadata)
+
+    @Transaction
+    suspend fun upsertExerciseMetadata(metadata: ExerciseMetadata) {
+        val id = insertExerciseMetadata(metadata)
+        if (id == -1L) updateExerciseMetadata(metadata)
+    }
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertExerciseMetadataList(metadataList: List<ExerciseMetadata>)
 
     @Transaction
@@ -243,26 +284,37 @@ interface FitnessDao {
     @Query("SELECT * FROM plan_exercises WHERE planSessionId = :planSessionId ORDER BY id ASC")
     suspend fun getExercisesForSession(planSessionId: Long): List<PlanExercise>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPlanExercises(exercises: List<PlanExercise>)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertPlanExercise(exercise: PlanExercise)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPlanExercise(exercise: PlanExercise): Long
+
+    @Update
+    suspend fun updatePlanExercise(exercise: PlanExercise)
+
+    @Transaction
+    suspend fun upsertPlanExercise(exercise: PlanExercise) {
+        val id = insertPlanExercise(exercise)
+        if (id == -1L) updatePlanExercise(exercise)
+    }
 
     @Query("DELETE FROM plan_exercises WHERE planSessionId = :planSessionId")
     suspend fun deleteExercisesForPlanSession(planSessionId: Long)
 
+    @Query("SELECT COUNT(*) FROM exercise_sets WHERE weight_unit IN ('lb', 'lbs')")
+    suspend fun countExerciseSetsWithImperialUnit(): Int
+
+    @Query("SELECT COUNT(*) FROM plan_exercises WHERE weight_unit IN ('lb', 'lbs')")
+    suspend fun countPlanExercisesWithImperialUnit(): Int
+
     // FIX (§9 item 5): canonicalize plan_exercises weight for imperial users on v22 upgrade
-    @Query("UPDATE plan_exercises SET weight = weight / 2.20462, weight_unit = 'kg' WHERE weight_unit IN ('lb', 'lbs')")
+    @Query("UPDATE plan_exercises SET weight = weight / ${AppConstants.KG_TO_LBS}, weight_unit = 'kg' WHERE weight_unit IN ('lb', 'lbs')")
     suspend fun convertAllPlanExerciseWeightsToKg()
 
 
 
     // Personal Records
-    @Deprecated("Use getRecentPersonalRecordsWithNames or getPRsForExercise with a limit/exercise filter instead", replaceWith = ReplaceWith("getRecentPersonalRecordsWithNames"))
-    @Query("SELECT * FROM personal_records ORDER BY date DESC")
-    fun getAllPRsFlow(): Flow<List<PersonalRecord>>
-
     @Query("""
         SELECT pr.*, e.name as exerciseName
         FROM personal_records pr
@@ -283,28 +335,28 @@ interface FitnessDao {
     @Query("SELECT * FROM personal_records WHERE exerciseId = :exerciseId")
     suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord>
 
-    @Query("UPDATE exercise_sets SET weight = weight / 2.20462, weight_unit = 'kg' WHERE weight_unit IN ('lb', 'lbs')")
+    @Query("UPDATE exercise_sets SET weight = weight / ${AppConstants.KG_TO_LBS}, weight_unit = 'kg' WHERE weight_unit IN ('lb', 'lbs')")
     suspend fun convertAllExerciseSetWeightsToKg()
 
-    @Query("UPDATE personal_records SET value = value / 2.20462 WHERE type IN ('max_weight', 'estimated_1rm')")
+    @Query("UPDATE personal_records SET value = value / ${AppConstants.KG_TO_LBS} WHERE type IN ('max_weight', 'estimated_1rm')")
     suspend fun convertAllPersonalRecordValuesToKg()
 
 
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertPersonalRecord(record: PersonalRecord)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertPersonalRecords(records: List<PersonalRecord>)
 
     // Body Measurements
-    @Query("SELECT * FROM body_measurements ORDER BY date DESC, id DESC")
-    fun getAllBodyMeasurementsFlow(): Flow<List<BodyMeasurement>>
+    @Query("SELECT * FROM body_measurements ORDER BY date DESC, id DESC LIMIT :limit")
+    fun getBodyMeasurementsFlow(limit: Int = 365): Flow<List<BodyMeasurement>>
 
     @Query("SELECT * FROM body_measurements WHERE bodyPart = :bodyPart ORDER BY date ASC, id ASC")
     fun getBodyMeasurementsForPartFlow(bodyPart: String): Flow<List<BodyMeasurement>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertBodyMeasurement(measurement: BodyMeasurement)
 
     @Query("DELETE FROM body_measurements WHERE id = :id")
@@ -316,7 +368,7 @@ interface FitnessDao {
     @Query("SELECT * FROM detected_patterns ORDER BY confidence DESC")
     fun getAllDetectedPatternsFlow(): Flow<List<DetectedPatternEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert
     suspend fun insertDetectedPatterns(patterns: List<DetectedPatternEntity>)
 
     @Query("DELETE FROM detected_patterns")
@@ -327,8 +379,8 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_sessions WHERE date >= :startDate AND date <= :endDate ORDER BY date DESC")
     suspend fun getSessionsByDateRange(startDate: String, endDate: String): List<TrainingSession>
 
-    @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId ORDER BY id DESC")
-    suspend fun getExerciseSetsByExerciseId(exerciseId: String): List<ExerciseSet>
+    @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId ORDER BY id DESC LIMIT :limit")
+    suspend fun getExerciseSetsByExerciseId(exerciseId: String, limit: Int = 1000): List<ExerciseSet>
 
     @Query("""
         SELECT weight FROM exercise_sets 
@@ -387,16 +439,17 @@ interface FitnessDao {
     """)
     suspend fun getLatestSessionByType(sessionType: String): TrainingSession?
 
-    @Query("SELECT * FROM workout_sessions WHERE completed = 1 ORDER BY date DESC")
-    suspend fun getAllCompletedSessions(): List<TrainingSession>
+    @Query("SELECT * FROM workout_sessions WHERE completed = 1 ORDER BY date DESC LIMIT :limit")
+    suspend fun getCompletedSessions(limit: Int = 365): List<TrainingSession>
 
     @Query("""  
         SELECT es.* FROM exercise_sets es  
         INNER JOIN workout_sessions ws ON es.sessionId = ws.id  
         WHERE ws.completed = 1  
-        ORDER BY es.id ASC  
+        ORDER BY ws.date DESC, es.id DESC
+        LIMIT :limit
     """)  
-    suspend fun getAllExerciseSetsForCompletedSessions(): List<ExerciseSet>
+    suspend fun getRecentExerciseSetsForCompletedSessions(limit: Int = 5000): List<ExerciseSet>
 
     @Query("""
         SELECT * FROM body_measurements 
@@ -425,10 +478,6 @@ interface FitnessDao {
 
     @Query("SELECT * FROM exercise_sets WHERE exerciseId = :exerciseId AND isWarmup = 0 AND completed = 1 ORDER BY id DESC")
     fun getExerciseSetsByExerciseIdFlow(exerciseId: String): Flow<List<ExerciseSet>>
-
-    @Deprecated(message = "Use getRecentExerciseSetsFlow/getRecentExerciseSets with a date window instead", replaceWith = ReplaceWith("getRecentExerciseSetsFlow"))
-    @Query("SELECT * FROM exercise_sets WHERE completed = 1 ORDER BY id DESC")
-    fun getAllExerciseSetsFlow(): Flow<List<ExerciseSet>>
 
     @Query("""  
         SELECT es.* FROM exercise_sets es  

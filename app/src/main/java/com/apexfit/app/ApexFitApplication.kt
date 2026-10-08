@@ -15,12 +15,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import com.apexfit.app.data.AppDatabase
 import com.apexfit.app.data.DataStoreManager
 import com.apexfit.app.utils.CoachingScheduler
 import com.apexfit.app.utils.CoachingWorkers
 import com.apexfit.app.utils.RestTimerAlarmReceiver
 import com.apexfit.app.utils.SeedService
+import dagger.hilt.android.HiltAndroidApp
 
+@HiltAndroidApp
 class ApexFitApplication : Application(), Configuration.Provider {
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -49,19 +52,17 @@ class ApexFitApplication : Application(), Configuration.Provider {
 
         createNotificationChannels()
 
-        com.apexfit.app.di.ServiceLocator.setAppScope(appScope, this)
-
         com.apexfit.app.utils.WorkoutActiveNotification.createChannel(this)
 
         // Startup initialization: seed exercises and schedule coaching sequentially
+        if (Build.FINGERPRINT == "robolectric") return
         appScope.launch {
             val dataStore = DataStoreManager.getInstance(app)
 
             // Seeding check
             try {
-                val isSeeded = dataStore.isExercisesSeededFlow.firstOrNull() ?: false
                 val seedVersion = dataStore.exerciseSeedVersionFlow.firstOrNull() ?: 0
-                if (!isSeeded || seedVersion < SeedService.CURRENT_SEED_VERSION) {
+                if (seedVersion < SeedService.CURRENT_SEED_VERSION) {
                     SeedService.seed(app)
                 }
             } catch (e: Exception) {
@@ -77,7 +78,7 @@ class ApexFitApplication : Application(), Configuration.Provider {
 
                 // AUDIT FIX (BUG-V4-015): canonicalize exercise_set and PR weights for
                 // users who had lb data stored by a pre-v21 build.
-                val dao = com.apexfit.app.di.ServiceLocator.database(app).fitnessDao()
+                val dao = AppDatabase.getDatabase(app).fitnessDao()
                 val isImperial = dataStore.unitsFlow.first()
                     .lowercase() in listOf("lb", "lbs")
                 dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial)

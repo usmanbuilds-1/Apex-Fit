@@ -1,6 +1,5 @@
 package com.apexfit.app
 import androidx.room.withTransaction
-import com.apexfit.app.di.ServiceLocator
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.data.*
 import com.apexfit.app.utils.ProgressionEngine.OutcomeType
@@ -158,7 +157,7 @@ class WorkoutSessionManager(
         // Calculate per-muscle readiness
         val readinessScore = try {
             // Read the already-cached rich sessions — no DB round-trip needed
-            val completedRichSessions = com.apexfit.app.di.ServiceLocator.richSessionsFlow.value
+            val completedRichSessions = repository.richSessionsFlow.value
                 .map { rs ->
                     com.apexfit.app.utils.TrainingSession(
                         date = rs.date,
@@ -195,7 +194,7 @@ class WorkoutSessionManager(
             val calorieTarget = calorieTargetDeferred.await()
             val userGoal = userGoalDeferred.await()
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-            val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(calorieTarget, latestWeight, userGoal)
+            val targets = com.apexfit.app.utils.MacroEngine.calcMacroTargets(calorieTarget, latestWeight, userGoal)
 
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
@@ -591,7 +590,7 @@ class WorkoutSessionManager(
         val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
             .associate { it.exerciseId to it.stalledCount }
 
-        val db = ServiceLocator.database(appContext)
+        val db = AppDatabase.getDatabase(appContext)
         db.withTransaction {
             lastProgressionResults.forEach { (exerciseId, result) ->
                 val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach

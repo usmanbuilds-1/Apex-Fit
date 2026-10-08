@@ -18,7 +18,7 @@ class AlgorithmEngineTest {
         val nLog = (0..14).map {
             NutritionEntry(date = d(it), calories = 2500, protein = 150, carbs = 250, fat = 80)
         }
-        val res = AlgorithmEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14)
+        val res = TdeeEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14)
 
         val recentWeight = wLog.sortedBy { it.date }
         val avgCalories = nLog.map { it.calories }.average()
@@ -33,26 +33,26 @@ class AlgorithmEngineTest {
 
     @Test
     fun testCalcAdaptiveTDEE_edgeCase_empty() {
-        val res = AlgorithmEngine.calcAdaptiveTDEE(emptyList(), emptyList())
+        val res = TdeeEngine.calcAdaptiveTDEE(emptyList(), emptyList())
         assertTrue((res.tdee ?: 0) > 0) // Should fallback to BMR
     }
 
     @Test
     fun testSuggestCaloricTarget_normal() {
-        val res = AlgorithmEngine.suggestCaloricTarget(2500, "lose fat", 70.0, 65.0)
+        val res = TdeeEngine.suggestCaloricTarget(2500, "lose fat", 70.0, 65.0)
         // 70kg * 0.008 = 0.56 kg/week -> (0.56 * 7700) / 7 = 616 kcal/day deficit => 2500 - 616 = 1884
         assertEquals(1884, res)
     }
 
     @Test
     fun testSuggestCaloricTarget_recomposition() {
-        val res = AlgorithmEngine.suggestCaloricTarget(2500, "recomposition", 70.0, 70.0)
+        val res = TdeeEngine.suggestCaloricTarget(2500, "recomposition", 70.0, 70.0)
         assertEquals(2500, res)
     }
 
     @Test
     fun testSuggestCaloricTarget_edgeCase_emptyGoal() {
-        val res = AlgorithmEngine.suggestCaloricTarget(2500, "", 70.0, 65.0)
+        val res = TdeeEngine.suggestCaloricTarget(2500, "", 70.0, 65.0)
         assertEquals(2500, res) // maintain
     }
 
@@ -93,7 +93,7 @@ class AlgorithmEngineTest {
         val recentSession = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog))
 
         // Case 1: maintained volume (1000 vs 1000) -> true plateau
-        val resPlateau = AlgorithmEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), windowDays = 14)
+        val resPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), windowDays = 14)
         assertTrue(resPlateau.isPlateaued)
         assertEquals(14, resPlateau.daysStalled)
 
@@ -102,13 +102,13 @@ class AlgorithmEngineTest {
         val exLogLow = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(exSetLow))
         val recentSessionLow = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLogLow))
 
-        val resNoPlateau = AlgorithmEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), windowDays = 14)
+        val resNoPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), windowDays = 14)
         assertFalse(resNoPlateau.isPlateaued)
     }
 
     @Test
     fun testDetectPlateau_edgeCase_empty() {
-        val res = AlgorithmEngine.detectPlateau(emptyList(), emptyList(), emptyList(), windowDays = 10)
+        val res = PlateauEngine.detectPlateau(emptyList(), emptyList(), emptyList(), windowDays = 10)
         assertFalse(res.isPlateaued)
     }
 
@@ -119,13 +119,13 @@ class AlgorithmEngineTest {
             val exLog = ExerciseLog(id = "squat", name = "Squat", muscleGroup = "quads", sets = listOf(exSet))
             RichTrainingSession(date = d(14 - it), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog)) 
         }
-        val res = AlgorithmEngine.calcFatigueToFitness(tLog)
+        val res = FatigueEngine.calcFatigueToFitnessRatio(tLog)
         assertNotNull(res.ratio)
     }
 
     @Test
     fun testCalcFatigueToFitness_edgeCase_empty() {
-        val res = AlgorithmEngine.calcFatigueToFitness(emptyList())
+        val res = FatigueEngine.calcFatigueToFitnessRatio(emptyList())
         assertNull(res.ratio)
     }
 
@@ -133,20 +133,20 @@ class AlgorithmEngineTest {
     fun testCalcComplianceScores_normal() {
         val nLog = (0..13).map { NutritionEntry(date = d(13 - it), calories = 2500, protein = 150, carbs = 200, fat = 60) }
         val targets = NutritionTargets(2500, 150, 200, 60, 4)
-        val res = AlgorithmEngine.calcComplianceScores(nLog, emptyList(), targets, 14)
+        val res = ComplianceEngine.calcComplianceScores(nLog, emptyList(), targets, 14)
         assertEquals(100, res.protein)
         assertEquals(100, res.calories)
     }
 
     @Test
     fun testCalcComplianceScores_edgeCase_empty() {
-        val res = AlgorithmEngine.calcComplianceScores(emptyList(), emptyList(), NutritionTargets(2500, 150, 200, 60, 4), 14)
+        val res = ComplianceEngine.calcComplianceScores(emptyList(), emptyList(), NutritionTargets(2500, 150, 200, 60, 4), 14)
         assertEquals(0, res.overall)
     }
 
     @Test
     fun testCalcDeloadRecommendation_normal() {
-        val res = AlgorithmEngine.calcDeloadRecommendation(emptyList(), 100)
+        val res = PlateauEngine.calcDeloadRecommendation(emptyList(), 100)
         assertEquals("none", res.urgency)
     }
 
@@ -154,23 +154,23 @@ class AlgorithmEngineTest {
     fun testCalcDeloadRecommendation_boundary_signals() {
         // We can mock low compliance and high fatigue, but we don't need to overcomplicate.
         // Let's pass 50 compliance. It adds 1 signal.
-        val res = AlgorithmEngine.calcDeloadRecommendation(emptyList(), 50)
+        val res = PlateauEngine.calcDeloadRecommendation(emptyList(), 50)
         // Signals = 1 (due to compliance < 60)
         assertEquals("none", res.urgency)
     }
 
     @Test
     fun testEstimateLBM() {
-        val maleLBM = AlgorithmEngine.estimateLBM(80.0, 180.0, "male")
+        val maleLBM = GoalEngine.estimateLBM(80.0, 180.0, "male")
         assertEquals(61.42, maleLBM, 0.01)
 
-        val femaleLBM = AlgorithmEngine.estimateLBM(60.0, 165.0, "female")
+        val femaleLBM = GoalEngine.estimateLBM(60.0, 165.0, "female")
         assertEquals(44.865, femaleLBM, 0.01)
     }
 
     @Test
     fun testCalcMacroTargets() {
-        val targets = AlgorithmEngine.calcMacroTargets(
+        val targets = MacroEngine.calcMacroTargets(
             calorieTarget = 2400,
             bodyWeightKg  = 80.0,
             goal          = "gain muscle",
@@ -185,7 +185,7 @@ class AlgorithmEngineTest {
 
     @Test
     fun testCalcCycledTargets() {
-        val cycled = AlgorithmEngine.calcCycledTargets(
+        val cycled = MacroEngine.calcCycledTargets(
             weeklyCalorieTarget = 2500,
             weeklyTrainingSessions = 4,
             goal = "gain muscle",
@@ -203,7 +203,7 @@ class AlgorithmEngineTest {
 
     @Test
     fun testCalcGoalTimeline_realisticFatLoss() {
-        val timeline = AlgorithmEngine.calcGoalTimeline(
+        val timeline = GoalEngine.calcGoalTimeline(
             currentWeightKg = 80.0,
             goalWeightKg = 76.0,
             resolvedGoal = "Lose Fat",
@@ -219,7 +219,7 @@ class AlgorithmEngineTest {
 
     @Test
     fun testCalcGoalTimeline_unrealisticFatLoss() {
-        val timeline = AlgorithmEngine.calcGoalTimeline(
+        val timeline = GoalEngine.calcGoalTimeline(
             currentWeightKg = 150.0,
             goalWeightKg = 60.0,
             resolvedGoal = "Lose Fat",
@@ -234,7 +234,7 @@ class AlgorithmEngineTest {
 
     @Test
     fun testCalcGoalTimeline_recomposition() {
-        val timeline = AlgorithmEngine.calcGoalTimeline(
+        val timeline = GoalEngine.calcGoalTimeline(
             currentWeightKg = 75.0,
             goalWeightKg = 75.0,
             resolvedGoal = "Recomposition",
@@ -242,7 +242,7 @@ class AlgorithmEngineTest {
             sex = "female"
         )
         assertTrue(timeline.isRealistic)
-        assertEquals(0.05, timeline.weeklyChangeKg, 0.001)
+        assertEquals(0.0, timeline.weeklyChangeKg, 0.001)
         assertTrue(timeline.summaryLine.contains("Body recomposition"))
     }
 
@@ -255,7 +255,7 @@ class AlgorithmEngineTest {
         val nLog = (0..28).map { day ->
             NutritionEntry(date = d(day), calories = 2500, protein = 150, carbs = 250, fat = 80)
         }
-        val resLoss = AlgorithmEngine.calcAdaptiveTDEE(wLogLoss, nLog, windowDays = 14)
+        val resLoss = TdeeEngine.calcAdaptiveTDEE(wLogLoss, nLog, windowDays = 14)
         assertNotNull(resLoss.tdee)
         assertTrue("TDEE while losing should be within ±30 kcal of 2775, got ${resLoss.tdee}", Math.abs(resLoss.tdee!! - 2775) <= 30)
 
@@ -263,7 +263,7 @@ class AlgorithmEngineTest {
         val wLogGain = (0..28).map { day ->
             WeightEntry(date = d(28 - day), weight = 80.0 + (1.0 / 28.0) * day)
         }
-        val resGain = AlgorithmEngine.calcAdaptiveTDEE(wLogGain, nLog, windowDays = 14)
+        val resGain = TdeeEngine.calcAdaptiveTDEE(wLogGain, nLog, windowDays = 14)
         assertNotNull(resGain.tdee)
         assertTrue("TDEE while gaining should be within ±30 kcal of 2225, got ${resGain.tdee}", Math.abs(resGain.tdee!! - 2225) <= 30)
     }

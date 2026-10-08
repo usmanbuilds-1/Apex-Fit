@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
 private fun buildRepository(context: Context): com.apexfit.app.data.repository.FitnessRepositoryImpl {
     val db = com.apexfit.app.data.AppDatabase.getDatabase(context)
     val dao = db.fitnessDao()
-    val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(context)
+    val dataStore = com.apexfit.app.data.DataStoreManager.getInstance(context)
     return com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
 }
 
@@ -35,7 +35,7 @@ private fun buildDao(context: Context): com.apexfit.app.data.FitnessDao =
     com.apexfit.app.data.AppDatabase.getDatabase(context).fitnessDao()
 
 private fun buildDataStore(context: Context): com.apexfit.app.data.DataStoreManager =
-    com.apexfit.app.di.ServiceLocator.dataStore(context)
+    com.apexfit.app.data.DataStoreManager.getInstance(context)
 
 object CoachingWorkers {
     const val CHANNEL_ID = "apex_fitness_coaching"
@@ -61,14 +61,15 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
         val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = CoachingWorkers.CHANNEL_ID
 
-        val deepLink = when (id) {
-            "weekly_report", "plateau_confirmed" -> "apexfit://screen/progress"
-            "streak_at_risk" -> "apexfit://screen/train"
-            "midday_protein" -> "apexfit://screen/nutrition"
-            else -> "apexfit://screen/home"
+        val destination = when (id) {
+            "weekly_report", "plateau_confirmed" -> "progress"
+            "streak_at_risk" -> "train"
+            "midday_protein" -> "nutrition"
+            else -> "home"
         }
-        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(deepLink))
-        intent.setClass(applicationContext, com.apexfit.app.MainActivity::class.java)
+        val intent = Intent(applicationContext, com.apexfit.app.MainActivity::class.java).apply {
+            putExtra("destination", destination)
+        }
         val pendingIntent = PendingIntent.getActivity(
             applicationContext,
             id.hashCode(),
@@ -117,12 +118,12 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             )
         }.sortedBy { it.date }
         
-        val dbWeights = dao.getAllWeightEntries()
+        val cutoff = com.apexfit.app.utils.getDateDaysAgo(90)
+        val dbWeights = dao.getWeightEntriesSince(cutoff)
         val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
             WeightEntry(date, list.map { it.weight }.average())
         }.sortedBy { it.date }
 
-        val cutoff = com.apexfit.app.utils.getDateDaysAgo(90)
         val dbSessions = dao.getRecentCompletedSessions(cutoff)
         val dbSets = dao.getRecentExerciseSets(cutoff)
         val completedSessions = com.apexfit.app.utils.SessionMapper.buildRichSessions(dbSessions, dbSets)
@@ -133,12 +134,12 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val latestWeightForCoaching = engineWeights.lastOrNull()?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
         val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
         
-        val tdeeResult = AlgorithmEngine.calcAdaptiveTDEE(engineWeights, allNutrition)
+        val tdeeResult = TdeeEngine.calcAdaptiveTDEE(engineWeights, allNutrition)
         val goalWeight = dataStore.goalWeightFlow.first()
         val userHeight = dataStore.heightFlow.first()
         val userSex    = dataStore.sexFlow.first()
         val userAge    = dataStore.ageFlow.first()
-        val suggestedCal = AlgorithmEngine.suggestCaloricTarget(
+        val suggestedCal = TdeeEngine.suggestCaloricTarget(
             tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
             goal            = userGoal,
             currentWeightKg = latestWeightForCoaching,
@@ -149,7 +150,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         )
         
         val calorieTarget = if (isManual) manualValue else suggestedCal
-        val targets = com.apexfit.app.utils.AlgorithmEngine.calcMacroTargets(
+        val targets = com.apexfit.app.utils.MacroEngine.calcMacroTargets(
             calorieTarget = calorieTarget,
             bodyWeightKg  = latestWeightForCoaching,
             goal          = userGoal,
@@ -176,7 +177,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         
         repository.scanAndSaveWeeklyPatterns()
 
-        val plateau = AlgorithmEngine.detectPlateau(engineWeights, allNutrition, completedSessions, windowDays = 14)
+        val plateau = PlateauEngine.detectPlateau(engineWeights, allNutrition, completedSessions, windowDays = 14)
         
         val allTriggers = mutableListOf<NotificationEngine.NotificationTrigger>()
         

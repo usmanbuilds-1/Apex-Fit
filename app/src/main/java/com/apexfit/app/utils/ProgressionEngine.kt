@@ -2,6 +2,9 @@ package com.apexfit.app.utils
 
 import kotlin.math.roundToInt
 
+@JvmInline value class WeightKg(val value: Double)
+@JvmInline value class WeightLbs(val value: Double)
+
 object ProgressionEngine {
 
     fun getExerciseType(name: String, muscleGroup: String): String {
@@ -47,6 +50,18 @@ object ProgressionEngine {
     }
 
     fun calculateBeginnerStartingWeight(
+        exerciseType: String,
+        userBodyWeightKg: WeightKg,
+        userHeightCm: Double,
+        preferredUnits: String = "lbs"
+    ): Double = calculateBeginnerStartingWeight(
+        exerciseType = exerciseType,
+        userBodyWeightKg = userBodyWeightKg.value,
+        userHeightCm = userHeightCm,
+        preferredUnits = preferredUnits
+    )
+
+    fun calculateBeginnerStartingWeight(
         exerciseType: String,  // "compound_upper", "compound_lower", "isolation"
         userBodyWeightKg: Double,
         userHeightCm: Double,  // for lever arm adjustment
@@ -62,7 +77,8 @@ object ProgressionEngine {
             else -> 0.10
         }
         
-        var startWeight = userBodyWeightKg * baseMultiplier
+        val effectiveBodyWeight = userBodyWeightKg.coerceAtLeast(40.0)
+        var startWeight = effectiveBodyWeight * baseMultiplier
         
         // Adjust for height (tall = longer ROM = harder)
         if (userHeightCm > 185) {  // Taller than 6'1"
@@ -96,11 +112,41 @@ data class ProgressionResult(
         repsMax: Int,
         targetSets: Int,
         recoveryMultiplier: Double,
+        currentWeight: WeightLbs,
+        exerciseType: String,
+        consecutiveStalledSessions: Int = 0,
+        incrementOverrideKg: WeightKg? = null,
+        weightUnit: String = "kg"
+    ): ProgressionResult = calculateProgressiveWeight(
+        exerciseId = exerciseId,
+        lastSessionSets = lastSessionSets,
+        repsMin = repsMin,
+        repsMax = repsMax,
+        targetSets = targetSets,
+        recoveryMultiplier = recoveryMultiplier,
+        currentWeight = currentWeight.value,
+        exerciseType = exerciseType,
+        consecutiveStalledSessions = consecutiveStalledSessions,
+        incrementOverrideKg = incrementOverrideKg?.value,
+        weightUnit = weightUnit
+    )
+
+    fun calculateProgressiveWeight(
+        exerciseId: String,
+        lastSessionSets: List<com.apexfit.app.ui.models.UiExerciseSet>,
+        repsMin: Int,
+        repsMax: Int,
+        targetSets: Int,
+        recoveryMultiplier: Double,
         currentWeight: Double,
         exerciseType: String,
         consecutiveStalledSessions: Int = 0,
-        incrementOverrideKg: Double? = null
+        incrementOverrideKg: Double? = null,
+        weightUnit: String = "kg"
     ): ProgressionResult {
+        require(repsMin <= repsMax) {
+            "repsMin ($repsMin) must be <= repsMax ($repsMax). Check plan configuration."
+        }
         
         val workingSets = lastSessionSets.filter { !it.isWarmup && it.completed }
         
@@ -136,7 +182,7 @@ data class ProgressionResult(
         // baseIncrement values are lbs-calibrated (e.g. 5.0 = 5 lbs ≈ 2.3 kg for lower body).  
         // Do NOT change these values without updating unit handling in WorkoutSessionManager.  
         val baseIncrement = if (incrementOverrideKg != null) {
-            incrementOverrideKg * 2.20462
+            incrementOverrideKg * AppConstants.KG_TO_LBS
         } else {
             when(exerciseType) {
                 "compound_lower" -> 5.0
@@ -148,8 +194,12 @@ data class ProgressionResult(
             }
         }
 
-        // Plate size determines valid increment grid for this exercise type (in lbs).
-        val plateSize = if (exerciseType == "isolation") 1.25 else 2.5
+        // Plate size determines valid increment grid for this exercise type.
+        val (isolationPlate, compoundPlate) = when (weightUnit) {
+            "kg"  -> Pair(1.25, 2.5)
+            else  -> Pair(1.25, 2.5)  // lbs — same increments
+        }
+        val plateSize = if (exerciseType == "isolation") isolationPlate else compoundPlate
 
         // §6.3 fix: round the INCREMENT to the plate grid, not the final weight.
         // This preserves recovery modulation — a 0.6× multiplier on a 2.5 lb

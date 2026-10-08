@@ -67,7 +67,7 @@ object NotificationEngine {
         if (currentHour in 19..21) {
             val todayLogged = todayNutrition != null
             if (!todayLogged) {
-                val streaks = AlgorithmEngine.calcStreaks(nutritionLog, trainingLog, targets)
+                val streaks = ComplianceEngine.calcStreaks(nutritionLog, trainingLog, targets)
                 if (streaks.nutrition.current >= 3) {
                     triggers.add(NotificationTrigger(
                         id = "streak_at_risk",

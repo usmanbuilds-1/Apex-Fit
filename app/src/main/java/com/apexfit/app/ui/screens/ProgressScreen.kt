@@ -35,7 +35,6 @@ import com.apexfit.app.ui.theme.*
 import com.apexfit.app.ui.models.UiBodyMeasurement
 import com.apexfit.app.ui.models.UiDeloadResult
 import androidx.compose.foundation.text.KeyboardOptions
-import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.lazy.LazyColumn
@@ -247,20 +246,22 @@ fun MonthlyVolumeRadarChart(
                     Text("Log a workout to see your muscle volume distribution", fontSize = 12.sp, color = MutedText)
                 }
             } else {
-                currentMaxVal = maxVal
+                val currentMaxVal by remember(vals) {
+                    derivedStateOf { (vals.maxOrNull() ?: 0).coerceAtLeast(10).toFloat() }
+                }
                 val density = androidx.compose.ui.platform.LocalDensity.current
                 val size = with(density) { Size(160.dp.toPx(), 160.dp.toPx()) }
 
-                val gridPaths = remember(maxVal, size) {
+                val gridPaths = remember(currentMaxVal, size) {
                     // Build the 3 static pentagon grid paths here
                     listOf(
-                        buildPentagonPath(size, maxVal * 0.33f),
-                        buildPentagonPath(size, maxVal * 0.66f), 
-                        buildPentagonPath(size, maxVal)
+                        buildPentagonPath(size, currentMaxVal * 0.33f, currentMaxVal),
+                        buildPentagonPath(size, currentMaxVal * 0.66f, currentMaxVal), 
+                        buildPentagonPath(size, currentMaxVal, currentMaxVal)
                     )
                 }
-                val dataPath = remember(vals, size, maxVal) {
-                    buildDataPentagonPath(vals, size, maxVal)
+                val dataPath = remember(vals, size, currentMaxVal) {
+                    buildDataPentagonPath(vals, size, currentMaxVal)
                 }
 
                 Box(
@@ -535,7 +536,7 @@ fun ProgressMainTabContent(
         if (pendingDeletions.containsKey(id)) return
         val job = coroutineScope.launch {
             delay(4000)
-            fitnessViewModel.deleteWeightById(id)
+            homeViewModel.deleteWeightById(id)
             pendingDeletions.remove(id)
         }
         pendingDeletions[id] = job
@@ -625,7 +626,7 @@ fun ProgressMainTabContent(
             // Quick Body weight log text field
             item {
                 var inputWeight by rememberSaveable { mutableStateOf("") }
-                val context = LocalContext.current
+                var weightError by remember { mutableStateOf<String?>(null) }
 
                 PremiumCard(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
                     Text(
@@ -643,7 +644,12 @@ fun ProgressMainTabContent(
                     ) {
                         OutlinedTextField(
                             value = inputWeight,
-                            onValueChange = { inputWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                            onValueChange = {
+                                inputWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                                weightError = null
+                            },
+                            isError = weightError != null,
+                            supportingText = weightError?.let { { Text(it, color = RedAccent) } },
                             placeholder = { Text(stringResource(R.string.progress_log_weight_index_e_g_78_5), color = MutedText, fontSize = 11.sp) },
                             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -651,8 +657,8 @@ fun ProgressMainTabContent(
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = DarkRaised,
                                 unfocusedContainerColor = DarkRaised,
-                                focusedIndicatorColor = AmberAccent,
-                                unfocusedIndicatorColor = BorderSubtle
+                                focusedIndicatorColor = if (weightError != null) RedAccent else AmberAccent,
+                                unfocusedIndicatorColor = if (weightError != null) RedAccent else BorderSubtle
                             )
                         )
 
@@ -662,12 +668,13 @@ fun ProgressMainTabContent(
                                 val weightMin = if (units.lowercase() == "kg") 20.0 else 44.0
                                 val weightMax = if (units.lowercase() == "kg") 300.0 else 660.0
                                 when {
-                                    w == null -> 
-                                        Toast.makeText(context, "Enter a valid number", Toast.LENGTH_SHORT).show()
-                                    w !in weightMin..weightMax -> 
-                                        Toast.makeText(context, "Must be $weightMin–$weightMax $units", Toast.LENGTH_SHORT).show()
+                                    w == null ->
+                                        weightError = "Enter a valid number"
+                                    w !in weightMin..weightMax ->
+                                        weightError = "Must be $weightMin–$weightMax $units"
                                     else -> {
-                                        fitnessViewModel.logWeight(w, preferredUnit = units)
+                                        weightError = null
+                                        homeViewModel.logWeight(w, preferredUnit = units)
                                         inputWeight = ""
                                     }
                                 }
@@ -1053,9 +1060,7 @@ fun ProgressMainTabContent(
 }
 }
 
-private var currentMaxVal: Float = 10f
-
-private fun buildPentagonPath(size: Size, scale: Float): Path {
+private fun buildPentagonPath(size: Size, scale: Float, currentMaxVal: Float = 10f): Path {
     val center = Offset(size.width / 2, size.height / 2)
     val r = size.minDimension / 2 - (size.minDimension * 0.125f)
     val level = if (scale > 1.0f && currentMaxVal > 0f) {

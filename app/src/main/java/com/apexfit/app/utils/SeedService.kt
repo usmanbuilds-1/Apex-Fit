@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.JsonReader
 import android.util.JsonToken
 import android.util.Log
+import com.apexfit.app.data.AppDatabase
+import com.apexfit.app.data.DataStoreManager
 import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.ExerciseMetadata
 import org.json.JSONArray
@@ -13,9 +15,9 @@ object SeedService {
     const val CURRENT_SEED_VERSION = 2
 
     suspend fun seed(context: Context) {
-        val db = com.apexfit.app.di.ServiceLocator.database(context)
+        val db = AppDatabase.getDatabase(context)
         val dao = db.fitnessDao()
-        val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(context)
+        val dataStore = DataStoreManager.getInstance(context)
 
         val exercises = mutableListOf<Exercise>()
         val metadatas = mutableListOf<ExerciseMetadata>()
@@ -27,6 +29,8 @@ object SeedService {
                 while (reader.hasNext()) {
                     val item = parseExerciseItem(reader, now)
                     if (item != null) {
+                        val existingExercise = dao.getExerciseById(item.first.id)
+                        if (existingExercise?.isUserCreated == 1) continue
                         exercises.add(item.first)
                         metadatas.add(item.second)
                     }

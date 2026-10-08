@@ -47,7 +47,7 @@ class ProgressionEngineTest {
     @Test
     fun testCalculateBeginnerStartingWeight_edgeCase_zero() {
         val res = ProgressionEngine.calculateBeginnerStartingWeight("", 0.0, 0.0)
-        assertEquals(0.0, res, 0.01)
+        assertEquals(10.0, res, 0.01)
     }
 
     @Test

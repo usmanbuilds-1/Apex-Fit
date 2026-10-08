@@ -28,42 +28,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
-import android.content.Intent
-import androidx.lifecycle.ViewModelProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleDeepLink(intent)
-    }
-
-    private fun handleDeepLink(intent: Intent) {
-        val uri = intent.data ?: return
-        if (uri.scheme != "apexfit" || uri.host != "screen") {
-            android.util.Log.w("DeepLink", "Invalid deep link rejected")
-            return
-        }
-        val screen = uri.lastPathSegment ?: return
-        val validScreens = setOf("home", "train", "nutrition", "progress")
-        if (screen !in validScreens) {
-            android.util.Log.w("DeepLink", "Unknown screen rejected: $screen")
-            return
-        }
-        val fitnessViewModel = ViewModelProvider(this, FitnessViewModel.Factory)[FitnessViewModel::class.java]
-        fitnessViewModel.selectTab(when (screen) {
-            "home" -> 0
-            "train" -> 1
-            "nutrition" -> 2
-            "progress" -> 3
-            else -> 0
-        })
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -74,8 +43,6 @@ class MainActivity : ComponentActivity() {
 
         // Enforce Edge to Edge insets
         enableEdgeToEdge()
-
-        handleDeepLink(intent)
 
         setContent {
             ApexFitTheme {

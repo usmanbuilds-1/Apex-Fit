@@ -47,61 +47,63 @@ class AuditRegressionTestV4 {
     private lateinit var context: Context
 
     @Before
-    fun createDb() = runBlocking {
-        context = ApplicationProvider.getApplicationContext()
-        DataStoreManager(context).saveActiveSessionJson(null)
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        dao = db.fitnessDao()
+    fun createDb() {
+        runBlocking {
+            context = ApplicationProvider.getApplicationContext()
+            DataStoreManager.getInstance(context).saveActiveSessionJson(null)
+            db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
+            dao = db.fitnessDao()
 
-        dao.insertExercises(
-            listOf(
-                Exercise(
-                    id = "bench-press",
-                    name = "Bench Press",
-                    category = "Barbell",
-                    primaryMuscle = "Chest",
-                    equipmentRequired = "Barbell"
-                ),
-                Exercise(
-                    id = "squat",
-                    name = "Squat",
-                    category = "Barbell",
-                    primaryMuscle = "Legs",
-                    equipmentRequired = "Barbell"
+            dao.insertExercises(
+                listOf(
+                    Exercise(
+                        id = "bench-press",
+                        name = "Bench Press",
+                        category = "Barbell",
+                        primaryMuscle = "Chest",
+                        equipmentRequired = "Barbell"
+                    ),
+                    Exercise(
+                        id = "squat",
+                        name = "Squat",
+                        category = "Barbell",
+                        primaryMuscle = "Legs",
+                        equipmentRequired = "Barbell"
+                    )
                 )
             )
-        )
-        dao.insertTrainingSession(
-            TrainingSession(
-                id = "session_1",
-                date = "2024-01-01",
-                sessionType = "Upper",
-                completed = true,
-                durationMinutes = 60,
-                sessionFeel = 3
+            dao.insertTrainingSession(
+                TrainingSession(
+                    id = "session_1",
+                    date = "2024-01-01",
+                    sessionType = "Upper",
+                    completed = true,
+                    durationMinutes = 60,
+                    sessionFeel = 3
+                )
             )
-        )
-        dao.insertTrainingSession(
-            TrainingSession(
-                id = "session_kg",
-                date = "2024-01-01",
-                sessionType = "Lower",
-                completed = true,
-                durationMinutes = 60,
-                sessionFeel = 3
+            dao.insertTrainingSession(
+                TrainingSession(
+                    id = "session_kg",
+                    date = "2024-01-01",
+                    sessionType = "Lower",
+                    completed = true,
+                    durationMinutes = 60,
+                    sessionFeel = 3
+                )
             )
-        )
+        }
     }
 
     @After
     @Throws(IOException::class)
     fun closeDb() {
-        runBlocking {
-            DataStoreManager(context).saveActiveSessionJson(null)
-        }
         db.close()
+        runBlocking {
+            DataStoreManager.getInstance(context).saveActiveSessionJson(null)
+        }
     }
 
     private fun invokeDetectDayOfWeekPatterns(log: List<NutritionEntry>): List<DetectedPattern> {
@@ -124,6 +126,7 @@ class AuditRegressionTestV4 {
 
         val planExercise = PlanExercise(
             planSessionId = sessionId,
+            exerciseId = "bench-press",
             name = "Bench Press",
             muscleGroup = "Chest",
             sets = 3,
@@ -294,7 +297,7 @@ class AuditRegressionTestV4 {
 
         dao.convertAllExerciseSetWeightsToKg()
 
-        val sets = dao.getAllExerciseSets()
+        val sets = dao.getSetsForSession("session_1")
         assertEquals(1, sets.size)
         val updatedSet = sets[0]
         assertEquals("kg", updatedSet.weightUnit)
@@ -307,7 +310,7 @@ class AuditRegressionTestV4 {
     // For a kg user: asserts conversion did NOT run.
     @Test
     fun canonicalizeExerciseSetWeightsIfNeeded_runsOnceAndRespectsUnits() = runBlocking {
-        val dataStore = DataStoreManager(context)
+        val dataStore = DataStoreManager.getInstance(context)
         dataStore.clearAllData()
 
         // 1. Kg user test: DAO conversion should NOT run
@@ -327,7 +330,7 @@ class AuditRegressionTestV4 {
         dao.insertExerciseSet(kgSet)
 
         dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = false)
-        var currentSet = dao.getAllExerciseSets().first { it.id == 10L }
+        var currentSet = dao.getSetsForSession("session_kg").first { it.id == 10L }
         // Should remain untouched for kg user
         assertEquals(220.462, currentSet.weight, 0.001)
         assertEquals("lb", currentSet.weightUnit)
@@ -337,7 +340,7 @@ class AuditRegressionTestV4 {
 
         // 2. Imperial user test: First invocation converts 220.462 -> 100.0
         dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = true)
-        currentSet = dao.getAllExerciseSets().first { it.id == 10L }
+        currentSet = dao.getSetsForSession("session_kg").first { it.id == 10L }
         assertEquals(100.0, currentSet.weight, 0.01)
         assertEquals("kg", currentSet.weightUnit)
 
@@ -380,7 +383,7 @@ class AuditRegressionTestV4 {
 
         // Second invocation: Should be a no-op because flag is already set
         dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = true)
-        val postSecondRunSet = dao.getAllExerciseSets().first { it.id == 20L }
+        val postSecondRunSet = dao.getSetsForSession("session_imperial_2").first { it.id == 20L }
         assertEquals("Subsequent canonicalize call must be guarded and not convert again",
             220.462, postSecondRunSet.weight, 0.001)
         assertEquals("lb", postSecondRunSet.weightUnit)
@@ -425,7 +428,7 @@ class AuditRegressionTestV4 {
 
     @Test
     fun testMetricProgressionSuggestions_successAdvancesAndSnapsToGrid() = runBlocking {
-        val dataStore = DataStoreManager(context)
+        val dataStore = DataStoreManager.getInstance(context)
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
             repository = repo,
@@ -513,7 +516,7 @@ class AuditRegressionTestV4 {
 
     @Test
     fun testMetricTenSessionSuccessChain_strictlyIncreasesAllFiveExerciseTypes() = runBlocking {
-        val dataStore = DataStoreManager(context)
+        val dataStore = DataStoreManager.getInstance(context)
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
             repository = repo,
@@ -599,7 +602,7 @@ class AuditRegressionTestV4 {
 
     @Test
     fun testImperialSuggestionsSnapToPlateGrid() = runBlocking {
-        val dataStore = DataStoreManager(context)
+        val dataStore = DataStoreManager.getInstance(context)
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
             repository = repo,
@@ -687,7 +690,7 @@ class AuditRegressionTestV4 {
 
     @Test
     fun testNonSuccessOutcomesDoNotUseSuccessFloor() = runBlocking {
-        val dataStore = DataStoreManager(context)
+        val dataStore = DataStoreManager.getInstance(context)
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
             repository = repo,

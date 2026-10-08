@@ -18,11 +18,6 @@
 # Hide the original source file name.
 -renamesourcefileattribute SourceFile
 
-# Only keep classes that are serialized via Gson reflection
--keep class com.apexfit.app.ActiveSession { *; }
--keep class com.apexfit.app.ActiveSession$* { *; }
--keep class com.apexfit.app.ui.models.** { *; }
-
 # Keep BuildConfig
 -keep class com.apexfit.app.BuildConfig { *; }
 

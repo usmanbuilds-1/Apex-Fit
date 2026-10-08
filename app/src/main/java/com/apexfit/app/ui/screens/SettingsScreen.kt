@@ -1,6 +1,5 @@
 package com.apexfit.app.ui.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +20,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -28,17 +30,26 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.apexfit.app.FitnessViewModel
+import com.apexfit.app.HomeViewModel
+import com.apexfit.app.WorkoutExecutionViewModel
 import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ui.theme.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.res.painterResource
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    fitnessViewModel: FitnessViewModel,
-    onNavigateTo: (Int) -> Unit
+    viewModel: FitnessViewModel,
+    homeViewModel: HomeViewModel = hiltViewModel(),
+    workoutExecutionViewModel: WorkoutExecutionViewModel = hiltViewModel(),
+    onNavigateBack: () -> Unit = {}
 ) {
+    val fitnessViewModel = viewModel
     val username by fitnessViewModel.username.collectAsStateWithLifecycle()
     val goal by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val manualCalorieTarget by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
@@ -53,6 +64,8 @@ fun SettingsScreen(
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var editName by rememberSaveable { mutableStateOf(username) }
     var editGoal by rememberSaveable { mutableStateOf(goal) }
@@ -68,6 +81,7 @@ fun SettingsScreen(
         mutableStateOf(currentGoalWeight.toDisplayWeight(units).toString()) 
     }
 
+    var nameError by remember { mutableStateOf<String?>(null) }
     var manualCalError by remember { mutableStateOf<String?>(null) }
     var ageError by remember { mutableStateOf<String?>(null) }
     var currentWeightError by remember { mutableStateOf<String?>(null) }
@@ -106,35 +120,65 @@ fun SettingsScreen(
     val weightMin = if (units == "kg") 30.0 else 66.0
     val weightMax = if (units == "kg") 300.0 else 660.0
 
+    Scaffold(
+        containerColor = Color(0xFF0A0A0F),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "ATHLETE FILE MANAGEMENT",
+                        fontFamily = SyneFamily,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = PrimaryText
+                    )
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag("settings_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = PrimaryText
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color(0xFF0A0A0F)
+                )
+            )
+        }
+    ) { innerPadding ->
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0A0A0F))
+            .padding(innerPadding)
+            .imePadding()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Name
-        Text(
-            text = "ATHLETE FILE MANAGEMENT",
-            fontFamily = SyneFamily,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = PrimaryText,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
         OutlinedTextField(
             value = editName,
-            onValueChange = { editName = it },
+            onValueChange = {
+                editName = it
+                nameError = null
+            },
+            isError = nameError != null,
+            supportingText = nameError?.let { { Text(it, color = RedAccent) } },
             label = { Text(stringResource(R.string.settings_athlete_nickname), color = SecondaryText) },
             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
             modifier = Modifier.fillMaxWidth().testTag("settings_name_input"),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = DarkRaised,
                 unfocusedContainerColor = DarkRaised,
-                focusedIndicatorColor = AmberAccent,
-                unfocusedIndicatorColor = BorderSubtle
+                focusedIndicatorColor = if (nameError != null) RedAccent else AmberAccent,
+                unfocusedIndicatorColor = if (nameError != null) RedAccent else BorderSubtle
             )
         )
 
@@ -164,7 +208,8 @@ fun SettingsScreen(
                             border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
                             shape = RoundedCornerShape(14.dp)
                         )
-                        .clickable { editGoal = option }
+                        .semantics { selected = isSelected }
+                        .clickable(role = Role.Tab) { editGoal = option }
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -201,7 +246,8 @@ fun SettingsScreen(
                         .clip(RoundedCornerShape(10.dp))
                         .background(if (selected) OrangeAccent else DarkRaised)
                         .border(1.dp, if (selected) OrangeAccent else BorderSubtle, RoundedCornerShape(10.dp))
-                        .clickable { editIsManual = isManual }
+                        .semantics { this.selected = selected }
+                        .clickable(role = Role.Switch) { editIsManual = isManual }
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -227,6 +273,7 @@ fun SettingsScreen(
                     manualCalError = if (v != null && v !in 1000..6000) "Must be 1000-6000" else null
                 },
                 isError = manualCalError != null,
+                supportingText = manualCalError?.let { { Text(it, color = RedAccent) } },
                 label = { Text("Target (1000–6000 kcal)", color = SecondaryText) },
                 textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -245,14 +292,6 @@ fun SettingsScreen(
                 fontSize = 11.sp,
                 color = SecondaryText,
                 modifier = Modifier.padding(horizontal = 4.dp)
-            )
-        }
-        manualCalError?.let {
-            Text(
-                text = it,
-                color = RedAccent,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
             )
         }
 
@@ -285,6 +324,7 @@ fun SettingsScreen(
                         ageError = if (v != null && v !in 13..100) "Age must be 13-100" else null
                     },
                     isError = ageError != null,
+                    supportingText = ageError?.let { { Text(it, color = RedAccent) } },
                     label = { Text(stringResource(R.string.settings_age_yrs), color = SecondaryText) },
                     textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -296,14 +336,6 @@ fun SettingsScreen(
                         unfocusedIndicatorColor = if (ageError != null) RedAccent else BorderSubtle
                     )
                 )
-                ageError?.let {
-                    Text(
-                        text = it,
-                        color = RedAccent,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                    )
-                }
             }
         }
 
@@ -330,7 +362,8 @@ fun SettingsScreen(
                             border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
                             shape = RoundedCornerShape(10.dp)
                         )
-                        .clickable { editSex = sex.lowercase() }
+                        .semantics { selected = isSelected }
+                        .clickable(role = Role.Tab) { editSex = sex.lowercase() }
                         .padding(vertical = 12.dp)
                         .heightIn(min = 48.dp)
                         .testTag("settings_sex_${sex.lowercase()}"),
@@ -374,7 +407,8 @@ fun SettingsScreen(
                             if (selected) AmberAccent else BorderSubtle,
                             RoundedCornerShape(8.dp)
                         )
-                        .clickable { fitnessViewModel.updateWeeklyWorkouts(optVal) }
+                        .semantics { this.selected = selected }
+                        .clickable(role = Role.Tab) { fitnessViewModel.updateWeeklyWorkouts(optVal) }
                         .padding(vertical = 12.dp)
                         .heightIn(min = 48.dp)
                         .testTag("settings_weekly_workouts_$option"),
@@ -415,7 +449,8 @@ fun SettingsScreen(
                             border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
                             shape = RoundedCornerShape(10.dp)
                         )
-                        .clickable { fitnessViewModel.setPreferredUnits(code) }
+                        .semantics { selected = isSelected }
+                        .clickable(role = Role.Switch) { fitnessViewModel.setPreferredUnits(code) }
                         .padding(vertical = 12.dp)
                         .heightIn(min = 48.dp)
                         .testTag("settings_unit_$code"),
@@ -454,6 +489,7 @@ fun SettingsScreen(
                         currentWeightError = if (v != null && v !in weightMin..weightMax) "Must be $weightMin-$weightMax $units" else null
                     },
                     isError = currentWeightError != null,
+                    supportingText = currentWeightError?.let { { Text(it, color = RedAccent) } },
                     label = { Text(stringResource(R.string.settings_current_weight, units), color = SecondaryText) },
                     textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -465,14 +501,6 @@ fun SettingsScreen(
                         unfocusedIndicatorColor = if (currentWeightError != null) RedAccent else BorderSubtle
                     )
                 )
-                currentWeightError?.let {
-                    Text(
-                        text = it,
-                        color = RedAccent,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                    )
-                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 OutlinedTextField(
@@ -484,6 +512,7 @@ fun SettingsScreen(
                         goalWeightError = if (v != null && v !in weightMin..weightMax) "Must be $weightMin-$weightMax $units" else null
                     },
                     isError = goalWeightError != null,
+                    supportingText = goalWeightError?.let { { Text(it, color = RedAccent) } },
                     label = { Text(stringResource(R.string.settings_goal_weight, units), color = SecondaryText) },
                     textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -495,14 +524,6 @@ fun SettingsScreen(
                         unfocusedIndicatorColor = if (goalWeightError != null) RedAccent else BorderSubtle
                     )
                 )
-                goalWeightError?.let {
-                    Text(
-                        text = it,
-                        color = RedAccent,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                    )
-                }
             }
         }
 
@@ -514,7 +535,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedButton(
-                onClick = { onNavigateTo(0) },
+                onClick = onNavigateBack,
                 shape = RoundedCornerShape(10.dp),
                 border = BorderStroke(1.dp, BorderSubtle),
                 modifier = Modifier.weight(1f).height(48.dp)
@@ -524,21 +545,39 @@ fun SettingsScreen(
 
             Button(
                 onClick = {
-                    val calVal = editedManualCalValue.toIntOrNull() ?: 0
-                    if (calVal !in 1000..6000) {
-                        Toast.makeText(context, "Calorie target must be 1000-6000", Toast.LENGTH_SHORT).show()
+                    if (editName.isBlank()) {
+                        nameError = "Name is required"
                         return@Button
+                    } else {
+                        nameError = null
+                    }
+                    val calVal = editedManualCalValue.toIntOrNull() ?: 0
+                    if (editIsManual && calVal !in 1000..6000) {
+                        manualCalError = "Calorie target must be 1000-6000"
+                        return@Button
+                    } else {
+                        manualCalError = null
                     }
                     val ageVal = editAge.toIntOrNull() ?: 0
                     if (ageVal !in 13..100) {
-                        Toast.makeText(context, "Age must be 13-100", Toast.LENGTH_SHORT).show()
+                        ageError = "Age must be 13-100"
                         return@Button
+                    } else {
+                        ageError = null
                     }
                     val cw = editCurrentWeight.toDoubleOrNull()
-                    val gw = editGoalWeight.toDoubleOrNull()
-                    if (cw == null || cw !in weightMin..weightMax || gw == null || gw !in weightMin..weightMax) {
-                        Toast.makeText(context, "Weight must be $weightMin-$weightMax $units", Toast.LENGTH_SHORT).show()
+                    if (cw == null || cw !in weightMin..weightMax) {
+                        currentWeightError = "Weight must be $weightMin-$weightMax $units"
                         return@Button
+                    } else {
+                        currentWeightError = null
+                    }
+                    val gw = editGoalWeight.toDoubleOrNull()
+                    if (gw == null || gw !in weightMin..weightMax) {
+                        goalWeightError = "Weight must be $weightMin-$weightMax $units"
+                        return@Button
+                    } else {
+                        goalWeightError = null
                     }
                     val hVal = editHeight.toDoubleOrNull() ?: com.apexfit.app.UserDefaults.HEIGHT_CM
                     val aVal = editAge.toIntOrNull() ?: com.apexfit.app.UserDefaults.AGE_YEARS
@@ -560,8 +599,10 @@ fun SettingsScreen(
                     fitnessViewModel.setGoalWeight(gW, preferredUnit = units)
                     fitnessViewModel.setBodyWeight(cW, preferredUnit = units)
 
-                    Toast.makeText(context, context.getString(R.string.settings_profile_saved_successfully), Toast.LENGTH_SHORT).show()
-                    onNavigateTo(0)
+                    scope.launch {
+                        snackbarHostState.showSnackbar(context.getString(R.string.settings_profile_saved_successfully))
+                    }
+                    onNavigateBack()
                 },
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
@@ -579,7 +620,7 @@ fun SettingsScreen(
 
     LaunchedEffect(isResetting) {
         if (hasStartedReset && !isResetting) {
-            onNavigateTo(0)
+            onNavigateBack()
         }
     }
 
@@ -592,6 +633,7 @@ fun SettingsScreen(
                 TextButton(
                     onClick = {
                         hasStartedReset = true
+                        workoutExecutionViewModel.cancelActiveWorkout()
                         fitnessViewModel.resetAllData()
                     },
                     enabled = !isResetting
@@ -657,7 +699,7 @@ fun SettingsScreen(
         PremiumCard(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             onClick = {
-                fitnessViewModel.exportUserData(context) { uri ->
+                homeViewModel.exportUserData(context) { uri ->
                     if (uri != null) {
                         val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = "text/csv"
@@ -694,5 +736,6 @@ fun SettingsScreen(
                     tint = SecondaryText, modifier = Modifier.size(16.dp))
             }
         }
+    }
     }
 }

@@ -1,6 +1,5 @@
 package com.apexfit.app.ui.screens
 
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
@@ -40,8 +39,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.apexfit.app.FitnessViewModel
 import com.apexfit.app.NutritionViewModel
+import com.apexfit.app.PlanBuilderViewModel
 import com.apexfit.app.AlgorithmViewModel
 import com.apexfit.app.ui.theme.*
 import java.io.InputStream
@@ -63,6 +64,7 @@ fun NutritionScreen(
     fitnessViewModel: FitnessViewModel,
     algorithmViewModel: AlgorithmViewModel,
     nutritionViewModel: NutritionViewModel,
+    planBuilderViewModel: PlanBuilderViewModel = hiltViewModel(),
     onNavigateTo: (Int) -> Unit
 ) {
     val selectedDate by nutritionViewModel.selectedNutritionDate.collectAsStateWithLifecycle()
@@ -94,7 +96,7 @@ fun NutritionScreen(
     val weeklyWorkouts by fitnessViewModel.weeklyWorkouts.collectAsStateWithLifecycle()
 
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
-    val activePlanSessionsState by fitnessViewModel.trainVM.activePlanSessions.collectAsStateWithLifecycle()
+    val activePlanSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val activePlanSessions: List<com.apexfit.app.data.PlanSession> = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
 
     var todayDateStr by remember { mutableStateOf(com.apexfit.app.utils.DateTimeUtils.todayDateString()) }
@@ -126,7 +128,7 @@ fun NutritionScreen(
     // Apply goal adjustment so non-manual users see their actual goal-adjusted
     // target, not raw maintenance calories.
     val suggestedFromTdee = remember(tdeeResult.tdee, userGoal, currentWeight, goalWeight, userHeight, userAge, userSex) {
-        com.apexfit.app.utils.AlgorithmEngine.suggestCaloricTarget(
+        com.apexfit.app.utils.TdeeEngine.suggestCaloricTarget(
             tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
             goal            = userGoal,
             currentWeightKg = currentWeight,
@@ -140,7 +142,7 @@ fun NutritionScreen(
         .coerceAtLeast(1)
 
     val cycledTargets = remember(baseCalorieTarget, weeklyWorkouts, userGoal, currentWeight, userHeight, userSex) {
-        com.apexfit.app.utils.AlgorithmEngine.calcCycledTargets(
+        com.apexfit.app.utils.MacroEngine.calcCycledTargets(
             weeklyCalorieTarget    = baseCalorieTarget,
             weeklyTrainingSessions = weeklyWorkouts,
             goal                   = userGoal,
@@ -183,7 +185,7 @@ fun NutritionScreen(
 
         val job = coroutineScope.launch {
             delay(4000)
-            fitnessViewModel.deleteNutritionEntryById(meal.id)
+            nutritionViewModel.deleteNutritionEntryById(meal.id)
             pendingDeletions.remove(meal.id)
         }
         pendingDeletions[meal.id] = job
@@ -209,6 +211,7 @@ fun NutritionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -227,7 +230,7 @@ fun NutritionScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { fitnessViewModel.changeNutritionDate(-1) }) {
+                IconButton(onClick = { nutritionViewModel.changeNutritionDate(-1) }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev Day", tint = PrimaryText)
                 }
                 Text(
@@ -238,7 +241,7 @@ fun NutritionScreen(
                     color = PrimaryText
                 )
                 IconButton(
-                    onClick = { if (!isToday) fitnessViewModel.changeNutritionDate(1) },
+                    onClick = { if (!isToday) nutritionViewModel.changeNutritionDate(1) },
                     enabled = !isToday
                 ) {
                     Icon(
@@ -483,6 +486,7 @@ fun NutritionScreen(
     if (showAddFoodModal) {
         AddFoodSheet(
             fitnessViewModel = fitnessViewModel,
+            nutritionViewModel = nutritionViewModel,
             selectedDate = selectedDate,
             onDismiss = { showAddFoodModal = false }
         )
@@ -501,6 +505,7 @@ fun MacroStatMini(label: String, value: String, color: Color) {
 @Composable
 fun AddFoodSheet(
     fitnessViewModel: FitnessViewModel,
+    nutritionViewModel: NutritionViewModel = hiltViewModel(),
     selectedDate: String,
     onDismiss: () -> Unit
 ) {
@@ -794,7 +799,7 @@ fun AddFoodSheet(
                     val carb = inputCarb.toDoubleOrNull() ?: 0.0
                     val fat = inputFat.toDoubleOrNull() ?: 0.0
                     val mealName = querySearch.trim().ifEmpty { "Logged Meal" }
-                    fitnessViewModel.logNutrition(cal, prot, carb, fat, date = selectedDate, name = mealName)
+                    nutritionViewModel.logNutrition(cal, prot, carb, fat, date = selectedDate, name = mealName)
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(

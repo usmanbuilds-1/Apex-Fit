@@ -33,7 +33,7 @@ object WorkoutActiveNotification {
         startTime: Long = System.currentTimeMillis()
     ): android.app.Notification {
         val intent = Intent(context, com.apexfit.app.MainActivity::class.java).apply {
-            data = android.net.Uri.parse("apexfit://screen/train")
+            putExtra("destination", "train")
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pi = android.app.PendingIntent.getActivity(

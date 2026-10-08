@@ -17,13 +17,18 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import com.apexfit.app.data.FitnessDao
 
-class HomeViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val db = com.apexfit.app.di.ServiceLocator.database(application)
-    private val dao = db.fitnessDao()
-    private val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(application)
-    private val repository = com.apexfit.app.di.ServiceLocator.repository(application)
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    application: Application,
+    private val db: AppDatabase = AppDatabase.getDatabase(application),
+    private val dao: FitnessDao = db.fitnessDao(),
+    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+) : AndroidViewModel(application) {
 
     private val _isLoggingWeight = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -49,13 +54,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Raw database/preference flows
-    private val weightFlow = com.apexfit.app.di.ServiceLocator.weightEntriesFlow
+    private val weightFlow = repository.weightEntriesFlow
 
     val targetsFlow: Flow<com.apexfit.app.data.NutritionTargets> =
-        com.apexfit.app.di.ServiceLocator.sharedTargetsFlow
+        repository.sharedTargetsFlow
 
     val richSessionsFlow: Flow<List<com.apexfit.app.utils.TrainingSession>> =
-        com.apexfit.app.di.ServiceLocator.richSessionsFlow
+        repository.richSessionsFlow
 
     // Weight logging State
     val weightHistory: StateFlow<UiState<List<UiWeightEntry>>> = repository.getWeightHistory()
@@ -64,7 +69,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     val allNutritionHistory: StateFlow<List<UiNutritionEntry>> =
-        com.apexfit.app.di.ServiceLocator.nutritionEntriesFlow
+        repository.nutritionEntriesFlow
             .map { list -> list.map { it.toUi() } }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -98,7 +103,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> =
-        com.apexfit.app.di.ServiceLocator.todayExercisesFlow
+        repository.todayExercisesFlow
 
     val units: StateFlow<String> = dataStore.unitsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "kg")
@@ -159,11 +164,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     // Readiness
     val sessionReadiness: StateFlow<UiSessionReadiness?> =
-        com.apexfit.app.di.ServiceLocator.sessionReadinessFlow
+        repository.sessionReadinessFlow
 
     // Compliance
     val complianceScores: StateFlow<UiComplianceResult> =
-        com.apexfit.app.di.ServiceLocator.complianceScoresFlow
+        repository.complianceScoresFlow
 
     val complianceScore: StateFlow<Int> = complianceScores
         .map { it.overall }
@@ -171,11 +176,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     // Home Analytics (Streaks)
     val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> =
-        com.apexfit.app.di.ServiceLocator.streakResultFlow
+        repository.streakResultFlow
 
     fun logWeight(weight: Double, date: String = getTodayDateString(), preferredUnit: String = "kg"): kotlinx.coroutines.Job? {
         if (!_isLoggingWeight.compareAndSet(false, true)) return null
-        val weightKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) weight / 2.20462 else weight
+        val weightKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) weight / AppConstants.KG_TO_LBS else weight
         val safeWeightKg = weightKg.coerceIn(
             com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG,
             com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG
@@ -224,12 +229,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {  
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {  
             try {  
-                val weights = dao.getAllWeightEntries()  
-                val nutrition = dao.getAllNutritionEntriesFlow().first()  
+                val cutoff90 = java.time.LocalDate.now().minusDays(90).toString()
+                val cutoff365 = java.time.LocalDate.now().minusDays(365).toString()
+                val weights = dao.getWeightEntriesSince(cutoff90)  
+                val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
                 val sessions = dao.getAllTrainingSessions()  
-                val exerciseSets = dao.getAllExerciseSets()
-                val personalRecords = dao.getAllPRsFlow().first()
-                val bodyMeasurements = dao.getAllBodyMeasurementsFlow().first()
+                val exerciseSets = dao.getRecentExerciseSets(cutoff365)
+                val personalRecords = dao.getRecentPersonalRecordsWithNames(limit = 500).first()
+                val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
 
                 val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
@@ -254,7 +261,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         writer.appendLine()
                         writer.appendLine("## Personal Records")
                         writer.appendLine("id,exerciseId,type,value,date")
-                        personalRecords.forEach { writer.appendLine("${csvEscape(it.id)},${csvEscape(it.exerciseId)},${csvEscape(it.type)},${it.value},${csvEscape(it.date)}") }
+                        personalRecords.forEach { writer.appendLine("${csvEscape(it.record.id)},${csvEscape(it.record.exerciseId)},${csvEscape(it.record.type)},${it.record.value},${csvEscape(it.record.date)}") }
                         writer.appendLine()
                         writer.appendLine("## Body Measurements")
                         writer.appendLine("date,bodyPart,value,unit")

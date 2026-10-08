@@ -31,15 +31,12 @@ class HomeViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        com.apexfit.app.di.ServiceLocator.reset()
         val application = ApplicationProvider.getApplicationContext<Application>()
         val db = Room.inMemoryDatabaseBuilder(application, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
         testDb = db
         AppDatabase.setTestDatabase(db)
-        com.apexfit.app.di.ServiceLocator.setDatabase(db)
-        com.apexfit.app.di.ServiceLocator.setAppScope(kotlinx.coroutines.CoroutineScope(testDispatcher), application)
     }
 
     @After
@@ -48,7 +45,6 @@ class HomeViewModelTest {
         testDb?.close()
         testDb = null
         AppDatabase.setTestDatabase(null)
-        com.apexfit.app.di.ServiceLocator.reset()
     }
 
     @Test
@@ -57,15 +53,13 @@ class HomeViewModelTest {
         val dao = testDb!!.fitnessDao()
         
         val viewModel = HomeViewModel(application)
-        testScheduler.advanceUntilIdle()
         
         // Log negative weight
         val job = viewModel.logWeight(-10.0)
         assertNotNull("logWeight job should not be null", job)
         job?.join()
-        testScheduler.advanceUntilIdle()
 
-        val entries = dao.getAllWeightEntries()
+        val entries = dao.getWeightEntries()
         assertFalse("Weight entries should not be empty", entries.isEmpty())
         val entry = entries.first()
         assertEquals("Weight should be coerced to 20.0 kg (minimum limit)", 20.0, entry.weight, 0.001)

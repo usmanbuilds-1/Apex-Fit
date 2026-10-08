@@ -22,6 +22,9 @@ object PlateCalculatorEngine {
         availablePlates: List<Double> = DEFAULT_METRIC_PLATES,
         collarWeight: Double = 0.0
     ): PlateBreakdown {
+        require(targetWeight >= 0.0) {
+            "targetWeight must be >= 0, got $targetWeight"
+        }
         val baseTareWeight = barWeight + collarWeight
         if (targetWeight <= baseTareWeight) {
             return PlateBreakdown(

@@ -14,15 +14,19 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
-class ProgressViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class ProgressViewModel @Inject constructor(
+    application: Application,
+    private val db: AppDatabase = AppDatabase.getDatabase(application),
+    private val dao: FitnessDao = db.fitnessDao(),
+    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
+    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+) : AndroidViewModel(application) {
 
-    private val db = com.apexfit.app.di.ServiceLocator.database(application)
-    private val dao = db.fitnessDao()
-    private val dataStore = com.apexfit.app.di.ServiceLocator.dataStore(application)
-    private val repository = com.apexfit.app.di.ServiceLocator.repository(application)
-
-    val allBodyMeasurements: StateFlow<UiState<List<UiBodyMeasurement>>> = dao.getAllBodyMeasurementsFlow()
+    val allBodyMeasurements: StateFlow<UiState<List<UiBodyMeasurement>>> = dao.getBodyMeasurementsFlow()
         .map { entries -> UiState.Success(entries.map { it.toUi() }) as UiState<List<UiBodyMeasurement>> }
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
@@ -36,8 +40,8 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     // 2. Monthly muscle volumes for radar chart
     val monthlyMuscleVolumes: StateFlow<UiState<Map<String, Int>>> = combine(
-        com.apexfit.app.di.ServiceLocator.recent90DaySessionsFlow,
-        com.apexfit.app.di.ServiceLocator.recent90DaySetsFlow
+        repository.recent90DaySessionsFlow,
+        repository.recent90DaySetsFlow
     ) { sessions, allSets ->
         val currentMonthPrefix = java.time.YearMonth.now().toString()
         val thisMonthSessions = sessions.filter { it.date.startsWith(currentMonthPrefix) }
@@ -58,8 +62,8 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
 
     // 3. Muscle recovery status calculation
     val muscleRecoveryStatuses: StateFlow<UiState<List<MuscleRecoveryStatus>>> = combine(
-        com.apexfit.app.di.ServiceLocator.recent90DaySessionsFlow,
-        com.apexfit.app.di.ServiceLocator.recent90DaySetsFlow
+        repository.recent90DaySessionsFlow,
+        repository.recent90DaySetsFlow
     ) { sessions, allSets ->
         UiState.Success(calculateMuscleRecovery(sessions, allSets)) as UiState<List<MuscleRecoveryStatus>>
     }
@@ -186,8 +190,9 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                     val elapsedHours = maxOf(0.0, (nowMs - lastDateMs).toDouble() / (1000.0 * 60 * 60))
                     val tau = tauForMuscle(muscle.lowercase())
 
-                    // Exponential recovery: fraction recovered = 1 - e^(-t/tau)
-                    // We express recoveryFraction as "freshness": 1.0 = just recovered, 0.0 = just trained
+                    // recoveryFraction follows 1 - exp(-t/tau):
+                    // 0.0 = just trained (fatigued), approaches 1.0 as rest time increases (fully recovered).
+                    // Higher recoveryFraction = more recovered.
                     val freshness = Math.exp(-elapsedHours / tau).toFloat().coerceIn(0f, 1f)
 
                     // 95% recovery threshold = 3 × tau (e^-3 ≈ 0.05 fatigue remaining)
@@ -197,7 +202,7 @@ class ProgressViewModel(application: Application) : AndroidViewModel(application
                     MuscleRecoveryStatus(
                         muscleGroup = muscle,
                         hoursRemaining = hoursRemaining,
-                        recoveryFraction = 1.0f - freshness,  // 0.0 = fresh, 1.0 = fatigued
+                        recoveryFraction = 1.0f - freshness,
                         lastTrainedDate = lastDateStr
                     )
                 }

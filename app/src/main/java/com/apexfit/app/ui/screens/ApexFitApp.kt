@@ -2,7 +2,6 @@ package com.apexfit.app.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.widget.Toast
 import android.os.Build
 import android.content.Context
 import android.content.pm.PackageManager
@@ -47,6 +46,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -58,16 +60,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.apexfit.app.FitnessViewModel
 import com.apexfit.app.HomeViewModel
-import com.apexfit.app.TrainViewModel
+import com.apexfit.app.PlanBuilderViewModel
+import com.apexfit.app.WorkoutExecutionViewModel
+import com.apexfit.app.RestTimerViewModel
 import com.apexfit.app.ProgressViewModel
 import com.apexfit.app.NutritionViewModel
 import com.apexfit.app.AlgorithmViewModel
 import com.apexfit.app.ui.models.*
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.AlgorithmEngine
+import com.apexfit.app.utils.GoalEngine
 import com.apexfit.app.utils.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -86,15 +91,6 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val BOTTOM_NAV_ROUTES = listOf("home", "train", "nutrition", "progress")
-
-private val BOTTOM_NAV_TABS = listOf(
-    Triple("Home", R.drawable.ic_home, 0),
-    Triple("Train", R.drawable.ic_fitness_center, 1),
-    Triple("Nutrition", R.drawable.ic_restaurant_menu, 2),
-    Triple("Progress", R.drawable.ic_insights, 3)
-)
-
 // Standard glass-like premium card modifier
 @Composable
 fun PremiumCard(
@@ -103,7 +99,7 @@ fun PremiumCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val clickableModifier = if (onClick != null) {
-        Modifier.clickable(onClick = onClick)
+        Modifier.clickable(role = Role.Button, onClick = onClick)
     } else {
         Modifier
     }
@@ -136,24 +132,26 @@ fun PremiumCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApexFitApp(
-    fitnessViewModel: FitnessViewModel = viewModel(factory = FitnessViewModel.Factory),
-    algorithmViewModel: AlgorithmViewModel = viewModel(),
-    homeViewModel: HomeViewModel = fitnessViewModel.homeVM,
-    trainViewModel: TrainViewModel = fitnessViewModel.trainVM,
-    progressViewModel: ProgressViewModel = fitnessViewModel.progressVM,
-    nutritionViewModel: NutritionViewModel = fitnessViewModel.nutritionVM
+    fitnessViewModel: FitnessViewModel = hiltViewModel(),
+    algorithmViewModel: AlgorithmViewModel = hiltViewModel(),
+    homeViewModel: HomeViewModel = hiltViewModel(),
+    planBuilderViewModel: PlanBuilderViewModel = hiltViewModel(),
+    workoutExecutionViewModel: WorkoutExecutionViewModel = hiltViewModel(),
+    restTimerViewModel: RestTimerViewModel = hiltViewModel(),
+    progressViewModel: ProgressViewModel = hiltViewModel(),
+    nutritionViewModel: NutritionViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     val isOnboarded by fitnessViewModel.isOnboarded.collectAsStateWithLifecycle()
-    val activeTab by fitnessViewModel.currentTab.collectAsStateWithLifecycle()
 
     val navController = rememberNavController()
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = currentBackStackEntry?.destination?.route
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val activeTab = TopLevelDestination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
-    val activeSession by trainViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
+    val activeSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     var hasPromptedResume by rememberSaveable { mutableStateOf(false) }
     var showResumeDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -230,7 +228,7 @@ fun ApexFitApp(
                 TextButton(
                     onClick = {
                         showResumeDialog = false
-                        trainViewModel.cancelActiveWorkout()
+                        workoutExecutionViewModel.cancelActiveWorkout()
                     }
                 ) {
                     Text(stringResource(R.string.onboarding_discard), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFFE84A4A))
@@ -261,31 +259,7 @@ fun ApexFitApp(
         )
     }
 
-    var showSettingsSheet by rememberSaveable { mutableStateOf(false) }
-
-    val startDest = remember {
-        val initialTab = fitnessViewModel.currentTab.value
-        if (initialTab in BOTTOM_NAV_ROUTES.indices) BOTTOM_NAV_ROUTES[initialTab] else "home"
-    }
-
-    LaunchedEffect(currentRoute) {
-        val tab = BOTTOM_NAV_ROUTES.indexOf(currentRoute)
-        if (tab != -1 && tab != fitnessViewModel.currentTab.value) {
-            fitnessViewModel.selectTab(tab)
-        }
-    }
-
-    LaunchedEffect(activeTab) {
-        val route = BOTTOM_NAV_ROUTES.getOrNull(activeTab) ?: return@LaunchedEffect
-        val currentDest = navController.currentBackStackEntry?.destination?.route
-        if (currentDest != null && currentDest != route) {
-            navController.navigate(route) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
-            }
-        }
-    }
+    val startDest = "home"
 
     when (isOnboarded) {
         null -> Box(
@@ -311,9 +285,8 @@ fun ApexFitApp(
             Scaffold(
             containerColor = DarkBackground,
             topBar = {
-                if (currentRoute != "plan_builder") {
+                if (currentRoute != "plan_builder" && currentRoute != "settings") {
                     CenterAlignedTopAppBar(
-                        modifier = Modifier.padding(top = 16.dp),
                         title = {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -341,7 +314,7 @@ fun ApexFitApp(
                         ),
                         actions = {
                             IconButton(
-                                onClick = { showSettingsSheet = true },
+                                onClick = { navController.navigate("settings") },
                                 modifier = Modifier.testTag("settings_button")
                             ) {
                                 Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = PrimaryText)
@@ -351,14 +324,14 @@ fun ApexFitApp(
                 }
             },
             bottomBar = {
-                if (currentRoute != "plan_builder") {
+                if (currentRoute != "plan_builder" && currentRoute != "settings") {
                     BottomNavBar(
                         activeTab = activeTab,
                         onTabSelected = { index ->
-                            trainViewModel.closeRestTimer()
-                            trainViewModel.closeRirSelector()
-                            trainViewModel.dismissSessionComplete()
-                            val route = BOTTOM_NAV_ROUTES[index]
+                            restTimerViewModel.closeRestTimer()
+                            workoutExecutionViewModel.closeRirSelector()
+                            workoutExecutionViewModel.dismissSessionComplete()
+                            val route = TopLevelDestination.entries[index].route
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                 launchSingleTop = true
@@ -380,55 +353,101 @@ fun ApexFitApp(
                     navController = navController,
                     startDestination = startDest,
                     modifier = Modifier.fillMaxSize(),
-                    enterTransition = { androidx.compose.animation.EnterTransition.None },
-                    exitTransition = { androidx.compose.animation.ExitTransition.None },
-                    popEnterTransition = { androidx.compose.animation.EnterTransition.None },
-                    popExitTransition = { androidx.compose.animation.ExitTransition.None }
+                    enterTransition = { fadeIn(tween(200)) },
+                    exitTransition = { fadeOut(tween(200)) },
+                    popEnterTransition = { fadeIn(tween(200)) },
+                    popExitTransition = { fadeOut(tween(200)) }
                 ) {
-                    composable("home") {
-                        HomeScreen(
-                            fitnessViewModel = fitnessViewModel,
-                            algorithmViewModel = algorithmViewModel,
-                            homeViewModel = homeViewModel,
-                            trainViewModel = trainViewModel,
-                            nutritionViewModel = nutritionViewModel,
-                            onNavigateTo = { tabIndex ->
-                                val route = BOTTOM_NAV_ROUTES.getOrNull(tabIndex) ?: "home"
-                                navController.navigate(route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
+                    composable(
+                        route = "home",
+                        enterTransition = { fadeIn(tween(200)) },
+                        exitTransition = { fadeOut(tween(200)) }
+                    ) {
+                        val navigateToTab: (Int) -> Unit = { tabIndex ->
+                            val route = TopLevelDestination.entries.getOrNull(tabIndex)?.route ?: TopLevelDestination.HOME.route
+                            navController.navigate(route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
                                 }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                        )
+                        }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            HomeHeaderSection(
+                                fitnessViewModel = fitnessViewModel,
+                                algorithmViewModel = algorithmViewModel,
+                                workoutExecutionViewModel = workoutExecutionViewModel,
+                                homeViewModel = homeViewModel
+                            )
+                            HomeTodayWorkoutCard(
+                                planBuilderViewModel = planBuilderViewModel,
+                                workoutExecutionViewModel = workoutExecutionViewModel,
+                                algorithmViewModel = algorithmViewModel,
+                                fitnessViewModel = fitnessViewModel,
+                                homeViewModel = homeViewModel,
+                                onNavigateTo = navigateToTab
+                            )
+                            HomeNutritionRingCard(
+                                fitnessViewModel = fitnessViewModel,
+                                homeViewModel = homeViewModel,
+                                nutritionViewModel = nutritionViewModel,
+                                planBuilderViewModel = planBuilderViewModel,
+                                algorithmViewModel = algorithmViewModel,
+                                onNavigateTo = navigateToTab
+                            )
+                            HomeWeightChartCard(
+                                fitnessViewModel = fitnessViewModel,
+                                homeViewModel = homeViewModel,
+                                onNavigateTo = navigateToTab
+                            )
+                        }
                     }
-                    composable("train") {
+                    composable(
+                        route = "train",
+                        enterTransition = { fadeIn(tween(200)) },
+                        exitTransition = { fadeOut(tween(200)) }
+                    ) {
                         TrainTab(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
-                            trainViewModel = trainViewModel,
+                            planBuilderViewModel = planBuilderViewModel,
+                            workoutExecutionViewModel = workoutExecutionViewModel,
+                            restTimerViewModel = restTimerViewModel,
                             onNavigateToPlanBuilder = {
                                 navController.navigate("plan_builder")
                             }
                         )
                     }
-                    composable("plan_builder") {
+                    composable(
+                        route = "plan_builder",
+                        enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) },
+                        exitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) }
+                    ) {
                         PlanBuilderScreen(
-                            trainViewModel = trainViewModel,
+                            planBuilderViewModel = planBuilderViewModel,
                             onNavigateBack = {
                                 navController.popBackStack()
                             }
                         )
                     }
-                    composable("nutrition") {
+                    composable(
+                        route = "nutrition",
+                        enterTransition = { fadeIn(tween(200)) },
+                        exitTransition = { fadeOut(tween(200)) }
+                    ) {
                         NutritionScreen(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             nutritionViewModel = nutritionViewModel,
                             onNavigateTo = { tabIndex ->
-                                val route = BOTTOM_NAV_ROUTES.getOrNull(tabIndex) ?: "home"
+                                val route = TopLevelDestination.entries.getOrNull(tabIndex)?.route ?: TopLevelDestination.HOME.route
                                 navController.navigate(route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
@@ -439,14 +458,18 @@ fun ApexFitApp(
                             }
                         )
                     }
-                    composable("progress") {
+                    composable(
+                        route = "progress",
+                        enterTransition = { fadeIn(tween(200)) },
+                        exitTransition = { fadeOut(tween(200)) }
+                    ) {
                         ProgressScreen(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             progressViewModel = progressViewModel,
                             homeViewModel = homeViewModel,
                             onNavigateTo = { tabIndex ->
-                                val route = BOTTOM_NAV_ROUTES.getOrNull(tabIndex) ?: "home"
+                                val route = TopLevelDestination.entries.getOrNull(tabIndex)?.route ?: TopLevelDestination.HOME.route
                                 navController.navigate(route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
@@ -457,48 +480,47 @@ fun ApexFitApp(
                             }
                         )
                     }
+                    composable("settings") {
+                        SettingsScreen(
+                            viewModel = fitnessViewModel,
+                            onNavigateBack = { navController.navigateUp() }
+                        )
+                    }
                 }
 
                 // Render smart rest timer overlay if triggered
-                val showRestOverlay by trainViewModel.showRestOverlay.collectAsStateWithLifecycle()
+                val showRestOverlay by restTimerViewModel.showRestOverlay.collectAsStateWithLifecycle()
                 if (showRestOverlay) {
-                    BackHandler { trainViewModel.closeRestTimer() }
-                    RestTimerOverlay(fitnessViewModel, trainViewModel)
+                    BackHandler { restTimerViewModel.closeRestTimer() }
+                    RestTimerOverlay(fitnessViewModel, restTimerViewModel)
                 }
 
                 // Render smart RIR selector overlay if triggered
-                val showRirOverlay by trainViewModel.showRirOverlay.collectAsStateWithLifecycle()
+                val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
                 if (showRirOverlay) {
-                    BackHandler { trainViewModel.closeRirSelector() }
-                    RirSelectorOverlay(fitnessViewModel, trainViewModel)
+                    BackHandler { workoutExecutionViewModel.closeRirSelector() }
+                    RirSelectorOverlay(
+                        fitnessViewModel = fitnessViewModel,
+                        workoutExecutionViewModel = workoutExecutionViewModel,
+                        onTriggerRestTimer = { rpe, exName, muscle, reps, setIdx, totalSets ->
+                            restTimerViewModel.triggerRestTimer(
+                                rpe = rpe,
+                                exerciseName = exName,
+                                muscleGroup = muscle,
+                                reps = reps,
+                                setIndex = setIdx,
+                                totalSets = totalSets,
+                                currentExerciseIdx = workoutExecutionViewModel.currentExerciseIdx.value
+                            )
+                        }
+                    )
                 }
 
                 // Render session complete page
-                val showComplete by trainViewModel.showSessionCompleteScreen.collectAsStateWithLifecycle()
+                val showComplete by workoutExecutionViewModel.showSessionCompleteScreen.collectAsStateWithLifecycle()
                 if (showComplete) {
-                    BackHandler { trainViewModel.dismissSessionComplete() }
-                    SessionCompleteOverlay(fitnessViewModel, trainViewModel)
-                }
-            }
-        }
-
-        if (showSettingsSheet) {
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = { showSettingsSheet = false }
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = DarkBackground,
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f)
-                ) {
-                    Box(modifier = Modifier.padding(16.dp)) {
-                        SettingsScreen(
-                            fitnessViewModel = fitnessViewModel,
-                            onNavigateTo = { tabIndex ->
-                                showSettingsSheet = false
-                            }
-                        )
-                    }
+                    BackHandler { workoutExecutionViewModel.dismissSessionComplete() }
+                    SessionCompleteOverlay(fitnessViewModel, workoutExecutionViewModel)
                 }
             }
         }
@@ -536,8 +558,8 @@ fun OnboardingScreen(
     val liveGw = goalWeightStr.replace(",", ".").toDoubleOrNull() ?: liveCw
     val liveHt = heightStr.replace(",", ".").toDoubleOrNull() ?: (if (isImperial) 70.0 else 175.0)
 
-    val liveWeightKg = if (isImperial) liveCw / 2.20462 else liveCw
-    val liveGoalKg = if (isImperial) liveGw / 2.20462 else liveGw
+    val liveWeightKg = if (isImperial) liveCw / AppConstants.KG_TO_LBS else liveCw
+    val liveGoalKg = if (isImperial) liveGw / AppConstants.KG_TO_LBS else liveGw
     val liveHeightCm = if (isImperial) liveHt * 2.54 else liveHt
     val liveSexStr = sexChoice.lowercase()
 
@@ -548,7 +570,7 @@ fun OnboardingScreen(
     }
 
     val timeline = remember(liveWeightKg, liveGoalKg, liveResolvedGoal, liveHeightCm, liveSexStr) {
-        AlgorithmEngine.calcGoalTimeline(
+        GoalEngine.calcGoalTimeline(
             currentWeightKg  = liveWeightKg,
             goalWeightKg     = liveGoalKg,
             resolvedGoal     = liveResolvedGoal,
@@ -562,6 +584,7 @@ fun OnboardingScreen(
             .fillMaxSize()
             .background(DarkBackground)
             .padding(24.dp)
+            .imePadding()
             .verticalScroll(rememberScrollState()),
         contentAlignment = Alignment.Center
     ) {
@@ -615,7 +638,8 @@ fun OnboardingScreen(
                                     if (selected) AmberAccent else BorderSubtle,
                                     RoundedCornerShape(10.dp)
                                 )
-                                .clickable {
+                                .semantics { this.selected = selected }
+                                .clickable(role = Role.Tab) {
                                     selectedUnits = unit
                                     // Reset weight/height/goalWeight to sensible defaults
                                     // for the new unit so the user isn't staring at 80 lb
@@ -642,9 +666,11 @@ fun OnboardingScreen(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { newName ->
-                        name = newName.take(40).filter { !it.isISOControl() }
+                        name = newName.take(AppConstants.MAX_NAME_LENGTH).filter { !it.isISOControl() }
                         nameError = null
                     },
+                    isError = nameError != null,
+                    supportingText = nameError?.let { { Text(it) } },
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Words,
                         imeAction = ImeAction.Next
@@ -664,7 +690,6 @@ fun OnboardingScreen(
                         unfocusedIndicatorColor = BorderSubtle
                     )
                 )
-                nameError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
 
                 // Goal Selectors
                 Text(
@@ -691,7 +716,8 @@ fun OnboardingScreen(
                                     border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
                                     shape = RoundedCornerShape(14.dp)
                                 )
-                                .clickable { goalTarget = item }
+                                .semantics { selected = isSelected }
+                                .clickable(role = Role.Tab) { goalTarget = item }
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -744,6 +770,8 @@ fun OnboardingScreen(
                                 currentWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
                                 weightError = null
                             },
+                            isError = weightError != null,
+                            supportingText = weightError?.let { { Text(it) } },
                             label = { Text(stringResource(R.string.onboarding_current_wt, unitLabel), color = SecondaryText) },
                             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -757,7 +785,6 @@ fun OnboardingScreen(
                                 unfocusedIndicatorColor = BorderSubtle
                             )
                         )
-                        weightError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         OutlinedTextField(
@@ -766,6 +793,8 @@ fun OnboardingScreen(
                                 goalWeightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
                                 goalWeightError = null
                             },
+                            isError = goalWeightError != null,
+                            supportingText = goalWeightError?.let { { Text(it) } },
                             label = { Text(stringResource(R.string.onboarding_goal_wt, unitLabel), color = SecondaryText) },
                             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -779,9 +808,6 @@ fun OnboardingScreen(
                                 unfocusedIndicatorColor = BorderSubtle
                             )
                         )
-                        goalWeightError?.let {
-                            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                        }
                     }
                 }
 
@@ -799,6 +825,8 @@ fun OnboardingScreen(
                                 heightStr = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
                                 heightError = null
                             },
+                            isError = heightError != null,
+                            supportingText = heightError?.let { { Text(it) } },
                             label = { Text(if (isImperial) "Height (in)" else stringResource(R.string.onboarding_height_cm), color = SecondaryText) },
                             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -810,7 +838,6 @@ fun OnboardingScreen(
                                 unfocusedIndicatorColor = BorderSubtle
                             )
                         )
-                        heightError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         OutlinedTextField(
@@ -819,6 +846,8 @@ fun OnboardingScreen(
                                 ageStr = it.filter { c -> c.isDigit() } // Strips spaces and hidden characters instantly
                                 ageError = null
                             },
+                            isError = ageError != null,
+                            supportingText = ageError?.let { { Text(it) } },
                             label = { Text(stringResource(R.string.onboarding_age_yrs), color = SecondaryText) },
                             textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -830,7 +859,6 @@ fun OnboardingScreen(
                                 unfocusedIndicatorColor = BorderSubtle
                             )
                         )
-                        ageError?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                     }
                 }
 
@@ -852,7 +880,8 @@ fun OnboardingScreen(
                                     border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
                                     shape = RoundedCornerShape(14.dp)
                                 )
-                                .clickable { sexChoice = item }
+                                .semantics { selected = isSelected }
+                                .clickable(role = Role.Tab) { sexChoice = item }
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -893,7 +922,8 @@ fun OnboardingScreen(
                                     if (selected) AmberAccent else BorderSubtle,
                                     RoundedCornerShape(8.dp)
                                 )
-                                .clickable { weeklyWorkoutsStr = option }
+                                .semantics { this.selected = selected }
+                                .clickable(role = Role.Tab) { weeklyWorkoutsStr = option }
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -932,26 +962,25 @@ fun OnboardingScreen(
                         val ageVal = ageStr.trim().toIntOrNull()
 
                         val isImperial = selectedUnits.lowercase() in listOf("lb", "lbs")
-                        val minWeight = if (isImperial) 44.0 else 20.0
-                        val maxWeightKg = com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG
-                        val maxWeight = if (isImperial) maxWeightKg * 2.20462 else maxWeightKg
-                        val minHeight = if (isImperial) 39.0 else 100.0
-                        val maxHeight = if (isImperial) 98.0 else 250.0
+                        val minWeight = if (isImperial) AppConstants.MIN_WEIGHT_LB else AppConstants.MIN_WEIGHT_KG
+                        val maxWeight = if (isImperial) AppConstants.MAX_WEIGHT_LB else AppConstants.MAX_WEIGHT_KG
+                        val minHeight = if (isImperial) AppConstants.MIN_HEIGHT_IN else AppConstants.MIN_HEIGHT_CM
+                        val maxHeight = if (isImperial) AppConstants.MAX_HEIGHT_IN else AppConstants.MAX_HEIGHT_CM
 
-                        if (trimmedName.isEmpty() || trimmedName.length > 50) {
-                            nameError = "Please enter a name (1–50 characters)"
+                        if (trimmedName.isEmpty() || trimmedName.length > AppConstants.MAX_NAME_LENGTH) {
+                            nameError = "Please enter a name (1–${AppConstants.MAX_NAME_LENGTH} characters)"
                         } else if (weightVal == null || weightVal < minWeight || weightVal > maxWeight) {
-                            val maxWeightDisplay = if (isImperial) (maxWeightKg * 2.20462).toInt() else maxWeightKg.toInt()
-                            val minWeightDisplay = if (isImperial) 44 else 20
+                            val maxWeightDisplay = maxWeight.toInt()
+                            val minWeightDisplay = minWeight.toInt()
                             weightError = "Please enter a valid weight ($minWeightDisplay–$maxWeightDisplay)"
                         } else if (heightVal == null || heightVal < minHeight || heightVal > maxHeight) {
-                            heightError = if (isImperial) "Please enter a valid height in in (39–98)" else "Please enter a valid height in cm (100–250)"
-                        } else if (ageVal == null || ageVal < com.apexfit.app.utils.AppConstants.MIN_AGE || ageVal > 100) {
-                            ageError = "Please enter a valid age (${com.apexfit.app.utils.AppConstants.MIN_AGE}–100)"
+                            heightError = if (isImperial) "Please enter a valid height in in (${AppConstants.MIN_HEIGHT_IN.toInt()}–${AppConstants.MAX_HEIGHT_IN.toInt()})" else "Please enter a valid height in cm (${AppConstants.MIN_HEIGHT_CM.toInt()}–${AppConstants.MAX_HEIGHT_CM.toInt()})"
+                        } else if (ageVal == null || ageVal < AppConstants.MIN_AGE || ageVal > AppConstants.MAX_AGE) {
+                            ageError = "Please enter a valid age (${AppConstants.MIN_AGE}–${AppConstants.MAX_AGE})"
                         } else {
                             val cw = weightVal
-                            val minGoalWeight = if (isImperial) 66.0 else 30.0
-                            val maxGoalWeight = if (isImperial) maxWeightKg * 2.20462 else maxWeightKg
+                            val minGoalWeight = if (isImperial) AppConstants.MIN_WEIGHT_LB else AppConstants.MIN_WEIGHT_KG
+                            val maxGoalWeight = if (isImperial) AppConstants.MAX_WEIGHT_LB else AppConstants.MAX_WEIGHT_KG
                             val gwRaw = goalWeightStr.replace(",", ".").toDoubleOrNull()
 
                             if (goalWeightStr.isNotBlank() &&
@@ -973,12 +1002,12 @@ fun OnboardingScreen(
                             val workouts = if (weeklyWorkoutsStr == "6+") 6 else
                                 weeklyWorkoutsStr.toIntOrNull() ?: 3
 
-                            val weightKg = if (isImperial) cw / 2.20462 else cw
-                            var goalKg = if (isImperial) gw / 2.20462 else gw
+                            val weightKg = if (isImperial) cw / AppConstants.KG_TO_LBS else cw
+                            var goalKg = if (isImperial) gw / AppConstants.KG_TO_LBS else gw
                             val heightCm = if (isImperial) ht * 2.54 else ht
                             val sexStr = sexChoice.lowercase()
 
-                            val timeline = AlgorithmEngine.calcGoalTimeline(
+                            val timeline = GoalEngine.calcGoalTimeline(
                                 currentWeightKg  = weightKg,
                                 goalWeightKg     = goalKg,
                                 resolvedGoal     = resolvedGoal,
@@ -990,7 +1019,7 @@ fun OnboardingScreen(
                                 goalKg = timeline.adjustedGoalWeightKg
                             }
 
-                            val finalGoalKg = if (isImperial) goalKg * 2.20462 else goalKg
+                            val finalGoalKg = if (isImperial) goalKg * AppConstants.KG_TO_LBS else goalKg
 
                             onComplete(trimmedName, resolvedGoal, cw, finalGoalKg, selectedUnits, ht, ag,
                                 sexStr, workouts)
@@ -1039,20 +1068,18 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val tabs = BOTTOM_NAV_TABS
-
-            tabs.forEach { (label, icon, index) ->
-                val isSelected = activeTab == index
+            TopLevelDestination.entries.forEach { destination ->
+                val isSelected = activeTab == destination.ordinal
                 val labelColor = if (isSelected) OrangeAccent else Color(0xFF9CA3AF)
 
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        .semantics { selected = isSelected }
                         .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onTabSelected(index) },
+                            role = Role.Tab
+                        ) { onTabSelected(destination.ordinal) },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -1060,14 +1087,14 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                         verticalArrangement = Arrangement.Center
                     ) {
                         Icon(
-                            painter = painterResource(icon),
-                            contentDescription = label,
+                            painter = painterResource(destination.iconRes),
+                            contentDescription = destination.label,
                             tint = labelColor,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = label.uppercase(),
+                            text = destination.label.uppercase(),
                             fontFamily = SyneFamily,
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
