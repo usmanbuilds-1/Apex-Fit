@@ -9,7 +9,6 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.apexfit.app.data.*
-import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.ui.models.*
 import com.apexfit.app.utils.AppConstants
@@ -24,17 +23,10 @@ import javax.inject.Inject
 @HiltViewModel
 class WorkoutExecutionViewModel @Inject constructor(
     application: Application,
-    private val db: AppDatabase = AppDatabase.getDatabase(application),
-    private val dao: FitnessDao = db.fitnessDao(),
-    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore),
-    val sessionManager: WorkoutSessionManager = WorkoutSessionManager(
-        repository = repository,
-        dataStore = dataStore,
-        scope = repository.appScope,
-        dao = dao,
-        appContext = application
-    )
+    private val dao: FitnessDao,
+    private val dataStore: DataStoreManager,
+    private val repository: FitnessRepository,
+    val sessionManager: WorkoutSessionManager
 ) : AndroidViewModel(application) {
 
     private val isCommitting = java.util.concurrent.atomic.AtomicBoolean(false)

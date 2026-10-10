@@ -16,17 +16,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import com.apexfit.app.domain.repository.FitnessRepository
-import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
 @HiltViewModel
 class AlgorithmViewModel @Inject constructor(
     application: Application,
-    private val db: AppDatabase = AppDatabase.getDatabase(application),
-    private val dao: FitnessDao = db.fitnessDao(),
-    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+    private val repository: FitnessRepository,
+    private val dataStore: DataStoreManager,
+    private val dao: FitnessDao
 ) : AndroidViewModel(application) {
 
     // ─────────────────────────────────────────────────────────────────

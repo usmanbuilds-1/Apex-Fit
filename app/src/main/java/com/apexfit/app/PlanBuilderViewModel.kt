@@ -6,7 +6,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.apexfit.app.data.*
-import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.ui.models.UiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,10 +17,10 @@ import javax.inject.Inject
 @HiltViewModel
 class PlanBuilderViewModel @Inject constructor(
     application: Application,
-    private val db: AppDatabase = AppDatabase.getDatabase(application),
-    private val dao: FitnessDao = db.fitnessDao(),
-    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+    private val db: AppDatabase,
+    private val dao: FitnessDao,
+    private val dataStore: DataStoreManager,
+    private val repository: FitnessRepository
 ) : AndroidViewModel(application) {
 
     private val sessionIdCounter = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())

@@ -4,10 +4,8 @@ package com.apexfit.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.apexfit.app.data.AppDatabase
 import com.apexfit.app.data.DataStoreManager
 import com.apexfit.app.domain.repository.FitnessRepository
-import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import com.apexfit.app.data.WeightEntry
 import com.apexfit.app.ui.models.*
 import com.apexfit.app.utils.*
@@ -24,10 +22,9 @@ import com.apexfit.app.data.FitnessDao
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     application: Application,
-    private val db: AppDatabase = AppDatabase.getDatabase(application),
-    private val dao: FitnessDao = db.fitnessDao(),
-    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+    private val repository: FitnessRepository,
+    private val dataStore: DataStoreManager,
+    private val dao: FitnessDao
 ) : AndroidViewModel(application) {
 
     private val _isLoggingWeight = java.util.concurrent.atomic.AtomicBoolean(false)

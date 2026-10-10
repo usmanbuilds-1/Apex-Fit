@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.SavedStateHandle
 import com.apexfit.app.data.*
 import com.apexfit.app.domain.repository.FitnessRepository
-import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import com.apexfit.app.ui.models.*
 import com.apexfit.app.utils.AppConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,10 +20,10 @@ import kotlinx.coroutines.Dispatchers
 class FitnessViewModel @Inject constructor(
     application: Application,
     private val savedStateHandle: SavedStateHandle,
-    private val db: AppDatabase = AppDatabase.getDatabase(application),
-    private val dao: FitnessDao = db.fitnessDao(),
-    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore)
+    private val db: AppDatabase,
+    private val dao: FitnessDao,
+    private val dataStore: DataStoreManager,
+    private val repository: FitnessRepository
 ) : AndroidViewModel(application) {
 
     // User preferences & onboarding State (Expose from preferences)

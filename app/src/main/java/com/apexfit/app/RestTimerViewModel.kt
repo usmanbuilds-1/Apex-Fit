@@ -3,11 +3,6 @@ package com.apexfit.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.apexfit.app.data.AppDatabase
-import com.apexfit.app.data.DataStoreManager
-import com.apexfit.app.data.FitnessDao
-import com.apexfit.app.data.repository.FitnessRepositoryImpl
-import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.utils.AudioService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -21,17 +16,7 @@ import javax.inject.Inject
 @HiltViewModel
 class RestTimerViewModel @Inject constructor(
     application: Application,
-    private val db: AppDatabase = AppDatabase.getDatabase(application),
-    private val dao: FitnessDao = db.fitnessDao(),
-    private val dataStore: DataStoreManager = DataStoreManager.getInstance(application),
-    private val repository: FitnessRepository = FitnessRepositoryImpl(db, dao, dataStore),
-    val sessionManager: WorkoutSessionManager = WorkoutSessionManager(
-        repository = repository,
-        dataStore = dataStore,
-        scope = repository.appScope,
-        dao = dao,
-        appContext = application
-    )
+    val sessionManager: WorkoutSessionManager
 ) : AndroidViewModel(application) {
 
     private var restTimerJob: Job? = null
