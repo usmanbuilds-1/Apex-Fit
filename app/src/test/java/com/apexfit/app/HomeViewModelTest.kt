@@ -5,7 +5,6 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.lifecycle.viewModelScope
 import com.apexfit.app.data.*
-import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -51,12 +50,9 @@ class HomeViewModelTest {
     @Test
     fun logWeight_coercesWeightToMinimum() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val db = testDb!!
-        val dao = db.fitnessDao()
-        val dataStore = DataStoreManager.getInstance(application)
-        val repository = FitnessRepositoryImpl(db, dao, dataStore)
+        val dao = testDb!!.fitnessDao()
         
-        val viewModel = HomeViewModel(application, repository, dataStore, dao)
+        val viewModel = HomeViewModel(application)
         
         // Log negative weight
         val job = viewModel.logWeight(-10.0)

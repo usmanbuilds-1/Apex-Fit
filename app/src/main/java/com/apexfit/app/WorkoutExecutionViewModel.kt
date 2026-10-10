@@ -23,9 +23,9 @@ import javax.inject.Inject
 @HiltViewModel
 class WorkoutExecutionViewModel @Inject constructor(
     application: Application,
-    private val dao: FitnessDao,
-    private val dataStore: DataStoreManager,
     private val repository: FitnessRepository,
+    private val dataStore: DataStoreManager,
+    private val dao: FitnessDao,
     val sessionManager: WorkoutSessionManager
 ) : AndroidViewModel(application) {
 

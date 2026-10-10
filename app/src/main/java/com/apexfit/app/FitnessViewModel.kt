@@ -19,11 +19,9 @@ import kotlinx.coroutines.Dispatchers
 @HiltViewModel
 class FitnessViewModel @Inject constructor(
     application: Application,
-    private val savedStateHandle: SavedStateHandle,
-    private val db: AppDatabase,
-    private val dao: FitnessDao,
+    private val repository: FitnessRepository,
     private val dataStore: DataStoreManager,
-    private val repository: FitnessRepository
+    private val dao: FitnessDao
 ) : AndroidViewModel(application) {
 
     // User preferences & onboarding State (Expose from preferences)

@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.apexfit.app.data.*
-import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -66,10 +65,7 @@ class TrainViewModelTest {
     @Test
     fun addCustomExercise_insertsExerciseRowWhenNameIsNew() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val db = testDb!!
-        val dao = db.fitnessDao()
-        val dataStore = DataStoreManager.getInstance(application)
-        val repository = FitnessRepositoryImpl(db, dao, dataStore)
+        val dao = testDb!!.fitnessDao()
 
         dao.insertWorkoutPlan(
             WorkoutPlan(
@@ -81,7 +77,7 @@ class TrainViewModelTest {
             )
         )
         
-        val viewModel = PlanBuilderViewModel(application, db, dao, dataStore, repository)
+        val viewModel = PlanBuilderViewModel(application)
         testScheduler.advanceUntilIdle()
 
         val planExercise = PlanExercise(
@@ -116,10 +112,7 @@ class TrainViewModelTest {
     @Test
     fun activatePlan_updatesActiveStatus() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val db = testDb!!
-        val dao = db.fitnessDao()
-        val dataStore = DataStoreManager.getInstance(application)
-        val repository = FitnessRepositoryImpl(db, dao, dataStore)
+        val dao = testDb!!.fitnessDao()
 
         // Clear existing plans
         dao.deactivateAllPlans()
@@ -142,7 +135,7 @@ class TrainViewModelTest {
         dao.insertWorkoutPlan(plan1)
         dao.insertWorkoutPlan(plan2)
 
-        val viewModel = PlanBuilderViewModel(application, db, dao, dataStore, repository)
+        val viewModel = PlanBuilderViewModel(application)
         testScheduler.advanceUntilIdle()
 
         viewModel.activatePlan(2020L).join()

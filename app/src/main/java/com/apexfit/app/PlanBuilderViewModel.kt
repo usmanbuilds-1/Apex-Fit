@@ -17,10 +17,9 @@ import javax.inject.Inject
 @HiltViewModel
 class PlanBuilderViewModel @Inject constructor(
     application: Application,
-    private val db: AppDatabase,
-    private val dao: FitnessDao,
+    private val repository: FitnessRepository,
     private val dataStore: DataStoreManager,
-    private val repository: FitnessRepository
+    private val dao: FitnessDao
 ) : AndroidViewModel(application) {
 
     private val sessionIdCounter = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())

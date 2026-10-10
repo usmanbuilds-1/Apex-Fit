@@ -18,6 +18,7 @@ import javax.inject.Inject
 class NutritionViewModel @Inject constructor(
     application: Application,
     private val repository: FitnessRepository,
+    private val dataStore: DataStoreManager,
     private val dao: FitnessDao
 ) : AndroidViewModel(application) {
 
