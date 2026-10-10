@@ -435,7 +435,7 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateAll8To26() {
+    fun migrateAll8To27() {
         val db = helper.createDatabase(TEST_DB, 8)
         db.close()
         val migratedDb = helper.runMigrationsAndValidate(

@@ -138,7 +138,7 @@ fun SetLoggingRow(
             )
             .padding(12.dp)
     ) {
-        Column {
+        Column(modifier = Modifier.imePadding()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
