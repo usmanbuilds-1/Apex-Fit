@@ -32,8 +32,8 @@ class MacroEngineTest {
 
     @Test
     fun loseFat_protein_derivedFromLBMAt2pt4gPerKg() {
-        // Female 60kg, 165cm: LBM = (0.252×60) + (0.473×165) - 48.3 = 47.385
-        // lose fat multiplier = 2.4 → protein = round(47.385 × 2.4) = round(113.7) = 114g
+        // Female 60kg, 165cm: LBM = (0.252×60) + (0.473×165) - 48.3 = 44.865
+        // lose fat multiplier = 2.4 → protein = round(44.865 × 2.4) = round(107.676) = 108g
         val result = MacroEngine.calcMacroTargets(
             calorieTarget = 1600,
             bodyWeightKg = 60.0,
@@ -41,7 +41,7 @@ class MacroEngineTest {
             heightCm = 165.0,
             sex = "female"
         )
-        assertEquals(114, result.protein)
+        assertEquals(108, result.protein)
     }
 
     @Test

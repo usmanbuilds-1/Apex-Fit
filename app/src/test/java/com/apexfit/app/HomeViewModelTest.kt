@@ -50,9 +50,12 @@ class HomeViewModelTest {
     @Test
     fun logWeight_coercesWeightToMinimum() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        val dao = testDb!!.fitnessDao()
+        val db = testDb!!
+        val dao = db.fitnessDao()
+        val dataStore = DataStoreManager.getInstance(application)
+        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         
-        val viewModel = HomeViewModel(application)
+        val viewModel = HomeViewModel(application, repository, dataStore, dao)
         
         // Log negative weight
         val job = viewModel.logWeight(-10.0)

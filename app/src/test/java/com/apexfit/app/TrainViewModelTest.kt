@@ -77,7 +77,9 @@ class TrainViewModelTest {
             )
         )
         
-        val viewModel = PlanBuilderViewModel(application)
+        val dataStore = DataStoreManager.getInstance(application)
+        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(testDb!!, dao, dataStore)
+        val viewModel = PlanBuilderViewModel(application, testDb!!, repository, dataStore, dao)
         testScheduler.advanceUntilIdle()
 
         val planExercise = PlanExercise(
@@ -135,7 +137,9 @@ class TrainViewModelTest {
         dao.insertWorkoutPlan(plan1)
         dao.insertWorkoutPlan(plan2)
 
-        val viewModel = PlanBuilderViewModel(application)
+        val dataStore = DataStoreManager.getInstance(application)
+        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(testDb!!, dao, dataStore)
+        val viewModel = PlanBuilderViewModel(application, testDb!!, repository, dataStore, dao)
         testScheduler.advanceUntilIdle()
 
         viewModel.activatePlan(2020L).join()

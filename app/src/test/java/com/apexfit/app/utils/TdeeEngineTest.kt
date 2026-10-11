@@ -69,16 +69,16 @@ class TdeeEngineTest {
     fun fallback_femaleVsMale_sameInputs_femaleIsLower() {
         // Female sex offset (-161) vs male (+5) → female TDEE always lower at equal inputs
         val male = TdeeEngine.calcAdaptiveTDEE(
-            oneWeight(75.0), emptyList(), 175.0, 30, "male", 3
+            weightLog = oneWeight(75.0), nutritionLog = emptyList(), heightCm = 175.0, ageYears = 30, biologicalSex = "male", weeklyWorkouts = 3
         )
         val female = TdeeEngine.calcAdaptiveTDEE(
-            oneWeight(75.0), emptyList(), 175.0, 30, "female", 3
+            weightLog = oneWeight(75.0), nutritionLog = emptyList(), heightCm = 175.0, ageYears = 30, biologicalSex = "female", weeklyWorkouts = 3
         )
         assertTrue("Female TDEE ${female.tdee} should be < male TDEE ${male.tdee}",
             female.tdee!! < male.tdee!!)
         // Difference should equal the offset difference: (5 - (-161)) × 1.375 = 166 × 1.375 = 228.25 → 228
         val diff = male.tdee!! - female.tdee!!
-        assertEquals(228, diff, 2) // ±2 for rounding
+        assertEquals(228.0, diff.toDouble(), 2.0) // ±2 for rounding
     }
 
     @Test
@@ -86,7 +86,7 @@ class TdeeEngineTest {
         // weight 80kg, height 170cm, age 35, male, 0 workouts → ×1.2
         val weight = 80.0
         val result = TdeeEngine.calcAdaptiveTDEE(
-            oneWeight(weight), emptyList(), 170.0, 35, "male", 0
+            weightLog = oneWeight(weight), nutritionLog = emptyList(), heightCm = 170.0, ageYears = 35, biologicalSex = "male", weeklyWorkouts = 0
         )
         val bmr = (10.0 * weight) + (6.25 * 170.0) - (5.0 * 35) + 5.0
         assertEquals((bmr * 1.2).roundToInt(), result.tdee)
@@ -96,7 +96,7 @@ class TdeeEngineTest {
     fun fallback_lightlyActiveMultiplier_appliesCorrectly() {
         val weight = 80.0
         val result = TdeeEngine.calcAdaptiveTDEE(
-            oneWeight(weight), emptyList(), 170.0, 35, "male", 2
+            weightLog = oneWeight(weight), nutritionLog = emptyList(), heightCm = 170.0, ageYears = 35, biologicalSex = "male", weeklyWorkouts = 2
         )
         val bmr = (10.0 * weight) + (6.25 * 170.0) - (5.0 * 35) + 5.0
         assertEquals((bmr * 1.375).roundToInt(), result.tdee)
@@ -107,7 +107,7 @@ class TdeeEngineTest {
         // 6 workouts/week → ×1.725
         val weight = 80.0
         val result = TdeeEngine.calcAdaptiveTDEE(
-            oneWeight(weight), emptyList(), 170.0, 35, "male", 6
+            weightLog = oneWeight(weight), nutritionLog = emptyList(), heightCm = 170.0, ageYears = 35, biologicalSex = "male", weeklyWorkouts = 6
         )
         val bmr = (10.0 * weight) + (6.25 * 170.0) - (5.0 * 35) + 5.0
         assertEquals((bmr * 1.725).roundToInt(), result.tdee)

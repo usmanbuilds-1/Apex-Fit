@@ -17,6 +17,7 @@ import javax.inject.Inject
 @HiltViewModel
 class PlanBuilderViewModel @Inject constructor(
     application: Application,
+    private val db: AppDatabase,
     private val repository: FitnessRepository,
     private val dataStore: DataStoreManager,
     private val dao: FitnessDao

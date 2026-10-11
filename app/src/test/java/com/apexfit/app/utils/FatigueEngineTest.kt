@@ -63,7 +63,7 @@ class FatigueEngineTest {
     @Test
     fun insufficientData_noPreAcuteWorkouts_returnsNullRatio() {
         // All sessions are within the last 5 days — no chronic baseline
-        val sessions = (1..8).map { session(daysAgo = it) }
+        val sessions = (1..8).map { session(daysAgo = (it % 5) + 1) }
         val result = FatigueEngine.calcFatigueToFitnessRatio(sessions)
         assertNull(result.ratio)
     }
