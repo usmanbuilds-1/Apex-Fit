@@ -19,7 +19,6 @@ import kotlinx.coroutines.Dispatchers
 @HiltViewModel
 class FitnessViewModel @Inject constructor(
     application: Application,
-    private val db: AppDatabase,
     private val repository: FitnessRepository,
     private val dataStore: DataStoreManager,
     private val dao: FitnessDao
@@ -144,7 +143,7 @@ class FitnessViewModel @Inject constructor(
             com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())
             try {
                 withContext(Dispatchers.IO) {
-                    db.clearAllTables()
+                    repository.clearAllData()
                     dataStore.clearAllData()
                     com.apexfit.app.utils.SeedService.seed(getApplication())
                     seedDefaultWorkoutPlan()

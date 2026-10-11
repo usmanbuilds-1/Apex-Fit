@@ -610,4 +610,11 @@ class FitnessRepositoryImpl @Inject constructor(
 
     override suspend fun getRecentPersonalRecordsWithNames(limit: Int): List<com.apexfit.app.data.PersonalRecordWithName> =
         dao.getRecentPersonalRecordsWithNames(limit).first()
+
+    override suspend fun clearAllData() = db.clearAllTables()
+
+    override suspend fun activatePlan(planId: Long) = db.withTransaction {
+        dao.deactivateAllPlans()
+        dao.activatePlan(planId)
+    }
 }

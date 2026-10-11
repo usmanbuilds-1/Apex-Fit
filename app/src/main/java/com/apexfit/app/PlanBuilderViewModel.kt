@@ -17,7 +17,6 @@ import javax.inject.Inject
 @HiltViewModel
 class PlanBuilderViewModel @Inject constructor(
     application: Application,
-    private val db: AppDatabase,
     private val repository: FitnessRepository,
     private val dataStore: DataStoreManager,
     private val dao: FitnessDao
@@ -230,12 +229,9 @@ class PlanBuilderViewModel @Inject constructor(
     }
 
     fun activatePlan(planId: Long): kotlinx.coroutines.Job = viewModelScope.launch {
-        // AUDIT FIX (BUG-V4-009): wrap in a transaction so deactivate + activate
-        // are atomic — a crash between the two calls cannot leave all plans inactive.
-        db.withTransaction {
-            dao.deactivateAllPlans()
-            dao.activatePlan(planId)
-        }
+        // Delegated to repository which wraps in db.withTransaction —
+        // deactivate + activate remain atomic (BUG-V4-009 fix preserved)
+        repository.activatePlan(planId)
     }
 
     suspend fun seedDefaultWorkoutPlan() {
