@@ -135,7 +135,8 @@ object PlateauEngine {
         var signals = 0
         if ((fatigue.ratio ?: 0.0) >= 1.3) signals++
         if (avgFeel <= 2.5) signals++
-        if (complianceScore < 60) signals++
+        // complianceScore intentionally excluded: low compliance = low training load,
+        // which is the opposite of needing a deload. Removed to avoid false positives.
         if ((fatigue.ratio ?: 0.0) >= 1.5) signals += 2
         return when {
             signals >= 3 || (fatigue.ratio ?: 0.0) >= 1.5 -> DeloadResult(

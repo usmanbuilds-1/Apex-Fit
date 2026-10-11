@@ -17,14 +17,12 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import com.apexfit.app.data.FitnessDao
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     application: Application,
     private val repository: FitnessRepository,
-    private val dataStore: DataStoreManager,
-    private val dao: FitnessDao
+    private val dataStore: DataStoreManager
 ) : AndroidViewModel(application) {
 
     private val _isLoggingWeight = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -71,7 +69,7 @@ class HomeViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val todayNutrition: StateFlow<List<UiNutritionEntry>> = _todayDate
-        .flatMapLatest { date -> dao.getNutritionForDateFlow(date) }
+        .flatMapLatest { date -> repository.getNutritionEntries(date) }
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -107,7 +105,7 @@ class HomeViewModel @Inject constructor(
 
     val completedSessions: Flow<List<com.apexfit.app.data.RichTrainingSession>> = richSessionsFlow
 
-    val exercisesForPlan: Flow<List<com.apexfit.app.data.PlanExercise>> = dao.getAllPlanExercisesFlow()
+    val exercisesForPlan: Flow<List<com.apexfit.app.data.PlanExercise>> = repository.getAllPlanExercisesFlow()
 
     val estimatedWorkoutDuration: StateFlow<Int> = combine(
         todayExercisesFlow, units
@@ -186,7 +184,7 @@ class HomeViewModel @Inject constructor(
             try {
                 _weightLogError.value = null
                 val timeStr = try { getCurrentLocalTimeString() } catch (e: Exception) { "12:00" }
-                dao.insertWeightEntry(WeightEntry(date = date, time = timeStr, weight = safeWeightKg, unit = "kg"))
+                repository.insertWeightEntry(WeightEntry(date = date, time = timeStr, weight = safeWeightKg, unit = "kg"))
                 val goal = try {
                     kotlinx.coroutines.withTimeoutOrNull(500) { dataStore.goalWeightFlow.first() }
                 } catch (e: Exception) {
@@ -209,7 +207,7 @@ class HomeViewModel @Inject constructor(
 
     fun deleteWeightById(id: Long) {
         viewModelScope.launch {
-            dao.deleteWeightEntryById(id)
+            repository.deleteWeightEntryById(id)
         }
     }
 
@@ -228,12 +226,12 @@ class HomeViewModel @Inject constructor(
             try {  
                 val cutoff90 = java.time.LocalDate.now().minusDays(90).toString()
                 val cutoff365 = java.time.LocalDate.now().minusDays(365).toString()
-                val weights = dao.getWeightEntriesSince(cutoff90)  
-                val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
-                val sessions = dao.getAllTrainingSessions()  
-                val exerciseSets = dao.getRecentExerciseSets(cutoff365)
-                val personalRecords = dao.getRecentPersonalRecordsWithNames(limit = 500).first()
-                val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
+                val weights = repository.getWeightEntriesSince(cutoff90)
+                val nutrition = repository.getNutritionEntriesSince(cutoff90)
+                val sessions = repository.getAllWorkoutSessions()
+                val exerciseSets = repository.getRecentExerciseSets(cutoff365)
+                val personalRecords = repository.getRecentPersonalRecordsWithNames(500)
+                val bodyMeasurements = repository.getBodyMeasurements().first()
 
                 val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
