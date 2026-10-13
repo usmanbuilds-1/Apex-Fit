@@ -17,9 +17,9 @@ class MacroEngineTest {
     // ── Protein targets ───────────────────────────────────────
 
     @Test
-    fun gainMuscle_protein_derivedFromLBMAt2gPerKg() {
-        // Male 80kg, 175cm: LBM = (0.407×80) + (0.267×175) - 19.2 = 60.085
-        // gain muscle multiplier = 2.0 → protein = round(60.085 × 2.0) = 120g
+    fun gainMuscle_protein_derivedFromBWAt1pt9gPerKg() {
+        // Male 80kg, gain muscle: protein = round(80 × 1.9) = 152g
+        // Source: Morton et al. (2018) — midpoint of 1.6–2.2 g/kg BW evidence range
         val result = MacroEngine.calcMacroTargets(
             calorieTarget = 2800,
             bodyWeightKg = 80.0,
@@ -27,13 +27,13 @@ class MacroEngineTest {
             heightCm = 175.0,
             sex = "male"
         )
-        assertEquals(120, result.protein)
+        assertEquals(152, result.protein)
     }
 
     @Test
-    fun loseFat_protein_derivedFromLBMAt2pt4gPerKg() {
-        // Female 60kg, 165cm: LBM = (0.252×60) + (0.473×165) - 48.3 = 44.865
-        // lose fat multiplier = 2.4 → protein = round(44.865 × 2.4) = round(107.676) = 108g
+    fun loseFat_protein_derivedFromBWAt2pt2gPerKg() {
+        // Female 60kg, lose fat: protein = round(60 × 2.2) = 132g
+        // Source: Helms et al. (2014) — midpoint of 2.0–2.4 g/kg BW evidence range
         val result = MacroEngine.calcMacroTargets(
             calorieTarget = 1600,
             bodyWeightKg = 60.0,
@@ -41,12 +41,12 @@ class MacroEngineTest {
             heightCm = 165.0,
             sex = "female"
         )
-        assertEquals(108, result.protein)
+        assertEquals(132, result.protein)
     }
 
     @Test
-    fun recomposition_protein_highestMultiplier() {
-        // Recomposition = 2.8 g/kg LBM — highest of all goals
+    fun recomposition_protein_aboveGainMuscle() {
+        // Recomp = 2.1 g/kg BW, gain muscle = 1.9 g/kg BW — recomp is higher (deficit context)
         val recomposition = MacroEngine.calcMacroTargets(2500, 75.0, "recomposition", 175.0, "male")
         val gainMuscle   = MacroEngine.calcMacroTargets(2500, 75.0, "gain muscle",   175.0, "male")
         assertTrue("Recomp protein ${recomposition.protein} should be >= gain muscle ${gainMuscle.protein}",

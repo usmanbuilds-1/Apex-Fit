@@ -240,7 +240,9 @@ class WorkoutSessionManager(
                         exerciseType = exType,
                         userBodyWeightKg = userWeight,
                         userHeightCm = userHeight,
-                        preferredUnits = exerciseUnit
+                        preferredUnits = exerciseUnit,
+                        exerciseName = ex.name  // enables Tier 1 norms for major barbell exercises
+                        // sex and experienceLevel will be wired when profile data is available here
                     )
                 }
 
