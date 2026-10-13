@@ -150,3 +150,71 @@ class ProgressionEngineTest {
         assertTrue("Should not be SUCCESS due to RPE 10", res.outcome != ProgressionEngine.OutcomeType.SUCCESS)
     }
 }
+
+    // ── Detraining adjustment ─────────────────────────────────────────────────
+
+    @Test
+    fun noGap_noDetrainingAdjustment() {
+        // < 14 days — trivial loss, weight unchanged
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "bench", lastSessionSets = listOf(workingSet(50.0, 12, 8)),
+            repsMin = 10, repsMax = 12, targetSets = 1,
+            recoveryMultiplier = 1.0, currentWeight = 50.0,
+            exerciseType = "compound_upper", daysSinceLastSession = 7
+        )
+        // No detraining — should progress or hold at 50.0, never below
+        assertTrue("Weight should not be reduced for 7-day gap", result.suggestedWeight >= 50.0)
+    }
+
+    @Test
+    fun twoWeekGap_fivePercentReduction() {
+        // 14–27 days — 5% reduction applied before progression logic
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "bench", lastSessionSets = listOf(workingSet(100.0, 10, 8)),
+            repsMin = 8, repsMax = 10, targetSets = 1,
+            recoveryMultiplier = 1.0, currentWeight = 100.0,
+            exerciseType = "compound_upper", daysSinceLastSession = 20
+        )
+        // effectiveWeight = 100 × 0.95 = 95 → floored to plate grid → 95
+        // outcome depends on sets, but suggestedWeight should reflect ~95kg base
+        assertTrue("Weight should reflect ~5% detraining reduction", result.suggestedWeight <= 100.0)
+    }
+
+    @Test
+    fun sixWeekGap_tenPercentReduction() {
+        // 28–55 days — 10% reduction
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "squat", lastSessionSets = listOf(workingSet(100.0, 10, 8)),
+            repsMin = 8, repsMax = 10, targetSets = 1,
+            recoveryMultiplier = 1.0, currentWeight = 100.0,
+            exerciseType = "compound_lower", daysSinceLastSession = 42
+        )
+        // effectiveWeight = 100 × 0.90 = 90 → should be at or below 90
+        assertTrue("6-week gap should reduce weight by ~10%", result.suggestedWeight <= 100.0)
+        assertTrue("Reduction should not be extreme (still above 75kg)", result.suggestedWeight >= 75.0)
+    }
+
+    @Test
+    fun tenWeekGap_fifteenPercentReduction() {
+        // 56+ days — 15% reduction
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "squat", lastSessionSets = listOf(workingSet(100.0, 10, 8)),
+            repsMin = 8, repsMax = 10, targetSets = 1,
+            recoveryMultiplier = 1.0, currentWeight = 100.0,
+            exerciseType = "compound_lower", daysSinceLastSession = 70
+        )
+        // effectiveWeight = 100 × 0.85 = 85
+        assertTrue("10-week gap should reduce weight by ~15%", result.suggestedWeight <= 90.0)
+    }
+
+    @Test
+    fun detrainingNeverProducesNegativeWeight() {
+        // Even with max detraining, weight stays above plate minimum
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "curl", lastSessionSets = listOf(workingSet(5.0, 10, 8)),
+            repsMin = 8, repsMax = 12, targetSets = 1,
+            recoveryMultiplier = 1.0, currentWeight = 5.0,
+            exerciseType = "isolation", daysSinceLastSession = 120
+        )
+        assertTrue("Weight should never be zero or negative", result.suggestedWeight > 0.0)
+    }

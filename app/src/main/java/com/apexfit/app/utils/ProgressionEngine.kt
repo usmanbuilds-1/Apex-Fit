@@ -204,12 +204,46 @@ data class ProgressionResult(
         weightUnit: String = "kg",
         // ACSM (2009): novices should not train to or near failure initially.
         // Novice success threshold is RPE ≤ 7 (RIR ≥ 3); intermediate+ RPE ≤ 8 (RIR ≥ 2).
-        isNovice: Boolean = false
+        isNovice: Boolean = false,
+        // Days since the user last performed this exercise. Used to apply a conservative
+        // detraining weight reduction when returning after a significant time gap.
+        // Source: Strength loss timeline — Gay et al., Hortobagyi et al., Mujika & Padilla (2000).
+        //   < 14 days : no adjustment (trivial loss ~1–2%)
+        //   14–27 days: −5%  (minor loss, conservative safety buffer)
+        //   28–55 days: −10% (moderate loss ~6–9% per Kraemer et al.)
+        //   56+ days  : −15% (significant loss; muscle memory accelerates return)
+        // Default 0 = unknown / same session — no adjustment applied.
+        daysSinceLastSession: Int = 0
     ): ProgressionResult {
         require(repsMin <= repsMax) {
             "repsMin ($repsMin) must be <= repsMax ($repsMax). Check plan configuration."
         }
-        
+
+        // ── Detraining adjustment ─────────────────────────────────────────────
+        // If the user is returning after a significant time gap, conservatively
+        // reduce the working weight before running progression logic. The reduction
+        // is applied to 'currentWeight' so all outcomes (SUCCESS, STALLED, etc.)
+        // reason against the adjusted weight, not the pre-break weight.
+        // Muscle memory means strength returns faster than it was lost, so this
+        // conservatism is intentional — it prevents injury on return and the user
+        // will progress back quickly.
+        val detrain = when {
+            daysSinceLastSession < 14 -> 1.00   // trivial loss — no change
+            daysSinceLastSession < 28 -> 0.95   // minor loss — 5% reduction
+            daysSinceLastSession < 56 -> 0.90   // moderate loss — 10% reduction
+            else                      -> 0.85   // significant loss — 15% reduction
+        }
+        val effectiveWeight = if (detrain < 1.0) {
+            val plateSize = if (exerciseType == "isolation") 1.25 else 2.5
+            (Math.floor(currentWeight * detrain / plateSize) * plateSize)
+                .coerceAtLeast(plateSize)
+        } else {
+            currentWeight
+        }
+        val detrainNote = if (detrain < 1.0)
+            " (reduced ${((1.0 - detrain) * 100).toInt()}% after ${daysSinceLastSession}d break)"
+        else ""
+
         val workingSets = lastSessionSets.filter { !it.isWarmup && it.completed }
         
         if (workingSets.isEmpty()) {
@@ -278,16 +312,16 @@ data class ProgressionResult(
         // §6.2 fix: for PLATEAU, use floor rounding (always round DOWN) to
         // guarantee at least 10% deload regardless of plate grid.
         val newWeight = when(outcome) {
-            OutcomeType.SUCCESS  -> currentWeight + roundedIncrement
-            OutcomeType.PLATEAU  -> (Math.floor(currentWeight * 0.9 / plateSize) * plateSize)
-            else                 -> currentWeight
+            OutcomeType.SUCCESS  -> effectiveWeight + roundedIncrement
+            OutcomeType.PLATEAU  -> (Math.floor(effectiveWeight * 0.9 / plateSize) * plateSize)
+            else                 -> effectiveWeight
         }
 
         val reason = when(outcome) {
-            OutcomeType.SUCCESS     -> "Hit all targets at max reps with reserve. Advancing weight."
-            OutcomeType.PROGRESSING -> "All sets within rep range. Hold weight and aim for ${repsMax} reps."
-            OutcomeType.STALLED     -> "Failed to hit minimum reps/sets target. Holding weight to retry."
-            OutcomeType.PLATEAU     -> "Multiple failed sessions. Deloading 10% to recover and break plateau."
+            OutcomeType.SUCCESS     -> "Hit all targets at max reps with reserve. Advancing weight.$detrainNote"
+            OutcomeType.PROGRESSING -> "All sets within rep range. Hold weight and aim for ${repsMax} reps.$detrainNote"
+            OutcomeType.STALLED     -> "Failed to hit minimum reps/sets target. Holding weight to retry.$detrainNote"
+            OutcomeType.PLATEAU     -> "Multiple failed sessions. Deloading 10% to recover and break plateau.$detrainNote"
         }
 
         return ProgressionResult(newWeight, outcome, reason)

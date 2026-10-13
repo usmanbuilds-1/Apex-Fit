@@ -299,7 +299,8 @@ class WorkoutSessionManager(
                     currentWeight = lastWeightLbs,  
                     exerciseType = exType,
                     consecutiveStalledSessions = stalledCount,
-                    incrementOverrideKg = metadataMap[exerciseSlug]?.defaultProgressionIncrementKg
+                    incrementOverrideKg = metadataMap[exerciseSlug]?.defaultProgressionIncrementKg,
+                    daysSinceLastSession = daysSince
                 )
                 lastProgressionResults[exerciseSlug] = progressionResult
 
