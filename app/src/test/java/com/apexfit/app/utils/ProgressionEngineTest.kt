@@ -35,28 +35,87 @@ class ProgressionEngineTest {
         assertEquals(102.5, res.newWeight, 0.01)
     }
 
+    // ── Starting weight — BW-ratio system ───────────────────────────────────────
+    //
+    // Formula: bodyWeight × categoryRatio × experienceMultiplier
+    // Source: Strength Level population norms (48M+ lifts)
+    // All values in kg (preferredUnits = "kg" avoids lbs conversion noise in tests)
+
     @Test
-    fun testCalculateBeginnerStartingWeight_normal() {
-        val res = ProgressionEngine.calculateBeginnerStartingWeight("compound_upper", 68.027, 175.0)
-        // base = 0.35. 68.027 kg * 2.205 lb/kg = 150.0 lb. 150 * 0.35 = 52.5
-        // height 175 -> no multiplier
-        // 52.5 nearest 2.5 = 52.5
-        assertEquals(52.5, res, 0.01)
+    fun startingWeight_maleNoviceCompoundUpper_correctBWRatio() {
+        // 70kg male novice, no exercise name (Tier 2)
+        // base = 70 × 0.325 × 1.0 = 22.75 → round(22.75/2.5)×2.5 = 22.5kg
+        val result = ProgressionEngine.calculateBeginnerStartingWeight(
+            exerciseType = "compound_upper", userBodyWeightKg = 70.0,
+            userHeightCm = 175.0, preferredUnits = "kg"
+        )
+        assertEquals(22.5, result, 0.01)
     }
 
     @Test
-    fun testCalculateBeginnerStartingWeight_edgeCase_zero() {
-        val res = ProgressionEngine.calculateBeginnerStartingWeight("", 0.0, 0.0)
-        assertEquals(10.0, res, 0.01)
+    fun startingWeight_maleNoviceIsolation_scaledByBodyWeight() {
+        // 70kg male novice isolation: 70 × 0.080 × 1.0 = 5.6 → 5.0kg
+        val result = ProgressionEngine.calculateBeginnerStartingWeight(
+            exerciseType = "isolation", userBodyWeightKg = 70.0,
+            userHeightCm = 175.0, preferredUnits = "kg"
+        )
+        assertEquals(5.0, result, 0.01)
     }
 
     @Test
-    fun testCalculateBeginnerStartingWeight_boundary_height() {
-        val res = ProgressionEngine.calculateBeginnerStartingWeight("compound_upper", 68.027, 185.1)
-        // base = 0.35. 150 * 0.35 = 52.5
-        // height > 185 -> * 0.9 = 47.25
-        // 47.25 nearest 2.5: 47.25 / 2.5 = 18.9 -> 19 -> 19 * 2.5 = 47.5
-        assertEquals(47.5, res, 0.01)
+    fun startingWeight_intermediateHigherThanNovice() {
+        val novice = ProgressionEngine.calculateBeginnerStartingWeight(
+            "compound_upper", 70.0, 175.0, preferredUnits = "kg",
+            experienceLevel = "novice"
+        )
+        val intermediate = ProgressionEngine.calculateBeginnerStartingWeight(
+            "compound_upper", 70.0, 175.0, preferredUnits = "kg",
+            experienceLevel = "intermediate"
+        )
+        assertTrue("Intermediate starts heavier than novice", intermediate > novice)
+    }
+
+    @Test
+    fun startingWeight_tier1BenchPress_usesResearchNorm() {
+        // Tier 1: 80kg male novice bench press
+        // base = 80 × 0.325 × 1.0 = 26.0 → round(26/2.5)×2.5 = 25.0kg
+        val result = ProgressionEngine.calculateBeginnerStartingWeight(
+            exerciseType = "compound_upper", userBodyWeightKg = 80.0,
+            userHeightCm = 175.0, preferredUnits = "kg",
+            exerciseName = "Bench Press", sex = "male", experienceLevel = "novice"
+        )
+        assertEquals(25.0, result, 0.01)
+    }
+
+    @Test
+    fun startingWeight_femaleStartsLighterThanMale() {
+        val male = ProgressionEngine.calculateBeginnerStartingWeight(
+            "compound_upper", 70.0, 175.0, preferredUnits = "kg", sex = "male"
+        )
+        val female = ProgressionEngine.calculateBeginnerStartingWeight(
+            "compound_upper", 70.0, 165.0, preferredUnits = "kg", sex = "female"
+        )
+        assertTrue("Female starts lighter than male at same BW", female < male)
+    }
+
+    @Test
+    fun startingWeight_heavierPersonStartsHeavier() {
+        val light = ProgressionEngine.calculateBeginnerStartingWeight(
+            "isolation", 55.0, 165.0, preferredUnits = "kg", sex = "male"
+        )
+        val heavy = ProgressionEngine.calculateBeginnerStartingWeight(
+            "isolation", 90.0, 180.0, preferredUnits = "kg", sex = "male"
+        )
+        assertTrue("Heavier person gets higher starting weight", heavy > light)
+    }
+
+    @Test
+    fun startingWeight_neverZeroOrNegative() {
+        val result = ProgressionEngine.calculateBeginnerStartingWeight(
+            exerciseType = "isolation", userBodyWeightKg = 0.0,
+            userHeightCm = 0.0, preferredUnits = "kg"
+        )
+        assertTrue("Starting weight is always positive", result > 0.0)
     }
 
     @Test
