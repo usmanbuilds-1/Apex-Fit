@@ -152,6 +152,9 @@ class WorkoutSessionManager(
             val suggestionsMap = mutableMapOf<String, Double>()
             val contextLinesMap = mutableMapOf<String, String>()
 
+            // Read user profile from DataStore for science-grounded starting weight estimates
+            val userSex = dataStore.sexFlow.firstOrNull() ?: "male"
+
             val today = com.apexfit.app.utils.DateTimeUtils.todayDateString()
 
         // Calculate per-muscle readiness
@@ -241,8 +244,9 @@ class WorkoutSessionManager(
                         userBodyWeightKg = userWeight,
                         userHeightCm = userHeight,
                         preferredUnits = exerciseUnit,
-                        exerciseName = ex.name  // enables Tier 1 norms for major barbell exercises
-                        // sex and experienceLevel will be wired when profile data is available here
+                        exerciseName = ex.name,
+                        sex = userSex
+                        // experienceLevel: defaults to "novice" until onboarding captures it
                     )
                 }
 
