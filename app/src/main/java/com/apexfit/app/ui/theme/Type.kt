@@ -10,11 +10,13 @@ import com.apexfit.app.R
 
 // ─── Font Families ────────────────────────────────────────────────────────────
 
+// Three weights only: Regular → Medium → Bold.
+// Contrast comes from the gap between Medium and Bold, not from gradations.
+// inter_semibold.ttf stays on disk but is not loaded — do not re-add.
 val InterFamily = FontFamily(
-    Font(R.font.inter_regular,  FontWeight.Normal),
-    Font(R.font.inter_medium,   FontWeight.Medium),
-    Font(R.font.inter_semibold, FontWeight.SemiBold),
-    Font(R.font.inter_bold,     FontWeight.Bold)
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium,  FontWeight.Medium),
+    Font(R.font.inter_bold,    FontWeight.Bold)
 )
 
 // Display use only: hero headlines ("Today, we train.")
@@ -72,14 +74,14 @@ val Typography = Typography(
     // headlineSmall — secondary card headings
     headlineSmall = TextStyle(
         fontFamily = InterFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         fontSize   = 18.sp,
         lineHeight = 24.sp
     ),
     // titleLarge — exercise names: "Bodyweight squat"
     titleLarge = TextStyle(
         fontFamily = InterFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         fontSize   = 16.sp,
         lineHeight = 22.sp
     ),

@@ -6,16 +6,24 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 // ─── Shape Scale ──────────────────────────────────────────────────────────────
-// Minimal, intentional radius system. Five levels + Full.
-// Never use arbitrary radius values in screen code — pick the nearest level.
+// Deliberately NOT on the 4dp grid. Irregular values read as designed, not
+// auto-generated. Each level has one job — don't mix them.
+//
+//   extraSmall  6dp  → tags, muscle chips, micro-badges
+//   small      10dp  → input fields, toggle pills, inline selectors
+//   medium     14dp  → nested/inner cards (exercise preview panel)
+//   large      18dp  → primary cards (workout card, nutrition card)
+//   extraLarge 20dp  → bottom sheets, dialogs, drawers
+//
+// The gaps are +4, +4, +4, +2 — close but not mechanical.
 
 val ApexShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),   // tags, chips, small badges
-    small      = RoundedCornerShape(8.dp),   // input fields, inline pills
-    medium     = RoundedCornerShape(12.dp),  // exercise preview cards, inner panels
-    large      = RoundedCornerShape(16.dp),  // primary cards (workout, nutrition)
-    extraLarge = RoundedCornerShape(24.dp)   // bottom sheets, dialogs
+    extraSmall = RoundedCornerShape(6.dp),
+    small      = RoundedCornerShape(10.dp),
+    medium     = RoundedCornerShape(14.dp),
+    large      = RoundedCornerShape(18.dp),
+    extraLarge = RoundedCornerShape(20.dp)
 )
 
-// Circular — avatars, readiness ring, RPE selector dots
+// Circular — avatar, readiness ring, RPE dots
 val ApexShapeFull = CircleShape
