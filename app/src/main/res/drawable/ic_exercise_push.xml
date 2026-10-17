@@ -1,0 +1,48 @@
+<!-- Push-up / horizontal push silhouette — white figure, 64×64dp viewport -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+
+    <!-- Head -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,26 a5,5 0 1,1 0.001,0 Z" />
+
+    <!-- Torso — plank position, slightly elevated -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,28 Q32,30 48,32 Q50,31 51,29 Q50,27 48,28 Q32,26 17,25 Z" />
+
+    <!-- Arms — pushing up, slightly bent -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M21,27 L20,38" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M30,28 L30,40" />
+
+    <!-- Hands on ground -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,38 L24,38 L24,41 L17,41 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M27,40 L34,40 L34,43 L27,43 Z" />
+
+    <!-- Legs + feet -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M46,30 Q50,34 52,42 L56,42 L54,30 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,42 L58,42 L58,46 L50,46 Z" />
+
+</vector>

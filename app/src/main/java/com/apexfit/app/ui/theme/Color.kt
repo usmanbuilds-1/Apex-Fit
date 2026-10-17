@@ -36,9 +36,9 @@ object ApexColors {
     val TextPrimary     = White          // Headlines, primary body
     val TextSecondary   = Grey400        // Supporting copy, muscle groups, meta
     val TextTertiary    = Grey600        // Eyebrow labels, captions
-    val TextBrand       = Teal500        // "Ready", links, accent inline text
-
     // Semantic status
+    // Note: teal inline text ("Ready", link labels) uses Primary directly.
+    // No TextBrand alias — teal text is a sparse signal, not decoration to scatter.
     val Success         = Teal500        // Maps to Primary in this design
     val Warning         = Amber500       // Deload suggestions, caution states
     val Error           = Red500         // Errors, destructive actions

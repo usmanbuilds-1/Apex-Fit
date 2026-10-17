@@ -40,9 +40,9 @@ val Typography = Typography(
         lineHeight = 44.sp,
         letterSpacing = (-0.5).sp
     ),
-    // displayMedium — large section headings
+    // displayMedium — large section headings (Inter, not Syne — Syne is for displayLarge only)
     displayMedium = TextStyle(
-        fontFamily = SyneFamily,
+        fontFamily = InterFamily,
         fontWeight = FontWeight.Bold,
         fontSize   = 30.sp,
         lineHeight = 36.sp,
@@ -126,21 +126,23 @@ val Typography = Typography(
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp
     ),
-    // labelMedium — section eyebrows: "TODAY'S WORKOUT"
+    // labelMedium — meta text, section headers
+    // Note: do NOT apply text-transform or letter-spacing at this level.
+    // Uppercase + tracking is a per-use-site decision, not a system default.
     labelMedium = TextStyle(
         fontFamily = InterFamily,
         fontWeight = FontWeight.Medium,
         fontSize   = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.8.sp
+        lineHeight = 16.sp
     ),
-    // labelSmall — micro eyebrows: "FIRST EXERCISE", "YOUR TRAINING, IN RHYTHM"
+    // labelSmall — micro meta, captions
+    // Same rule: no baked-in tracking. Apply at the use site only when
+    // uppercase + wide tracking genuinely serves the content.
     labelSmall = TextStyle(
         fontFamily = InterFamily,
         fontWeight = FontWeight.Medium,
         fontSize   = 10.sp,
-        lineHeight = 14.sp,
-        letterSpacing = 1.0.sp
+        lineHeight = 14.sp
     )
 )
 
@@ -164,11 +166,8 @@ object ApexTextStyles {
         fontSize      = 22.sp,
         lineHeight    = 28.sp
     )
-    // Inline data: "108 / 145 g", "~ 48 min"
-    val dataSmall = TextStyle(
-        fontFamily    = JetBrainsMonoFamily,
-        fontWeight    = FontWeight.Normal,
-        fontSize      = 13.sp,
-        lineHeight    = 18.sp
-    )
+    // NOTE: there is intentionally no dataSmall.
+    // Inline numbers like "108 / 145 g" or "~ 48 min" use bodySmall (Inter).
+    // Monospace is a functional choice for primary readouts where fixed-width
+    // prevents layout shift as live values update — not a decoration.
 }
