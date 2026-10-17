@@ -2,48 +2,78 @@ package com.apexfit.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// --- LEGACY & SCREEN TOKENS ---
-val DarkBackground  = Color(0xFF0A0A0F)
-val DarkRaised      = Color(0xFF15151C)
-val DarkCardSurface = Color(0xFF1D1D26)
-val AmberAccent     = Color(0xFFFFB000)
-val BlueAccent      = Color(0xFF3B82F6) // Required by ProgressScreen.kt (fatigue gauge & labels)
-val RedAccent       = Color(0xFFE84A4A)
-val GreenAccent     = Color(0xFF4CAF80)
-val IndigoAccent    = Color(0xFF6366F1) // Required by HomeScreenComponents.kt
-val PrimaryText     = Color(0xFFF5F5F5)
-val SecondaryText   = Color(0xFFA7A7B3)
-val MutedText       = Color(0xFF8B8B9A) // Required by TrainScreen.kt
-val BorderBright    = Color(0xFF3A3A47)
-val BorderSubtle    = Color(0xFF292934)
+// ─── Base Palette ─────────────────────────────────────────────────────────────
+// Raw hex values. Never reference these in UI code — use ApexColors.* tokens.
 
-// --- ALTERNATE LEGACY TOKENS ---
-val OrangeAccent    = Color(0xFFFF4500)
-val BackgroundDark  = Color(0xFF090B0D)
-val SurfaceDark     = Color(0xFF13171B)
-val CardDark        = Color(0xFF1A1A2E)
-val DividerDark     = Color(0xFF222830)
-val GreenSuccess    = Color(0xFF00FF66)
-val RedError        = Color(0xFFFF2A4B)
+private val Teal500  = Color(0xFF00D4A0)   // Brand teal-mint
+private val Teal300  = Color(0xFF33DDB4)   // Pressed / lighter teal
+private val Navy900  = Color(0xFF080F0E)   // App background
+private val Navy800  = Color(0xFF0E1C19)   // Card surface
+private val Navy700  = Color(0xFF142421)   // Elevated surface (nested panels)
+private val White    = Color(0xFFFFFFFF)
+private val Grey400  = Color(0xFF8A9B98)   // Secondary text
+private val Grey600  = Color(0xFF4D6360)   // Tertiary / eyebrow text
+private val Amber500 = Color(0xFFF59E0B)   // Warnings / deload
+private val Red500   = Color(0xFFEF4444)   // Errors / destructive
+private val Blue500  = Color(0xFF3B82F6)   // Charts / fatigue gauge (kept)
 
-// --- CYBER-INDUSTRIAL DESIGN SYSTEM ---
-object CyberTheme {
-    val ChassisBackground  = Color(0xFF090B0D)
-    val ModuleSurface      = Color(0xFF13171B)
-    val ModuleSurfaceHigh  = Color(0xFF1B2026)
-    val RecessedPit        = Color(0xFF07080A)
+// ─── Semantic Tokens ──────────────────────────────────────────────────────────
+// All new UI code must use these. Named by purpose, never by raw color value.
 
-    val RimHighlight       = Color(0xFF2E3640)
-    val ReticleBorder      = Color(0xFF222830)
-    val TechnicalCrosshair = Color(0xFF3B4450)
+object ApexColors {
 
-    val ApexOrange         = Color(0xFFFF4500)
-    val CyberYellow        = Color(0xFFFFD000)
-    val AcidLime           = Color(0xFF00FF66)
-    val TelemetryCyan      = Color(0xFF00E5FF)
-    val HazardRed          = Color(0xFFFF2A4B)
+    // Surfaces
+    val Background      = Navy900        // Screen background
+    val Surface         = Navy800        // First-level cards, bottom nav
+    val SurfaceElevated = Navy700        // Nested cards, inner panels
 
-    val TextPrimary        = Color(0xFFF2F4F7)
-    val TextSecondary      = Color(0xFF8B949E)
-    val TextTertiary       = Color(0xFF6B7280)
+    // Brand
+    val Primary         = Teal500        // CTA, active nav, accent rings, links
+    val PrimaryVariant  = Teal300        // Pressed / hover states on Primary
+    val OnPrimary       = Navy900        // Text / icons on solid Primary fill
+
+    // Text
+    val TextPrimary     = White          // Headlines, primary body
+    val TextSecondary   = Grey400        // Supporting copy, muscle groups, meta
+    val TextTertiary    = Grey600        // Eyebrow labels, captions
+    val TextBrand       = Teal500        // "Ready", links, accent inline text
+
+    // Semantic status
+    val Success         = Teal500        // Maps to Primary in this design
+    val Warning         = Amber500       // Deload suggestions, caution states
+    val Error           = Red500         // Errors, destructive actions
+    val Info            = Blue500        // Progress charts, fatigue gauge
+
+    // Borders
+    val BorderSubtle    = Color(0x14FFFFFF)  //  8% white — between sections
+    val BorderDefault   = Color(0x29FFFFFF)  // 16% white — card outlines
+
+    // Overlays
+    val ScrimHero       = Color(0xCC080F0E)  // 80% Navy — hero image gradient
+    val ScrimBottom     = Color(0xE6080F0E)  // 90% Navy — bottom sheet scrim
 }
+
+// ─── Legacy Aliases ───────────────────────────────────────────────────────────
+// Kept so existing screens compile while they are rebuilt in Phase 7.
+// Do not use in new code — reference ApexColors.* directly.
+
+val DarkBackground  = ApexColors.Background
+val DarkRaised      = ApexColors.SurfaceElevated
+val DarkCardSurface = ApexColors.Surface
+val AmberAccent     = ApexColors.Warning
+val BlueAccent      = ApexColors.Info
+val RedAccent       = ApexColors.Error
+val GreenAccent     = ApexColors.Primary
+val IndigoAccent    = Teal300            // remapped: indigo → brand teal
+val PrimaryText     = ApexColors.TextPrimary
+val SecondaryText   = ApexColors.TextSecondary
+val MutedText       = Grey400            // slightly lighter than Tertiary
+val BorderBright    = ApexColors.BorderDefault
+val BorderSubtle    = ApexColors.BorderSubtle
+val OrangeAccent    = ApexColors.Warning // remapped: orange → amber warning
+val BackgroundDark  = ApexColors.Background
+val SurfaceDark     = ApexColors.Surface
+val CardDark        = ApexColors.Surface
+val DividerDark     = ApexColors.BorderSubtle
+val GreenSuccess    = ApexColors.Primary
+val RedError        = ApexColors.Error

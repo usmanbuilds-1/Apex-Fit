@@ -20,13 +20,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.apexfit.app.ui.theme.CyberTheme
+import com.apexfit.app.ui.theme.ApexColors
 
 @Composable
 fun TactileButton(
     text: String,
     subText: String? = null,
-    accentColor: Color = CyberTheme.ApexOrange,
+    accentColor: Color = ApexColors.Primary,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -47,7 +47,7 @@ fun TactileButton(
                 .fillMaxWidth()
                 .padding(top = topPadding)
                 .background(accentColor, RoundedCornerShape(6.dp))
-                .border(1.dp, CyberTheme.RimHighlight, RoundedCornerShape(6.dp))
+                .border(1.dp, ApexColors.BorderDefault, RoundedCornerShape(6.dp))
                 .then(
                     if (isInteractive) {
                         Modifier.clickable(
