@@ -125,8 +125,9 @@ fun HomeScreen(
                     sessionFocus    = todaySession?.focus ?: "",
                     durationMinutes = estimatedDuration,
                     exercises       = todayExercises,
+                    hasSession      = todaySession != null,
                     onStartWorkout  = {
-                        workoutExecutionViewModel.startSession()
+                        todaySession?.let { workoutExecutionViewModel.startWorkoutSession(it) }
                         onNavigateTo(1) // Train tab
                     }
                 )
@@ -439,6 +440,7 @@ private fun TodayWorkoutCard(
     sessionFocus:    String,
     durationMinutes: Int,
     exercises:       List<PlanExercise>,
+    hasSession:      Boolean,
     onStartWorkout:  () -> Unit
 ) {
     val firstExercise = exercises.firstOrNull()
@@ -502,13 +504,15 @@ private fun TodayWorkoutCard(
             ExercisePreviewRow(exercise = firstExercise)
         }
 
-        // Start workout CTA
+        // Start workout CTA — shapeSmall (12dp) per v2 button spec; dimmed on rest days
+        val ctaBg = if (hasSession) ApexColors.Primary else ApexColors.SurfaceRaised
+        val ctaFg = if (hasSession) ApexColors.OnGlow   else ApexColors.TextTertiary
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(MaterialTheme.shapes.medium)   // 14dp
-                .background(ApexColors.Primary)
-                .clickable(onClick = onStartWorkout)
+                .clip(MaterialTheme.shapes.small)
+                .background(ctaBg)
+                .clickable(enabled = hasSession, onClick = onStartWorkout)
                 .padding(vertical = 16.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -516,24 +520,28 @@ private fun TodayWorkoutCard(
                 horizontalArrangement = Arrangement.spacedBy(ApexSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_play),
-                    contentDescription = null,
-                    tint = ApexColors.OnPrimary,
-                    modifier = Modifier.size(16.dp)
-                )
+                if (hasSession) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_play),
+                        contentDescription = null,
+                        tint = ctaFg,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
                 Text(
-                    text = "Start workout",
+                    text = if (hasSession) "Start workout" else "Rest day",
                     style = MaterialTheme.typography.labelLarge,
-                    color = ApexColors.OnPrimary
+                    color = ctaFg
                 )
-                Spacer(Modifier.width(ApexSpacing.xxl))
-                Icon(
-                    painter = painterResource(R.drawable.ic_arrow_right),
-                    contentDescription = null,
-                    tint = ApexColors.OnPrimary,
-                    modifier = Modifier.size(16.dp)
-                )
+                if (hasSession) {
+                    Spacer(Modifier.width(ApexSpacing.xxl))
+                    Icon(
+                        painter = painterResource(R.drawable.ic_arrow_right),
+                        contentDescription = null,
+                        tint = ctaFg,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }
@@ -609,8 +617,10 @@ private fun ExercisePreviewRow(exercise: PlanExercise) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            val weightDisplay = if (exercise.weight == 0.0) "BW"
+                               else "%.4g %s".format(exercise.weight, exercise.weightUnit)
             Text(
-                text = "${exercise.sets} × ${exercise.repsMin}–${exercise.repsMax} reps  ·  ${exercise.weight} ${exercise.weightUnit}",
+                text = "${exercise.sets} × ${exercise.repsMin}–${exercise.repsMax} reps  ·  $weightDisplay",
                 style = MaterialTheme.typography.bodySmall,
                 color = ApexColors.TextSecondary
             )
