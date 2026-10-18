@@ -285,7 +285,7 @@ fun ApexFitApp(
             Scaffold(
             containerColor = DarkBackground,
             topBar = {
-                if (currentRoute != "plan_builder" && currentRoute != "settings") {
+                if (currentRoute != "plan_builder" && currentRoute != "settings" && currentRoute != "home") {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(
@@ -373,41 +373,12 @@ fun ApexFitApp(
                                 restoreState = true
                             }
                         }
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp, vertical = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            HomeHeaderSection(
-                                fitnessViewModel = fitnessViewModel,
-                                algorithmViewModel = algorithmViewModel,
-                                workoutExecutionViewModel = workoutExecutionViewModel,
-                                homeViewModel = homeViewModel
-                            )
-                            HomeTodayWorkoutCard(
-                                planBuilderViewModel = planBuilderViewModel,
-                                workoutExecutionViewModel = workoutExecutionViewModel,
-                                algorithmViewModel = algorithmViewModel,
-                                fitnessViewModel = fitnessViewModel,
-                                homeViewModel = homeViewModel,
-                                onNavigateTo = navigateToTab
-                            )
-                            HomeNutritionRingCard(
-                                fitnessViewModel = fitnessViewModel,
-                                homeViewModel = homeViewModel,
-                                nutritionViewModel = nutritionViewModel,
-                                planBuilderViewModel = planBuilderViewModel,
-                                algorithmViewModel = algorithmViewModel,
-                                onNavigateTo = navigateToTab
-                            )
-                            HomeWeightChartCard(
-                                fitnessViewModel = fitnessViewModel,
-                                homeViewModel = homeViewModel,
-                                onNavigateTo = navigateToTab
-                            )
-                        }
+                        HomeScreen(
+                            homeViewModel = homeViewModel,
+                            planBuilderViewModel = planBuilderViewModel,
+                            workoutExecutionViewModel = workoutExecutionViewModel,
+                            onNavigateTo = navigateToTab
+                        )
                     }
                     composable(
                         route = "train",
