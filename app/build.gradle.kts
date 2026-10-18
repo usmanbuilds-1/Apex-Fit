@@ -133,6 +133,9 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     "ksp"(libs.androidx.room.compiler)
 
+    // Image loading — hero photo and exercise thumbnails
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     implementation("com.google.dagger:hilt-android:2.59.2")
     ksp("com.google.dagger:hilt-compiler:2.59.2")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
