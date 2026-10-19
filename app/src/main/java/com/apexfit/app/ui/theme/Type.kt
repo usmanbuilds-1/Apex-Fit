@@ -17,42 +17,27 @@ import com.apexfit.app.R
 //   Inter       — works     (UI and body — neutral, effortless at every size)
 //   JetBrains   — counts    (all data — the signature number face)
 //
-// FONT FILE STATUS (res/font/):
-//   ✓ inter_regular.ttf      (400)
-//   ✓ inter_medium.ttf       (500)
-//   ✓ inter_semibold.ttf     (600)
-//   ✓ inter_bold.ttf         (700)
-//   ✗ inter_extrabold.ttf    (800) — MISSING: maps to Bold until added
-//   ✓ syne_bold.ttf          (700)
-//   ✗ syne_extrabold.ttf     (800) — MISSING: maps to Bold until added
-//   ✓ jetbrains_mono_regular.ttf (400)
-//   ✗ jetbrains_mono_medium.ttf  (500) — MISSING: maps to Regular
-//   ✗ jetbrains_mono_semibold.ttf (600) — MISSING: maps to Regular
-//   ✗ jetbrains_mono_bold.ttf (700) — MISSING: maps to Regular
-//
-// To complete the scale: download the missing weights from fonts.google.com and
-// add them to app/src/main/res/font/, then wire them below.
+// All 11 font files present in res/font/. No fallbacks, no stubs.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 val InterFamily = FontFamily(
-    Font(R.font.inter_regular,  FontWeight.Normal),
-    Font(R.font.inter_medium,   FontWeight.Medium),
-    Font(R.font.inter_semibold, FontWeight.SemiBold),
-    Font(R.font.inter_bold,     FontWeight.Bold),
-    Font(R.font.inter_bold,     FontWeight.ExtraBold), // fallback until inter_extrabold.ttf added
-    Font(R.font.inter_bold,     FontWeight.Black)
+    Font(R.font.inter_regular,   FontWeight.Normal),
+    Font(R.font.inter_medium,    FontWeight.Medium),
+    Font(R.font.inter_semibold,  FontWeight.SemiBold),
+    Font(R.font.inter_bold,      FontWeight.Bold),
+    Font(R.font.inter_extrabold, FontWeight.ExtraBold)
 )
 
 val SyneFamily = FontFamily(
-    Font(R.font.syne_bold, FontWeight.Bold),
-    Font(R.font.syne_bold, FontWeight.ExtraBold) // fallback until syne_extrabold.ttf added
+    Font(R.font.syne_bold,      FontWeight.Bold),
+    Font(R.font.syne_extrabold, FontWeight.ExtraBold)
 )
 
 val JetBrainsMonoFamily = FontFamily(
-    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
-    Font(R.font.jetbrains_mono_regular, FontWeight.Medium),   // fallback
-    Font(R.font.jetbrains_mono_regular, FontWeight.SemiBold), // fallback
-    Font(R.font.jetbrains_mono_regular, FontWeight.Bold)      // fallback
+    Font(R.font.jetbrains_mono_regular,  FontWeight.Normal),
+    Font(R.font.jetbrains_mono_medium,   FontWeight.Medium),
+    Font(R.font.jetbrains_mono_semibold, FontWeight.SemiBold),
+    Font(R.font.jetbrains_mono_bold,     FontWeight.Bold)
 )
 
 // ─── M3 Typography Scale ──────────────────────────────────────────────────────

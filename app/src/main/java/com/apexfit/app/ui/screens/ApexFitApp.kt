@@ -1034,23 +1034,21 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                 .fillMaxWidth()
                 .height(64.dp)
                 .clip(RoundedCornerShape(32.dp))
-                .background(DarkCardSurface)
-                .border(0.5.dp, BorderSubtle, RoundedCornerShape(32.dp)),
+                .background(ApexColors.Surface)
+                .border(0.5.dp, ApexColors.BorderSubtle, RoundedCornerShape(32.dp)),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             TopLevelDestination.entries.forEach { destination ->
                 val isSelected = activeTab == destination.ordinal
-                val labelColor = if (isSelected) OrangeAccent else Color(0xFF9CA3AF)
+                val itemColor = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary
 
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .semantics { selected = isSelected }
-                        .clickable(
-                            role = Role.Tab
-                        ) { onTabSelected(destination.ordinal) },
+                        .clickable(role = Role.Tab) { onTabSelected(destination.ordinal) },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -1060,18 +1058,29 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                         Icon(
                             painter = painterResource(destination.iconRes),
                             contentDescription = destination.label,
-                            tint = labelColor,
+                            tint = itemColor,
                             modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = destination.label.uppercase(),
-                            fontFamily = SyneFamily,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                            color = labelColor,
-                            letterSpacing = 0.8.sp
-                        )
+                        if (isSelected) {
+                            Spacer(Modifier.height(3.dp))
+                            // Active indicator pip — the signal dot
+                            Box(
+                                Modifier
+                                    .size(4.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(ApexColors.Primary)
+                            )
+                        } else {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = destination.label.uppercase(),
+                                fontFamily = InterFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = itemColor,
+                                letterSpacing = 0.4.sp
+                            )
+                        }
                     }
                 }
             }

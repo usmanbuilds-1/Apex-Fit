@@ -217,9 +217,10 @@ class WorkoutSessionManager(
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
         }
-        val lastSets = dao.getLastSetsWithDateForExercises(ids)
+        // Query now returns only the most recent session's sets per exercise (fixed in DAO).
+        // Group by exerciseId — each value is the full set list from that session.
+        val lastSessionSetsMap = dao.getLastSetsWithDateForExercises(ids)
             .groupBy { it.exerciseId }
-            .mapValues { it.value.first() }
 
         val stalledCounts = try {
             dao.getStalledCountsForExercises(ids).associate { it.exerciseId to it.stalledCount }
@@ -230,7 +231,8 @@ class WorkoutSessionManager(
         exercises.forEach { ex ->
             val exerciseUnit = ex.weightUnit.ifBlank { preferredUnits }
             val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
-            val lastSet = lastSets[exerciseSlug]
+            val lastSessionSets = lastSessionSetsMap[exerciseSlug] ?: emptyList()
+            val lastSet = lastSessionSets.firstOrNull() // most recent set — used for date/weight reference
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
@@ -265,19 +267,22 @@ class WorkoutSessionManager(
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                val allLastSets = listOf(
+                // All sets from the last session — progression engine needs the full picture
+                // to evaluate allHitMax (workingSets.size >= targetSets). Sending only 1 set
+                // made that condition permanently false, blocking all weight advancement.
+                val allLastSets = lastSessionSets.map { s ->
                     com.apexfit.app.ui.models.UiExerciseSet(
-                        id = lastSet.id,
-                        weight = lastWeightLbs,
-                        reps = lastSet.reps,
-                        rpe = lastSet.rpe,
-                        isWarmup = lastSet.isWarmup,
-                        completed = lastSet.completed,
-                        exerciseName = lastSet.exerciseName,
-                        sessionId = lastSet.sessionId,
-                        muscleGroup = lastSet.muscleGroup
+                        id            = s.id,
+                        weight        = s.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,
+                        reps          = s.reps,
+                        rpe           = s.rpe,
+                        isWarmup      = s.isWarmup,
+                        completed     = s.completed,
+                        exerciseName  = s.exerciseName,
+                        sessionId     = s.sessionId,
+                        muscleGroup   = s.muscleGroup
                     )
-                )
+                }
                   
                 val recoveryMultiplier = readinessPercent  
                     ?.let { it / 100.0 }  
