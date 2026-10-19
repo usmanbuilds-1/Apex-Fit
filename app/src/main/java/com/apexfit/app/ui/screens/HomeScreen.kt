@@ -201,7 +201,7 @@ private fun HomeTopBar(onSettingsClick: () -> Unit) {
                 .size(34.dp)
                 .clip(CircleShape)
                 .background(ApexColors.SurfaceRaised)
-                .border(1.dp, ApexColors.BorderDefault, CircleShape),
+                .border(1.dp, ApexColors.BorderStrong, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(

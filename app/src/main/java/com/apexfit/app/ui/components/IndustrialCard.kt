@@ -36,10 +36,10 @@ fun IndustrialCard(
             val bracketLength = 12.dp.toPx()
             val strokeW = 1.5f
 
-            drawLine(ApexColors.BorderDefault, Offset(0f, 0f), Offset(bracketLength, 0f), strokeW)
-            drawLine(ApexColors.BorderDefault, Offset(0f, 0f), Offset(0f, bracketLength), strokeW)
-            drawLine(ApexColors.BorderDefault, Offset(size.width - bracketLength, 0f), Offset(size.width, 0f), strokeW)
-            drawLine(ApexColors.BorderDefault, Offset(size.width, 0f), Offset(size.width, bracketLength), strokeW)
+            drawLine(ApexColors.BorderStrong, Offset(0f, 0f), Offset(bracketLength, 0f), strokeW)
+            drawLine(ApexColors.BorderStrong, Offset(0f, 0f), Offset(0f, bracketLength), strokeW)
+            drawLine(ApexColors.BorderStrong, Offset(size.width - bracketLength, 0f), Offset(size.width, 0f), strokeW)
+            drawLine(ApexColors.BorderStrong, Offset(size.width, 0f), Offset(size.width, bracketLength), strokeW)
             drawLine(ApexColors.BorderSubtle, Offset(0f, size.height), Offset(bracketLength, size.height), strokeW)
             drawLine(ApexColors.BorderSubtle, Offset(0f, size.height - bracketLength), Offset(0f, size.height), strokeW)
 
@@ -49,7 +49,7 @@ fun IndustrialCard(
             for (i in 0 until stripeCount) {
                 val offset = i * stripeSpacing
                 drawLine(
-                    color = ApexColors.BorderDefault.copy(alpha = 0.4f),
+                    color = ApexColors.BorderStrong.copy(alpha = 0.4f),
                     start = Offset(startX + offset, 6.dp.toPx()),
                     end = Offset(startX + offset - 8.dp.toPx(), 18.dp.toPx()),
                     strokeWidth = 2.dp.toPx()

@@ -47,7 +47,7 @@ fun TactileButton(
                 .fillMaxWidth()
                 .padding(top = topPadding)
                 .background(accentColor, RoundedCornerShape(6.dp))
-                .border(1.dp, ApexColors.BorderDefault, RoundedCornerShape(6.dp))
+                .border(1.dp, ApexColors.BorderStrong, RoundedCornerShape(6.dp))
                 .then(
                     if (isInteractive) {
                         Modifier.clickable(

@@ -72,7 +72,7 @@ fun ReadinessPetalDial(
                     )
                     close()
                 }
-                drawPath(socketPath, ApexColors.SurfaceElevated, style = Fill)
+                drawPath(socketPath, ApexColors.SurfaceRaised, style = Fill)
                 drawPath(socketPath, ApexColors.BorderSubtle, style = Stroke(width = 1.dp.toPx()))
 
                 val petalPath = Path().apply {
@@ -88,14 +88,14 @@ fun ReadinessPetalDial(
 
                 val petalColor = when {
                     seg.recoveryPercent >= 0.85f -> ApexColors.Primary
-                    seg.recoveryPercent >= 0.60f -> ApexColors.Warning
-                    else -> ApexColors.Error
+                    seg.recoveryPercent >= 0.60f -> ApexColors.Amber
+                    else -> ApexColors.Alert
                 }
                 drawPath(petalPath, petalColor.copy(alpha = 0.85f), style = Fill)
             }
 
-            drawCircle(ApexColors.Background, radius = minRadius)
-            drawCircle(ApexColors.BorderDefault, radius = minRadius, style = Stroke(width = 2.dp.toPx()))
+            drawCircle(ApexColors.Canvas, radius = minRadius)
+            drawCircle(ApexColors.BorderStrong, radius = minRadius, style = Stroke(width = 2.dp.toPx()))
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
