@@ -27,15 +27,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import com.apexfit.app.ui.theme.JetBrainsMonoFamily
 import com.apexfit.app.ui.theme.SyneFamily
+import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.HeatmapEntry
 
 // ── Constants ─────────────────────────────────────────────────────
 private val ACTIVE_ALPHA   = 0.75f
 private val EMPTY_ALPHA    = 0.30f
-private val BODY_BASE            = Color(0xFF13131D)  // matches DarkCardSurface
+private val BODY_BASE            = ApexColors.Surface  // matches DarkCardSurface
 private val BODY_OUTLINE         = Color.White.copy(alpha = 0.10f)
 private val MUSCLE_STROKE        = Color.White.copy(alpha = 0.15f)
-private val EMPTY_FILL           = Color(0xFF252535)  // matches BorderSubtle
+private val EMPTY_FILL           = ApexColors.BorderSubtle  // matches BorderSubtle
 
 // ─────────────────────────────────────────────────────────────────
 // PUBLIC COMPOSABLE
@@ -110,7 +111,7 @@ fun MuscleHeatmapCanvas(
                 Text(
                     "FRONT",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF8A8A9A),
+                    color = ApexColors.TextSecondary,
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.5.sp
@@ -159,7 +160,7 @@ fun MuscleHeatmapCanvas(
                 Text(
                     "BACK",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF8A8A9A),
+                    color = ApexColors.TextSecondary,
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.5.sp
@@ -726,10 +727,10 @@ fun HeatmapLegend(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        LegendDot(Color(0xFFEF4444), ">80%")
-        LegendDot(Color(0xFFF97316), "40–80%")
-        LegendDot(Color(0xFF34D399), "10–40%")
-        LegendDot(Color(0xFF252535).copy(alpha = 0.9f), "None")
+        LegendDot(ApexColors.Alert, ">80%")
+        LegendDot(ApexColors.Amber, "40–80%")
+        LegendDot(ApexColors.Victory, "10–40%")
+        LegendDot(ApexColors.BorderSubtle.copy(alpha = 0.9f), "None")
     }
 }
 
@@ -748,7 +749,7 @@ private fun LegendDot(color: Color, label: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color(0xFF8A8A9A),
+            color = ApexColors.TextSecondary,
             fontFamily = JetBrainsMonoFamily,
             fontSize = 11.sp
         )

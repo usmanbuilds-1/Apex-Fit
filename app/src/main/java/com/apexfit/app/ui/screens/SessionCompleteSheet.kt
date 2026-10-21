@@ -97,7 +97,7 @@ fun SessionCompleteSheet(
                     Spacer(modifier = Modifier.height(20.dp))
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = OrangeAccent.copy(alpha = 0.15f)),
+                        colors = CardDefaults.cardColors(containerColor = ApexColors.Primary.copy(alpha = 0.15f)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(
@@ -128,7 +128,7 @@ fun SessionCompleteSheet(
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(stringResource(R.string.overlay_done), color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)

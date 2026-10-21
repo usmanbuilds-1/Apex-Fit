@@ -120,8 +120,8 @@ fun SetLoggingRow(
             .clip(RoundedCornerShape(10.dp))
             .background(
                 when {
-                    setObj.completed -> Color(0xFF0F1E14)
-                    setObj.isWarmup -> Color(0xFF16162F)
+                    setObj.completed -> ApexColors.VictorySoft
+                    setObj.isWarmup -> ApexColors.SurfaceSunken
                     else -> DarkCardSurface
                 }
             )
@@ -129,7 +129,7 @@ fun SetLoggingRow(
                 BorderStroke(
                     1.dp,
                     when {
-                        setObj.completed -> Color(0xFF2EC46A)
+                        setObj.completed -> ApexColors.Victory
                         setObj.isWarmup -> OrangeAccent.copy(alpha = 0.4f)
                         else -> BorderSubtle
                     }
@@ -158,7 +158,7 @@ fun SetLoggingRow(
                                 fontFamily = JetBrainsMonoFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E1B4B)
+                                color = ApexColors.OnGlow
                             )
                         }
                         Spacer(modifier = Modifier.height(2.dp))
@@ -177,7 +177,7 @@ fun SetLoggingRow(
                         fontWeight = FontWeight.Bold,
                         color = when {
                             setObj.completed -> GreenAccent
-                            setObj.isWarmup -> Color(0xFFA78BFA)
+                            setObj.isWarmup -> ApexColors.Chart3
                             else -> AmberAccent
                         }
                     )
@@ -386,9 +386,9 @@ fun SetLoggingRow(
                 (1..10).forEach { rpeVal ->
                     val isRpeSelected = selectedRpe == rpeVal
                     val zoneColor = when (rpeVal) {
-                        in 1..5 -> Color(0xFF2EC46A) // Green zone
-                        in 6..7 -> Color(0xFFFFB300) // Yellow/Amber zone
-                        else -> Color(0xFFEF4444) // Red zone
+                        in 1..5 -> ApexColors.Victory
+                        in 6..7 -> ApexColors.Amber
+                        else -> ApexColors.Alert
                     }
                     Box(
                         modifier = Modifier
@@ -410,7 +410,7 @@ fun SetLoggingRow(
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isRpeSelected) Color(0xFF0A0A0F) else zoneColor.copy(alpha = 0.7f)
+                            color = if (isRpeSelected) ApexColors.OnGlow else zoneColor.copy(alpha = 0.7f)
                         )
                     }
                 }

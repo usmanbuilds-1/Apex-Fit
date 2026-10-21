@@ -90,7 +90,7 @@ fun TrainTab(
                             fontFamily = SyneFamily,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelected) Color(0xFF0A0A0F) else SecondaryText
+                            color = if (isSelected) ApexColors.OnGlow else SecondaryText
                         )
                     }
                 }
@@ -190,7 +190,7 @@ fun ProgramSubTab(
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelected) Color(0xFF0A0A0F) else SecondaryText
+                            color = if (isSelected) ApexColors.OnGlow else SecondaryText
                         )
                     }
                 }
@@ -271,7 +271,7 @@ fun ProgramSubTab(
                                 },
                                 enabled = !isStarting,
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
+                                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text(
@@ -279,7 +279,7 @@ fun ProgramSubTab(
                                     fontFamily = SyneFamily,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0A0A0F)
+                                    color = ApexColors.OnGlow
                                 )
                             }
                         }
@@ -486,11 +486,11 @@ fun WorkoutExecutionSubTab(
         AlertDialog(
             onDismissRequest = { workoutExecutionViewModel.dismissSaveError() },
             containerColor = DarkCardSurface,
-            title = { Text(stringResource(R.string.train_save_failed), color = Color(0xFFE84A4A), fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.train_save_failed), color = ApexColors.Alert, fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
             text = { Text(err, color = SecondaryText, fontFamily = JetBrainsMonoFamily, fontSize = 12.sp) },
             confirmButton = {
                 TextButton(onClick = { workoutExecutionViewModel.finishWorkoutSession(selectedFeelRating) }) {
-                    Text(stringResource(R.string.train_retry_full), color = AmberAccent)
+                    Text(stringResource(R.string.train_retry_full), color = ApexColors.Primary)
                 }
             },
             dismissButton = {
@@ -539,7 +539,7 @@ fun WorkoutExecutionSubTab(
                         showFinishEarlyDialog = true
                     }
                 ) {
-                    Text(stringResource(R.string.train_save_exit), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
+                    Text(stringResource(R.string.train_save_exit), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = ApexColors.Primary)
                 }
             },
             dismissButton = {
@@ -551,7 +551,7 @@ fun WorkoutExecutionSubTab(
                             workoutExecutionViewModel.cancelActiveWorkout()
                         }
                     ) {
-                        Text(stringResource(R.string.train_discard), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFFE84A4A))
+                        Text(stringResource(R.string.train_discard), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = ApexColors.Alert)
                     }
                     TextButton(
                         onClick = {
@@ -895,7 +895,7 @@ fun NewPlansSubTab(
         item {
             Button(
                 onClick = onNavigateToPlanBuilder,
-                colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -962,7 +962,7 @@ fun NewPlansSubTab(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFF2E6A41))
+                                        .background(ApexColors.VictorySoft)
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(stringResource(R.string.train_active), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)

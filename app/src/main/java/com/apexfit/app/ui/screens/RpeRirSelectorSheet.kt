@@ -133,7 +133,7 @@ fun RpeRirSelectorSheet(
                         onClick = onConfirmRirSelection,
                         modifier = Modifier.fillMaxWidth(),
                         enabled = true,
-                        colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(stringResource(R.string.overlay_confirm_next_set), color = Color.Black, fontWeight = FontWeight.Bold)
@@ -205,7 +205,7 @@ fun RpeRirSelectorSheet(
                     Button(
                         onClick = onConfirmRirAndNextSet,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(stringResource(R.string.overlay_confirm_next_set), color = Color.Black, fontWeight = FontWeight.Bold)

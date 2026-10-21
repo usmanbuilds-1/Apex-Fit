@@ -231,7 +231,7 @@ private fun HomeTopBar(onSettingsClick: () -> Unit) {
 
 @Composable
 private fun HeroSection(readiness: UiSessionReadiness?, units: String) {
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(modifier = Modifier.fillMaxWidth().height(250.dp)) {
         // Hero image — AsyncImage with bundled placeholder fallback
         AsyncImage(
             model = R.drawable.hero_workout,        // provide hero_workout.jpg in drawable/
@@ -239,34 +239,46 @@ private fun HeroSection(readiness: UiSessionReadiness?, units: String) {
             error = painterResource(R.drawable.hero_workout_placeholder),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(280.dp)
+            modifier = Modifier.fillMaxSize()
         )
 
-        // Photo scrim — Night Signal spec: imagery bleeds into the void, never boxes itself in
-        // Linear gradient rgba(4,20,29,0) → rgba(4,20,29,0.94) into Canvas
+        // Photo scrim — Night Signal v2.1: imagery bleeds into the void, never boxes itself in.
+        // Two layers per mockup: bottom fades into Canvas (readiness legibility);
+        // a left-side wash keeps the upper-left text column readable while the
+        // subject on the right stays bright.
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(280.dp)
+                .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f  to ApexColors.Canvas.copy(alpha = 0f),
-                            0.45f to ApexColors.Canvas.copy(alpha = 0.3f),
-                            0.80f to ApexColors.Canvas.copy(alpha = 0.75f),
-                            1.0f  to ApexColors.Canvas.copy(alpha = 0.94f)
+                            0.55f to ApexColors.Canvas.copy(alpha = 0.35f),
+                            0.85f to ApexColors.Canvas.copy(alpha = 0.8f),
+                            1.0f  to ApexColors.Canvas.copy(alpha = 0.96f)
+                        )
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colorStops = arrayOf(
+                            0.0f  to ApexColors.Canvas.copy(alpha = 0.45f),
+                            0.55f to ApexColors.Canvas.copy(alpha = 0.12f),
+                            0.80f to ApexColors.Canvas.copy(alpha = 0f)
                         )
                     )
                 )
         )
 
-        // Hero text — left aligned, bottom of image
+        // Hero text — upper-left of the photo, per mockup
         Column(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = ApexSpacing.screenPadding, bottom = ApexSpacing.xl)
+                .align(Alignment.TopStart)
+                .padding(start = ApexSpacing.screenPadding, top = 36.dp)
         ) {
             Text(
                 text = "YOUR TRAINING, IN RHYTHM",
@@ -284,18 +296,19 @@ private fun HeroSection(readiness: UiSessionReadiness?, units: String) {
             Text(
                 text = heroSubtitle(readiness),
                 style = MaterialTheme.typography.titleLarge,
-                color = ApexColors.Primary
+                color = ApexColors.TextSecondary
             )
         }
-    }
 
-    // Readiness row — below the hero image on dark background
-    ReadinessRow(
-        readiness = readiness,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = ApexSpacing.screenPadding, vertical = ApexSpacing.md)
-    )
+        // Readiness — overlaps the hero's bottom edge on the scrim, no card (v2.1)
+        ReadinessRow(
+            readiness = readiness,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(horizontal = ApexSpacing.screenPadding, vertical = ApexSpacing.md)
+        )
+    }
 }
 
 private fun heroHeadline(readiness: UiSessionReadiness?): String = when {
@@ -316,20 +329,17 @@ private fun heroSubtitle(readiness: UiSessionReadiness?): String = when {
 
 @Composable
 private fun ReadinessRow(readiness: UiSessionReadiness?, modifier: Modifier = Modifier) {
-    // Editorial card variant — BorderGlow stroke, no shadow (per §7.6)
+    // v2.1: transparent overlay on the scrimmed hero bottom — no card, no border
+    // (mockup: text + ring sit directly on the photo's fade, photo visible right)
     Row(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.large)
-            .background(ApexColors.Surface)
-            .border(1.5.dp, ApexColors.BorderGlow, MaterialTheme.shapes.large)
-            .padding(ApexSpacing.cardPadding),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ApexSpacing.lg)
     ) {
         ReadinessRing(
             score    = readiness?.score ?: 0,
             hasData  = readiness != null,
-            modifier = Modifier.size(88.dp)  // larger ring — dataXL score fits
+            modifier = Modifier.size(72.dp)  // mockup ring ~64-72dp, score only
         )
 
         Column(modifier = Modifier.weight(1f)) {
@@ -375,12 +385,6 @@ private fun ReadinessRing(score: Int, hasData: Boolean = true, modifier: Modifie
         animationSpec = ApexMotion.momentCoach(),
         label         = "readiness_arc"
     )
-    val bandLabel = when {
-        !hasData    -> "LEARNING"
-        score < 40  -> "EASY DAY"
-        score < 75  -> "MODERATE"
-        else        -> "READY"
-    }
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -414,21 +418,11 @@ private fun ReadinessRing(score: Int, hasData: Boolean = true, modifier: Modifie
             }
         }
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text  = if (hasData && score > 0) score.toString() else "—",
-                style = ApexTextStyles.dataXL,
-                color = ApexColors.TextPrimary
-            )
-            Text(
-                text  = bandLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = bandColor
-            )
-        }
+        Text(
+            text  = if (hasData && score > 0) score.toString() else "—",
+            style = ApexTextStyles.dataXL,
+            color = ApexColors.TextPrimary
+        )
     }
 }
 
@@ -510,10 +504,10 @@ private fun TodayWorkoutCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(MaterialTheme.shapes.small)
+                .clip(MaterialTheme.shapes.large)
                 .background(ctaBg)
                 .clickable(enabled = hasSession, onClick = onStartWorkout)
-                .padding(vertical = 16.dp),
+                .padding(vertical = 12.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
@@ -581,7 +575,7 @@ private fun ExercisePreviewRow(exercise: PlanExercise) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)   // 14dp
-            .background(ApexColors.SurfaceRaised)
+            .background(ApexColors.SurfaceSunken)
             .padding(ApexSpacing.md),
         horizontalArrangement = Arrangement.spacedBy(ApexSpacing.md),
         verticalAlignment = Alignment.CenterVertically
@@ -697,10 +691,10 @@ private fun NutritionCard(
         val targetCarbs   = targets?.carbs?.toInt()   ?: 250
         val targetFat     = targets?.fat?.toInt()     ?: 70
 
-        // v2 §7.4: Protein=Primary, Carbs=Focus, Fat=Amber
+        // v2.1: all three bars share the single glow (mockup-verified)
         MacroBar(label = "Protein", logged = loggedProtein, target = targetProtein, fillColor = ApexColors.Primary)
-        MacroBar(label = "Carbs",   logged = loggedCarbs,   target = targetCarbs,   fillColor = ApexColors.Focus)
-        MacroBar(label = "Fat",     logged = loggedFat,     target = targetFat,     fillColor = ApexColors.Amber)
+        MacroBar(label = "Carbs",   logged = loggedCarbs,   target = targetCarbs,   fillColor = ApexColors.Primary)
+        MacroBar(label = "Fat",     logged = loggedFat,     target = targetFat,     fillColor = ApexColors.Primary)
     }
 }
 
@@ -821,6 +815,19 @@ private fun WeightTrendCard(
             }
 
             WeightSparkline(entries = entries, modifier = Modifier.fillMaxWidth().height(48.dp))
+
+            // v2.1: date axis under the sparkline (mockup shows Oct 6-12 range)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val first = entries.first().date
+                val mid   = entries[entries.size / 2].date
+                val last  = entries.last().date
+                Text(formatAxisDate(first), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = ApexColors.TextTertiary)
+                Text(formatAxisDate(mid),   style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = ApexColors.TextTertiary)
+                Text(formatAxisDate(last),  style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, color = ApexColors.TextTertiary)
+            }
         } else {
             Text(
                 text = "Log your weight to see trends",
@@ -834,7 +841,6 @@ private fun WeightTrendCard(
 @Composable
 private fun WeightSparkline(entries: List<UiWeightEntry>, modifier: Modifier = Modifier) {
     val primary = ApexColors.Primary
-    val surface = ApexColors.SurfaceRaised
     Canvas(modifier = modifier) {
         if (entries.size < 2) return@Canvas
         val weights = entries.map { it.weight.toFloat() }
@@ -842,24 +848,6 @@ private fun WeightSparkline(entries: List<UiWeightEntry>, modifier: Modifier = M
         val maxW = weights.max()
         val range = (maxW - minW).coerceAtLeast(0.5f)
         val stepX = size.width / (entries.size - 1)
-
-        // Gradient fill under the line
-        val path = Path().apply {
-            entries.forEachIndexed { i, e ->
-                val x = i * stepX
-                val y = size.height * (1f - (e.weight.toFloat() - minW) / range)
-                if (i == 0) moveTo(x, y) else lineTo(x, y)
-            }
-            lineTo(size.width, size.height)
-            lineTo(0f, size.height)
-            close()
-        }
-        drawPath(
-            path = path,
-            brush = Brush.verticalGradient(
-                listOf(primary.copy(alpha = 0.15f), Color.Transparent)
-            )
-        )
 
         // Line
         entries.forEachIndexed { i, e ->
@@ -875,8 +863,8 @@ private fun WeightSparkline(entries: List<UiWeightEntry>, modifier: Modifier = M
         entries.forEachIndexed { i, e ->
             val x = i * stepX
             val y = size.height * (1f - (e.weight.toFloat() - minW) / range)
-            drawCircle(surface, radius = 3.dp.toPx(), center = Offset(x, y))
-            drawCircle(primary, radius = 2.dp.toPx(), center = Offset(x, y))
+            drawCircle(ApexColors.Primary, radius = 3.5.dp.toPx(), center = Offset(x, y))
+            drawCircle(Color.White, radius = 2.dp.toPx(), center = Offset(x, y))
         }
     }
 }
@@ -968,3 +956,8 @@ private fun formatSessionDate(dateStr: String): String = runCatching {
     val month = date.month.getDisplayName(JavaTextStyle.SHORT, Locale.ENGLISH)
     "$day ${date.dayOfMonth} $month"
 }.getOrElse { dateStr }
+
+private fun formatAxisDate(dateStr: String): String = runCatching {
+    val date = LocalDate.parse(dateStr)
+    "${date.month.getDisplayName(JavaTextStyle.SHORT, Locale.ENGLISH)} ${date.dayOfMonth}"
+}.getOrElse { dateStr.takeLast(5) }

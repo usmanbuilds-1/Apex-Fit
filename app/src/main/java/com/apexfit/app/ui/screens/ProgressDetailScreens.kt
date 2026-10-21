@@ -105,8 +105,8 @@ private fun RecoveryCard(status: MuscleRecoveryStatus) {
     val recoveryColor = when {
         status.hoursRemaining <= 0 -> GreenAccent
         status.hoursRemaining < 24 -> AmberAccent
-        status.hoursRemaining < 48 -> Color(0xFFFF6B35)
-        else -> Color(0xFFE63946)
+        status.hoursRemaining < 48 -> ApexColors.Amber
+        else -> ApexColors.Alert
     }
     val recoveryLabel = when {
         status.hoursRemaining <= 0 -> "FULLY RECOVERED"
@@ -259,7 +259,7 @@ fun BodyMeasurementDetailScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(stringResource(R.string.progress_detail_save_measurement), color = Color.Black, fontWeight = FontWeight.Bold)

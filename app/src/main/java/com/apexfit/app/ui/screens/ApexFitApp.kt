@@ -144,7 +144,19 @@ fun ApexFitApp(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    val isOnboarded by fitnessViewModel.isOnboarded.collectAsStateWithLifecycle()
+    val rawIsOnboarded by fitnessViewModel.isOnboarded.collectAsStateWithLifecycle()
+    var isOnboarded by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(rawIsOnboarded) {
+        if (rawIsOnboarded != null) {
+            isOnboarded = rawIsOnboarded
+        }
+    }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1000)
+        if (isOnboarded == null) {
+            isOnboarded = false
+        }
+    }
 
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -221,7 +233,7 @@ fun ApexFitApp(
                         }
                     }
                 ) {
-                    Text(stringResource(R.string.onboarding_resume), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
+                    Text(stringResource(R.string.onboarding_resume), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = ApexColors.Primary)
                 }
             },
             dismissButton = {
@@ -231,7 +243,7 @@ fun ApexFitApp(
                         workoutExecutionViewModel.cancelActiveWorkout()
                     }
                 ) {
-                    Text(stringResource(R.string.onboarding_discard), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFFE84A4A))
+                    Text(stringResource(R.string.onboarding_discard), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = ApexColors.Alert)
                 }
             }
         )
@@ -265,8 +277,26 @@ fun ApexFitApp(
         null -> Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBackground)
-        )
+                .background(ApexColors.Canvas),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_apex_logo),
+                    contentDescription = null,
+                    tint = ApexColors.Primary,
+                    modifier = Modifier.size(32.dp)
+                )
+                CircularProgressIndicator(
+                    color = ApexColors.Primary,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
         false -> {
         val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
         OnboardingScreen(
@@ -305,7 +335,7 @@ fun ApexFitApp(
                                     fontFamily = SyneFamily,
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = AmberAccent
+                                    color = Color.White
                                 )
                             }
                         },
@@ -553,31 +583,32 @@ fun OnboardingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
-            .padding(24.dp)
-            .imePadding()
-            .verticalScroll(rememberScrollState()),
-        contentAlignment = Alignment.Center
+            .background(ApexColors.Canvas)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 28.dp)
+                .imePadding()
         ) {
             Text(
                 text = "APEX FIT",
                 fontFamily = SyneFamily,
                 fontSize = 38.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = AmberAccent,
-                modifier = Modifier.padding(bottom = 8.dp)
+                color = ApexColors.TextPrimary,
+                modifier = Modifier.padding(bottom = 6.dp)
             )
             Text(
-                text = "Welcome to Apex Fit",
+                text = "WELCOME TO APEX FIT",
                 fontFamily = JetBrainsMonoFamily,
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = SecondaryText,
-                modifier = Modifier.padding(bottom = 32.dp)
+                color = ApexColors.Primary,
+                letterSpacing = 1.5.sp,
+                modifier = Modifier.padding(bottom = 28.dp)
             )
 
             PremiumCard(modifier = Modifier.fillMaxWidth()) {
@@ -586,7 +617,7 @@ fun OnboardingScreen(
                     fontFamily = SyneFamily,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = PrimaryText,
+                    color = ApexColors.TextPrimary,
                     modifier = Modifier.padding(bottom = 20.dp)
                 )
 
@@ -603,10 +634,10 @@ fun OnboardingScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (selected) AmberAccent else DarkRaised)
+                                .background(if (selected) ApexColors.Primary else ApexColors.SurfaceRaised)
                                 .border(
                                     1.dp,
-                                    if (selected) AmberAccent else BorderSubtle,
+                                    if (selected) ApexColors.Primary else ApexColors.BorderStrong,
                                     RoundedCornerShape(10.dp)
                                 )
                                 .semantics { this.selected = selected }
@@ -626,7 +657,7 @@ fun OnboardingScreen(
                                 fontFamily = SyneFamily,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = if (selected) Color(0xFF0A0A0F) else SecondaryText,
+                                color = if (selected) ApexColors.OnGlow else ApexColors.TextPrimary,
                                 letterSpacing = 1.sp
                             )
                         }
@@ -646,28 +677,32 @@ fun OnboardingScreen(
                         capitalization = KeyboardCapitalization.Words,
                         imeAction = ImeAction.Next
                     ),
-                    label = { Text(stringResource(R.string.onboarding_your_name), color = SecondaryText) },
-                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                    label = { Text(stringResource(R.string.onboarding_your_name), color = ApexColors.TextSecondary) },
+                    textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
                         .testTag("onboarding_name_input"),
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = PrimaryText,
-                        unfocusedTextColor = SecondaryText,
-                        focusedContainerColor = DarkRaised,
-                        unfocusedContainerColor = DarkRaised,
-                        focusedIndicatorColor = AmberAccent,
-                        unfocusedIndicatorColor = BorderSubtle
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = ApexColors.TextPrimary,
+                        unfocusedTextColor = ApexColors.TextPrimary,
+                        focusedContainerColor = ApexColors.SurfaceSunken,
+                        unfocusedContainerColor = ApexColors.SurfaceSunken,
+                        focusedBorderColor = ApexColors.Primary,
+                        unfocusedBorderColor = ApexColors.BorderStrong,
+                        focusedLabelColor = ApexColors.Primary,
+                        unfocusedLabelColor = ApexColors.TextSecondary
                     )
                 )
 
                 // Goal Selectors
                 Text(
-                    text = "Your Goal",
+                    text = "YOUR GOAL",
                     fontFamily = SyneFamily,
                     fontSize = 12.sp,
-                    color = SecondaryText,
+                    fontWeight = FontWeight.Bold,
+                    color = ApexColors.TextPrimary,
+                    letterSpacing = 1.sp,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 Row(
@@ -682,9 +717,9 @@ fun OnboardingScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(if (isSelected) AmberAccent else DarkRaised)
+                                .background(if (isSelected) ApexColors.Primary else ApexColors.SurfaceRaised)
                                 .border(
-                                    border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
+                                    border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else ApexColors.BorderStrong),
                                     shape = RoundedCornerShape(14.dp)
                                 )
                                 .semantics { selected = isSelected }
@@ -697,7 +732,7 @@ fun OnboardingScreen(
                                 fontFamily = SyneFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSelected) Color(0xFF0A0A0F) else PrimaryText
+                                color = if (isSelected) ApexColors.OnGlow else ApexColors.TextPrimary
                             )
                         }
                     }
@@ -708,7 +743,7 @@ fun OnboardingScreen(
                         text = "Note: Based on your weights, your goal has been adjusted to $liveResolvedGoal.",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 12.sp,
-                        color = AmberAccent,
+                        color = ApexColors.Amber,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
@@ -723,7 +758,7 @@ fun OnboardingScreen(
                     text = goalDescription,
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
-                    color = SecondaryText,
+                    color = ApexColors.TextSecondary,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
@@ -743,17 +778,22 @@ fun OnboardingScreen(
                             },
                             isError = weightError != null,
                             supportingText = weightError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.onboarding_current_wt, unitLabel), color = SecondaryText) },
-                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                            label = { Text(stringResource(R.string.onboarding_current_wt, unitLabel), color = ApexColors.TextSecondary) },
+                            textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("onboarding_weight_input"),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkRaised,
-                                unfocusedContainerColor = DarkRaised,
-                                focusedIndicatorColor = AmberAccent,
-                                unfocusedIndicatorColor = BorderSubtle
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = ApexColors.TextPrimary,
+                                unfocusedTextColor = ApexColors.TextPrimary,
+                                focusedContainerColor = ApexColors.SurfaceSunken,
+                                unfocusedContainerColor = ApexColors.SurfaceSunken,
+                                focusedBorderColor = ApexColors.Primary,
+                                unfocusedBorderColor = ApexColors.BorderStrong,
+                                focusedLabelColor = ApexColors.Primary,
+                                unfocusedLabelColor = ApexColors.TextSecondary
                             )
                         )
                     }
@@ -766,17 +806,22 @@ fun OnboardingScreen(
                             },
                             isError = goalWeightError != null,
                             supportingText = goalWeightError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.onboarding_goal_wt, unitLabel), color = SecondaryText) },
-                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                            label = { Text(stringResource(R.string.onboarding_goal_wt, unitLabel), color = ApexColors.TextSecondary) },
+                            textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("onboarding_goal_weight_input"),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkRaised,
-                                unfocusedContainerColor = DarkRaised,
-                                focusedIndicatorColor = AmberAccent,
-                                unfocusedIndicatorColor = BorderSubtle
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = ApexColors.TextPrimary,
+                                unfocusedTextColor = ApexColors.TextPrimary,
+                                focusedContainerColor = ApexColors.SurfaceSunken,
+                                unfocusedContainerColor = ApexColors.SurfaceSunken,
+                                focusedBorderColor = ApexColors.Primary,
+                                unfocusedBorderColor = ApexColors.BorderStrong,
+                                focusedLabelColor = ApexColors.Primary,
+                                unfocusedLabelColor = ApexColors.TextSecondary
                             )
                         )
                     }
@@ -798,15 +843,20 @@ fun OnboardingScreen(
                             },
                             isError = heightError != null,
                             supportingText = heightError?.let { { Text(it) } },
-                            label = { Text(if (isImperial) "Height (in)" else stringResource(R.string.onboarding_height_cm), color = SecondaryText) },
-                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                            label = { Text(if (isImperial) "Height (in)" else stringResource(R.string.onboarding_height_cm), color = ApexColors.TextSecondary) },
+                            textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth(),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkRaised,
-                                unfocusedContainerColor = DarkRaised,
-                                focusedIndicatorColor = AmberAccent,
-                                unfocusedIndicatorColor = BorderSubtle
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = ApexColors.TextPrimary,
+                                unfocusedTextColor = ApexColors.TextPrimary,
+                                focusedContainerColor = ApexColors.SurfaceSunken,
+                                unfocusedContainerColor = ApexColors.SurfaceSunken,
+                                focusedBorderColor = ApexColors.Primary,
+                                unfocusedBorderColor = ApexColors.BorderStrong,
+                                focusedLabelColor = ApexColors.Primary,
+                                unfocusedLabelColor = ApexColors.TextSecondary
                             )
                         )
                     }
@@ -819,15 +869,20 @@ fun OnboardingScreen(
                             },
                             isError = ageError != null,
                             supportingText = ageError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.onboarding_age_yrs), color = SecondaryText) },
-                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                            label = { Text(stringResource(R.string.onboarding_age_yrs), color = ApexColors.TextSecondary) },
+                            textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth(),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkRaised,
-                                unfocusedContainerColor = DarkRaised,
-                                focusedIndicatorColor = AmberAccent,
-                                unfocusedIndicatorColor = BorderSubtle
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = ApexColors.TextPrimary,
+                                unfocusedTextColor = ApexColors.TextPrimary,
+                                focusedContainerColor = ApexColors.SurfaceSunken,
+                                unfocusedContainerColor = ApexColors.SurfaceSunken,
+                                focusedBorderColor = ApexColors.Primary,
+                                unfocusedBorderColor = ApexColors.BorderStrong,
+                                focusedLabelColor = ApexColors.Primary,
+                                unfocusedLabelColor = ApexColors.TextSecondary
                             )
                         )
                     }
@@ -837,19 +892,19 @@ fun OnboardingScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     listOf("male", "female").forEach { item ->
                         val isSelected = sexChoice.lowercase() == item
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (isSelected) AmberAccent else DarkRaised)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) ApexColors.Primary else ApexColors.SurfaceRaised)
                                 .border(
-                                    border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
-                                    shape = RoundedCornerShape(14.dp)
+                                    border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else ApexColors.BorderStrong),
+                                    shape = RoundedCornerShape(12.dp)
                                 )
                                 .semantics { selected = isSelected }
                                 .clickable(role = Role.Tab) { sexChoice = item }
@@ -859,39 +914,39 @@ fun OnboardingScreen(
                             Text(
                                 text = item.uppercase(),
                                 fontFamily = SyneFamily,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSelected) Color(0xFF0A0A0F) else PrimaryText
+                                color = if (isSelected) ApexColors.OnGlow else ApexColors.TextPrimary
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "WEEKLY WORKOUTS",
                     fontFamily = SyneFamily,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SecondaryText,
+                    color = ApexColors.TextPrimary,
                     letterSpacing = 1.sp,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf("1", "2", "3", "4", "5", "6+").forEach { option ->
                         val selected = weeklyWorkoutsStr == option
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (selected) AmberAccent else DarkRaised)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) ApexColors.Primary else ApexColors.SurfaceRaised)
                                 .border(
                                     1.dp,
-                                    if (selected) AmberAccent else BorderSubtle,
-                                    RoundedCornerShape(8.dp)
+                                    if (selected) ApexColors.Primary else ApexColors.BorderStrong,
+                                    RoundedCornerShape(10.dp)
                                 )
                                 .semantics { this.selected = selected }
                                 .clickable(role = Role.Tab) { weeklyWorkoutsStr = option }
@@ -903,21 +958,22 @@ fun OnboardingScreen(
                                 fontFamily = SyneFamily,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = if (selected) Color(0xFF0A0A0F) else SecondaryText
+                                color = if (selected) ApexColors.OnGlow else ApexColors.TextPrimary
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
                     text = timeline.summaryLine,
-                    color = SecondaryText,
-                    fontSize = 13.sp
+                    color = ApexColors.TextSecondary,
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 12.sp
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
                     onClick = {
@@ -1001,10 +1057,10 @@ fun OnboardingScreen(
                         .height(56.dp)
                         .testTag("onboarding_complete_button"),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AmberAccent,
-                        contentColor = Color(0xFF0A0A0F),
-                        disabledContainerColor = DarkRaised,
-                        disabledContentColor = SecondaryText
+                        containerColor = ApexColors.Primary,
+                        contentColor = ApexColors.OnGlow,
+                        disabledContainerColor = ApexColors.SurfaceRaised,
+                        disabledContentColor = ApexColors.TextTertiary
                     ),
                     shape = RoundedCornerShape(14.dp)
                 ) {
@@ -1022,55 +1078,46 @@ fun OnboardingScreen(
 
 @Composable
 fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
+    // v2.1: full-width bar on Canvas with a hairline top edge (mockup-verified).
+    // All four labels always visible. Active item = mint icon + mint label +
+    // short 24×4dp signal pill beneath the label; inactive items stay muted.
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding(),
-        color = DarkBackground
+        color = ApexColors.Canvas
     ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 12.dp)
-                .fillMaxWidth()
-                .height(64.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .background(ApexColors.Surface)
-                .border(0.5.dp, ApexColors.BorderSubtle, RoundedCornerShape(32.dp)),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TopLevelDestination.entries.forEach { destination ->
-                val isSelected = activeTab == destination.ordinal
-                val itemColor = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary
+        Column {
+            HorizontalDivider(color = ApexColors.BorderSubtle, thickness = 1.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TopLevelDestination.entries.forEach { destination ->
+                    val isSelected = activeTab == destination.ordinal
+                    val itemColor = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary
 
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .semantics { selected = isSelected }
-                        .clickable(role = Role.Tab) { onTabSelected(destination.ordinal) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .semantics { selected = isSelected }
+                            .clickable(role = Role.Tab) { onTabSelected(destination.ordinal) },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            painter = painterResource(destination.iconRes),
-                            contentDescription = destination.label,
-                            tint = itemColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        if (isSelected) {
-                            Spacer(Modifier.height(3.dp))
-                            // Active indicator pip — the signal dot
-                            Box(
-                                Modifier
-                                    .size(4.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(ApexColors.Primary)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(destination.iconRes),
+                                contentDescription = destination.label,
+                                tint = itemColor,
+                                modifier = Modifier.size(20.dp)
                             )
-                        } else {
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 text = destination.label.uppercase(),
@@ -1079,6 +1126,14 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                                 fontWeight = FontWeight.Medium,
                                 color = itemColor,
                                 letterSpacing = 0.4.sp
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            // Signal pill — solid under the active tab, invisible otherwise
+                            Box(
+                                Modifier
+                                    .size(width = 24.dp, height = 4.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(if (isSelected) ApexColors.Primary else Color.Transparent)
                             )
                         }
                     }
@@ -1112,7 +1167,7 @@ fun NotificationRationaleDialog(onAllow: () -> Unit, onSkip: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onAllow) {
-                Text(stringResource(R.string.onboarding_allow), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = AmberAccent)
+                Text(stringResource(R.string.onboarding_allow), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = ApexColors.Primary)
             }
         },
         dismissButton = {

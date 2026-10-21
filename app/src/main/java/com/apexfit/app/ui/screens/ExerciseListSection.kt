@@ -249,7 +249,7 @@ fun ExerciseListSection(
                                     onNextExercise()
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
+                            colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f)
                         ) {
@@ -258,7 +258,7 @@ fun ExerciseListSection(
                                 fontFamily = SyneFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0A0A0F)
+                                color = ApexColors.OnGlow
                             )
                         }
                     }
@@ -322,7 +322,7 @@ fun ExerciseListSection(
                 if (exercises.isEmpty()) {
                     Button(
                         onClick = onCancelOrCompleteEmptySession,
-                        colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -333,14 +333,14 @@ fun ExerciseListSection(
                             fontFamily = SyneFamily,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0A0A0F)
+                            color = ApexColors.OnGlow
                         )
                     }
                 } else {
                     Button(
                         onClick = onShowFinishEarlyDialog,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF14221A)),
-                        border = BorderStroke(1.dp, Color(0xFF2EC46A)),
+                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.VictorySoft),
+                        border = BorderStroke(1.dp, ApexColors.Victory),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -352,14 +352,14 @@ fun ExerciseListSection(
                             fontFamily = SyneFamily,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2EC46A)
+                            color = ApexColors.Victory
                         )
                     }
                 }
                 Button(
                     onClick = onShowExitDialog,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B1616)),
-                    border = BorderStroke(1.dp, Color(0xFFE84A4A)),
+                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.AlertSoft),
+                    border = BorderStroke(1.dp, ApexColors.Alert),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -370,7 +370,7 @@ fun ExerciseListSection(
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE84A4A)
+                        color = ApexColors.Alert
                     )
                 }
             }

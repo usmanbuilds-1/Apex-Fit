@@ -35,7 +35,11 @@ import dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        try {
+            installSplashScreen()
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "installSplashScreen fallback", e)
+        }
         super.onCreate(savedInstanceState)
 
         // Note: seeding logic moved into the Compose lifecycle below so we can react if the

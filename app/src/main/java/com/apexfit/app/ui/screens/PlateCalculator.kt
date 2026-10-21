@@ -30,6 +30,7 @@ import com.apexfit.app.ui.theme.SyneFamily
 import com.apexfit.app.ui.theme.JetBrainsMonoFamily
 import com.apexfit.app.ui.theme.OrangeAccent
 import com.apexfit.app.ui.theme.SecondaryText
+import com.apexfit.app.ui.theme.ApexColors
 
 private val KG_PRESETS = listOf(25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25)
 private val LBS_PRESETS = listOf(45.0, 35.0, 25.0, 10.0, 5.0, 2.5)
@@ -73,7 +74,7 @@ fun PlateCalculatorCard(
 
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E)),
+        colors = CardDefaults.cardColors(containerColor = ApexColors.Surface),
         border = BorderStroke(1.dp, OrangeAccent.copy(alpha = 0.4f)),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -97,15 +98,15 @@ fun PlateCalculatorCard(
                         val normalized = input.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
                         targetWeightStr = normalized
                     },
-                    label = { Text(stringResource(R.string.plate_calc_weight_target, suffix), color = Color(0xFF8A8A9A), fontSize = 11.sp) },
-                    textStyle = TextStyle(color = Color(0xFFF0F0F5), fontFamily = JetBrainsMonoFamily, fontSize = 12.sp),
+                    label = { Text(stringResource(R.string.plate_calc_weight_target, suffix), color = ApexColors.TextSecondary, fontSize = 11.sp) },
+                    textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily, fontSize = 12.sp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(0.4f),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF0F0F1A),
-                        unfocusedContainerColor = Color(0xFF0F0F1A),
+                        focusedContainerColor = ApexColors.SurfaceSunken,
+                        unfocusedContainerColor = ApexColors.SurfaceSunken,
                         focusedIndicatorColor = OrangeAccent,
-                        unfocusedIndicatorColor = Color(0xFF131324)
+                        unfocusedIndicatorColor = ApexColors.BorderSubtle
                     )
                 )
 
@@ -121,10 +122,10 @@ fun PlateCalculatorCard(
                                 targetWeightStr = preset.toString()
                             },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F0F1A)),
+                            colors = ButtonDefaults.buttonColors(containerColor = ApexColors.SurfaceSunken),
                             modifier = Modifier.height(48.dp)
                         ) {
-                            Text(stringResource(R.string.plate_calc_fmt_str, preset.toInt(), suffix), color = Color(0xFFF0F0F5), fontSize = 11.sp, fontFamily = JetBrainsMonoFamily)
+                            Text(stringResource(R.string.plate_calc_fmt_str, preset.toInt(), suffix), color = ApexColors.TextPrimary, fontSize = 11.sp, fontFamily = JetBrainsMonoFamily)
                         }
                     }
                 }
@@ -160,7 +161,7 @@ fun PlateCalculatorCard(
                 text = "Plates per side: (Barbell: $barWeight$suffix • Load/side: ${String.format(java.util.Locale.US, "%.2f", sideWeight)}$suffix)",
                 fontFamily = JetBrainsMonoFamily,
                 fontSize = 11.sp,
-                color = Color(0xFF8A8A9A),
+                color = ApexColors.TextSecondary,
                 modifier = Modifier.padding(bottom = 6.dp)
             )
 
@@ -169,7 +170,7 @@ fun PlateCalculatorCard(
                     text = "No plates to load (Empty barbell or below)",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
-                    color = Color(0xFF8A8A9A),
+                    color = ApexColors.TextSecondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -184,7 +185,7 @@ fun PlateCalculatorCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(72.dp)
-                        .background(Color(0xFF0F0F1A), RoundedCornerShape(8.dp))
+                        .background(ApexColors.SurfaceSunken, RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp)
                         .semantics {
                             contentDescription = buildString {
@@ -274,7 +275,7 @@ fun PlateCalculatorCard(
                             Text(
                                 text = "${plate.label}$suffix",
                                 fontSize = 11.sp,
-                                color = Color(0xFF8A8A9A),
+                                color = ApexColors.TextSecondary,
                                 fontFamily = JetBrainsMonoFamily,
                                 fontWeight = FontWeight.SemiBold
                             )

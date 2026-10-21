@@ -269,17 +269,17 @@ fun NutritionScreen(
                 when {
                     userGoal == "Lose Fat" -> {
                         if (loggedCalories <= calorieTarget * 1.05) GreenAccent
-                        else if (loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B) // Amber
+                        else if (loggedCalories <= calorieTarget * 1.15) ApexColors.Amber // Amber
                         else RedAccent
                     }
                     userGoal == "Gain Muscle" -> {
                         if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) GreenAccent
                         else if (loggedCalories < calorieTarget * 0.85) RedAccent // Under-eating on gain
-                        else Color(0xFFF59E0B) // Significantly over
+                        else ApexColors.Amber // Significantly over
                     }
                     userGoal.lowercase().contains("maintain") -> {
                         if (loggedCalories >= calorieTarget * 0.95 && loggedCalories <= calorieTarget * 1.05) GreenAccent
-                        else if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) Color(0xFFF59E0B)
+                        else if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) ApexColors.Amber
                         else RedAccent
                     }
                     else -> if (loggedCalories >= calorieTarget) GreenAccent else OrangeAccent
@@ -349,7 +349,7 @@ fun NutritionScreen(
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MacroStatMini(label = "Prot:", value = "${loggedProtein.roundToInt()}/${targetProtein}g", color = Color(0xFFA78BFA))
+                            MacroStatMini(label = "Prot:", value = "${loggedProtein.roundToInt()}/${targetProtein}g", color = ApexColors.Primary)
                             MacroStatMini(label = "Carb:", value = "${loggedCarbs.roundToInt()}/${targetCarbs}g", color = BlueAccent)
                             MacroStatMini(label = "Fat:", value = "${loggedFat.roundToInt()}/${targetFat}g", color = RedAccent)
                         }
@@ -363,13 +363,13 @@ fun NutritionScreen(
             Button(
                 onClick = { showAddFoodModal = true },
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
                     .testTag("add_nutrition_button")
             ) {
-                Text(stringResource(R.string.nutrition_log_meal), fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0A0A0F))
+                Text(stringResource(R.string.nutrition_log_meal), fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = ApexColors.OnGlow)
             }
         }
 
@@ -803,7 +803,7 @@ fun AddFoodSheet(
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AmberAccent,
+                    containerColor = ApexColors.Primary,
                     disabledContainerColor = DarkRaised.copy(alpha = 0.5f)
                 )
             ) {
@@ -811,7 +811,7 @@ fun AddFoodSheet(
                     text = "LOG MEAL",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
-                    color = if (isMealValid) Color(0xFF0A0A0F) else MutedText
+                    color = if (isMealValid) ApexColors.OnGlow else MutedText
                 )
             }
         },
@@ -875,7 +875,7 @@ fun AdaptiveCalorieTargetCard(
                         Text(stringResource(R.string.nutrition_your_real_calorie_burn_this_we, tdeeResult.tdee),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = Color(0xFF34D399),
+                            color = ApexColors.Victory,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(stringResource(R.string.nutrition_suggested_target_for_kcal, goalLabel, targetCals),
@@ -895,13 +895,13 @@ fun AdaptiveCalorieTargetCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(36.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent)
+                            colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary)
                         ) {
                             Text(stringResource(R.string.nutrition_accept_target),
                                 fontFamily = SyneFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFF0F0F5)
+                                color = ApexColors.TextPrimary
                             )
                         }
 
@@ -940,7 +940,7 @@ fun AdaptiveCalorieTargetCard(
                         Text(stringResource(R.string.nutrition_accuracy_improving_keep_loggin),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = Color(0xFFF97316),
+                            color = ApexColors.Amber,
                             fontWeight = FontWeight.Medium
                         )
                         Text(stringResource(R.string.nutrition_you_have_4_6_days_of_data_a_pr),
@@ -964,7 +964,7 @@ fun AdaptiveCalorieTargetCard(
                         Text(stringResource(R.string.nutrition_log_7_more_days_to_activate_ad),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = Color(0xFF8A8A9A),
+                            color = ApexColors.TextSecondary,
                             fontWeight = FontWeight.Medium
                         )
                         Text(stringResource(R.string.nutrition_the_system_learns_your_metabol),

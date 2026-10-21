@@ -169,7 +169,7 @@ private fun RestTimerButtons(
         Button(
             onClick = onSkip,
             modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+            colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(stringResource(R.string.overlay_ready), color = Color.Black, fontWeight = FontWeight.Bold)

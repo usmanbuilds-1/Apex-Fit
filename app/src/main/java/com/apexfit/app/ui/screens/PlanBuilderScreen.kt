@@ -287,7 +287,7 @@ fun PlanBuilderScreen(
                             editingSessionId = null
                             showAddDayDialog = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.testTag("add_day_button")
                     ) {
@@ -713,7 +713,7 @@ fun PlanBuilderScreen(
                         }
                         showAddDayDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                     modifier = Modifier.testTag("save_day_confirm_button")
                 ) {
                     Text(stringResource(R.string.plan_builder_save), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
@@ -1129,7 +1129,7 @@ fun PlanBuilderScreen(
 
                         showAddExerciseDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                     modifier = Modifier.testTag("save_exercise_confirm_button")
                 ) {
                     Text(stringResource(R.string.plan_builder_save), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)

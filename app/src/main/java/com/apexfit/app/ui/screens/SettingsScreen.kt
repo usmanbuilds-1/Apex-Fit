@@ -121,7 +121,7 @@ fun SettingsScreen(
     val weightMax = if (units == "kg") 300.0 else 660.0
 
     Scaffold(
-        containerColor = Color(0xFF0A0A0F),
+        containerColor = ApexColors.Canvas,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
@@ -147,7 +147,7 @@ fun SettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFF0A0A0F)
+                    containerColor = ApexColors.Canvas
                 )
             )
         }
@@ -155,7 +155,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0A0F))
+            .background(ApexColors.Canvas)
             .padding(innerPadding)
             .imePadding()
             .padding(16.dp)
@@ -218,7 +218,7 @@ fun SettingsScreen(
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Color(0xFF0A0A0F) else PrimaryText
+                        color = if (isSelected) ApexColors.OnGlow else PrimaryText
                     )
                 }
             }
@@ -374,7 +374,7 @@ fun SettingsScreen(
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Color(0xFF0A0A0F) else PrimaryText
+                        color = if (isSelected) ApexColors.OnGlow else PrimaryText
                     )
                 }
             }
@@ -419,7 +419,7 @@ fun SettingsScreen(
                         fontFamily = SyneFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (selected) Color(0xFF0A0A0F) else SecondaryText
+                        color = if (selected) ApexColors.OnGlow else SecondaryText
                     )
                 }
             }
@@ -461,7 +461,7 @@ fun SettingsScreen(
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Color(0xFF0A0A0F) else PrimaryText
+                        color = if (isSelected) ApexColors.OnGlow else PrimaryText
                     )
                 }
             }
@@ -605,10 +605,10 @@ fun SettingsScreen(
                     onNavigateBack()
                 },
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                 modifier = Modifier.weight(1f).height(48.dp)
             ) {
-                Text(stringResource(R.string.settings_save_profile), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0F))
+                Text(stringResource(R.string.settings_save_profile), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = ApexColors.OnGlow)
             }
         }
 

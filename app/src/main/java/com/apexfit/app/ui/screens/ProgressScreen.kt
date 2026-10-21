@@ -127,7 +127,7 @@ fun DeloadCard(
                 modifier = Modifier
                     .width(4.dp)
                     .fillMaxHeight()
-                    .background(AmberAccent)
+                    .background(ApexColors.Primary)
             )
             Column(
                 modifier = Modifier
@@ -575,7 +575,7 @@ fun ProgressMainTabContent(
                     .fillMaxWidth()
                     .padding(top = 10.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF13131D))
+                    .background(ApexColors.SurfaceSunken)
                     .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -605,7 +605,7 @@ fun ProgressMainTabContent(
                             Icon(
                                 painter = painterResource(icon),
                                 contentDescription = title,
-                                tint = if (isSelected) Color(0xFF0F0F1A) else MutedText,
+                                tint = if (isSelected) ApexColors.OnGlow else MutedText,
                                 modifier = Modifier.size(13.dp)
                             )
                             Text(
@@ -613,7 +613,7 @@ fun ProgressMainTabContent(
                                 fontFamily = SyneFamily,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSelected) Color(0xFF0F0F1A) else SecondaryText
+                                color = if (isSelected) ApexColors.OnGlow else SecondaryText
                             )
                         }
                     }
@@ -679,11 +679,11 @@ fun ProgressMainTabContent(
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AmberAccent),
+                            colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.testTag("log_weight_button")
                         ) {
-                            Text(stringResource(R.string.progress_save_weight), fontFamily = SyneFamily, fontSize = 11.sp, color = Color(0xFF0F0F1A))
+                            Text(stringResource(R.string.progress_save_weight), fontFamily = SyneFamily, fontSize = 11.sp, color = ApexColors.OnGlow)
                          }
                     }
                 }
@@ -957,7 +957,7 @@ fun ProgressMainTabContent(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF13131D))
+                            .background(ApexColors.SurfaceSunken)
                             .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
                             .padding(10.dp)
                     ) {
@@ -994,7 +994,7 @@ fun ProgressMainTabContent(
                         modifier = Modifier
                             .weight(1.3f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF13131D))
+                            .background(ApexColors.SurfaceSunken)
                             .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
                             .padding(10.dp)
                     ) {
@@ -1031,7 +1031,7 @@ fun ProgressMainTabContent(
                         modifier = Modifier
                             .weight(1.1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF13131D))
+                            .background(ApexColors.SurfaceSunken)
                             .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
                             .padding(10.dp)
                     ) {
