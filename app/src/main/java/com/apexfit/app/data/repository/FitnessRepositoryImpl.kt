@@ -591,30 +591,4 @@ class FitnessRepositoryImpl @Inject constructor(
             dao.insertDetectedPatterns(entities)
         }
     }
-
-    override suspend fun insertWeightEntry(entry: com.apexfit.app.data.WeightEntry) = dao.insertWeightEntry(entry)
-
-    override suspend fun deleteWeightEntryById(id: Long) = dao.deleteWeightEntryById(id)
-
-    override fun getAllPlanExercisesFlow(): kotlinx.coroutines.flow.Flow<List<com.apexfit.app.data.PlanExercise>> =
-        dao.getAllPlanExercisesFlow()
-
-    override suspend fun getWeightEntriesSince(cutoffDate: String): List<com.apexfit.app.data.WeightEntry> =
-        dao.getWeightEntriesSince(cutoffDate)
-
-    override suspend fun getNutritionEntriesSince(cutoffDate: String): List<com.apexfit.app.data.NutritionEntry> =
-        dao.getNutritionEntriesSince(cutoffDate)
-
-    override suspend fun getAllWorkoutSessions(): List<com.apexfit.app.data.TrainingSession> =
-        dao.getAllTrainingSessions()
-
-    override suspend fun getRecentPersonalRecordsWithNames(limit: Int): List<com.apexfit.app.data.PersonalRecordWithName> =
-        dao.getRecentPersonalRecordsWithNames(limit).first()
-
-    override suspend fun clearAllData() = db.clearAllTables()
-
-    override suspend fun activatePlan(planId: Long) = db.withTransaction {
-        dao.deactivateAllPlans()
-        dao.activatePlan(planId)
-    }
 }

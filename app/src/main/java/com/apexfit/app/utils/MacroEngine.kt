@@ -20,28 +20,18 @@ object MacroEngine {
         heightCm: Double = UserDefaults.HEIGHT_CM,
         sex: String = "male"
     ): com.apexfit.app.data.NutritionTargets {
-        // Protein targets expressed as g/kg TOTAL body weight — matching how the
-        // evidence is reported. Using body weight avoids LBM estimation error and
-        // matches the evidence directly.
-        //
-        // Sources and ranges:
-        //   Gain muscle : 1.6–2.2 g/kg BW — Morton et al. (2018) meta-analysis, 49 RCTs
-        //   Lose fat    : 2.0–2.4 g/kg BW — Helms et al. (2014) systematic review
-        //   Recomposition: 1.8–2.4 g/kg BW — deficit context, similar to fat loss
-        //   Maintain    : 1.2–1.8 g/kg BW — above Morton threshold with buffer
-        //
-        // Target = midpoint of the evidence range. The coerceIn(100, 350) floor/ceiling
-        // handles extreme body compositions.
-        //
-        val proteinPerKgBW = when (goal.lowercase()) {
-            "gain muscle"   -> 1.9   // midpoint of 1.6–2.2 range (Morton 2018)
-            "lose fat"      -> 2.2   // midpoint of 2.0–2.4 range (Helms 2014)
-            "recomposition" -> 2.1   // midpoint of 1.8–2.4 range
-            else            -> 1.5   // midpoint of 1.2–1.8 range (maintenance)
+        val lbm = GoalEngine.estimateLBM(bodyWeightKg, heightCm, sex)
+        val basisKg = minOf(lbm, bodyWeightKg)  // never exceed total weight
+
+        val proteinMultiplier = when (goal.lowercase()) {
+            "lose fat"        -> 2.4
+            "recomposition"   -> 2.8
+            "gain muscle"     -> 2.0
+            else              -> 1.6
         }
-        var proteinG = (bodyWeightKg * proteinPerKgBW)
+        var proteinG = (basisKg * proteinMultiplier)
             .roundToInt()
-            .coerceIn(100, 350)
+            .coerceIn(100, 350)  // raise cap from 250 to 350
 
         var fatG = (bodyWeightKg * when (goal.lowercase()) {
             "gain muscle", "recomposition" -> 1.0   // 1g/kg supports hormonal function

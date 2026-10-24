@@ -55,7 +55,7 @@ class HomeViewModelTest {
         val dataStore = DataStoreManager.getInstance(application)
         val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         
-        val viewModel = HomeViewModel(application, repository, dataStore)
+        val viewModel = HomeViewModel(application, repository, dataStore, dao)
         
         // Log negative weight
         val job = viewModel.logWeight(-10.0)

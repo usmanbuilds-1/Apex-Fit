@@ -17,7 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.apexfit.app.ui.theme.ApexColors
+import com.apexfit.app.ui.theme.CyberTheme
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -72,8 +72,8 @@ fun ReadinessPetalDial(
                     )
                     close()
                 }
-                drawPath(socketPath, ApexColors.SurfaceRaised, style = Fill)
-                drawPath(socketPath, ApexColors.BorderSubtle, style = Stroke(width = 1.dp.toPx()))
+                drawPath(socketPath, CyberTheme.ModuleSurfaceHigh, style = Fill)
+                drawPath(socketPath, CyberTheme.ReticleBorder, style = Stroke(width = 1.dp.toPx()))
 
                 val petalPath = Path().apply {
                     arcTo(
@@ -87,15 +87,15 @@ fun ReadinessPetalDial(
                 }
 
                 val petalColor = when {
-                    seg.recoveryPercent >= 0.85f -> ApexColors.Primary
-                    seg.recoveryPercent >= 0.60f -> ApexColors.Amber
-                    else -> ApexColors.Alert
+                    seg.recoveryPercent >= 0.85f -> CyberTheme.AcidLime
+                    seg.recoveryPercent >= 0.60f -> CyberTheme.CyberYellow
+                    else -> CyberTheme.ApexOrange
                 }
                 drawPath(petalPath, petalColor.copy(alpha = 0.85f), style = Fill)
             }
 
-            drawCircle(ApexColors.Canvas, radius = minRadius)
-            drawCircle(ApexColors.BorderStrong, radius = minRadius, style = Stroke(width = 2.dp.toPx()))
+            drawCircle(CyberTheme.ChassisBackground, radius = minRadius)
+            drawCircle(CyberTheme.RimHighlight, radius = minRadius, style = Stroke(width = 2.dp.toPx()))
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -104,14 +104,14 @@ fun ReadinessPetalDial(
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = FontFamily.Monospace,
-                color = ApexColors.TextPrimary
+                color = CyberTheme.TextPrimary
             )
             Text(
                 text = "INDEX",
                 fontSize = 8.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                color = ApexColors.Primary,
+                color = CyberTheme.AcidLime,
                 letterSpacing = 1.5.sp
             )
         }

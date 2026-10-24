@@ -131,21 +131,21 @@ class AlgorithmViewModel @Inject constructor(
         .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(0) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    val plateauResult: StateFlow<UiPlateauResult> = richSessionsFlow
-        .map { sessions ->
-            withContext(Dispatchers.Default) {
-                com.apexfit.app.utils.PlateauEngine.detectStrengthPlateau(sessions)
-            }.toUi()
+    val plateauResult: StateFlow<UiPlateauResult> = combine(
+        weightFlow, nutritionFlow, richSessionsFlow
+    ) { weights: List<com.apexfit.app.utils.WeightEntry>, nutrition: List<com.apexfit.app.utils.NutritionEntry>, sessions: List<com.apexfit.app.utils.TrainingSession> ->
+        val res = withContext(Dispatchers.Default) {
+            com.apexfit.app.utils.PlateauEngine.detectPlateau(weights, nutrition, sessions)
         }
-        .catch { e ->
-            android.util.Log.e("AlgorithmVM", "flow error", e)
-            emit(com.apexfit.app.data.PlateauResult(isPlateaued = false).toUi())
-        }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            com.apexfit.app.data.PlateauResult(isPlateaued = false).toUi()
-        )
+        res.toUi()
+    }.catch { e ->
+        android.util.Log.e("AlgorithmVM", "flow error", e)
+        emit(com.apexfit.app.data.PlateauResult(isPlateaued = false).toUi())
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        com.apexfit.app.data.PlateauResult(isPlateaued = false).toUi()
+    )
 
     val plateauAlert: StateFlow<com.apexfit.app.data.PlateauResult?> = plateauResult
         .map { result ->

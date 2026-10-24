@@ -83,30 +83,32 @@ class AlgorithmEngineTest {
     }
 
     @Test
-    fun testDetectStrengthPlateau_normal() {
-        // 4 sessions: first two progress, last two stall → early plateau
-        fun makeSession(date: String, weight: Double) = RichTrainingSession(
-            date = date, sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3,
-            exercises = listOf(ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(
-                ExerciseSet(weight = weight, reps = 10, rpe = 8, isWarmup = false, completed = true),
-                ExerciseSet(weight = weight, reps = 10, rpe = 8, isWarmup = false, completed = true)
-            )))
-        )
-        val sessions = listOf(
-            makeSession("2025-01-01", 60.0),
-            makeSession("2025-01-05", 62.5),
-            makeSession("2025-01-09", 62.5),
-            makeSession("2025-01-13", 62.5)
-        )
-        val result = PlateauEngine.detectStrengthPlateau(sessions)
-        assertTrue(result.isPlateaued)
-        assertEquals("early", result.severity)
-        assertTrue(result.daysStalled > 0)
+    fun testDetectPlateau_normal() {
+        val wLog = (0..14).map { WeightEntry(date = d(14 - it), weight = 80.0) }
+        val nLog = (0..14).map { NutritionEntry(date = d(14 - it), calories = 2000, protein = 150, carbs = 200, fat = 60) }
+
+        val exSet = ExerciseSet(weight = 100.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
+        val exLog = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(exSet))
+        val earlierSession = RichTrainingSession(date = d(20), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog))
+        val recentSession = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog))
+
+        // Case 1: maintained volume (1000 vs 1000) -> true plateau
+        val resPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), windowDays = 14)
+        assertTrue(resPlateau.isPlateaued)
+        assertEquals(14, resPlateau.daysStalled)
+
+        // Case 2: volume dropped >=5% (500 vs 1000) -> not a plateau
+        val exSetLow = ExerciseSet(weight = 50.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
+        val exLogLow = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(exSetLow))
+        val recentSessionLow = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLogLow))
+
+        val resNoPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), windowDays = 14)
+        assertFalse(resNoPlateau.isPlateaued)
     }
 
     @Test
-    fun testDetectStrengthPlateau_edgeCase_empty() {
-        val res = PlateauEngine.detectStrengthPlateau(emptyList())
+    fun testDetectPlateau_edgeCase_empty() {
+        val res = PlateauEngine.detectPlateau(emptyList(), emptyList(), emptyList(), windowDays = 10)
         assertFalse(res.isPlateaued)
     }
 

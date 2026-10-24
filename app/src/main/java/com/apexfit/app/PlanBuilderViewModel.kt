@@ -22,6 +22,19 @@ class PlanBuilderViewModel @Inject constructor(
     private val dao: FitnessDao
 ) : AndroidViewModel(application) {
 
+    constructor(application: Application) : this(
+        application = application,
+        repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(
+            com.apexfit.app.data.AppDatabase.getDatabase(application),
+            com.apexfit.app.data.AppDatabase.getDatabase(application).fitnessDao(),
+            com.apexfit.app.data.DataStoreManager.getInstance(application)
+        ),
+        dataStore = com.apexfit.app.data.DataStoreManager.getInstance(application),
+        dao = com.apexfit.app.data.AppDatabase.getDatabase(application).fitnessDao()
+    )
+
+    private val db: AppDatabase get() = AppDatabase.getDatabase(getApplication())
+
     private val sessionIdCounter = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())
 
     private fun nextSessionId(): Long = sessionIdCounter.incrementAndGet()
@@ -229,9 +242,12 @@ class PlanBuilderViewModel @Inject constructor(
     }
 
     fun activatePlan(planId: Long): kotlinx.coroutines.Job = viewModelScope.launch {
-        // Delegated to repository which wraps in db.withTransaction —
-        // deactivate + activate remain atomic (BUG-V4-009 fix preserved)
-        repository.activatePlan(planId)
+        // AUDIT FIX (BUG-V4-009): wrap in a transaction so deactivate + activate
+        // are atomic — a crash between the two calls cannot leave all plans inactive.
+        db.withTransaction {
+            dao.deactivateAllPlans()
+            dao.activatePlan(planId)
+        }
     }
 
     suspend fun seedDefaultWorkoutPlan() {

@@ -389,10 +389,6 @@ interface FitnessDao {
     """)
     suspend fun getLastWeightForExercise(exerciseId: String): Double?
 
-    // Bug fix: was loading ALL historical sets (O(n) per user lifetime) then taking .first()
-    // per exercise in Kotlin — progression engine only saw 1 set, so allHitMax was always
-    // false and weight never advanced. Now returns only the most recent session's sets per
-    // exercise using a correlated subquery. O(exercises) instead of O(total sets).
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
@@ -401,13 +397,8 @@ interface FitnessDao {
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
         WHERE es.exerciseId IN (:exerciseIds)
-          AND es.sessionId = (
-              SELECT sessionId FROM exercise_sets
-              WHERE exerciseId = es.exerciseId AND completed = 1
-              ORDER BY id DESC LIMIT 1
-          )
           AND es.completed = 1
-        ORDER BY es.exerciseId, es.id ASC
+        ORDER BY es.id DESC
     """)
     suspend fun getLastSetsWithDateForExercises(
         exerciseIds: List<String>

@@ -4,51 +4,42 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-// ─── M3 Color Scheme — Night Signal ──────────────────────────────────────────
-// All slots wired to ApexColors.* tokens. APEX is dark-only — no light scheme.
-
-private val NightSignalColorScheme = darkColorScheme(
-    primary              = ApexColors.Primary,
-    onPrimary            = ApexColors.OnGlow,
-    primaryContainer     = ApexColors.PrimaryMist,
-    onPrimaryContainer   = ApexColors.Primary,
-
-    secondary            = ApexColors.TextSecondary,
-    onSecondary          = ApexColors.Canvas,
-    secondaryContainer   = ApexColors.SurfaceRaised,
-    onSecondaryContainer = ApexColors.TextSecondary,
-
-    tertiary             = ApexColors.Amber,
-    onTertiary           = ApexColors.Canvas,
-    tertiaryContainer    = ApexColors.AmberSoft,
-    onTertiaryContainer  = ApexColors.Amber,
-
-    background           = ApexColors.Canvas,
-    onBackground         = ApexColors.TextPrimary,
-
-    surface              = ApexColors.Surface,
-    onSurface            = ApexColors.TextPrimary,
-    surfaceVariant       = ApexColors.SurfaceRaised,
-    onSurfaceVariant     = ApexColors.TextSecondary,
-
-    error                = ApexColors.Alert,
-    onError              = ApexColors.Canvas,
-    errorContainer       = ApexColors.AlertSoft,
-    onErrorContainer     = ApexColors.Alert,
-
-    outline              = ApexColors.BorderSubtle,
-    outlineVariant       = ApexColors.BorderStrong,
-    scrim                = ApexColors.Canvas
+private val ApexDarkColorScheme = darkColorScheme(
+    primary = AmberAccent,
+    onPrimary = DarkBackground,
+    primaryContainer = DarkRaised,
+    onPrimaryContainer = PrimaryText,
+    secondary = SecondaryText,
+    onSecondary = DarkBackground,
+    secondaryContainer = DarkCardSurface,
+    onSecondaryContainer = SecondaryText,
+    tertiary = GreenAccent,
+    onTertiary = DarkBackground,
+    tertiaryContainer = DarkRaised,
+    onTertiaryContainer = GreenAccent,
+    background = DarkBackground,
+    onBackground = PrimaryText,
+    surface = DarkCardSurface,
+    onSurface = PrimaryText,
+    surfaceVariant = DarkRaised,
+    onSurfaceVariant = SecondaryText,
+    error = RedAccent,
+    onError = DarkBackground,
+    errorContainer = DarkRaised,
+    onErrorContainer = RedAccent,
+    outline = BorderSubtle,
+    outlineVariant = BorderBright
 )
 
 @Composable
 fun ApexFitTheme(
+    darkTheme: Boolean = true, // Force Dark Theme always
+    dynamicColor: Boolean = false, // Disable dynamic colors to maintain premium vibe
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = NightSignalColorScheme,
-        typography  = Typography,
-        shapes      = ApexShapes,
-        content     = content
+        colorScheme = ApexDarkColorScheme,
+        typography = Typography,
+        content = content
     )
 }

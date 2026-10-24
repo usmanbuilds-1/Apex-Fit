@@ -9,31 +9,12 @@ import kotlin.math.roundToInt
 enum class MuscleSize { SMALL, MEDIUM, LARGE }
 
 object MuscleRecoveryData {
-    // Recovery time constants (tau, in days) for the bi-exponential recovery model.
-    //
-    // These values are grounded in Bartolomei et al. (2017) Eur J Appl Physiol findings:
-    //   - High-volume training: neuromuscular force suppressed for ~72h (large muscles)
-    //   - High-intensity low-volume: recovery within ~24–48h
-    //   - Moderate volume: ~48h for most muscle groups
-    //
-    // Tau is chosen so that 90–95% recovery occurs at the research-supported window:
-    //   Large muscles (quads, hamstrings, glutes, back): tau = 0.5 days → ~95% at 72h
-    //   Medium muscles (chest, shoulders, arms, calves): tau = 0.4 days → ~93% at 48h
-    //   Small muscles (forearms, core, neck):            tau = 0.2 days → ~93% at 24h
-    //
-    // These reflect a MODERATE training session. High-volume sessions produce larger
-    // fatigue doses that naturally require proportionally longer clearance — the
-    // dose-dependent model handles this automatically.
-    //
-    // Limitation: individual variation in recovery rate is substantial. These represent
-    // population-level approximations, not individual measurements.
-    //
     private val sizeMap = MuscleGroups.ALL.associateWith { muscle ->
         when (muscle.lowercase()) {
-            "quads", "hamstrings", "glutes", "back" -> 0.5   // 95% recovery at ~72h
-            "chest", "shoulders", "triceps", "biceps", "calves" -> 0.4  // 93% at ~48h
-            "forearms", "core", "neck" -> 0.2                 // 93% at ~24h
-            else -> 0.4
+            "quads", "hamstrings", "glutes", "back" -> 2.0
+            "chest", "shoulders", "triceps", "biceps", "calves" -> 1.2
+            "forearms", "core", "neck" -> 0.8
+            else -> 1.2
         }
     }
 

@@ -177,15 +177,15 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         
         repository.scanAndSaveWeeklyPatterns()
 
-        val plateau = PlateauEngine.detectStrengthPlateau(completedSessions)
+        val plateau = PlateauEngine.detectPlateau(engineWeights, allNutrition, completedSessions, windowDays = 14)
         
         val allTriggers = mutableListOf<NotificationEngine.NotificationTrigger>()
         
         if (plateau.isPlateaued && plateau.severity == "confirmed") {
             allTriggers.add(NotificationEngine.NotificationTrigger(
                 id = "plateau_confirmed",
-                title = "Strength plateau detected",
-                body = "Your progress on one or more exercises has stalled. Your coach has a specific recommendation ready.",
+                title = "Weight plateau confirmed — 14 days",
+                body = "Your trend weight has not moved despite consistent logging. Your coach has a specific intervention ready.",
                 triggerHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
                 priority = "urgent"
             ))

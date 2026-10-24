@@ -57,23 +57,4 @@ interface FitnessRepository {
     fun getGoalFlow(): Flow<String>
     fun getCurrentWeightFlow(): Flow<Double>
     suspend fun scanAndSaveWeeklyPatterns()
-
-    // Weight mutations
-    suspend fun insertWeightEntry(entry: WeightEntry)
-    suspend fun deleteWeightEntryById(id: Long)
-
-    // Plan exercises (reactive)
-    fun getAllPlanExercisesFlow(): Flow<List<PlanExercise>>
-
-    // Export / bulk queries
-    suspend fun getWeightEntriesSince(cutoffDate: String): List<WeightEntry>
-    suspend fun getNutritionEntriesSince(cutoffDate: String): List<NutritionEntry>
-    suspend fun getAllWorkoutSessions(): List<com.apexfit.app.data.TrainingSession>
-    suspend fun getRecentPersonalRecordsWithNames(limit: Int): List<com.apexfit.app.data.PersonalRecordWithName>
-
-    // Nuclear reset — wipes all Room tables
-    suspend fun clearAllData()
-
-    // Atomic plan activation — deactivates all plans then activates the specified one
-    suspend fun activatePlan(planId: Long)
 }

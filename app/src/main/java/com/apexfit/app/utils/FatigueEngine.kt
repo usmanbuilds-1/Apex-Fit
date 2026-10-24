@@ -57,17 +57,12 @@ object FatigueEngine {
         val statusLabel: String
         val recommendation: String
         when {
-            // ACWR is a load-monitoring tool, NOT an injury predictor.
-            // Evidence does not support using ACWR thresholds to predict individual injury risk.
-            // Sources: Impellizzeri et al. (2020) Int J Sports Physiol Perform 15:907-913;
-            //          multiple 2020–2024 studies showing poor correlation with injury.
-            // Labels reflect relative training volume change only.
-            ratio == null -> { status = "unknown"; statusLabel = "No Data"; recommendation = "Log more workouts to activate training load tracking" }
-            ratio < 0.6 -> { status = "low"; statusLabel = "Well Below Baseline"; recommendation = "Your recent training is significantly lower than your usual baseline" }
-            ratio < 0.8 -> { status = "low"; statusLabel = "Below Baseline"; recommendation = "Your recent training is slightly below your usual baseline" }
-            ratio <= 1.3 -> { status = "normal"; statusLabel = "On Track"; recommendation = "Your recent training load is consistent with your baseline — keep it up" }
-            ratio <= 1.5 -> { status = "elevated"; statusLabel = "Higher Than Usual"; recommendation = "Your recent training is higher than your baseline — monitor how you're feeling" }
-            else -> { status = "high"; statusLabel = "Significantly Elevated"; recommendation = "Your recent training is well above your baseline — consider a lighter session this week" }
+            ratio == null -> { status = "unknown"; statusLabel = "No Data"; recommendation = "Log more workouts to activate fatigue tracking" }
+            ratio < 0.6 -> { status = "detraining"; statusLabel = "Low Load"; recommendation = "Load is below your usual baseline — appropriate for a deload or recovery week" }
+            ratio < 0.8 -> { status = "low"; statusLabel = "Below optimal"; recommendation = "Slightly increase volume or intensity" }
+            ratio <= 1.3 -> { status = "optimal"; statusLabel = "Optimal Load"; recommendation = "Training load is in a productive range — maintain this" }
+            ratio <= 1.5 -> { status = "high"; statusLabel = "Elevated Load"; recommendation = "Load is running high — consider backing off 10-15% this week" }
+            else -> { status = "danger"; statusLabel = "High Load Warning"; recommendation = "Load is significantly above baseline — consider reducing volume or taking a lighter week" }
         }
         return FatigueResult(ratio, status, statusLabel, recommendation, acuteLoad, chronicLoad)
     }

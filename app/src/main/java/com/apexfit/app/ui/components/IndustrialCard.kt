@@ -15,33 +15,33 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.apexfit.app.ui.theme.ApexColors
+import com.apexfit.app.ui.theme.CyberTheme
 
 @Composable
 fun IndustrialCard(
     modifier: Modifier = Modifier,
     moduleCode: String,
     title: String,
-    accentColor: Color = ApexColors.Primary,
+    accentColor: Color = CyberTheme.ApexOrange,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(ApexColors.Surface, RoundedCornerShape(8.dp))
-            .border(1.dp, ApexColors.BorderSubtle, RoundedCornerShape(8.dp))
+            .background(CyberTheme.ModuleSurface, RoundedCornerShape(8.dp))
+            .border(1.dp, CyberTheme.ReticleBorder, RoundedCornerShape(8.dp))
             .padding(1.dp)
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
             val bracketLength = 12.dp.toPx()
             val strokeW = 1.5f
 
-            drawLine(ApexColors.BorderStrong, Offset(0f, 0f), Offset(bracketLength, 0f), strokeW)
-            drawLine(ApexColors.BorderStrong, Offset(0f, 0f), Offset(0f, bracketLength), strokeW)
-            drawLine(ApexColors.BorderStrong, Offset(size.width - bracketLength, 0f), Offset(size.width, 0f), strokeW)
-            drawLine(ApexColors.BorderStrong, Offset(size.width, 0f), Offset(size.width, bracketLength), strokeW)
-            drawLine(ApexColors.BorderSubtle, Offset(0f, size.height), Offset(bracketLength, size.height), strokeW)
-            drawLine(ApexColors.BorderSubtle, Offset(0f, size.height - bracketLength), Offset(0f, size.height), strokeW)
+            drawLine(CyberTheme.RimHighlight, Offset(0f, 0f), Offset(bracketLength, 0f), strokeW)
+            drawLine(CyberTheme.RimHighlight, Offset(0f, 0f), Offset(0f, bracketLength), strokeW)
+            drawLine(CyberTheme.RimHighlight, Offset(size.width - bracketLength, 0f), Offset(size.width, 0f), strokeW)
+            drawLine(CyberTheme.RimHighlight, Offset(size.width, 0f), Offset(size.width, bracketLength), strokeW)
+            drawLine(CyberTheme.ReticleBorder, Offset(0f, size.height), Offset(bracketLength, size.height), strokeW)
+            drawLine(CyberTheme.ReticleBorder, Offset(0f, size.height - bracketLength), Offset(0f, size.height), strokeW)
 
             val stripeCount = 4
             val stripeSpacing = 6.dp.toPx()
@@ -49,7 +49,7 @@ fun IndustrialCard(
             for (i in 0 until stripeCount) {
                 val offset = i * stripeSpacing
                 drawLine(
-                    color = ApexColors.BorderStrong.copy(alpha = 0.4f),
+                    color = CyberTheme.TechnicalCrosshair.copy(alpha = 0.4f),
                     start = Offset(startX + offset, 6.dp.toPx()),
                     end = Offset(startX + offset - 8.dp.toPx(), 18.dp.toPx()),
                     strokeWidth = 2.dp.toPx()
@@ -84,7 +84,7 @@ fun IndustrialCard(
                     text = "SPEC.26 // TELEMETRY",
                     fontFamily = FontFamily.Monospace,
                     fontSize = 9.sp,
-                    color = ApexColors.TextTertiary
+                    color = CyberTheme.TextTertiary
                 )
             }
 
@@ -92,7 +92,7 @@ fun IndustrialCard(
                 text = title.uppercase(),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Black,
-                color = ApexColors.TextPrimary,
+                color = CyberTheme.TextPrimary,
                 letterSpacing = 0.5.sp,
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
             )

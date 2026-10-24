@@ -24,6 +24,8 @@ class FitnessViewModel @Inject constructor(
     private val dao: FitnessDao
 ) : AndroidViewModel(application) {
 
+    private val db: AppDatabase get() = AppDatabase.getDatabase(getApplication())
+
     // User preferences & onboarding State (Expose from preferences)
     val isOnboarded: StateFlow<Boolean?> = dataStore.isOnboardedFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -143,7 +145,7 @@ class FitnessViewModel @Inject constructor(
             com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())
             try {
                 withContext(Dispatchers.IO) {
-                    repository.clearAllData()
+                    db.clearAllTables()
                     dataStore.clearAllData()
                     com.apexfit.app.utils.SeedService.seed(getApplication())
                     seedDefaultWorkoutPlan()

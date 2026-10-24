@@ -61,100 +61,41 @@ object ProgressionEngine {
         preferredUnits = preferredUnits
     )
 
-    // ── STARTING WEIGHT SYSTEM ─────────────────────────────────────────────────
-    //
-    // Uses body-weight ratios calibrated from Strength Level population data
-    // (48M+ lifts across all experience levels). Ratios scale with both body
-    // weight and experience, so a 60kg untrained male and a 90kg intermediate
-    // male receive appropriately different starting weights.
-    //
-    // Evidence basis:
-    //   Tier 1 — 5 major barbell exercises: directly validated BW×ratio norms
-    //     Male:   bench 0.50×, squat 0.75×, deadlift 0.90×, OHP 0.35×, row 0.50×
-    //     Female: bench 0.30×, squat 0.60×, deadlift 0.70×, OHP 0.22×, row 0.35×
-    //     Source: Strength Level (48M+ lifts); training weight = 1RM × 0.65
-    //
-    //   Tier 2 — all other categories: BW-ratio tables derived from Strength
-    //     Level norms for each category at beginner level (novice baseline).
-    //     Female ratios ≈ 55–65% of male per population standards.
-    //     Source: Strength Level population percentiles across exercise categories.
-    //
-    //   Experience multipliers (relative to novice = 1.0):
-    //     untrained 0.80 | novice 1.00 | intermediate 1.70 | advanced 2.40
-    //     Derived from Strength Level intermediate/beginner standard ratios.
-    //
-    //   Limitations: individual variation is substantial (±30–40%). These are
-    //   population-level starting estimates, not individual measurements.
-    //   The user's RPE on the first working set will correct any mismatch within
-    //   one or two sets. Conservative is intentional — starting too light is
-    //   safer and recoverable; starting too heavy risks injury and bad form.
-    //
-    // NOTE: Pass experienceLevel and sex from the user's profile for accurate
-    // estimates. Defaults (novice, male) are used when profile data is unavailable.
-    //
     fun calculateBeginnerStartingWeight(
-        exerciseType: String,
+        exerciseType: String,  // "compound_upper", "compound_lower", "isolation"
         userBodyWeightKg: Double,
-        userHeightCm: Double,    // retained for API compatibility; not used in formula
-        preferredUnits: String = "lbs",
-        exerciseName: String = "",
-        sex: String = "male",
-        experienceLevel: String = "novice"  // untrained | novice | intermediate | advanced
+        userHeightCm: Double,  // for lever arm adjustment
+        preferredUnits: String = "lbs"
     ): Double {
-        val bw = userBodyWeightKg.coerceAtLeast(40.0)
-        val isFemale = sex.lowercase().startsWith("f")
-
-        // Experience multiplier relative to novice baseline
-        val expMult = when (experienceLevel.lowercase()) {
-            "untrained"    -> 0.80
-            "intermediate" -> 1.70
-            "advanced"     -> 2.40
-            else           -> 1.00  // novice (safe default)
+        
+        val baseMultiplier = when(exerciseType) {
+            "compound_upper" -> 0.35    // Barbell bench: 128 × 0.35 = 44.8 lbs
+            "compound_lower" -> 0.40    // Barbell squat: 128 × 0.40 = 51.2 lbs
+            "dumbbell_upper" -> 0.12    // DB chest press: 128 × 0.12 = 15.4 lbs per DB
+            "dumbbell_lower" -> 0.15    // DB goblet squat: 128 × 0.15 = 19.2 lbs
+            "isolation" -> 0.08         // Bicep curl: 128 × 0.08 = 10.2 lbs
+            else -> 0.10
         }
-
-        val nameL = exerciseName.lowercase()
-
-        // ── Tier 1: Named major barbell exercises ────────────────────────────────
-        // Exact BW norms at novice level; experience multiplier applied on top.
-        val tier1Kg: Double? = when {
-            nameL.contains("bench press") && !nameL.contains("dumbbell") && !nameL.contains(" db ") ->
-                bw * (if (isFemale) 0.195 else 0.325)
-            nameL.contains("squat") && !nameL.contains("goblet") && !nameL.contains("dumbbell") ->
-                bw * (if (isFemale) 0.390 else 0.488)
-            nameL.contains("deadlift") && !nameL.contains("dumbbell") && !nameL.contains(" db ") ->
-                bw * (if (isFemale) 0.455 else 0.585)
-            nameL.contains("overhead press") || nameL.contains(" ohp") ->
-                bw * (if (isFemale) 0.143 else 0.228)
-            nameL.contains("barbell row") || nameL.contains("bent-over row") ->
-                bw * (if (isFemale) 0.228 else 0.325)
-            else -> null
+        
+        val effectiveBodyWeight = userBodyWeightKg.coerceAtLeast(40.0)
+        var startWeight = effectiveBodyWeight * baseMultiplier
+        
+        // Adjust for height (tall = longer ROM = harder)
+        if (userHeightCm > 185) {  // Taller than 6'1"
+            startWeight *= 0.90  // Reduce by 10%
+        } else if (userHeightCm < 170) {  // Shorter than 5'7"
+            startWeight *= 1.10  // Increase by 10%
         }
-
-        // ── Tier 2: Category-based BW ratios ────────────────────────────────────
-        // Lateral raises and flyes are lighter isolation exercises — detected by
-        // name to avoid over-prescribing relative to curls/pushdowns.
-        val isLightIsolation = nameL.contains("raise") || nameL.contains(" fly") ||
-                               nameL.contains("flye") || nameL.contains("face pull")
-
-        val tier2Kg: Double = when (exerciseType.lowercase()) {
-            "compound_upper" -> bw * (if (isFemale) 0.200 else 0.325)
-            "compound_lower" -> bw * (if (isFemale) 0.390 else 0.488)
-            "dumbbell_upper" -> bw * (if (isFemale) 0.070 else 0.120)
-            "dumbbell_lower" -> bw * (if (isFemale) 0.090 else 0.130)
-            "machine"        -> bw * (if (isFemale) 0.180 else 0.300)
-            "isolation"      ->
-                if (isLightIsolation) bw * (if (isFemale) 0.035 else 0.050)
-                else                  bw * (if (isFemale) 0.060 else 0.080)
-            else             -> bw * (if (isFemale) 0.055 else 0.085)
+        
+        // Round to nearest 2.5 of the preferred unit to maintain accuracy
+        val result = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
+            (startWeight * AppConstants.KG_TO_LBS).roundToNearest2_5() / AppConstants.KG_TO_LBS
+        } else {
+            startWeight.roundToNearest2_5()
         }
-
-        val baseKg = tier1Kg ?: tier2Kg
-        val startKg = (baseKg * expMult).coerceAtLeast(if (isFemale) 2.0 else 2.5)
-
-        val result = startKg.roundToNearest2_5()
+        
         return if (preferredUnits.lowercase() in listOf("lb", "lbs")) result * AppConstants.KG_TO_LBS else result
     }
-
 
 enum class OutcomeType { SUCCESS, PROGRESSING, STALLED, PLATEAU }
 
@@ -201,49 +142,12 @@ data class ProgressionResult(
         exerciseType: String,
         consecutiveStalledSessions: Int = 0,
         incrementOverrideKg: Double? = null,
-        weightUnit: String = "kg",
-        // ACSM (2009): novices should not train to or near failure initially.
-        // Novice success threshold is RPE ≤ 7 (RIR ≥ 3); intermediate+ RPE ≤ 8 (RIR ≥ 2).
-        isNovice: Boolean = false,
-        // Days since the user last performed this exercise. Used to apply a conservative
-        // detraining weight reduction when returning after a significant time gap.
-        // Source: Strength loss timeline — Gay et al., Hortobagyi et al., Mujika & Padilla (2000).
-        //   < 14 days : no adjustment (trivial loss ~1–2%)
-        //   14–27 days: −5%  (minor loss, conservative safety buffer)
-        //   28–55 days: −10% (moderate loss ~6–9% per Kraemer et al.)
-        //   56+ days  : −15% (significant loss; muscle memory accelerates return)
-        // Default 0 = unknown / same session — no adjustment applied.
-        daysSinceLastSession: Int = 0
+        weightUnit: String = "kg"
     ): ProgressionResult {
         require(repsMin <= repsMax) {
             "repsMin ($repsMin) must be <= repsMax ($repsMax). Check plan configuration."
         }
-
-        // ── Detraining adjustment ─────────────────────────────────────────────
-        // If the user is returning after a significant time gap, conservatively
-        // reduce the working weight before running progression logic. The reduction
-        // is applied to 'currentWeight' so all outcomes (SUCCESS, STALLED, etc.)
-        // reason against the adjusted weight, not the pre-break weight.
-        // Muscle memory means strength returns faster than it was lost, so this
-        // conservatism is intentional — it prevents injury on return and the user
-        // will progress back quickly.
-        val detrain = when {
-            daysSinceLastSession < 14 -> 1.00   // trivial loss — no change
-            daysSinceLastSession < 28 -> 0.95   // minor loss — 5% reduction
-            daysSinceLastSession < 56 -> 0.90   // moderate loss — 10% reduction
-            else                      -> 0.85   // significant loss — 15% reduction
-        }
-        val effectiveWeight = if (detrain < 1.0) {
-            val plateSize = if (exerciseType == "isolation") 1.25 else 2.5
-            (Math.floor(currentWeight * detrain / plateSize) * plateSize)
-                .coerceAtLeast(plateSize)
-        } else {
-            currentWeight
-        }
-        val detrainNote = if (detrain < 1.0)
-            " (reduced ${((1.0 - detrain) * 100).toInt()}% after ${daysSinceLastSession}d break)"
-        else ""
-
+        
         val workingSets = lastSessionSets.filter { !it.isWarmup && it.completed }
         
         if (workingSets.isEmpty()) {
@@ -256,10 +160,8 @@ data class ProgressionResult(
         }
 
         // Outcome Determination
-        // 1. SUCCESS: All sets >= repsMax at appropriate RPE for experience level
-        // ACSM progression models: novice RPE ≤ 7 (RIR ≥ 3), intermediate+ RPE ≤ 8 (RIR ≥ 2)
-        val successRpeThreshold = if (isNovice) 7 else 8
-        val allHitMax = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMax && it.rpe <= successRpeThreshold }
+        // 1. SUCCESS: All sets >= repsMax AND RPE <= 8
+        val allHitMax = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMax && it.rpe <= 8 }
         
         // 2. PROGRESSING: All sets within range [repsMin, repsMax] but not all hit success criteria
         val allInRepsRange = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMin }
@@ -312,16 +214,16 @@ data class ProgressionResult(
         // §6.2 fix: for PLATEAU, use floor rounding (always round DOWN) to
         // guarantee at least 10% deload regardless of plate grid.
         val newWeight = when(outcome) {
-            OutcomeType.SUCCESS  -> effectiveWeight + roundedIncrement
-            OutcomeType.PLATEAU  -> (Math.floor(effectiveWeight * 0.9 / plateSize) * plateSize)
-            else                 -> effectiveWeight
+            OutcomeType.SUCCESS  -> currentWeight + roundedIncrement
+            OutcomeType.PLATEAU  -> (Math.floor(currentWeight * 0.9 / plateSize) * plateSize)
+            else                 -> currentWeight
         }
 
         val reason = when(outcome) {
-            OutcomeType.SUCCESS     -> "Hit all targets at max reps with reserve. Advancing weight.$detrainNote"
-            OutcomeType.PROGRESSING -> "All sets within rep range. Hold weight and aim for ${repsMax} reps.$detrainNote"
-            OutcomeType.STALLED     -> "Failed to hit minimum reps/sets target. Holding weight to retry.$detrainNote"
-            OutcomeType.PLATEAU     -> "Multiple failed sessions. Deloading 10% to recover and break plateau.$detrainNote"
+            OutcomeType.SUCCESS     -> "Hit all targets at max reps with reserve. Advancing weight."
+            OutcomeType.PROGRESSING -> "All sets within rep range. Hold weight and aim for ${repsMax} reps."
+            OutcomeType.STALLED     -> "Failed to hit minimum reps/sets target. Holding weight to retry."
+            OutcomeType.PLATEAU     -> "Multiple failed sessions. Deloading 10% to recover and break plateau."
         }
 
         return ProgressionResult(newWeight, outcome, reason)
