@@ -41,6 +41,11 @@ class DataStoreManager(context: Context) {
         val AGE_KEY = intPreferencesKey("age")
         val SEX_KEY = stringPreferencesKey("sex")
         val WEEKLY_WORKOUTS_KEY = intPreferencesKey("weekly_workouts")
+        val EXPERIENCE_KEY = stringPreferencesKey("training_experience")
+        val PROTEIN_PREFERENCE_KEY = stringPreferencesKey("protein_preference")
+        val DIETARY_RESTRICTIONS_KEY = stringPreferencesKey("dietary_restrictions")
+        val FOOD_BUDGET_KEY = stringPreferencesKey("food_budget")
+        val SUPPLEMENTS_KEY = stringPreferencesKey("supplements")
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
         val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
@@ -73,8 +78,65 @@ class DataStoreManager(context: Context) {
     }
 
     val isOnboardedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[ONBOARDED_KEY] ?: true
+        preferences[ONBOARDED_KEY] ?: false
     }.distinctUntilChanged()
+
+    val experienceFlow = context.dataStore.data.map { it[EXPERIENCE_KEY] ?: "Beginner" }.distinctUntilChanged()
+    val nutritionPreferencesFlow = context.dataStore.data.map {
+        NutritionPreferences(it[PROTEIN_PREFERENCE_KEY] ?: "No preference",
+            it[DIETARY_RESTRICTIONS_KEY] ?: "None", it[FOOD_BUDGET_KEY] ?: "Budget friendly",
+            it[SUPPLEMENTS_KEY] ?: "None")
+    }.distinctUntilChanged()
+
+    val hasBodyDetailsFlow = context.dataStore.data.map { preferences ->
+        preferences.contains(CURRENT_WEIGHT_KEY) && preferences.contains(HEIGHT_KEY) &&
+            preferences.contains(AGE_KEY) && preferences.contains(SEX_KEY)
+    }.distinctUntilChanged()
+
+    val profileOnlySetupFlow = context.dataStore.data.map {
+        it[booleanPreferencesKey("profile_only_setup")] ?: false
+    }.distinctUntilChanged()
+
+    suspend fun saveTrainingSetup(profile: OnboardingProfile?) {
+        if (profile != null) {
+            require(profile.goal in listOf("Lose Fat", "Recomposition", "Gain Muscle"))
+            require(profile.experience in OnboardingProfile.EXPERIENCE_LEVELS)
+            require(profile.daysPerWeek in 2..5)
+        }
+        context.dataStore.edit {
+            if (profile != null) {
+                it[GOAL_KEY] = profile.goal
+                it[EXPERIENCE_KEY] = profile.experience
+                it[WEEKLY_WORKOUTS_KEY] = profile.daysPerWeek
+            }
+            // This flow does not invent body details, calorie targets, or a workout plan.
+            it[booleanPreferencesKey("profile_only_setup")] = true
+            it[ONBOARDED_KEY] = true
+        }
+    }
+
+    suspend fun saveOnboardingProfile(profile: OnboardingProfile) {
+        require(profile.validationError() == null) { profile.validationError().orEmpty() }
+        context.dataStore.edit {
+            it[USER_NAME_KEY] = profile.name.trim()
+            it[GOAL_KEY] = profile.goal
+            it[CURRENT_WEIGHT_KEY] = profile.weightKg
+            it[GOAL_WEIGHT_KEY] = profile.targetWeightKg
+            it[HEIGHT_KEY] = profile.heightCm
+            it[AGE_KEY] = profile.age
+            it[SEX_KEY] = profile.sex
+            it[UNITS_KEY] = profile.units
+            it[WEEKLY_WORKOUTS_KEY] = profile.daysPerWeek
+            it[EXPERIENCE_KEY] = profile.experience
+            it[PROTEIN_PREFERENCE_KEY] = profile.proteinPreference
+            it[DIETARY_RESTRICTIONS_KEY] = profile.dietaryRestrictions
+            it[FOOD_BUDGET_KEY] = profile.foodBudget
+            it[SUPPLEMENTS_KEY] = profile.supplements
+            // New onboarding already stores kilograms, including imperial-display profiles.
+            it[WEIGHTS_NORMALIZED_KEY] = true
+            it[ONBOARDED_KEY] = true
+        }
+    }
 
     val isExercisesSeededFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[EXERCISES_SEEDED_KEY] ?: false

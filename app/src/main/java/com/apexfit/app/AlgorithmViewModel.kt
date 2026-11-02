@@ -114,6 +114,8 @@ class AlgorithmViewModel @Inject constructor(
     }.catch { e ->
         android.util.Log.e("AlgorithmVM", "flow error", e)
         emit(com.apexfit.app.utils.TDEEResult(tdee = 0, confidence = "No Data", avgCalories = 0, weightChangeKg = 0.0))
+    }.combine(dataStore.hasBodyDetailsFlow) { result, ready ->
+        if (ready) result else com.apexfit.app.utils.TDEEResult(tdee = 0, confidence = "Body details needed", avgCalories = 0, weightChangeKg = 0.0)
     }.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5_000),
         com.apexfit.app.utils.TDEEResult(tdee = 0, confidence = "No Data", avgCalories = 0, weightChangeKg = 0.0)

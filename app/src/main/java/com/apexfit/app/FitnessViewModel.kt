@@ -28,7 +28,7 @@ class FitnessViewModel @Inject constructor(
 
     // User preferences & onboarding State (Expose from preferences)
     val isOnboarded: StateFlow<Boolean?> = dataStore.isOnboardedFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val username = dataStore.usernameFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val goal = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Gain Muscle")
     val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
@@ -57,30 +57,54 @@ class FitnessViewModel @Inject constructor(
         _trainSubTab.value = subTab
     }
 
-    fun completeOnboarding(
-        username: String,
-        goal: String,
-        currentWeight: Double,
-        goalWeight: Double,
-        height: Double = com.apexfit.app.UserDefaults.HEIGHT_CM,
-        age: Int = com.apexfit.app.UserDefaults.AGE_YEARS,
-        sex: String = "male",
-        units: String = "kg",
-        weeklyWorkouts: Int = 3
-    ) {
-        val isImperial = units.lowercase() in listOf("lb", "lbs")
-        val weightKg = if (isImperial) currentWeight / AppConstants.KG_TO_LBS else currentWeight
-        val goalKg   = if (isImperial) goalWeight / AppConstants.KG_TO_LBS   else goalWeight
-        val heightCm = if (isImperial) height * 2.54           else height
-        val validWeight     = weightKg.coerceIn(AppConstants.MIN_WEIGHT_KG, AppConstants.MAX_WEIGHT_KG)
-        val validGoalWeight = goalKg.coerceIn(AppConstants.MIN_WEIGHT_KG, AppConstants.MAX_WEIGHT_KG)
-        val validHeight     = heightCm.coerceIn(AppConstants.MIN_HEIGHT_CM, AppConstants.MAX_HEIGHT_CM)
-        val validAge       = age.coerceIn(AppConstants.MIN_AGE, AppConstants.MAX_AGE)
-        val validGoal      = if (goal in listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition")) goal else "Maintain"
-        val validName      = username.trim().take(AppConstants.MAX_NAME_LENGTH).ifEmpty { "Athlete" }
+    private val _onboardingSaving = MutableStateFlow(false)
+    val onboardingSaving = _onboardingSaving.asStateFlow()
+    private val _onboardingError = MutableStateFlow<String?>(null)
+    val onboardingError = _onboardingError.asStateFlow()
+    val trainingExperience = dataStore.experienceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Beginner")
+    val nutritionPreferences = dataStore.nutritionPreferencesFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NutritionPreferences())
+
+    fun completeTrainingSetup(profile: OnboardingProfile? = null) {
+        if (_onboardingSaving.value) return
+        _onboardingSaving.value = true
+        _onboardingError.value = null
         viewModelScope.launch {
-            dataStore.saveOnboardingData(validName, validGoal, validWeight, validGoalWeight, validHeight, validAge, sex, weeklyWorkouts)
-            dataStore.saveUnits(units)
+            try {
+                dataStore.saveTrainingSetup(profile)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("FitnessViewModel", "Profile setup failed", e)
+                _onboardingError.value = "We couldn't save your profile. Your choices are still here. Please try again."
+            } finally {
+                _onboardingSaving.value = false
+            }
+        }
+    }
+
+    fun completeOnboarding(profile: OnboardingProfile, onSuccess: () -> Unit = {}) {
+        if (_onboardingSaving.value) return
+        _onboardingError.value = profile.validationError()
+        if (_onboardingError.value != null) return
+        _onboardingSaving.value = true
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    if (dao.getAllExercises().isEmpty()) {
+                        com.apexfit.app.utils.SeedService.seed(getApplication())
+                    }
+                    com.apexfit.app.utils.StarterPlanBuilder.createIfNeeded(db, profile)
+                    dataStore.saveOnboardingProfile(profile)
+                }
+                onSuccess()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("FitnessViewModel", "Onboarding could not be saved", e)
+                _onboardingError.value = "We couldn't save your plan. Your answers are still here. Please try again."
+            } finally {
+                _onboardingSaving.value = false
+            }
         }
     }
 

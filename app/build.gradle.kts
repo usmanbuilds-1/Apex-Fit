@@ -32,6 +32,11 @@ android {
     val isCI = System.getenv("CI") != null
 
     signingConfigs {
+        getByName("debug") {
+            providers.gradleProperty("apexfit.debugKeystore").orNull?.let {
+                storeFile = file(it)
+            }
+        }
         if (keystorePath != null) {
             create("release") {
                 storeFile = file(keystorePath)
@@ -56,7 +61,8 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
-        debug {}
+        debug {
+        }
     }
 
     compileOptions {

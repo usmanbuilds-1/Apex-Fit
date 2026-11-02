@@ -274,6 +274,8 @@ class FitnessRepositoryImpl @Inject constructor(
                 fat                    = todayFat,
                 weeklyTrainingSessions = bio.weeklyWorkouts
             )
+        }.combine(dataStore.hasBodyDetailsFlow) { targets, ready ->
+            if (ready) targets else NutritionTargets(0, 0, 0, 0)
         }.debounce(300L).flowOn(Dispatchers.IO).shareIn(appScope, SharingStarted.WhileSubscribed(5_000), 1)
     }
 

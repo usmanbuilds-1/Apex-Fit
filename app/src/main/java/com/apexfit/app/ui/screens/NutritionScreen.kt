@@ -94,6 +94,7 @@ fun NutritionScreen(
     val userSex by fitnessViewModel.userSex.collectAsStateWithLifecycle()
     val userAge by fitnessViewModel.userAge.collectAsStateWithLifecycle()
     val weeklyWorkouts by fitnessViewModel.weeklyWorkouts.collectAsStateWithLifecycle()
+    val foodPreferences by fitnessViewModel.nutritionPreferences.collectAsStateWithLifecycle()
 
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
     val activePlanSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
@@ -250,6 +251,17 @@ fun NutritionScreen(
                         tint = if (isToday) SecondaryText else PrimaryText
                     )
                 }
+            }
+        }
+
+        item {
+            PremiumCard(modifier = Modifier.fillMaxWidth()) {
+                Text("YOUR FOOD PREFERENCES", color = PrimaryText, fontFamily = InterFamily, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text("${foodPreferences.protein} · ${foodPreferences.restrictions} · ${foodPreferences.budget}",
+                    color = SecondaryText, fontFamily = InterFamily, fontSize = 13.sp)
+                Text("Supplement preference: ${foodPreferences.supplements}", color = SecondaryText,
+                    fontFamily = InterFamily, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
             }
         }
 

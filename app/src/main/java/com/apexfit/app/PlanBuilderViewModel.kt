@@ -45,7 +45,7 @@ class PlanBuilderViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val existing = dao.getAllPlans()
-                if (existing.isEmpty()) {
+                if (existing.isEmpty() && dataStore.isOnboardedFlow.first() && !dataStore.profileOnlySetupFlow.first()) {
                     seedDefaultWorkoutPlan()
                 }
             } catch (e: Exception) {
