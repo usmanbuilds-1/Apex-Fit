@@ -145,16 +145,10 @@ fun ApexFitApp(
     val coroutineScope = rememberCoroutineScope()
 
     val rawIsOnboarded by fitnessViewModel.isOnboarded.collectAsStateWithLifecycle()
-    var isOnboarded by remember { mutableStateOf<Boolean?>(null) }
+    var isOnboarded by remember { mutableStateOf<Boolean?>(true) }
     LaunchedEffect(rawIsOnboarded) {
         if (rawIsOnboarded != null) {
             isOnboarded = rawIsOnboarded
-        }
-    }
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1000)
-        if (isOnboarded == null) {
-            isOnboarded = false
         }
     }
 
@@ -315,7 +309,7 @@ fun ApexFitApp(
             Scaffold(
             containerColor = DarkBackground,
             topBar = {
-                if (currentRoute != "plan_builder" && currentRoute != "settings" && currentRoute != "home") {
+                if (currentRoute in listOf("train", "nutrition", "progress")) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(
@@ -405,6 +399,7 @@ fun ApexFitApp(
                         }
                         HomeScreen(
                             homeViewModel = homeViewModel,
+                            fitnessViewModel = fitnessViewModel,
                             planBuilderViewModel = planBuilderViewModel,
                             workoutExecutionViewModel = workoutExecutionViewModel,
                             onNavigateTo = navigateToTab
@@ -1120,7 +1115,7 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = destination.label.uppercase(),
+                                text = destination.label,
                                 fontFamily = InterFamily,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium,

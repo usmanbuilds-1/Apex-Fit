@@ -11,15 +11,15 @@ import androidx.compose.ui.graphics.Color
 // ─── Raw Palette ─────────────────────────────────────────────────────────────
 // Internal only. All UI code must reference ApexColors.* semantic tokens below.
 
-private val ElectricMint    = Color(0xFF00E8A4) // Primary glow — sampled from mockup
+private val ElectricMint    = Color(0xFF47E1C2) // Primary glow — sampled from mockup
 private val MintDeep        = Color(0xFF3CBFA5) // Pressed states
 private val MintMist        = Color(0xFF0F3537) // Tint backgrounds, selected chips
 private val MintMistDeep    = Color(0xFF174D4B) // Meta text on glow fills
-private val Void            = Color(0xFF0C1418) // Canvas / ink on glow
+private val Void            = Color(0xFF041521) // Canvas / ink on glow
 
-private val Night1          = Color(0xFF132028) // Surface
-private val Night2          = Color(0xFF1A232D) // SurfaceRaised
-private val Night0          = Color(0xFF0E141B) // SurfaceSunken (recessed wells)
+private val Night1          = Color(0xFF081C27) // Surface
+private val Night2          = Color(0xFF0D2330) // SurfaceRaised
+private val Night0          = Color(0xFF04151E) // SurfaceSunken (recessed wells)
 
 private val White           = Color(0xFFFFFFFF)
 private val Grey1           = Color(0xFF8B98A5) // Secondary text

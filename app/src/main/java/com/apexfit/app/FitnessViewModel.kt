@@ -28,7 +28,7 @@ class FitnessViewModel @Inject constructor(
 
     // User preferences & onboarding State (Expose from preferences)
     val isOnboarded: StateFlow<Boolean?> = dataStore.isOnboardedFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
     val username = dataStore.usernameFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val goal = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Gain Muscle")
     val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)

@@ -73,7 +73,7 @@ class DataStoreManager(context: Context) {
     }
 
     val isOnboardedFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[ONBOARDED_KEY] ?: false
+        preferences[ONBOARDED_KEY] ?: true
     }.distinctUntilChanged()
 
     val isExercisesSeededFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
