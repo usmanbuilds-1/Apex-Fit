@@ -99,6 +99,7 @@ class DataStoreManager(context: Context) {
 
     suspend fun saveTrainingSetup(profile: OnboardingProfile?) {
         if (profile != null) {
+            require(profile.trainingSetupValidationError() == null) { profile.trainingSetupValidationError().orEmpty() }
             require(profile.goal in listOf("Lose Fat", "Recomposition", "Gain Muscle"))
             require(profile.experience in OnboardingProfile.EXPERIENCE_LEVELS)
             require(profile.daysPerWeek in 2..5)
@@ -108,8 +109,15 @@ class DataStoreManager(context: Context) {
                 it[GOAL_KEY] = profile.goal
                 it[EXPERIENCE_KEY] = profile.experience
                 it[WEEKLY_WORKOUTS_KEY] = profile.daysPerWeek
+                it[USER_NAME_KEY] = profile.name.trim()
+                it[CURRENT_WEIGHT_KEY] = profile.weightKg
+                it[HEIGHT_KEY] = profile.heightCm
+                it[AGE_KEY] = profile.age
+                it[SEX_KEY] = profile.sex
+                it[UNITS_KEY] = profile.units
+                it[WEIGHTS_NORMALIZED_KEY] = true
             }
-            // This flow does not invent body details, calorie targets, or a workout plan.
+            // Store only supplied details. This flow does not generate a workout plan.
             it[booleanPreferencesKey("profile_only_setup")] = true
             it[ONBOARDED_KEY] = true
         }

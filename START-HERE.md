@@ -4,8 +4,9 @@ Native Android application: Kotlin, Jetpack Compose, Hilt, Room.
 Application ID: com.apexfit.app. Display name: Apex Fit.
 
 ## Onboarding
-Welcome -> Losing / Recomp / Gaining -> Experience -> Frequency (2–5 days) -> Profile review.
-Goal selection advances immediately. Back and Change retain selections. Explore opens the app without inventing profile inputs. Completion saves goal, experience and frequency; it does not generate a workout plan. Calorie and macro estimates require saved body details. Existing workout history and saved plans are preserved.
+Welcome -> Losing / Recomp / Gaining -> Experience -> Frequency (2–5 days) -> Your details -> Profile review.
+Your details collects name, height, weight, age, and sex used for energy estimates. Metric (cm/kg) and imperial (in/lb) inputs are converted to canonical cm/kg before saving. Invalid or missing details cannot complete setup. Back and Change retain answers, and the review lists personal details alongside training preferences.
+Goal selection advances immediately. Explore opens the app without inventing profile inputs. Completion saves the supplied profile; it does not generate a workout plan. Calorie and macro estimates require saved body details. Existing workout history and saved plans are preserved.
 
 Reference assets and typography are bundled locally. Phone layouts use a compact single column; larger displays show a side photograph. Forms respect system bars and allow scrolling.
 

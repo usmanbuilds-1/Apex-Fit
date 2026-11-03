@@ -75,14 +75,21 @@ class OnboardingStateTest {
         }
     }
     @Test
-    fun referenceSetupStoresPreferencesWithoutInventingBodyDetails() = runBlocking {
-        preferences.saveTrainingSetup(OnboardingProfile(goal = "Recomposition", experience = "Intermediate", daysPerWeek = 2))
+    fun referenceSetupPersistsPersonalDetailsAndTwoDayFrequency() = runBlocking {
+        preferences.saveTrainingSetup(OnboardingProfile(name = "  Sam  ", heightCm = 180.0, weightKg = 80.0,
+            age = 28, sex = "female", units = "lb", goal = "Recomposition", experience = "Intermediate", daysPerWeek = 2))
         assertEquals("Recomposition", preferences.goalFlow.first())
         assertEquals("Intermediate", preferences.experienceFlow.first())
         assertEquals(2, preferences.weeklyWorkoutsFlow.first())
         assertTrue(preferences.isOnboardedFlow.first())
         assertTrue(preferences.profileOnlySetupFlow.first())
-        assertFalse(preferences.hasBodyDetailsFlow.first())
+        assertTrue(preferences.hasBodyDetailsFlow.first())
+        assertEquals("Sam", preferences.usernameFlow.first())
+        assertEquals(180.0, preferences.heightFlow.first(), 0.001)
+        assertEquals(80.0, preferences.currentWeightFlow.first(), 0.001)
+        assertEquals(28, preferences.ageFlow.first())
+        assertEquals("female", preferences.sexFlow.first())
+        assertTrue(preferences.weightsNormalizedFlow.first())
     }
 
     @Test
@@ -90,6 +97,20 @@ class OnboardingStateTest {
         preferences.saveTrainingSetup(null)
         assertTrue(preferences.isOnboardedFlow.first())
         assertFalse(preferences.hasBodyDetailsFlow.first())
+    }
+
+    @Test
+    fun invalidSetupDoesNotSavePartialProfile() = runBlocking {
+        for (invalid in listOf(OnboardingProfile(name = ""), OnboardingProfile(heightCm = Double.NaN),
+            OnboardingProfile(weightKg = -1.0), OnboardingProfile(age = 0), OnboardingProfile(sex = ""))) {
+            try {
+                preferences.saveTrainingSetup(invalid)
+                org.junit.Assert.fail("Invalid personal details must be rejected")
+            } catch (_: IllegalArgumentException) {
+                assertFalse(preferences.isOnboardedFlow.first())
+                assertFalse(preferences.hasBodyDetailsFlow.first())
+            }
+        }
     }
 
 }

@@ -30,6 +30,9 @@ android {
 
     val keystorePath = System.getenv("KEYSTORE_PATH")
     val isCI = System.getenv("CI") != null
+    val releaseRequested = gradle.startParameter.taskNames.any {
+        it.contains("release", ignoreCase = true) || it.substringAfterLast(':') in listOf("build", "assemble", "bundle")
+    }
 
     signingConfigs {
         getByName("debug") {
@@ -55,7 +58,7 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (keystorePath != null) {
                 signingConfigs.getByName("release")
-            } else if (isCI) {
+            } else if (isCI && releaseRequested) {
                 error("Release build on CI requires KEYSTORE_PATH, STORE_PASSWORD, KEY_PASSWORD env vars.")
             } else {
                 signingConfigs.getByName("debug")

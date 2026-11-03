@@ -26,6 +26,11 @@ data class OnboardingProfile(
     val foodBudget: String = "Budget friendly",
     val supplements: String = "None"
 ) {
+    fun trainingSetupValidationError(): String? = when {
+        daysPerWeek !in 2..5 -> "Choose 2 to 5 training days."
+        else -> copy(daysPerWeek = 3).validationError()
+    }
+
     fun validationError(): String? = when {
         name.isBlank() || name.length > AppConstants.MAX_NAME_LENGTH -> "Please enter a name of 1–50 characters."
         goal !in GOALS -> "Choose a training goal."
