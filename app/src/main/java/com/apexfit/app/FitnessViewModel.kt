@@ -24,6 +24,19 @@ class FitnessViewModel @Inject constructor(
     private val dao: FitnessDao
 ) : AndroidViewModel(application) {
 
+    data class SettingsSnapshot(
+        val name: String, val goal: String, val calories: Int, val manual: Boolean,
+        val height: Double, val age: Int, val sex: String,
+        val weight: Double, val goalWeight: Double, val units: String
+    )
+
+    suspend fun loadSettingsSnapshot() = SettingsSnapshot(
+        dataStore.usernameFlow.first(), dataStore.goalFlow.first(),
+        dataStore.calorieTargetValueFlow.first(), dataStore.calorieTargetManualFlow.first(),
+        dataStore.heightFlow.first(), dataStore.ageFlow.first(), dataStore.sexFlow.first(),
+        dataStore.currentWeightFlow.first(), dataStore.goalWeightFlow.first(), dataStore.unitsFlow.first()
+    )
+
     private val db: AppDatabase get() = AppDatabase.getDatabase(getApplication())
 
     // User preferences & onboarding State (Expose from preferences)
@@ -145,6 +158,11 @@ class FitnessViewModel @Inject constructor(
             val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / AppConstants.KG_TO_LBS else value
             dataStore.saveWeight(currentWeight.value, valueKg)
         }
+    }
+
+    fun setProfileWeights(current: Double, goal: Double, preferredUnit: String) {
+        val divisor = if (preferredUnit.lowercase() in listOf("lb", "lbs")) AppConstants.KG_TO_LBS else 1.0
+        viewModelScope.launch { dataStore.saveWeight(current / divisor, goal / divisor) }
     }
 
     fun setBodyWeight(value: Double, preferredUnit: String = "kg") {

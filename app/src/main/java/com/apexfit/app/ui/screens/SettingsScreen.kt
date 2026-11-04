@@ -72,7 +72,7 @@ fun SettingsScreen(
     var editedManualCalValue by rememberSaveable { mutableStateOf(manualCalorieVal.toString()) }
     var editHeight by rememberSaveable { mutableStateOf(userHeight.toString()) }
     var editAge by rememberSaveable { mutableStateOf(userAge.toString()) }
-    var editSex by remember(userSex) { mutableStateOf(userSex) }
+    var editSex by rememberSaveable { mutableStateOf(userSex) }
     var editIsManual by rememberSaveable { mutableStateOf(manualCalorieTarget) }
     var editCurrentWeight by rememberSaveable { 
         mutableStateOf(currentWeightVal.toDisplayWeight(units).toString()) 
@@ -86,25 +86,21 @@ fun SettingsScreen(
     var ageError by remember { mutableStateOf<String?>(null) }
     var currentWeightError by remember { mutableStateOf<String?>(null) }
     var goalWeightError by remember { mutableStateOf<String?>(null) }
+    var heightError by remember { mutableStateOf<String?>(null) }
+    var profileLoaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        if (editName.isEmpty()) editName = username
-        if (editGoal.isEmpty()) editGoal = goal
-        if (editedManualCalValue.isEmpty() || editedManualCalValue == "0") {
-            editedManualCalValue = manualCalorieVal.toString()
-        }
-        if (editHeight.isEmpty() || editHeight == "0" || editHeight == "0.0") {
-            editHeight = userHeight.toString()
-        }
-        if (editAge.isEmpty() || editAge == "0") {
-            editAge = userAge.toString()
-        }
-        if (editCurrentWeight.isEmpty() || editCurrentWeight == "0.0") {
-            editCurrentWeight = currentWeightVal.toDisplayWeight(units).toString()
-        }
-        if (editGoalWeight.isEmpty() || editGoalWeight == "0.0") {
-            editGoalWeight = currentGoalWeight.toDisplayWeight(units).toString()
-        }
+        val profile = fitnessViewModel.loadSettingsSnapshot()
+        editName = profile.name
+        editGoal = profile.goal
+        editedManualCalValue = profile.calories.toString()
+        editIsManual = profile.manual
+        editHeight = profile.height.toString()
+        editAge = profile.age.toString()
+        editSex = profile.sex
+        editCurrentWeight = profile.weight.toDisplayWeight(profile.units).toString()
+        editGoalWeight = profile.goalWeight.toDisplayWeight(profile.units).toString()
+        profileLoaded = true
     }
     LaunchedEffect(units) {
         if (currentWeightVal > 0.0) {
@@ -305,6 +301,8 @@ fun SettingsScreen(
             OutlinedTextField(
                 value = editHeight,
                 onValueChange = { editHeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                isError = heightError != null,
+                supportingText = heightError?.let { { Text(it, color = RedAccent) } },
                 label = { Text(stringResource(R.string.settings_height_cm), color = SecondaryText) },
                 textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -546,6 +544,7 @@ fun SettingsScreen(
             }
 
             Button(
+                enabled = profileLoaded,
                 onClick = {
                     if (editName.isBlank()) {
                         nameError = "Name is required"
@@ -581,7 +580,12 @@ fun SettingsScreen(
                     } else {
                         goalWeightError = null
                     }
-                    val hVal = editHeight.toDoubleOrNull() ?: com.apexfit.app.UserDefaults.HEIGHT_CM
+                    val hVal = editHeight.toDoubleOrNull()
+                    if (hVal == null || !hVal.isFinite() || hVal !in 100.0..250.0) {
+                        heightError = "Height must be 100–250 cm"
+                        return@Button
+                    }
+                    heightError = null
                     val aVal = editAge.toIntOrNull() ?: com.apexfit.app.UserDefaults.AGE_YEARS
                     val equipmentVal = if (currentEquipment.isNotEmpty()) currentEquipment else com.apexfit.app.UserDefaults.DEFAULT_EQUIPMENT
                     fitnessViewModel.updateProfile(
@@ -598,8 +602,7 @@ fun SettingsScreen(
 
                     val gW = editGoalWeight.toDoubleOrNull() ?: currentGoalWeight
                     val cW = editCurrentWeight.toDoubleOrNull() ?: currentWeightVal
-                    fitnessViewModel.setGoalWeight(gW, preferredUnit = units)
-                    fitnessViewModel.setBodyWeight(cW, preferredUnit = units)
+                    fitnessViewModel.setProfileWeights(cW, gW, preferredUnit = units)
 
                     scope.launch {
                         snackbarHostState.showSnackbar(context.getString(R.string.settings_profile_saved_successfully))
