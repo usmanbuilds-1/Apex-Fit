@@ -88,6 +88,7 @@ fun SettingsScreen(
     var goalWeightError by remember { mutableStateOf<String?>(null) }
     var heightError by remember { mutableStateOf<String?>(null) }
     var profileLoaded by remember { mutableStateOf(false) }
+    var profileSaving by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val profile = fitnessViewModel.loadSettingsSnapshot()
@@ -544,7 +545,7 @@ fun SettingsScreen(
             }
 
             Button(
-                enabled = profileLoaded,
+                enabled = profileLoaded && !profileSaving,
                 onClick = {
                     if (editName.isBlank()) {
                         nameError = "Name is required"
@@ -586,28 +587,24 @@ fun SettingsScreen(
                         return@Button
                     }
                     heightError = null
-                    val aVal = editAge.toIntOrNull() ?: com.apexfit.app.UserDefaults.AGE_YEARS
                     val equipmentVal = if (currentEquipment.isNotEmpty()) currentEquipment else com.apexfit.app.UserDefaults.DEFAULT_EQUIPMENT
-                    fitnessViewModel.updateProfile(
-                        name = editName,
-                        userGoal = editGoal,
-                        targetUnit = units,
-                        equipment = equipmentVal,
-                        height = hVal,
-                        age = aVal,
-                        sex = editSex.lowercase()
-                    )
-                    val cInt = editedManualCalValue.toIntOrNull() ?: com.apexfit.app.UserDefaults.CALORIES
-                    fitnessViewModel.setManualCalorieTarget(editIsManual, if (editIsManual) cInt else 0)
-
-                    val gW = editGoalWeight.toDoubleOrNull() ?: currentGoalWeight
-                    val cW = editCurrentWeight.toDoubleOrNull() ?: currentWeightVal
-                    fitnessViewModel.setProfileWeights(cW, gW, preferredUnit = units)
-
+                    profileSaving = true
                     scope.launch {
-                        snackbarHostState.showSnackbar(context.getString(R.string.settings_profile_saved_successfully))
+                        try {
+                            fitnessViewModel.saveSettings(
+                                editName, editGoal, units, equipmentVal, hVal, ageVal,
+                                editSex.lowercase(), cw, gw, editIsManual, calVal
+                            )
+                            onNavigateBack()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            android.util.Log.e("SettingsScreen", "Profile save failed", e)
+                            snackbarHostState.showSnackbar("Could not save your profile. Please try again.")
+                        } finally {
+                            profileSaving = false
+                        }
                     }
-                    onNavigateBack()
                 },
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),

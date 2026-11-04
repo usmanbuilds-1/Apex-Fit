@@ -146,6 +146,26 @@ class DataStoreManager(context: Context) {
         }
     }
 
+    suspend fun saveSettingsProfile(
+        name: String, goal: String, units: String, equipment: String,
+        height: Double, age: Int, sex: String, currentWeightKg: Double,
+        goalWeightKg: Double, manualCalories: Boolean, calories: Int
+    ) {
+        context.dataStore.edit {
+            it[USER_NAME_KEY] = name
+            it[GOAL_KEY] = goal
+            it[UNITS_KEY] = units
+            it[EQUIPMENT_KEY] = equipment
+            it[HEIGHT_KEY] = height
+            it[AGE_KEY] = age
+            it[SEX_KEY] = sex
+            it[CURRENT_WEIGHT_KEY] = currentWeightKg
+            it[GOAL_WEIGHT_KEY] = goalWeightKg
+            it[CALORIE_TARGET_MANUAL_KEY] = manualCalories
+            it[CALORIE_TARGET_VALUE_KEY] = calories
+        }
+    }
+
     val isExercisesSeededFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[EXERCISES_SEEDED_KEY] ?: false
     }.distinctUntilChanged()
