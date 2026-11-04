@@ -483,6 +483,19 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_26_27 = object : Migration(26, 27) {
             override fun migrate(database: SupportSQLiteDatabase) {
+                // Older plans stored names without requiring an exercise library entry.
+                // Preserve those exercises so the new foreign key always resolves.
+                database.execSQL("""
+                    INSERT INTO `exercises` (`id`, `name`, `category`, `primary_muscle`,
+                        `secondary_muscles`, `equipment_required`, `is_bilateral`,
+                        `is_user_created`, `is_deleted`, `created_at`)
+                    SELECT 'migrated-' || lower(hex(randomblob(16))), p.`name`, 'Other',
+                        MIN(p.`muscleGroup`), '[]', 'None', 1, 1, 0,
+                        CAST(strftime('%s', 'now') AS INTEGER) * 1000
+                    FROM `plan_exercises` p
+                    WHERE NOT EXISTS (SELECT 1 FROM `exercises` e WHERE e.`name` = p.`name`)
+                    GROUP BY p.`name`
+                """.trimIndent())
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS `plan_exercises_v27` (
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

@@ -435,6 +435,26 @@ class MigrationTest {
     }
 
     @Test
+    fun migrate26To27PreservesExercisesMissingFromLibrary() {
+        val db = helper.createDatabase(TEST_DB, 26)
+        db.execSQL("INSERT INTO workout_programs (id, name, goal, isActive, createdAt) VALUES (1, 'Plan', 'Strength', 1, 1000)")
+        db.execSQL("INSERT INTO plan_sessions (id, planId, label, day, focus) VALUES (10, 1, 'Upper', 'Monday', 'Chest')")
+        db.execSQL("INSERT INTO plan_exercises (id, planSessionId, name, muscleGroup, sets, repsMin, repsMax, weight, weight_unit, restSeconds, notes) VALUES (100, 10, 'Custom Press', 'Chest', 3, 8, 12, 30.0, 'kg', 90, '')")
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 27, true, AppDatabase.MIGRATION_26_27)
+        val cursor = migratedDb.query("SELECT e.name, p.weight FROM plan_exercises p JOIN exercises e ON e.id = p.exerciseId WHERE p.id = 100")
+        assertTrue(cursor.moveToFirst())
+        assertEquals("Custom Press", cursor.getString(0))
+        assertEquals(30.0, cursor.getDouble(1), 0.0)
+        cursor.close()
+        val violations = migratedDb.query("PRAGMA foreign_key_check")
+        assertEquals(0, violations.count)
+        violations.close()
+        migratedDb.close()
+    }
+
+    @Test
     fun migrateAll8To27() {
         val db = helper.createDatabase(TEST_DB, 8)
         db.close()

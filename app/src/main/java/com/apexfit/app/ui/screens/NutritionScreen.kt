@@ -162,6 +162,16 @@ fun NutritionScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val pendingDeletions = remember { mutableStateMapOf<Long, Job>() }
+    DisposableEffect(nutritionViewModel) {
+        onDispose {
+            // Leaving the screen dismisses Undo and commits pending deletions.
+            pendingDeletions.forEach { (id, job) ->
+                job.cancel()
+                nutritionViewModel.deleteNutritionEntryById(id)
+            }
+            pendingDeletions.clear()
+        }
+    }
 
     val visibleMeals = remember(loggedMeals, pendingDeletions.keys.toSet()) {
         loggedMeals.filter { it.id !in pendingDeletions.keys }
@@ -185,23 +195,16 @@ fun NutritionScreen(
     fun triggerPendingDeletion(meal: com.apexfit.app.ui.models.UiNutritionEntry) {
         if (pendingDeletions.containsKey(meal.id)) return
 
-        val job = coroutineScope.launch {
-            delay(4000)
-            nutritionViewModel.deleteNutritionEntryById(meal.id)
-            pendingDeletions.remove(meal.id)
-        }
-        pendingDeletions[meal.id] = job
-
-        coroutineScope.launch {
+        pendingDeletions[meal.id] = coroutineScope.launch {
             val result = snackbarHostState.showSnackbar(
                 message = "Meal deleted",
                 actionLabel = "UNDO",
                 duration = SnackbarDuration.Short
             )
-            if (result == SnackbarResult.ActionPerformed) {
-                pendingDeletions[meal.id]?.cancel()
-                pendingDeletions.remove(meal.id)
+            if (result != SnackbarResult.ActionPerformed) {
+                nutritionViewModel.deleteNutritionEntryById(meal.id)
             }
+            pendingDeletions.remove(meal.id)
         }
     }
 
