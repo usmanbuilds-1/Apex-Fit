@@ -87,6 +87,7 @@ fun NutritionScreen(
     val calorieTargetManual by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
+    val hasCalorieTarget = if (calorieTargetManual) calorieTargetValue > 0 else (tdeeResult.tdee ?: 0) > 0
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val currentWeight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
     val goalWeight by fitnessViewModel.goalWeight.collectAsStateWithLifecycle()
@@ -216,6 +217,10 @@ fun NutritionScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+        item {
+            Text("Nutrition", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp))
+        }
         // Date picker swiping bar
         item {
             val todayDateString = remember {
@@ -252,27 +257,6 @@ fun NutritionScreen(
                     )
                 }
             }
-        }
-
-        item {
-            PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Text("YOUR FOOD PREFERENCES", color = PrimaryText, fontFamily = InterFamily, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Text("${foodPreferences.protein} · ${foodPreferences.restrictions} · ${foodPreferences.budget}",
-                    color = SecondaryText, fontFamily = InterFamily, fontSize = 13.sp)
-                Text("Supplement preference: ${foodPreferences.supplements}", color = SecondaryText,
-                    fontFamily = InterFamily, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-            }
-        }
-
-        // Adaptive calorie target card
-        item {
-            AdaptiveCalorieTargetCard(
-                tdeeResult = tdeeResult,
-                userGoal = userGoal,
-                fitnessViewModel = fitnessViewModel,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
         }
 
         // Calorie and macro overview card
@@ -338,7 +322,7 @@ fun NutritionScreen(
                             .size(80.dp)
                             .drawBehind {
                                 drawCircle(BorderSubtle, size.minDimension / 2, style = Stroke(6.dp.toPx()))
-                                val progress = (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f)
+                                val progress = if (hasCalorieTarget) (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f) else 0f
                                 
                                 drawArc(
                                     color = ringColor,
@@ -351,7 +335,7 @@ fun NutritionScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(stringResource(R.string.nutrition_fmt_str, (loggedCalories * 100 / calorieTarget).coerceIn(0, 100)), fontFamily = JetBrainsMonoFamily, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+                            Text(if (hasCalorieTarget) stringResource(R.string.nutrition_fmt_str, (loggedCalories * 100 / calorieTarget).coerceIn(0, 100)) else "—", fontFamily = InterFamily, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
                             Text(stringResource(R.string.nutrition_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
                         }
                     }
@@ -359,11 +343,11 @@ fun NutritionScreen(
                     Spacer(modifier = Modifier.width(16.dp))
 
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MacroStatMini(label = "Prot:", value = "${loggedProtein.roundToInt()}/${targetProtein}g", color = ApexColors.Primary)
-                            MacroStatMini(label = "Carb:", value = "${loggedCarbs.roundToInt()}/${targetCarbs}g", color = BlueAccent)
-                            MacroStatMini(label = "Fat:", value = "${loggedFat.roundToInt()}/${targetFat}g", color = RedAccent)
+                        Text(if (hasCalorieTarget) stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories) else "$loggedCalories kcal logged · Set a target in Settings", fontFamily = InterFamily, fontSize = 13.sp, color = PrimaryText)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            MacroStatMini(label = "Protein", value = "${loggedProtein.roundToInt()}${if (hasCalorieTarget) " / $targetProtein" else ""} g", color = ApexColors.Primary)
+                            MacroStatMini(label = "Carbs", value = "${loggedCarbs.roundToInt()}${if (hasCalorieTarget) " / $targetCarbs" else ""} g", color = BlueAccent)
+                            MacroStatMini(label = "Fat", value = "${loggedFat.roundToInt()}${if (hasCalorieTarget) " / $targetFat" else ""} g", color = RedAccent)
                         }
                     }
                 }
@@ -482,6 +466,27 @@ fun NutritionScreen(
                     }
                 )
             }
+        }
+
+        item {
+            PremiumCard(modifier = Modifier.fillMaxWidth()) {
+                Text("YOUR FOOD PREFERENCES", color = PrimaryText, fontFamily = InterFamily, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text("${foodPreferences.protein} · ${foodPreferences.restrictions} · ${foodPreferences.budget}",
+                    color = SecondaryText, fontFamily = InterFamily, fontSize = 13.sp)
+                Text("Supplement preference: ${foodPreferences.supplements}", color = SecondaryText,
+                    fontFamily = InterFamily, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+
+        // Adaptive calorie target card
+        item {
+            AdaptiveCalorieTargetCard(
+                tdeeResult = tdeeResult,
+                userGoal = userGoal,
+                fitnessViewModel = fitnessViewModel,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
         }
 
         // Protein Timing

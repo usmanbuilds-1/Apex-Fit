@@ -63,6 +63,8 @@ fun TrainTab(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
+            Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             // Segmented Control
             Row(
                 modifier = Modifier
@@ -72,7 +74,7 @@ fun TrainTab(
                     .background(DarkCardSurface)
                     .padding(4.dp)
             ) {
-                listOf("PROGRAM", "WORKOUTS", "PLANS").forEachIndexed { index, title ->
+                listOf("Program", "Workout", "Plans").forEachIndexed { index, title ->
                     val isSelected = subTab == index
                     Box(
                         modifier = Modifier
@@ -87,8 +89,8 @@ fun TrainTab(
                     ) {
                         Text(
                             text = title,
-                            fontFamily = SyneFamily,
-                            fontSize = 11.sp,
+                            fontFamily = InterFamily,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isSelected) ApexColors.OnGlow else SecondaryText
                         )

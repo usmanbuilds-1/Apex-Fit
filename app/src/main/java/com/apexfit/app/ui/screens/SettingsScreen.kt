@@ -41,7 +41,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: FitnessViewModel,
@@ -127,8 +127,8 @@ fun SettingsScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "ATHLETE FILE MANAGEMENT",
-                        fontFamily = SyneFamily,
+                        text = "Settings",
+                        fontFamily = InterFamily,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = PrimaryText
@@ -182,7 +182,7 @@ fun SettingsScreen(
             )
         )
 
-        // Goal Selector — constrained to 3 valid values to prevent silent else-branch hits
+        // Keep the same goals available during onboarding and in settings.
         Text(
             text = stringResource(R.string.settings_goal_objective_profile),
             fontFamily = JetBrainsMonoFamily,
@@ -190,22 +190,24 @@ fun SettingsScreen(
             color = SecondaryText,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        Row(
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 2,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
                 .testTag("settings_goal_input")
         ) {
-            listOf("Gain Muscle", "Lose Fat", "Maintain").forEach { option ->
+            listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition").forEach { option ->
                 val isSelected = editGoal == option
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (isSelected) AmberAccent else DarkRaised)
+                        .background(if (isSelected) ApexColors.Primary else DarkRaised)
                         .border(
-                            border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
+                            border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
                             shape = RoundedCornerShape(14.dp)
                         )
                         .semantics { selected = isSelected }
@@ -244,8 +246,8 @@ fun SettingsScreen(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected) OrangeAccent else DarkRaised)
-                        .border(1.dp, if (selected) OrangeAccent else BorderSubtle, RoundedCornerShape(10.dp))
+                        .background(if (selected) ApexColors.Primary else DarkRaised)
+                        .border(1.dp, if (selected) ApexColors.Primary else BorderSubtle, RoundedCornerShape(10.dp))
                         .semantics { this.selected = selected }
                         .clickable(role = Role.Switch) { editIsManual = isManual }
                         .padding(vertical = 14.dp),

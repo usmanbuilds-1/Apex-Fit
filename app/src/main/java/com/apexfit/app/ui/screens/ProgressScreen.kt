@@ -572,6 +572,10 @@ fun ProgressMainTabContent(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+        item {
+            Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp))
+        }
         // Futuristic Top Segmented Tab Selector for clean high-fidelity UX spacing
         item {
             Row(
@@ -588,7 +592,7 @@ fun ProgressMainTabContent(
                 val tabs = listOf(
                     Triple(0, "Muscle Volume", R.drawable.ic_fitness_center),
                     Triple(1, "Recovery", R.drawable.ic_check_circle),
-                    Triple(2, "BODY METRICS", R.drawable.ic_bar_chart)
+                    Triple(2, "Body", R.drawable.ic_bar_chart)
                 )
                 tabs.forEach { (index, title, icon) ->
                     val isSelected = activeSubTab == index
@@ -614,8 +618,8 @@ fun ProgressMainTabContent(
                             )
                             Text(
                                 text = title,
-                                fontFamily = SyneFamily,
-                                fontSize = 11.sp,
+                                fontFamily = InterFamily,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isSelected) ApexColors.OnGlow else SecondaryText
                             )
