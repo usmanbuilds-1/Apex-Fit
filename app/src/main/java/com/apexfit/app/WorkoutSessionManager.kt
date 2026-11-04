@@ -584,15 +584,12 @@ class WorkoutSessionManager(
             android.util.Log.e("ApexFit", "evaluatePRs failed, proceeding with no PRs", e)
             emptyList()
         }
-        repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
-
-        // 1. Compute all new stalled counts without hitting the DB per iteration
-        val exerciseIds = lastProgressionResults.keys.toList()
-        val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
-            .associate { it.exerciseId to it.stalledCount }
-
         val db = AppDatabase.getDatabase(appContext)
         db.withTransaction {
+            repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
+            val exerciseIds = lastProgressionResults.keys.toList()
+            val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
+                .associate { it.exerciseId to it.stalledCount }
             lastProgressionResults.forEach { (exerciseId, result) ->
                 val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
                 val current = currentCounts[exerciseId] ?: 0

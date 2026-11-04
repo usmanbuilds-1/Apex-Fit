@@ -60,7 +60,8 @@ class FitnessRepositoryImpl @Inject constructor(
         val ageYears: Int,
         val biologicalSex: String,
         val weeklyWorkouts: Int,
-        val goalWeightKg: Double
+        val goalWeightKg: Double,
+        val currentWeightKg: Double
     ) {
         companion object {
             val DEFAULT = BioProfile(
@@ -68,7 +69,8 @@ class FitnessRepositoryImpl @Inject constructor(
                 ageYears = com.apexfit.app.UserDefaults.AGE_YEARS,
                 biologicalSex = "male",
                 weeklyWorkouts = com.apexfit.app.UserDefaults.WEEKLY_WORKOUTS,
-                goalWeightKg = com.apexfit.app.UserDefaults.WEIGHT_KG
+                goalWeightKg = com.apexfit.app.UserDefaults.WEIGHT_KG,
+                currentWeightKg = com.apexfit.app.UserDefaults.WEIGHT_KG
             )
         }
     }
@@ -81,8 +83,9 @@ class FitnessRepositoryImpl @Inject constructor(
             dataStore.weeklyWorkoutsFlow,
             dataStore.goalWeightFlow
         ) { height, age, sex, weekly, goalWeight ->
-            BioProfile(height, age, sex, weekly, goalWeight)
+            BioProfile(height, age, sex, weekly, goalWeight, com.apexfit.app.UserDefaults.WEIGHT_KG)
         }
+        .combine(dataStore.currentWeightFlow) { profile, weight -> profile.copy(currentWeightKg = weight) }
         .distinctUntilChanged()
         .stateIn(appScope, SharingStarted.WhileSubscribed(5_000), BioProfile.DEFAULT)
     }
@@ -219,7 +222,7 @@ class FitnessRepositoryImpl @Inject constructor(
             val bio                 = values[6] as BioProfile
 
             val latestWeight = weights.maxByOrNull { it.date }?.weight
-                ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+                ?: bio.currentWeightKg
             val calories: Int = if (isManual) {
                 manualCals
             } else {
@@ -233,7 +236,8 @@ class FitnessRepositoryImpl @Inject constructor(
                     heightCm       = bio.heightCm,
                     ageYears       = bio.ageYears,
                     biologicalSex  = bio.biologicalSex,
-                    weeklyWorkouts = bio.weeklyWorkouts
+                    weeklyWorkouts = bio.weeklyWorkouts,
+                    fallbackWeightKg = latestWeight
                 )
                 TdeeEngine.suggestCaloricTarget(
                     tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,

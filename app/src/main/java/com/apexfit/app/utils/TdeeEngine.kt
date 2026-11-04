@@ -15,9 +15,10 @@ object TdeeEngine {
         heightCm: Double = com.apexfit.app.UserDefaults.HEIGHT_CM,
         ageYears: Int = com.apexfit.app.UserDefaults.AGE_YEARS,
         biologicalSex: String = "male",
-        weeklyWorkouts: Int = 4
+        weeklyWorkouts: Int = 4,
+        fallbackWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG
     ): TDEEResult {
-        val latestWeight = weightLog.maxByOrNull { it.date }?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+        val latestWeight = weightLog.maxByOrNull { it.date }?.weight ?: fallbackWeightKg
         
         // Mifflin-St Jeor Equation (Mifflin MD, et al. 1990)
         // Males: REE = (10 * weight_kg) + (6.25 * height_cm) - (5 * age_years) + 5

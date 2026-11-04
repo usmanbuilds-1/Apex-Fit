@@ -95,9 +95,10 @@ class AlgorithmViewModel @Inject constructor(
             dataStore.heightFlow,
             dataStore.ageFlow,
             dataStore.sexFlow,
-            dataStore.weeklyWorkoutsFlow
-        ) { height, age, sex, workouts ->
-            AlgorithmBioProfile(height, age, sex, workouts)
+            dataStore.weeklyWorkoutsFlow,
+            dataStore.currentWeightFlow
+        ) { height, age, sex, workouts, weight ->
+            AlgorithmBioProfile(height, age, sex, workouts, weight)
         }
     ) { (weights, nutrition, sessions), bio ->
         withContext(Dispatchers.Default) {
@@ -108,7 +109,8 @@ class AlgorithmViewModel @Inject constructor(
                 heightCm = bio.height,
                 ageYears = bio.age,
                 biologicalSex = bio.sex,
-                weeklyWorkouts = bio.weeklyWorkouts
+                weeklyWorkouts = bio.weeklyWorkouts,
+                fallbackWeightKg = bio.weight
             )
         }
     }.catch { e ->
@@ -453,5 +455,6 @@ private data class AlgorithmBioProfile(
     val height: Double,
     val age: Int,
     val sex: String,
-    val weeklyWorkouts: Int
+    val weeklyWorkouts: Int,
+    val weight: Double
 )

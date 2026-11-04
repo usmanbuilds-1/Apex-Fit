@@ -131,14 +131,18 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val isManual = dataStore.calorieTargetManualFlow.first()
         val manualValue = dataStore.calorieTargetValueFlow.first()
         val userGoal = dataStore.goalFlow.first()
-        val latestWeightForCoaching = engineWeights.lastOrNull()?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+        val latestWeightForCoaching = engineWeights.lastOrNull()?.weight ?: dataStore.currentWeightFlow.first()
         val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
         
-        val tdeeResult = TdeeEngine.calcAdaptiveTDEE(engineWeights, allNutrition)
         val goalWeight = dataStore.goalWeightFlow.first()
         val userHeight = dataStore.heightFlow.first()
         val userSex    = dataStore.sexFlow.first()
         val userAge    = dataStore.ageFlow.first()
+        val tdeeResult = TdeeEngine.calcAdaptiveTDEE(
+            engineWeights, allNutrition, heightCm = userHeight, ageYears = userAge,
+            biologicalSex = userSex, weeklyWorkouts = dataStore.weeklyWorkoutsFlow.first(),
+            fallbackWeightKg = latestWeightForCoaching
+        )
         val suggestedCal = TdeeEngine.suggestCaloricTarget(
             tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
             goal            = userGoal,

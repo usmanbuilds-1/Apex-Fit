@@ -8,6 +8,24 @@ import kotlin.math.roundToInt
 
 class TdeeEngineTest {
 
+    @Test
+    fun fallback_usesSavedProfileWeightWhenNoWeightIsLogged() {
+        val result = TdeeEngine.calcAdaptiveTDEE(
+            emptyList(), emptyList(), heightCm = 165.0, ageYears = 30,
+            biologicalSex = "female", weeklyWorkouts = 2, fallbackWeightKg = 90.0
+        )
+        assertEquals(2228, result.tdee)
+    }
+
+    @Test
+    fun fallback_prefersLoggedWeightOverProfileWeight() {
+        val result = TdeeEngine.calcAdaptiveTDEE(
+            oneWeight(60.0), emptyList(), heightCm = 165.0, ageYears = 30,
+            biologicalSex = "female", weeklyWorkouts = 2, fallbackWeightKg = 90.0
+        )
+        assertEquals(1815, result.tdee)
+    }
+
     // ── Helpers ───────────────────────────────────────────────
 
     // Single weight entry: enough to set weight, not enough to trigger adaptive path
