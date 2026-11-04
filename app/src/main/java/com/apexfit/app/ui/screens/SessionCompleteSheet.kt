@@ -22,6 +22,7 @@ import com.apexfit.app.WorkoutExecutionViewModel
 import com.apexfit.app.ui.models.UiExerciseSet
 import com.apexfit.app.ui.theme.*
 import kotlin.math.roundToInt
+import com.apexfit.app.utils.toDisplayWeight
 
 @Composable
 fun SessionCompleteSheet(
@@ -29,12 +30,13 @@ fun SessionCompleteSheet(
     brokenPRs: List<String>,
     hypertrophyScore: Double,
     sessionDuration: Int,
+    totalVolumeKg: Double,
     units: String,
     onDismiss: () -> Unit
 ) {
-    val (totalVolume, totalSets, totalReps) = remember(sessionSets) {
+    val (totalSets, totalReps) = remember(sessionSets) {
         val workSets = sessionSets.filter { !it.isWarmup }
-        Triple(workSets.sumOf { it.weight * it.reps }, workSets.size, workSets.sumOf { it.reps })
+        Pair(workSets.size, workSets.sumOf { it.reps })
     }
 
     Box(
@@ -88,7 +90,7 @@ fun SessionCompleteSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatItem(label = "VOLUME", value = "${totalVolume.roundToInt()} $units")
+                    StatItem(label = "VOLUME", value = "${totalVolumeKg.toDisplayWeight(units).roundToInt()} $units")
                     StatItem(label = "HYPERTROPHY", value = "${(hypertrophyScore).roundToInt()}")
                 }
 
@@ -155,6 +157,7 @@ fun SessionCompleteOverlay(
         brokenPRs = brokenPRs,
         hypertrophyScore = hypertrophyScore,
         sessionDuration = sessionDuration,
+        totalVolumeKg = sessionStats.second,
         units = units,
         onDismiss = { workoutExecutionViewModel.dismissSessionComplete() }
     )

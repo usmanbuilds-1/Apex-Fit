@@ -498,7 +498,8 @@ fun ApexFitApp(
                                 reps = reps,
                                 setIndex = setIdx,
                                 totalSets = totalSets,
-                                currentExerciseIdx = workoutExecutionViewModel.currentExerciseIdx.value
+                                currentExerciseIdx = workoutExecutionViewModel.currentExerciseIdx.value,
+                                completedExerciseId = workoutExecutionViewModel.rirOverlayState.value.exerciseId
                             )
                         }
                     )

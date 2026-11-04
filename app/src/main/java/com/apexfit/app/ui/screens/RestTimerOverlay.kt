@@ -30,7 +30,9 @@ fun RestTimerOverlay(
     totalSeconds: Int,
     onDismiss: () -> Unit,
     onAddTime: (Int) -> Unit,
-    onSubtractTime: () -> Unit
+    onSubtractTime: () -> Unit,
+    lastSet: String = "",
+    nextSet: String = ""
 ) {
     Box(
         modifier = Modifier
@@ -72,6 +74,14 @@ fun RestTimerOverlay(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 RestTimerDisplay(seconds = seconds, totalSeconds = totalSeconds)
+                if (lastSet.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(lastSet, color = SecondaryText, fontSize = 13.sp)
+                }
+                if (nextSet.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(nextSet, color = PrimaryText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
                 Spacer(modifier = Modifier.height(24.dp))
                 RestTimerButtons(
                     onSkip = onDismiss,
@@ -92,10 +102,14 @@ fun RestTimerOverlay(
 ) {
     val seconds by restTimerViewModel.restTimerSeconds.collectAsStateWithLifecycle()
     val totalSeconds by restTimerViewModel.restTimerTotal.collectAsStateWithLifecycle()
+    val lastSet by restTimerViewModel.restTimerLastSetContext.collectAsStateWithLifecycle()
+    val nextSet by restTimerViewModel.restTimerNextSetPreview.collectAsStateWithLifecycle()
 
     RestTimerOverlay(
         seconds = seconds,
         totalSeconds = totalSeconds,
+        lastSet = lastSet,
+        nextSet = nextSet,
         onDismiss = onDismiss,
         onAddTime = { restTimerViewModel.addRestTimerSeconds(it) },
         onSubtractTime = {
@@ -115,7 +129,7 @@ private fun RestTimerDisplay(seconds: Int, totalSeconds: Int) {
             text = formatTimerTime(seconds),
             fontSize = 56.sp,
             fontWeight = FontWeight.Black,
-            color = OrangeAccent,
+            color = ApexColors.Primary,
             fontFamily = SyneFamily
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -124,7 +138,7 @@ private fun RestTimerDisplay(seconds: Int, totalSeconds: Int) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(4.dp),
-            color = OrangeAccent,
+            color = ApexColors.Primary,
             trackColor = DarkRaised
         )
     }
@@ -150,7 +164,7 @@ private fun RestTimerButtons(
         TextButton(
             onClick = onAddTime
         ) {
-            Text(stringResource(R.string.overlay_15s_1), color = OrangeAccent, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.overlay_15s_1), color = ApexColors.Primary, fontWeight = FontWeight.Bold)
         }
     }
     Spacer(modifier = Modifier.height(16.dp))

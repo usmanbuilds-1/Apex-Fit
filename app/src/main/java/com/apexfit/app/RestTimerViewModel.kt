@@ -1,6 +1,7 @@
 package com.apexfit.app
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.apexfit.app.utils.AudioService
@@ -13,6 +14,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+internal fun remainingRestSeconds(deadline: Long, now: Long): Int =
+    ((deadline - now).coerceAtLeast(0L) + 999L).div(1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+
 @HiltViewModel
 class RestTimerViewModel @Inject constructor(
     application: Application,
@@ -20,6 +24,10 @@ class RestTimerViewModel @Inject constructor(
 ) : AndroidViewModel(application) {
 
     private var restTimerJob: Job? = null
+    private var restStartedAt = 0L
+    private var restDeadline = 0L
+    private var restExerciseName = "Rest"
+    private var restSetPointer: Pair<String, Int>? = null
 
     // Rest Timer State
     private val _restTimerSeconds = MutableStateFlow(0)
@@ -47,15 +55,21 @@ class RestTimerViewModel @Inject constructor(
         reps: Int,
         setIndex: Int,
         totalSets: Int,
-        currentExerciseIdx: Int = 0
+        currentExerciseIdx: Int = 0,
+        completedExerciseId: String? = null
     ) {
         val exerciseType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(exerciseName, muscleGroup)
-        val exerciseId = com.apexfit.app.utils.exerciseNameToSlug(exerciseName)
+        val exerciseId = completedExerciseId?.takeIf { it.isNotBlank() }
+            ?: com.apexfit.app.utils.exerciseNameToSlug(exerciseName)
         val restSeconds = sessionManager.calculateRestTimeSeconds(exerciseId, exerciseType, rpe)
 
         _restTimerLastSetContext.value = "Last set: $reps reps @ RPE $rpe"
 
         val activeExercises = sessionManager.activeSession.value?.exercises ?: emptyList()
+        restSetPointer = activeExercises.firstOrNull { it.exerciseId == exerciseId }?.let { it.exerciseId to setIndex }
+        restExerciseName = exerciseName
+        restStartedAt = SystemClock.elapsedRealtime()
+        restDeadline = restStartedAt + restSeconds * 1000L
         val nextPreview = if (setIndex + 1 < totalSets) {
             "$exerciseName (set ${setIndex + 2}/$totalSets)"
         } else {
@@ -83,26 +97,23 @@ class RestTimerViewModel @Inject constructor(
         )
 
         // Start local coroutine countdown
-        startLocalTimer(restSeconds, exerciseName)
+        startLocalTimer()
     }
 
-    private fun startLocalTimer(durationSeconds: Int, exerciseName: String) {
+    private fun startLocalTimer() {
         restTimerJob?.cancel()
         restTimerJob = viewModelScope.launch {
-            var remaining = durationSeconds
-            while (remaining > 0) {
-                delay(1000)
-                remaining--
+            while (_isRestTimerActive.value) {
+                val remaining = remainingRestSeconds(restDeadline, SystemClock.elapsedRealtime())
                 val prev = _restTimerSeconds.value
                 _restTimerSeconds.value = remaining
-
-                sessionManager.incrementRestSeconds()
-
-                if (remaining in 1..3) {
+                if (remaining != prev && remaining in 1..3) {
                     AudioService.playBeep(getApplication())
                 } else if (remaining == 0 && prev > 0) {
                     AudioService.playRestTimerComplete(getApplication())
                 }
+                if (remaining == 0) break
+                delay(250)
             }
 
             if (_isRestTimerActive.value) {
@@ -115,31 +126,42 @@ class RestTimerViewModel @Inject constructor(
     }
 
     fun addRestTimerSeconds(secs: Int) {
-        val newSeconds = _restTimerSeconds.value + secs
-        _restTimerTotal.value += secs
+        if (!_isRestTimerActive.value) return
+        val now = SystemClock.elapsedRealtime()
+        val remaining = remainingRestSeconds(restDeadline, now)
+        val newSeconds = (remaining + secs).coerceAtLeast(0)
+        _restTimerTotal.value = (_restTimerTotal.value + newSeconds - remaining).coerceAtLeast(1)
         _restTimerSeconds.value = newSeconds
+        restDeadline = now + newSeconds * 1000L
+        if (newSeconds == 0) {
+            closeRestTimer()
+            return
+        }
 
         // Reschedule alarm for the new duration
         val triggerAtMillis = System.currentTimeMillis() + (newSeconds * 1000L)
         com.apexfit.app.utils.RestTimerAlarmReceiver.scheduleAlarm(
             context = getApplication(),
             triggerAtMillis = triggerAtMillis,
-            exerciseName = "Rest"
+            exerciseName = restExerciseName
         )
 
         // Restart local timer from the new duration
-        startLocalTimer(newSeconds, "Rest")
+        startLocalTimer()
     }
 
     fun closeRestTimer(lastCompletedSetPointer: Pair<String, Int>? = null) {
+        if (!_isRestTimerActive.value) return
         _isRestTimerActive.value = false
         _showRestOverlay.value = false
         restTimerJob?.cancel()
         // Commit the elapsed rest time to the last completed set
-        val pointer = lastCompletedSetPointer ?: findLastCompletedSetPointer()
+        val pointer = lastCompletedSetPointer ?: restSetPointer ?: findLastCompletedSetPointer()
         pointer?.let { (exId, sIdx) ->
-            sessionManager.commitRestTaken(exId, sIdx, sessionManager.currentRestSeconds.value)
+            val elapsed = ((SystemClock.elapsedRealtime() - restStartedAt).coerceAtLeast(0L) / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            sessionManager.commitRestTaken(exId, sIdx, elapsed)
         }
+        restSetPointer = null
         sessionManager.resetRestSeconds()
         // Cancel the pending alarm — user dismissed the timer manually
         com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())

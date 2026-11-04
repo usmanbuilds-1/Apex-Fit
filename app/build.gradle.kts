@@ -69,6 +69,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -88,7 +89,6 @@ android {
         abortOnError = true
         checkReleaseBuilds = true
         warningsAsErrors = false
-        baseline = file("lint-baseline.xml")
     }
 
     sourceSets {
@@ -103,6 +103,7 @@ ksp {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material.icons.core)

@@ -102,23 +102,23 @@ fun NutritionScreen(
     val activePlanSessions: List<com.apexfit.app.data.PlanSession> = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
 
     var todayDateStr by remember { mutableStateOf(com.apexfit.app.utils.DateTimeUtils.todayDateString()) }
-    var todayDayString by remember { mutableStateOf(java.time.LocalDate.now().dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)) }
 
     LaunchedEffect(Unit) {
         while (true) {
             val newDate = com.apexfit.app.utils.DateTimeUtils.todayDateString()
-            val newDay = java.time.LocalDate.now().dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)
             if (newDate != todayDateStr) todayDateStr = newDate
-            if (newDay != todayDayString) todayDayString = newDay
             kotlinx.coroutines.delay(60_000L)
         }
     }
 
-    val isWorkoutCompletedToday = remember(completedSessions, todayDateStr) {
-        completedSessions.any { it.date == todayDateStr }
+    val selectedDayString = remember(selectedDate) {
+        runCatching { java.time.LocalDate.parse(selectedDate).dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US) }.getOrNull()
     }
-    val todayPlannedSession = remember(activePlanSessions, todayDayString) {
-        activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+    val isWorkoutCompletedToday = remember(completedSessions, selectedDate) {
+        completedSessions.any { it.date == selectedDate && it.isCompleted }
+    }
+    val todayPlannedSession = remember(activePlanSessions, selectedDate, todayDateStr, selectedDayString) {
+        if (selectedDate == todayDateStr) activePlanSessions.firstOrNull { it.day.equals(selectedDayString, ignoreCase = true) } else null
     }
     val isPlannedTrainingToday = remember(todayPlannedSession) {
         todayPlannedSession != null &&
@@ -372,7 +372,7 @@ fun NutritionScreen(
         // Meals details lists
         item {
             Text(
-                text = "Today's Meals",
+                text = if (selectedDate == todayDateStr) "Today's meals" else "Meals for $selectedDate",
                 fontFamily = SyneFamily,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
