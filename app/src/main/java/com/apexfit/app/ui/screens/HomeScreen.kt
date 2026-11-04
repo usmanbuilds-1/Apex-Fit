@@ -61,6 +61,16 @@ private val TextTertiary   = Color(0xFF4B6171)
 private val BrandText      = Color(0xFFC6D2DB)
 private val BorderMuted    = Color(0xFF242F3A)
 
+internal fun currentTrainingStreak(dates: Set<LocalDate>, today: LocalDate): Int {
+    var date = if (today in dates) today else today.minusDays(1)
+    var streak = 0
+    while (date in dates) {
+        streak++
+        date = date.minusDays(1)
+    }
+    return streak
+}
+
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 @Composable
@@ -79,7 +89,6 @@ fun HomeScreen(
     val macroTargetsState by homeViewModel.macroTargets.collectAsStateWithLifecycle()
     val weightHistoryState by homeViewModel.weightHistory.collectAsStateWithLifecycle()
     val completedSessions by homeViewModel.completedSessions.collectAsStateWithLifecycle(emptyList())
-    val estimatedDuration by homeViewModel.estimatedWorkoutDuration.collectAsStateWithLifecycle()
     val units             by homeViewModel.units.collectAsStateWithLifecycle()
     val userGoal          by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val athleteName by fitnessViewModel.username.collectAsStateWithLifecycle()
@@ -113,7 +122,11 @@ fun HomeScreen(
         }
     }
 
-    val recentSessions = completedSessions.take(2)
+    val trainingDates = remember(completedSessions) {
+        completedSessions.filter { it.completed }
+            .mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()
+    }
+    val trainingStreak = currentTrainingStreak(trainingDates, LocalDate.now())
 
     LazyColumn(
         modifier = Modifier
@@ -128,13 +141,7 @@ fun HomeScreen(
         }
 
         // ── Hero section (Sightline to headline/readiness, 36vh / 30vh, bottom fade into #041521)
-        item {
-            Column(Modifier.padding(horizontal = ApexSpacing.screenPadding, vertical = 16.dp)) {
-                Text("Today", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Text(LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d")),
-                    color = TextMuted, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-            }
-        }
+        item { HomeTrainingHero() }
 
         // ── Padded content cards ───────────────────────────────────────────
         item {
@@ -148,7 +155,6 @@ fun HomeScreen(
                 TodayWorkoutCard(
                     sessionLabel    = todaySession?.label.orEmpty(),
                     sessionFocus    = todaySession?.focus.orEmpty(),
-                    durationMinutes = estimatedDuration,
 
                     onStartWorkout  = {
                         todaySession?.let { workoutExecutionViewModel.startWorkoutSession(it) }
@@ -212,11 +218,7 @@ fun HomeScreen(
                     }
                 }
 
-                // Recent sessions
-                RecentSessionsSection(
-                    sessions = recentSessions,
-                    onSeeAll = { onNavigateTo(3) }
-                )
+                TrainingStreakSection(trainingStreak, onView = { onNavigateTo(3) })
             }
         }
     }
@@ -293,10 +295,45 @@ private fun HomeTopBar(athleteName: String, onSettingsClick: () -> Unit) {
 // Rule 2: Eyebrow "YOUR TRAINING, IN RHYTHM" → #8EA0AE. Subline "One set at a time." → #8EA0AE.
 
 @Composable
+private fun HomeTrainingHero() {
+    Box(Modifier.fillMaxWidth().height(260.dp).background(CanvasVoid)) {
+        Image(painter = painterResource(R.drawable.home_athlete), contentDescription = null,
+            contentScale = ContentScale.Crop, alignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(
+            0f to CanvasVoid.copy(alpha = .92f), .52f to CanvasVoid.copy(alpha = .36f),
+            1f to Color.Transparent)))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
+            0f to Color.Transparent, .72f to Color.Transparent, 1f to CanvasVoid)))
+        Column(Modifier.align(Alignment.CenterStart).padding(horizontal = ApexSpacing.screenPadding)) {
+            Text("YOUR TRAINING, IN RHYTHM", color = TextMuted, fontSize = 11.sp,
+                letterSpacing = 1.3.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(10.dp))
+            Text("Today, we\ntrain.", color = Color.White, fontSize = 34.sp,
+                lineHeight = 39.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("One set at a time.", color = BrandText, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun TrainingStreakSection(days: Int, onView: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+        .background(SurfaceNight1).clickable(role = Role.Button, onClick = onView).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Training streak", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(if (days == 1) "1 day" else "$days days", color = ElectricMint,
+            fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text(if (days == 0) "Complete a workout to start your streak."
+            else "Consecutive days with a completed workout.", color = TextMuted, fontSize = 13.sp)
+    }
+}
+
+@Composable
 private fun TodayWorkoutCard(
     sessionLabel: String,
     sessionFocus: String,
-    durationMinutes: Int,
     onStartWorkout: () -> Unit
 ) {
     val hasSession = sessionLabel.isNotBlank()
@@ -308,8 +345,6 @@ private fun TodayWorkoutCard(
             color = Color.White, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
         Text(if (hasSession) sessionFocus else "Take a recovery day, or choose a workout from your plan.",
             color = TextMuted, fontSize = 14.sp, lineHeight = 21.sp)
-        if (hasSession && durationMinutes > 0) Text("About $durationMinutes min",
-            color = TextMuted, fontSize = 13.sp)
         Button(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ElectricMint, contentColor = CanvasVoid)) {
