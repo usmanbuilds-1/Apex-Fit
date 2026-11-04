@@ -534,7 +534,8 @@ class WorkoutSessionManager(
             ?: return@withContext SessionCommitResult.empty()
 
         val sessionId = UUID.randomUUID().toString()
-        val durationMinutes = ((System.currentTimeMillis() - session.startTime).toDouble() / 60_000.0)
+        val completedAt = System.currentTimeMillis()
+        val durationMinutes = ((completedAt - session.startTime).coerceAtLeast(0L).toDouble() / 60_000.0)
             .let { it.roundToInt() }
             .coerceAtLeast(1)
 
@@ -573,7 +574,7 @@ class WorkoutSessionManager(
             readinessScoreAtStart = session.readinessScore,
             notes = session.notes,
             startedAt = session.startTime,
-            completedAt = System.currentTimeMillis()
+            completedAt = completedAt
         )
 
         // Single atomic transaction — both rows or neither

@@ -537,7 +537,7 @@ fun AddFoodSheet(
     val isCarbValid = inputCarb.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..1000.0 } == true
     val isFatValid = inputFat.replace(',', '.').toDoubleOrNull()?.let { it in 0.0..500.0 } == true
 
-    val computedCalFromMacros = ((inputProt.toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN) + ((inputCarb.toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_CARB) + ((inputFat.toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT)
+    val computedCalFromMacros = ((inputProt.replace(',', '.').toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_PROTEIN) + ((inputCarb.replace(',', '.').toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_CARB) + ((inputFat.replace(',', '.').toDoubleOrNull() ?: 0.0) * com.apexfit.app.utils.AppConstants.CALORIES_PER_GRAM_FAT)
     val showMacroCalWarning = computedCalFromMacros > 5000.0
 
     val context = LocalContext.current
@@ -807,9 +807,9 @@ fun AddFoodSheet(
                 enabled = isMealValid,
                 onClick = {
                     val cal = inputCal.toIntOrNull() ?: 0
-                    val prot = inputProt.toDoubleOrNull() ?: 0.0
-                    val carb = inputCarb.toDoubleOrNull() ?: 0.0
-                    val fat = inputFat.toDoubleOrNull() ?: 0.0
+                    val prot = inputProt.replace(',', '.').toDoubleOrNull() ?: 0.0
+                    val carb = inputCarb.replace(',', '.').toDoubleOrNull() ?: 0.0
+                    val fat = inputFat.replace(',', '.').toDoubleOrNull() ?: 0.0
                     val mealName = querySearch.trim().ifEmpty { "Logged Meal" }
                     nutritionViewModel.logNutrition(cal, prot, carb, fat, date = selectedDate, name = mealName)
                     onDismiss()

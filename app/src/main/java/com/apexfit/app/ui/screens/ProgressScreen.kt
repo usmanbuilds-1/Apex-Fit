@@ -504,6 +504,10 @@ fun ProgressMainTabContent(
     val muscleVolumeMap by algorithmViewModel.muscleVolumes.collectAsStateWithLifecycle()
     val heatmap by algorithmViewModel.muscleHeatmap.collectAsStateWithLifecycle()
     val weightHistoryState by homeViewModel.weightHistory.collectAsStateWithLifecycle()
+    val recordedSessions by homeViewModel.completedSessions.collectAsStateWithLifecycle(initialValue = emptyList())
+    val recentCompletedSessions = remember(recordedSessions) {
+        recordedSessions.filter { it.completed }.sortedByDescending { it.date }.take(5)
+    }
     val measurementsState by progressViewModel.allBodyMeasurements.collectAsStateWithLifecycle()
     val monthlyMuscleVolumesState by progressViewModel.monthlyMuscleVolumes.collectAsStateWithLifecycle()
 
@@ -592,7 +596,7 @@ fun ProgressMainTabContent(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) AmberAccent else Color.Transparent)
+                            .background(if (isSelected) ApexColors.Primary else Color.Transparent)
                             .clickable { activeSubTab = index }
                             .padding(vertical = 12.dp)
                             .heightIn(min = 48.dp),
@@ -615,6 +619,31 @@ fun ProgressMainTabContent(
                                 fontWeight = FontWeight.Bold,
                                 color = if (isSelected) ApexColors.OnGlow else SecondaryText
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    .background(ApexColors.Surface).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Training history", color = PrimaryText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (recentCompletedSessions.isEmpty()) {
+                    Text("Complete a workout to see its duration here.", color = SecondaryText, fontSize = 14.sp)
+                } else {
+                    recentCompletedSessions.forEach { session ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(session.sessionType.ifBlank { "Workout" }, color = PrimaryText, fontSize = 15.sp)
+                                Text(session.date, color = SecondaryText, fontSize = 12.sp)
+                            }
+                            Text(if (session.durationMinutes > 0) "${session.durationMinutes} min" else "Duration unavailable",
+                                color = SecondaryText, fontSize = 13.sp)
                         }
                     }
                 }

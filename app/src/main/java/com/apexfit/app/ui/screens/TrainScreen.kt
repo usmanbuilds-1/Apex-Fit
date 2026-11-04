@@ -78,7 +78,7 @@ fun TrainTab(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(9.dp))
-                            .background(if (isSelected) AmberAccent else Color.Transparent)
+                            .background(if (isSelected) ApexColors.Primary else Color.Transparent)
                             .semantics { selected = isSelected }
                             .clickable(role = Role.Tab) { fitnessViewModel.setTrainSubTab(index) }
                             .padding(vertical = 12.dp)
