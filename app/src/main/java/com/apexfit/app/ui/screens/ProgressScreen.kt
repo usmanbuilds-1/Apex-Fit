@@ -76,6 +76,9 @@ fun ProgressScreen(
 
     Crossfade(targetState = subScreen, label = "progressSubscreen") { screen ->
         when (screen) {
+            "personal_records" -> {
+                PersonalRecordsScreen(progressViewModel = progressViewModel, onBack = { subScreen = "main" })
+            }
             "workout_history" -> {
                 WorkoutHistoryScreen(progressViewModel = progressViewModel, onBack = { subScreen = "main" })
             }
@@ -102,6 +105,7 @@ fun ProgressScreen(
                     homeViewModel = homeViewModel,
                     onOpenMuscleRecovery = { subScreen = "muscle_recovery" },
                     onOpenWorkoutHistory = { subScreen = "workout_history" },
+                    onOpenPersonalRecords = { subScreen = "personal_records" },
                     onOpenMeasurementDetail = { part ->
                         selectedPart = part
                         subScreen = "measurement_detail"
@@ -502,6 +506,7 @@ fun ProgressMainTabContent(
     homeViewModel: HomeViewModel,
     onOpenMuscleRecovery: () -> Unit,
     onOpenWorkoutHistory: () -> Unit,
+    onOpenPersonalRecords: () -> Unit,
     onOpenMeasurementDetail: (String) -> Unit
 ) {
     val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
@@ -651,6 +656,7 @@ fun ProgressMainTabContent(
                     Text("Training history", color = PrimaryText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     TextButton(onClick = onOpenWorkoutHistory) { Text("View all") }
                 }
+                TextButton(onClick = onOpenPersonalRecords) { Text("Personal records") }
                 if (recentCompletedSessions.isEmpty()) {
                     Text("Complete a workout to see its duration here.", color = SecondaryText, fontSize = 14.sp)
                 } else {
