@@ -317,7 +317,8 @@ class WorkoutSessionManager(
                     progressionResult.outcome == OutcomeType.PROGRESSING) {
                     // Holding a load must preserve the actual logged weight, even if it is
                     // not on the arbitrary increment grid (for example 6 kg dumbbells).
-                    lastSet.weight.toDisplayWeight(exerciseUnit)
+                    if (exerciseUnit.lowercase() in listOf("lb", "lbs"))
+                        lastSet.weight.toDisplayWeight(exerciseUnit) else lastSet.weight
                 } else if (exerciseUnit.lowercase() in listOf("lb", "lbs")) {
                     val stepLbs = if (exType == "isolation") 1.25 else 2.5
                     (Math.round(suggestedLbs / stepLbs) * stepLbs * 100.0) / 100.0
