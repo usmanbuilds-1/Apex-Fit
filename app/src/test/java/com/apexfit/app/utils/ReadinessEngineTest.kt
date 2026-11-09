@@ -6,6 +6,30 @@ import org.junit.Test
 class ReadinessEngineTest {
 
     @Test
+    fun readinessMatchesTrainingHistoryAcrossMuscleAliases() {
+        val workout = com.apexfit.app.data.RichTrainingSession(
+            date = getCurrentDate(), sessionType = "Pull", completed = true,
+            exercises = listOf(com.apexfit.app.data.ExerciseLog(
+                id = "row", name = "Row", muscleGroup = "Back",
+                sets = listOf(com.apexfit.app.data.ExerciseSet(50.0, 10, 8, false, true))
+            ))
+        )
+        fun score(muscle: String) = ReadinessFinal.buildReadinessInputs(
+            completedSessions = listOf(workout),
+            todayExercises = listOf(com.apexfit.app.data.PlanExercise(
+                planSessionId = 1, name = "Row", muscleGroup = muscle,
+                sets = 3, repsMin = 8, repsMax = 12, weight = 50.0,
+                restSeconds = 120, notes = ""
+            )),
+            nutritionLog = emptyList(),
+            targets = com.apexfit.app.data.NutritionTargets(2000, 120, 200, 60)
+        ).muscleDetails.single().readinessPercent
+
+        assertEquals(score("Back"), score("Lats"))
+        assertTrue("Training history should reduce estimated readiness", score("Back") < 100)
+    }
+
+    @Test
     fun testReadinessFinalCalculate_coldStart() {
         val res = ReadinessFinal.calculate(
             totalCompletedSessions = 2, // Cold start < 3
