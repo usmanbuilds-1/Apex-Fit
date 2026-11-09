@@ -212,6 +212,7 @@ fun ApexFitApp(
                 TextButton(
                     onClick = {
                         showResumeDialog = false
+                        fitnessViewModel.setTrainSubTab(1)
                         navController.navigate("train") {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
@@ -394,7 +395,8 @@ fun ApexFitApp(
                             fitnessViewModel = fitnessViewModel,
                             planBuilderViewModel = planBuilderViewModel,
                             workoutExecutionViewModel = workoutExecutionViewModel,
-                            onNavigateTo = navigateToTab
+                            onNavigateTo = navigateToTab,
+                            onOpenSettings = { navController.navigate("settings") }
                         )
                     }
                     composable(
