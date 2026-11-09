@@ -31,6 +31,7 @@ class OnboardingFlowTest {
         compose.onNodeWithTag("onboarding_continue").performClick()
         compose.onNodeWithTag("onboarding_frequency_2").performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
+        fillProfileDetails()
         compose.onNodeWithText("Your profile, ready to go.").assertIsDisplayed()
         compose.onNodeWithText("2 training days per week").assertExists()
         compose.runOnIdle { assertNull(submitted) }
@@ -51,12 +52,23 @@ class OnboardingFlowTest {
         compose.onNodeWithTag("onboarding_continue").performClick()
         compose.onNodeWithTag("onboarding_frequency_5").performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
+        fillProfileDetails()
         compose.onNodeWithTag("onboarding_change_Activity").performScrollTo().performClick()
         compose.onNodeWithTag("onboarding_frequency_4").performClick()
+        compose.onNodeWithTag("onboarding_continue").performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
         compose.onNodeWithText("4 training days per week").assertExists()
         compose.onNodeWithText("Finding my rhythm").assertExists()
         compose.onNodeWithText("Recomp").assertExists()
+    }
+
+    private fun fillProfileDetails() {
+        compose.onNodeWithTag("onboarding_name").performScrollTo().performTextInput("Alex")
+        compose.onNodeWithTag("onboarding_height").performScrollTo().performTextInput("175")
+        compose.onNodeWithTag("onboarding_weight").performScrollTo().performTextInput("70")
+        compose.onNodeWithTag("onboarding_age").performScrollTo().performTextInput("30")
+        compose.onNodeWithText("Male").performScrollTo().performClick()
+        compose.onNodeWithTag("onboarding_continue").performClick()
     }
 
     @Test
