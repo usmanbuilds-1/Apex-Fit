@@ -112,6 +112,30 @@ class TrainViewModelTest {
     }
 
     @Test
+    fun completingSetKeepsSelectedRpeAndMovesToNextExercise() = runTest(testDispatcher) {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val dao = testDb!!.fitnessDao()
+        val store = DataStoreManager.getInstance(application)
+        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(testDb!!, dao, store)
+        val manager = WorkoutSessionManager(repository, store, testScope!!, dao, application)
+        val viewModel = WorkoutExecutionViewModel(application, repository, store, dao, manager)
+        val first = PlanExercise(planSessionId = 1, exerciseId = "bench", name = "Bench", muscleGroup = "Chest",
+            sets = 1, repsMin = 8, repsMax = 12, weight = 10.0, restSeconds = 120, notes = "")
+        val second = first.copy(id = 2, exerciseId = "row", name = "Row", muscleGroup = "Back")
+        manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Upper"),
+            listOf(first, second), 70.0, 175.0, "kg")
+        var restCalls = 0
+        viewModel.completeSetWithRpe("bench", "Bench", "Chest", 0, 10.0, 10, 1, 9) { restCalls++ }
+        assertEquals(9, manager.activeSession.value!!.exercises[0].sets[0].rpe)
+        assertEquals(1, viewModel.currentExerciseIdx.value)
+        assertEquals(1, restCalls)
+        viewModel.completeSetWithRpe("row", "Row", "Back", 0, 10.0, 10, 1, 8) { restCalls++ }
+        assertEquals("Final set should not start another timer", 1, restCalls)
+        manager.discardAndExit()
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
+    }
+
+    @Test
     fun activatePlan_updatesActiveStatus() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()

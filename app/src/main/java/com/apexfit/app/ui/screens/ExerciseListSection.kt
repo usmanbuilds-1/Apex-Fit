@@ -48,7 +48,7 @@ fun ExerciseListSection(
     showRirOverlay: Boolean,
     onToggleWarmupItem: (String) -> Unit,
     onLogSetState: (exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int) -> Unit,
-    onOpenRirSelector: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int) -> Unit,
+    onCompleteSet: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int) -> Unit,
     onAddCustomLogSet: (String) -> Unit,
     onNextExercise: () -> Unit,
     onSkipExercise: (PlanExercise) -> Unit,
@@ -207,7 +207,7 @@ fun ExerciseListSection(
                     weightContextLines = weightContextLines,
                     showRirOverlay = showRirOverlay,
                     onLogSetState = onLogSetState,
-                    onOpenRirSelector = onOpenRirSelector
+                    onCompleteSet = onCompleteSet
                 )
             }
 

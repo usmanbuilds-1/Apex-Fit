@@ -370,6 +370,20 @@ class WorkoutExecutionViewModel @Inject constructor(
         }
     }
 
+    fun completeSetWithRpe(
+        exerciseId: String, exerciseName: String, muscleGroup: String,
+        setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int,
+        onRest: () -> Unit
+    ) {
+        logWorkoutSetState(exerciseId, setIndex, weight, reps, rpe, completed = true,
+            repsInReserve = (10 - rpe).coerceIn(0, 9))
+        val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
+        val index = exercises.indexOfFirst { it.exerciseId == exerciseId }
+        val done = exercises.getOrNull(index)?.sets?.all { it.completed } == true
+        if (!(done && index == exercises.lastIndex)) onRest()
+        if (done && index >= 0 && index < exercises.lastIndex) _currentExerciseIdx.value = index + 1
+    }
+
     fun closeRirSelector() {
         _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
     }

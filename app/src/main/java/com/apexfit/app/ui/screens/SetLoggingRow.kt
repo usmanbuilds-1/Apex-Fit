@@ -52,7 +52,7 @@ fun SetLoggingRow(
     weightContextLines: Map<String, String>,
     showRirOverlay: Boolean,
     onLogSetState: (exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int) -> Unit,
-    onOpenRirSelector: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int) -> Unit
+    onCompleteSet: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int) -> Unit
 ) {
     val hapticFeedback = LocalHapticFeedback.current
 
@@ -344,15 +344,7 @@ fun SetLoggingRow(
 
                             if (newCompleted) {
                                 // Smart RIR dynamic selector instead of instant log
-                                onOpenRirSelector(
-                                    ex.exerciseId,
-                                    ex.name,
-                                    ex.muscleGroup,
-                                    sIdx,
-                                    w,
-                                    r,
-                                    totalSets
-                                )
+                                onCompleteSet(ex.exerciseId, ex.name, ex.muscleGroup, sIdx, w, r, totalSets, selectedRpe)
                             } else {
                                 // Simple uncheck log state
                                 onLogSetState(ex.exerciseId, sIdx, w, r, selectedRpe, false, setObj.restTaken)
