@@ -348,13 +348,7 @@ class AlgorithmViewModel @Inject constructor(
             }
         }
 
-        // 2. Efficient date grouping/filtering using java.time.LocalDate without Calendar allocation
-        val sessionsByYearMonth = sessions
-            .filter { it.completed }
-            .groupBy { session ->
-                val ld = java.time.LocalDate.parse(session.date)
-                ld.year * 100 + ld.monthValue  // int key, no Calendar allocation
-            }
+        // No monthly grouping is needed here; count only sessions in the current week.
 
         val today = java.time.LocalDate.now()
         val monday = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
