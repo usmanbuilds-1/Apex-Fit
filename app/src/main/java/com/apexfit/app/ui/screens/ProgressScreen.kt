@@ -601,7 +601,7 @@ fun ProgressMainTabContent(
         ) {
         item {
             Box(modifier = Modifier.testTag("progress_title_container")) {
-                Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                Text("Progress", color = Color.White, fontFamily = SyneFamily, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 16.dp).testTag("progress_content_title"))
             }
         }
