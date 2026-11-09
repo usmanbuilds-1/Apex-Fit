@@ -29,6 +29,11 @@ class ProgressViewModel @Inject constructor(
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
+    val workoutHistory = dao.getAllCompletedSessionsFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun setsForSession(sessionId: String): Flow<List<ExerciseSet>> = dao.getSetsForSessionFlow(sessionId)
+
     val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "kg")
 
     fun measurementsForBodyPart(bodyPart: String): Flow<List<UiBodyMeasurement>> {

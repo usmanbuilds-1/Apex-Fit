@@ -166,7 +166,7 @@ class PlanBuilderViewModel @Inject constructor(
         }
     }
 
-    private val _selectedDayOfWeek = MutableStateFlow("Monday")
+    private val _selectedDayOfWeek = MutableStateFlow(java.time.LocalDate.now().dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH))
     val selectedDayOfWeek: StateFlow<String> = _selectedDayOfWeek.asStateFlow()
 
     val allPlanExercises = dao.getAllPlanExercisesFlow()
@@ -231,15 +231,18 @@ class PlanBuilderViewModel @Inject constructor(
             .map { it.name to "Alternative targeting ${it.primaryMuscle} (${it.equipmentRequired})." }
     }
 
-    fun updateWorkoutPlan(
+    suspend fun loadPlanForEditing(id: Long): Triple<WorkoutPlan, List<PlanSession>, List<PlanExercise>> {
+        val plan = requireNotNull(dao.getAllPlans().firstOrNull { it.id == id }) { "Plan not found" }
+        val sessions = dao.getSessionsForPlan(id)
+        val exercises = sessions.flatMap { dao.getExercisesForSession(it.id) }
+        return Triple(plan, sessions, exercises)
+    }
+
+    suspend fun updateWorkoutPlan(
         plan: WorkoutPlan,
         sessions: List<PlanSession>,
         exercises: List<PlanExercise>
-    ) {
-        viewModelScope.launch {
-            repository.updateWorkoutPlan(plan, sessions, exercises)
-        }
-    }
+    ) = repository.updateWorkoutPlan(plan, sessions, exercises)
 
     fun activatePlan(planId: Long): kotlinx.coroutines.Job = viewModelScope.launch {
         // AUDIT FIX (BUG-V4-009): wrap in a transaction so deactivate + activate

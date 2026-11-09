@@ -113,6 +113,39 @@ class AuditRegressionTestV4 {
         return method.invoke(PatternDetector, log) as List<DetectedPattern>
     }
 
+    @Test
+    fun newPlanAndCustomExerciseSaveWithoutOverwritingExistingPlan() = runBlocking {
+        val existing = dao.insertWorkoutPlan(WorkoutPlan(name = "Existing", goal = "General", isActive = true))
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
+        val day = PlanSession(id = 123, planId = 0, label = "Upper", day = "Monday", focus = "Chest")
+        val exercise = PlanExercise(id = 456, planSessionId = day.id, name = "New Custom Press",
+            muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 10.0,
+            weightUnit = "kg", restSeconds = 90, notes = "")
+        repo.updateWorkoutPlan(WorkoutPlan(name = "New", goal = "Strength", isActive = true), listOf(day), listOf(exercise))
+        val plans = dao.getAllPlans()
+        assertEquals(2, plans.size)
+        assertNotNull(plans.firstOrNull { it.id == existing && it.name == "Existing" })
+        val saved = plans.single { it.name == "New" }
+        assertTrue(saved.isActive)
+        val savedDay = dao.getSessionsForPlan(saved.id).single()
+        val savedExercise = dao.getExercisesForSession(savedDay.id).single()
+        assertEquals("New Custom Press", savedExercise.name)
+        assertEquals("kg", savedExercise.weightUnit)
+        assertNotNull(dao.getExerciseById(savedExercise.exerciseId))
+    }
+
+    @Test
+    fun orphanedExerciseRollsBackPlanSave() = runBlocking {
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
+        val exercise = PlanExercise(planSessionId = 99, name = "Bench Press", muscleGroup = "Chest",
+            sets = 3, repsMin = 8, repsMax = 12, weight = 10.0, restSeconds = 90, notes = "")
+        try {
+            repo.updateWorkoutPlan(WorkoutPlan(name = "Bad", goal = "General", isActive = true), emptyList(), listOf(exercise))
+            fail("Expected an invalid plan to be rejected")
+        } catch (_: IllegalArgumentException) { }
+        assertTrue(dao.getAllPlans().none { it.name == "Bad" })
+    }
+
     // 1. activatePlan_updateDoesNotWipeChildren
     // Creates a plan with child exercises, activates it via dao.deactivateAllPlans()
     // + dao.activatePlan(), verifies plan exercises still exist (no REPLACE cascade wipe).

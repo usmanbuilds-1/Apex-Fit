@@ -342,7 +342,7 @@ fun ApexFitApp(
                 }
             },
             bottomBar = {
-                if (currentRoute != "plan_builder" && currentRoute != "settings") {
+                if (currentRoute != "plan_builder/{planId}" && currentRoute != "settings") {
                     BottomNavBar(
                         activeTab = activeTab,
                         onTabSelected = { index ->
@@ -411,18 +411,19 @@ fun ApexFitApp(
                             planBuilderViewModel = planBuilderViewModel,
                             workoutExecutionViewModel = workoutExecutionViewModel,
                             restTimerViewModel = restTimerViewModel,
-                            onNavigateToPlanBuilder = {
-                                navController.navigate("plan_builder")
+                            onNavigateToPlanBuilder = { planId ->
+                                navController.navigate("plan_builder/$planId")
                             }
                         )
                     }
                     composable(
-                        route = "plan_builder",
+                        route = "plan_builder/{planId}",
                         enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) },
                         exitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) }
-                    ) {
+                    ) { entry ->
                         PlanBuilderScreen(
                             planBuilderViewModel = planBuilderViewModel,
+                            planId = entry.arguments?.getString("planId")?.toLongOrNull() ?: 0L,
                             onNavigateBack = {
                                 navController.popBackStack()
                             }

@@ -76,6 +76,9 @@ fun ProgressScreen(
 
     Crossfade(targetState = subScreen, label = "progressSubscreen") { screen ->
         when (screen) {
+            "workout_history" -> {
+                WorkoutHistoryScreen(progressViewModel = progressViewModel, onBack = { subScreen = "main" })
+            }
             "muscle_recovery" -> {
                 MuscleRecoveryScreen(
                     progressViewModel = progressViewModel,
@@ -98,6 +101,7 @@ fun ProgressScreen(
                     progressViewModel = progressViewModel,
                     homeViewModel = homeViewModel,
                     onOpenMuscleRecovery = { subScreen = "muscle_recovery" },
+                    onOpenWorkoutHistory = { subScreen = "workout_history" },
                     onOpenMeasurementDetail = { part ->
                         selectedPart = part
                         subScreen = "measurement_detail"
@@ -497,6 +501,7 @@ fun ProgressMainTabContent(
     progressViewModel: ProgressViewModel,
     homeViewModel: HomeViewModel,
     onOpenMuscleRecovery: () -> Unit,
+    onOpenWorkoutHistory: () -> Unit,
     onOpenMeasurementDetail: (String) -> Unit
 ) {
     val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
@@ -557,7 +562,13 @@ fun ProgressMainTabContent(
         }
     }
 
-    val deletionKeys = remember(pendingDeletions) { pendingDeletions.keys.toSet() }
+    DisposableEffect(homeViewModel) {
+        onDispose {
+            pendingDeletions.forEach { (id, job) -> job.cancel(); homeViewModel.deleteWeightById(id) }
+            pendingDeletions.clear()
+        }
+    }
+    val deletionKeys = pendingDeletions.keys.toSet()
     val filteredWeights = remember(weightHistory, deletionKeys) { weightHistory.filter { it.id !in deletionKeys } }
     val visibleWeights = filteredWeights
 
@@ -635,7 +646,11 @@ fun ProgressMainTabContent(
                     .background(ApexColors.Surface).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Training history", color = PrimaryText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("Training history", color = PrimaryText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = onOpenWorkoutHistory) { Text("View all") }
+                }
                 if (recentCompletedSessions.isEmpty()) {
                     Text("Complete a workout to see its duration here.", color = SecondaryText, fontSize = 14.sp)
                 } else {

@@ -46,6 +46,7 @@ import com.apexfit.app.utils.MuscleGroups
 @Composable
 fun PlanBuilderScreen(
     planBuilderViewModel: PlanBuilderViewModel,
+    planId: Long,
     onNavigateBack: () -> Unit
 ) {
     DisposableEffect(Unit) {
@@ -56,37 +57,15 @@ fun PlanBuilderScreen(
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val dbSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
-    val dbExercises by planBuilderViewModel.allPlanExercises.collectAsStateWithLifecycle()
-    val activePlanState by planBuilderViewModel.activePlan.collectAsStateWithLifecycle()
-    
-    if (dbSessionsState is UiState.Loading || activePlanState is UiState.Loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = OrangeAccent)
-        }
-        return
-    }
-
-    if (dbSessionsState is UiState.Error || activePlanState is UiState.Error) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.plan_builder_error_loading_plan_data), color = Color.White)
-        }
-        return
-    }
-
-    val dbSessions: List<com.apexfit.app.data.PlanSession> = (dbSessionsState as? UiState.Success)?.data ?: emptyList()
-    val activePlan: com.apexfit.app.data.WorkoutPlan? = (activePlanState as? UiState.Success)?.data
-    
     val sessionsList by planBuilderViewModel.planBuilderSessions.collectAsStateWithLifecycle()
     val exercisesList by planBuilderViewModel.planBuilderExercises.collectAsStateWithLifecycle()
-
+    var activePlan by remember { mutableStateOf<WorkoutPlan?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
     var planName by rememberSaveable { mutableStateOf("") }
     var planGoal by rememberSaveable { mutableStateOf("") }
-    var isInitialized by rememberSaveable { mutableStateOf(false) }
     var planNameError by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // Dialog trigger states
     var showAddDayDialog by rememberSaveable { mutableStateOf(false) }
     var showAddExerciseDialog by rememberSaveable { mutableStateOf(false) }
     var selectedSessionIdForExercise by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -94,21 +73,37 @@ fun PlanBuilderScreen(
     var editingExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
     var sessionToDelete by rememberSaveable { mutableStateOf<PlanSession?>(null) }
     var exerciseToDelete by rememberSaveable { mutableStateOf<PlanExercise?>(null) }
-
     var isSaving by remember { mutableStateOf(false) }
 
-    LaunchedEffect(activePlan) {
-        if (!isInitialized && activePlan != null) {
-            planName = activePlan?.name ?: "My Custom Plan"
-            planGoal = activePlan?.goal ?: "Gain Muscle"
-            
-            planBuilderViewModel.initializePlanBuilder(
-                activePlan,
-                dbSessions,
-                dbExercises
-            )
-            isInitialized = true
+    LaunchedEffect(planId) {
+        try {
+            planBuilderViewModel.resetPlanBuilder()
+            if (planId != 0L) {
+                val (plan, sessions, exercises) = planBuilderViewModel.loadPlanForEditing(planId)
+                activePlan = plan
+                planName = plan.name
+                planGoal = plan.goal
+                planBuilderViewModel.initializePlanBuilder(plan, sessions, exercises)
+            } else {
+                planBuilderViewModel.initializePlanBuilder(null, emptyList(), emptyList())
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            loadError = "Couldn't load this plan. Go back and try again."
+        } finally {
+            loading = false
         }
+    }
+    if (loading || loadError != null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (loading) CircularProgressIndicator(color = OrangeAccent)
+            else Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(loadError.orEmpty(), color = Color.White)
+                TextButton(onClick = onNavigateBack) { Text("Go back") }
+            }
+        }
+        return
     }
 
     Scaffold(
@@ -143,16 +138,21 @@ fun PlanBuilderScreen(
                             } else {
                                 planNameError = null
                             }
+                            if (sessionsList.isEmpty() || sessionsList.any { day -> exercisesList.none { it.planSessionId == day.id } }) {
+                                coroutineScope.launch { snackbarHostState.showSnackbar("Add at least one exercise to every training day.") }
+                                return@TextButton
+                            }
                             isSaving = true
-                            val planId = activePlan?.id ?: 1L
-                            val finalPlan = WorkoutPlan(
-                                id = planId,
+                            val planId = activePlan?.id ?: 0L
+                            val finalPlan = activePlan?.copy(
+                                name = planName.trim(),
+                                goal = planGoal.trim().ifEmpty { "General Fitness" }
+                            ) ?: WorkoutPlan(
                                 name = planName.trim(),
                                 goal = planGoal.trim().ifEmpty { "General Fitness" },
-                                isActive = true,
-                                createdAt = activePlan?.createdAt ?: System.currentTimeMillis()
+                                isActive = true
                             )
-                            
+
                             // Re-calculate focus for sessions
                             val updatedSessions = sessionsList.map { session ->
                                 val muscles = exercisesList
@@ -168,15 +168,17 @@ fun PlanBuilderScreen(
                             }
 
                             coroutineScope.launch {
-                                isSaving = true
                                 try {
                                     planBuilderViewModel.updateWorkoutPlan(finalPlan, updatedSessions, updatedExercises)
-                                    snackbarHostState.showSnackbar(context.getString(R.string.plan_builder_workout_plan_updated_successfu))
+                                    onNavigateBack()
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    snackbarHostState.showSnackbar("Couldn't save your plan. Please try again.")
                                 } finally {
                                     isSaving = false
                                 }
                             }
-                            onNavigateBack()
                         },
                         enabled = !isSaving,
                         modifier = Modifier.testTag("save_plan_button")
@@ -694,7 +696,7 @@ fun PlanBuilderScreen(
                             planBuilderViewModel.addSession(
                                 PlanSession(
                                     id = newId,
-                                    planId = activePlan?.id ?: 1L,
+                                    planId = activePlan?.id ?: 0L,
                                     label = dayLabel.trim(),
                                     day = selectedDayOfWeek,
                                     focus = "General"
@@ -1104,11 +1106,11 @@ fun PlanBuilderScreen(
                                 repsMin = minRepsVal,
                                 repsMax = maxRepsVal,
                                 weight = weightVal,
-                                weightUnit = unitSuffix,
+                                weightUnit = "kg",
                                 restSeconds = restVal,
                                 notes = notesText.trim()
                             )
-                            planBuilderViewModel.addCustomExercise(newEx)
+                            planBuilderViewModel.addExercise(newEx)
                         } else {
                             val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
                             if (exercise != null) {
@@ -1119,7 +1121,7 @@ fun PlanBuilderScreen(
                                     repsMin = minRepsVal,
                                     repsMax = maxRepsVal,
                                     weight = weightVal,
-                                    weightUnit = unitSuffix,
+                                    weightUnit = "kg",
                                     restSeconds = restVal,
                                     notes = notesText.trim()
                                 )
