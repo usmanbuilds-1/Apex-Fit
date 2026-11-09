@@ -509,26 +509,39 @@ fun ProgressMainTabContent(
     onOpenPersonalRecords: () -> Unit,
     onOpenMeasurementDetail: (String) -> Unit
 ) {
+    // Collect only the history required by the visible section. Room otherwise opens
+    // all three queries on every visit to Progress, and an unrelated Loading state
+    // previously blocked the entire page.
+    var activeSubTab by rememberSaveable { mutableStateOf(0) }
     val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
     val deloadResult by algorithmViewModel.deloadRecommendation.collectAsStateWithLifecycle()
     val muscleVolumeMap by algorithmViewModel.muscleVolumes.collectAsStateWithLifecycle()
-    val heatmap by algorithmViewModel.muscleHeatmap.collectAsStateWithLifecycle()
-    val weightHistoryState by homeViewModel.weightHistory.collectAsStateWithLifecycle()
     val recordedSessions by homeViewModel.completedSessions.collectAsStateWithLifecycle(initialValue = emptyList())
     val recentCompletedSessions = remember(recordedSessions) {
         recordedSessions.filter { it.completed }.sortedByDescending { it.date }.take(5)
     }
-    val measurementsState by progressViewModel.allBodyMeasurements.collectAsStateWithLifecycle()
-    val monthlyMuscleVolumesState by progressViewModel.monthlyMuscleVolumes.collectAsStateWithLifecycle()
+    val weightHistoryState: UiState<List<com.apexfit.app.ui.models.UiWeightEntry>> =
+        if (activeSubTab == 2) homeViewModel.weightHistory.collectAsStateWithLifecycle().value
+        else UiState.Success(emptyList())
+    val measurementsState: UiState<List<com.apexfit.app.ui.models.UiBodyMeasurement>> =
+        if (activeSubTab == 2) progressViewModel.allBodyMeasurements.collectAsStateWithLifecycle().value
+        else UiState.Success(emptyList())
+    val monthlyMuscleVolumesState: UiState<Map<String, Int>> =
+        if (activeSubTab == 1) progressViewModel.monthlyMuscleVolumes.collectAsStateWithLifecycle().value
+        else UiState.Success(emptyMap())
 
-    if (weightHistoryState is UiState.Loading || measurementsState is UiState.Loading || monthlyMuscleVolumesState is UiState.Loading) {
+    val visibleDataStates: List<UiState<*>> = when (activeSubTab) {
+        1 -> listOf(monthlyMuscleVolumesState)
+        2 -> listOf(weightHistoryState, measurementsState)
+        else -> emptyList()
+    }
+    if (visibleDataStates.any { it is UiState.Loading }) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = BlueAccent)
         }
         return
     }
-
-    if (weightHistoryState is UiState.Error || measurementsState is UiState.Error || monthlyMuscleVolumesState is UiState.Error) {
+    if (visibleDataStates.any { it is UiState.Error }) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.progress_error_loading_progress_data), color = Color.White)
         }
@@ -540,7 +553,6 @@ fun ProgressMainTabContent(
     val monthlyMuscleVolumes: Map<String, Int> = (monthlyMuscleVolumesState as? UiState.Success)?.data ?: emptyMap()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val lengthUnit = if (units == "kg") "cm" else "in"
-    var activeSubTab by rememberSaveable { mutableStateOf(0) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
