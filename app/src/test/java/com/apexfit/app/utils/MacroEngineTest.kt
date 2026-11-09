@@ -148,27 +148,27 @@ class MacroEngineTest {
     }
 
     @Test
-    fun carbs_neverExceeds600g() {
+    fun highCalorieTarget_remainsConsistentWithMacros() {
         val result = MacroEngine.calcMacroTargets(5000, 100.0, "gain muscle", 185.0, "male")
-        assertTrue("Carbs ${result.carbs} should be <= 600", result.carbs <= 600)
+        assertTrue(abs(calBalance(result) - 5000) <= CAL_TOLERANCE)
     }
 
     // ── Oversubscribed calories ───────────────────────────────
 
     @Test
-    fun oversubscribed_proteinStillInBounds() {
-        // When calories are very low relative to protein+fat needs, scaling kicks in
-        // Protein must still be clamped to [100, 350]
-        val result = MacroEngine.calcMacroTargets(
-            calorieTarget = 900,
-            bodyWeightKg = 90.0,
-            goal = "lose fat",
-            heightCm = 180.0,
-            sex = "male"
-        )
-        assertTrue("Protein ${result.protein} should be in [100, 350]",
-            result.protein in 100..350)
-        assertTrue("Carbs ${result.carbs} should be >= 0", result.carbs >= 0)
+    fun oversubscribed_macrosStayWithinCalorieBudget() {
+        val result = MacroEngine.calcMacroTargets(900, 90.0, "lose fat", 180.0, "male")
+        assertTrue(abs(calBalance(result) - 900) <= CAL_TOLERANCE)
+        assertTrue(result.protein >= 0 && result.fat >= 0 && result.carbs >= 0)
+    }
+
+    @Test
+    fun cycledTargets_matchEachDaysCaloriesWhenBudgetIsTight() {
+        val result = MacroEngine.calcCycledTargets(1000, 5, "lose fat", 100.0, 180.0, "male")
+        val train = result.trainingDayProtein * 4 + result.trainingDayCarbs * 4 + result.fat * 9
+        val rest = result.restDayProtein * 4 + result.restDayCarbs * 4 + result.fat * 9
+        assertTrue(abs(train - result.trainingDayCalories) <= CAL_TOLERANCE)
+        assertTrue(abs(rest - result.restDayCalories) <= CAL_TOLERANCE)
     }
 
     // ── Cycling ───────────────────────────────────────────────
