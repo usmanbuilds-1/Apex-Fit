@@ -24,6 +24,7 @@ import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import com.apexfit.app.BuildConfig
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -499,6 +500,17 @@ fun NutritionScreen(
         item {
             Spacer(modifier = Modifier.height(24.dp))
         }
+        }
+        if (BuildConfig.DEBUG) {
+            // Verify that the actual screen Box draws above the shared canvas.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(10.dp)
+                    .background(Color.White)
+                    .testTag("nutrition_inner_sentinel")
+            )
         }
         // Do not compose a full-screen SnackbarHost when there is no message.
         // This avoids an extra overlay/draw layer above the main tab content.
