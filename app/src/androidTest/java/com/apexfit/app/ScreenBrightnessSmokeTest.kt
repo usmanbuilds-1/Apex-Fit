@@ -43,9 +43,9 @@ class ScreenBrightnessSmokeTest {
         }
 
         val results = listOf(
-            "train" to "train_content_title",
-            "nutrition" to "nutrition_content_title",
-            "progress" to "progress_content_title"
+            "train" to "train_title_container",
+            "nutrition" to "nutrition_title_container",
+            "progress" to "progress_title_container"
         ).associate { (route, title) -> route to checkScreenBrightness(route, title) }
         assertTrue(
             "Content contrast failed with reference controls: " +
