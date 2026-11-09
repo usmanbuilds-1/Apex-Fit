@@ -82,11 +82,19 @@ class ScreenBrightnessSmokeTest {
         }
         val (titleBright, titleSamples) = brightSamples(titleTag)
         val (headerBright, headerSamples) = brightSamples("app_logo")
-        println("RENDER_METRICS $route title=$titleBright/$titleSamples header=$headerBright/$headerSamples")
         val overlayLabels = listOf("REST TIMER", "WORKOUT COMPLETE", "REPS IN RESERVE")
-        println("RENDER_OVERLAYS $route " + overlayLabels.associateWith {
+        val overlayCounts = overlayLabels.associateWith {
             compose.onAllNodesWithText(it).fetchSemanticsNodes().size
-        })
+        }
+        val diagnostics = "RENDER_METRICS $route title=$titleBright/$titleSamples " +
+            "header=$headerBright/$headerSamples overlays=$overlayCounts"
+        println(diagnostics)
+        File(context.filesDir, "render-debug-$route.txt").writeText(diagnostics)
+        // External app-specific folder can be pulled with adb even if run-as fails.
+        context.getExternalFilesDir(null)?.let { directory ->
+            out.copyTo(File(directory, out.name), overwrite = true)
+            File(directory, "render-debug-$route.txt").writeText(diagnostics)
+        }
 
         // The header is an independent rendering control. If both are black,
         // node capture itself is suspect; if only content is dark, investigate
