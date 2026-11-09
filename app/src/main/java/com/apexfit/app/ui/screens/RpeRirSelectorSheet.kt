@@ -129,8 +129,11 @@ fun RpeRirSelectorSheet(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
+                    TextButton(onClick = onConfirmRirSelection, modifier = Modifier.fillMaxWidth()) {
+                        Text("View previous sets", color = SecondaryText)
+                    }
                     Button(
-                        onClick = onConfirmRirSelection,
+                        onClick = onConfirmRirAndNextSet,
                         modifier = Modifier.fillMaxWidth(),
                         enabled = true,
                         colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),

@@ -167,6 +167,57 @@ class AuditRegressionTestV4 {
         manager.discardAndExit()
     }
 
+    @Test
+    fun progressionUsesAllWorkingSetsFromLatestCompletedSession() = runBlocking {
+        repeat(3) { index ->
+            dao.insertExerciseSet(ExerciseSet(id = 3000L + index, sessionId = "session_1", exerciseId = "bench-press",
+                exerciseName = "Bench Press", muscleGroup = "Chest", weight = 100.0, reps = 12, rpe = 8,
+                isWarmup = false, completed = true))
+        }
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
+        val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+        val exercise = PlanExercise(planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
+            muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 100.0, restSeconds = 180, notes = "")
+        manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
+            listOf(exercise), 70.0, 175.0, "kg")
+        assertTrue("Three successful sets should progress the load", manager.activeSession.value!!.exercises.single().sets.first().weight > 100.0)
+        manager.discardAndExit()
+    }
+
+    @Test
+    fun planRestOverridesGenericMetadata() = runBlocking {
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
+        val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+        val exercise = PlanExercise(planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
+            muscleGroup = "Chest", sets = 2, repsMin = 8, repsMax = 12, weight = 20.0,
+            restSeconds = 150, notes = "")
+        manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
+            listOf(exercise), 70.0, 175.0, "kg")
+        assertEquals(150, manager.calculateRestTimeSeconds("bench-press", "compound_upper", 10))
+        manager.discardAndExit()
+    }
+
+    @Test
+    fun exerciseLibraryHasUniqueIdsNamesAndUsableMetadata() {
+        val entries = JSONArray(context.assets.open("seed_exercises.json").bufferedReader().use { it.readText() })
+        assertEquals(901, entries.length())
+        val ids = mutableSetOf<String>()
+        val names = mutableSetOf<String>()
+        for (index in 0 until entries.length()) {
+            val exercise = entries.getJSONObject(index)
+            val id = exercise.getString("id")
+            val name = exercise.getString("name")
+            val meta = exercise.getJSONObject("metadata")
+            assertTrue("Duplicate or empty exercise id: $id", id.isNotBlank() && ids.add(id.lowercase()))
+            assertTrue("Duplicate or empty exercise name: $name", name.isNotBlank() && names.add(name.lowercase()))
+            assertTrue("Invalid rep range: $name", meta.getInt("min_reps") > 0 && meta.getInt("max_reps") >= meta.getInt("min_reps"))
+            assertTrue("Invalid rest: $name", meta.getInt("default_rest_seconds") in 45..900)
+            assertTrue("Invalid progression increment: $name", meta.getDouble("default_progression_increment_kg") > 0)
+        }
+    }
+
     // 1. activatePlan_updateDoesNotWipeChildren
     // Creates a plan with child exercises, activates it via dao.deactivateAllPlans()
     // + dao.activatePlan(), verifies plan exercises still exist (no REPLACE cascade wipe).

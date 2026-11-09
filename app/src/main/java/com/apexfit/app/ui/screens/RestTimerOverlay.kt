@@ -37,19 +37,14 @@ fun RestTimerOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.85f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss
-            ),
+            .background(DarkBackground)
+            .systemBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.85f)
-                .padding(16.dp)
-                .clickable(enabled = false) {},
+                .fillMaxWidth()
+                .padding(16.dp),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
         ) {
@@ -172,14 +167,6 @@ private fun RestTimerButtons(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Button(
-            onClick = onSkip,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(stringResource(R.string.overlay_skip), color = SecondaryText, fontWeight = FontWeight.Bold)
-        }
         Button(
             onClick = onSkip,
             modifier = Modifier.weight(1f),

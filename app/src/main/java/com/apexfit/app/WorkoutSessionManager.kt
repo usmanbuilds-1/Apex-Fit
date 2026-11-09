@@ -124,6 +124,8 @@ class WorkoutSessionManager(
     }
 
     fun calculateRestTimeSeconds(exerciseId: String, exerciseType: String, rpe: Int): Int {
+        val planned = _activeSession.value?.exercises?.firstOrNull { it.exerciseId == exerciseId }?.restSeconds
+        if (planned != null && planned > 0) return planned.coerceIn(15, 900)
         return com.apexfit.app.utils.ProgressionEngine.calculateRestTimeSeconds(
             exerciseType = exerciseType,
             rpe = rpe,
@@ -217,9 +219,7 @@ class WorkoutSessionManager(
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
         }
-        val lastSets = dao.getLastSetsWithDateForExercises(ids)
-            .groupBy { it.exerciseId }
-            .mapValues { it.value.first() }
+        val lastSets = dao.getLastSetsWithDateForExercises(ids).groupBy { it.exerciseId }
 
         val stalledCounts = try {
             dao.getStalledCountsForExercises(ids).associate { it.exerciseId to it.stalledCount }
@@ -230,7 +230,8 @@ class WorkoutSessionManager(
         exercises.forEach { ex ->
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
             val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
-            val lastSet = lastSets[exerciseSlug]
+            val exerciseHistory = lastSets[exerciseSlug].orEmpty()
+            val lastSet = exerciseHistory.firstOrNull()
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
@@ -262,20 +263,20 @@ class WorkoutSessionManager(
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                val allLastSets = listOf(
+                val allLastSets = exerciseHistory.map { previous ->
                     com.apexfit.app.ui.models.UiExerciseSet(
-                        id = lastSet.id,
-                        weight = lastWeightLbs,
-                        reps = lastSet.reps,
-                        rpe = lastSet.rpe,
-                        isWarmup = lastSet.isWarmup,
-                        completed = lastSet.completed,
-                        exerciseName = lastSet.exerciseName,
-                        sessionId = lastSet.sessionId,
-                        muscleGroup = lastSet.muscleGroup
+                        id = previous.id,
+                        weight = previous.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,
+                        reps = previous.reps,
+                        rpe = previous.rpe,
+                        isWarmup = previous.isWarmup,
+                        completed = previous.completed,
+                        exerciseName = previous.exerciseName,
+                        sessionId = previous.sessionId,
+                        muscleGroup = previous.muscleGroup
                     )
-                )
-                  
+                }
+
                 val recoveryMultiplier = readinessPercent  
                     ?.let { it / 100.0 }  
                     ?.coerceIn(0.7, 1.0)  
@@ -340,6 +341,7 @@ class WorkoutSessionManager(
                 exerciseId = exerciseSlug,
                 exerciseName = ex.name,
                 muscleGroup = ex.muscleGroup,
+                restSeconds = ex.restSeconds.takeIf { it > 0 },
                 sets = (1..ex.sets).map { setNum ->
                     ActiveSet(
                         setNumber = setNum,

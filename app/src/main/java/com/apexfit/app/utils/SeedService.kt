@@ -22,6 +22,7 @@ object SeedService {
         val exercises = mutableListOf<Exercise>()
         val metadatas = mutableListOf<ExerciseMetadata>()
         val now = System.currentTimeMillis()
+        val customIds = dao.getUserCreatedExerciseIds().toSet()
 
         context.assets.open("seed_exercises.json").use { stream ->
             JsonReader(stream.reader()).use { reader ->
@@ -29,8 +30,7 @@ object SeedService {
                 while (reader.hasNext()) {
                     val item = parseExerciseItem(reader, now)
                     if (item != null) {
-                        val existingExercise = dao.getExerciseById(item.first.id)
-                        if (existingExercise?.isUserCreated == 1) continue
+                        if (item.first.id in customIds) continue
                         exercises.add(item.first)
                         metadatas.add(item.second)
                     }

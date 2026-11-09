@@ -308,17 +308,11 @@ class WorkoutExecutionViewModel @Inject constructor(
             weight = weight,
             reps = reps,
             totalSets = totalSets,
-            isShowingHistory = false
+            selectedRir = 2,
+            isShowingHistory = false,
+            historicalSets = emptyList(),
+            isVisible = true
         )
-
-        viewModelScope.launch {
-            val lastSetForEx = dao.getLastSetForExercise(exerciseId)
-            val rir = lastSetForEx?.repsInReserve ?: 2
-            _rirOverlayState.value = _rirOverlayState.value.copy(
-                selectedRir = rir,
-                isVisible = true
-            )
-        }
     }
 
     fun selectRirOption(rir: Int) {
@@ -364,14 +358,16 @@ class WorkoutExecutionViewModel @Inject constructor(
         )
 
         _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
-        onTriggerRestTimer?.invoke(
-            calculatedRpe,
-            exName,
-            muscleGroup,
-            r,
-            sIdx,
-            totalSets
-        )
+        val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
+        val currentIndex = exercises.indexOfFirst { it.exerciseId == exId }
+        val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed } == true
+        val lastExerciseDone = exerciseDone && currentIndex == exercises.lastIndex
+        if (!lastExerciseDone) {
+            onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, r, sIdx, totalSets)
+        }
+        if (exerciseDone && currentIndex >= 0 && currentIndex < exercises.lastIndex) {
+            _currentExerciseIdx.value = currentIndex + 1
+        }
     }
 
     fun closeRirSelector() {

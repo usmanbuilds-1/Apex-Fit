@@ -346,7 +346,8 @@ data class ActiveExercise(
     val exerciseId: String,
     val exerciseName: String,
     val muscleGroup: String,
-    val sets: MutableList<ActiveSet>
+    val sets: MutableList<ActiveSet>,
+    val restSeconds: Int? = null
 )
 
 @Keep
