@@ -173,6 +173,7 @@ fun ApexFitApp(
     var currentRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
     var returnRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
     var selectedPlanId by rememberSaveable { mutableLongStateOf(0L) }
+    var debugHideTabHeader by remember { mutableStateOf(false) }
     val tabStateHolder = rememberSaveableStateHolder()
     val activeTab = TopLevelDestination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
@@ -342,7 +343,7 @@ fun ApexFitApp(
             Scaffold(
             containerColor = DarkBackground,
             topBar = {
-                if (currentRoute in listOf("train", "nutrition", "progress")) {
+                if (!debugHideTabHeader && currentRoute in listOf("train", "nutrition", "progress")) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(
@@ -379,6 +380,14 @@ fun ApexFitApp(
                             containerColor = DarkBackground
                         ),
                         actions = {
+                            if (BuildConfig.DEBUG) {
+                                IconButton(
+                                    modifier = Modifier.testTag("toggle_debug_top_bar"),
+                                    onClick = { debugHideTabHeader = true }
+                                ) {
+                                    Text("×", color = ApexColors.Amber, fontSize = 18.sp)
+                                }
+                            }
                             IconButton(
                                 onClick = openSettings,
                                 modifier = Modifier.testTag("settings_button")
@@ -465,6 +474,18 @@ fun ApexFitApp(
                         LaunchedEffect(route) { currentRoute = TopLevelDestination.HOME.route }
                     }
                 }
+                }
+
+                if (BuildConfig.DEBUG) {
+                    // Compare this independent draw layer with the routed screen beneath.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(10.dp)
+                            .background(Color.White)
+                            .testTag("root_content_sentinel")
+                    )
                 }
 
                 // Render smart rest timer overlay if triggered
