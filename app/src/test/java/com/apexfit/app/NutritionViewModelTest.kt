@@ -9,7 +9,7 @@ import com.apexfit.app.data.repository.FitnessRepositoryImpl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -36,8 +36,8 @@ class NutritionViewModelTest {
             val viewModel = NutritionViewModel(app, repository, store, dao)
             runTest(dispatcher) {
                 viewModel.logNutrition(4500, 0.0, 0.0, 450.0, date = "2026-01-01", name = "Test")
-                advanceUntilIdle()
-                assertEquals(450.0, dao.getNutritionForDate("2026-01-01").single().fat, 0.001)
+                val saved = dao.getNutritionForDateFlow("2026-01-01").first { it.isNotEmpty() }.single()
+                assertEquals(450.0, saved.fat, 0.001)
             }
         } finally {
             db.close()
