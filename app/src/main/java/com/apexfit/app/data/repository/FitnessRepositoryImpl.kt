@@ -170,7 +170,8 @@ class FitnessRepositoryImpl @Inject constructor(
                         bodyWeightKg = weight,
                         calorieTarget = calorieTarget
                     )
-                    scoreResult.toUi()
+                    // A cold-start estimate has no valid score yet; do not show its raw fallback as a measurement.
+                    scoreResult.finalScore?.let { scoreResult.toUi() }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("FitnessRepositoryImpl", "Readiness scoring failed", e)

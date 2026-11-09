@@ -399,8 +399,7 @@ fun com.apexfit.app.utils.SessionReadiness.toUi(): UiSessionReadiness = UiSessio
 )
 
 fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
-    val predictionText = "Systemic readiness (estimate): ${this.systemicReadiness}%. " +
-            "Acute-to-chronic ratio modifier is ${String.format(java.util.Locale.US, "%.2f", this.acrModifier)}."
+    val predictionText = "A rough estimate from logged training and nutrition, not a measurement of recovery. Consider sleep, stress, soreness and how you feel."
 
     val factorList = mutableListOf<UiReadinessFactor>()
     factorList.add(UiReadinessFactor(

@@ -384,7 +384,8 @@ object ReadinessFinal {
         }
 
         val systemicScore = SystemicFatigueCalculator.readinessPercent(systemicHistory, systemicCapacity)
-        val acrModifier = AcuteChronicRatioModifier.modifier(acuteLoad, chronicLoad)
+        // Workload ratios are not validated as individual readiness or injury predictors.
+        val acrModifier = 1.0
 
         val wMuscle = 0.45
         val wSystemic = 0.25
@@ -406,7 +407,7 @@ object ReadinessFinal {
                 overallPercent = computedScore,
                 label = "Building Baseline",
                 colorHex = "#6366F1",
-                recommendation = "Not enough history yet to score recovery accurately. Train your plan as scheduled - readiness gets reliable after a few sessions.",
+                recommendation = "Not enough training history for an estimate. Consider how you feel before training.",
                 muscleDetails = muscleDetails,
                 systemicReadiness = systemicScore,
                 nutritionScore = nutritionScore,
@@ -418,11 +419,11 @@ object ReadinessFinal {
         }
 
         val (label, color, rec) = when {
-            computedScore >= 85 -> Triple("Excellent", "#34D399", "Recovered and ready. Good day to push hard or chase a PR.")
-            computedScore >= 70 -> Triple("Good", "#6366F1", "Train as programmed.")
-            computedScore >= 55 -> Triple("Moderate", "#A78BFA", "Reduce load ~5%, prioritise technique.")
-            computedScore >= 35 -> Triple("Low", "#F59E0B", "Drop volume ~40% or pick a lighter session.")
-            else             -> Triple("Poor", "#E84040", "Rest or active recovery only today.")
+            computedScore >= 85 -> Triple("Excellent", "#34D399", "Estimated readiness is high. Consider sleep, soreness and how you feel before increasing effort.")
+            computedScore >= 70 -> Triple("Good", "#6366F1", "Consider your energy, sleep and soreness when choosing today's effort.")
+            computedScore >= 55 -> Triple("Moderate", "#A78BFA", "Consider a lighter session if you feel fatigued or unusually sore.")
+            computedScore >= 35 -> Triple("Low", "#F59E0B", "Consider reducing your training or taking a recovery day if you feel fatigued.")
+            else             -> Triple("Poor", "#E84040", "Consider rest or a lighter session, especially if you feel fatigued.")
         }
 
         val confidenceFlag = when {
