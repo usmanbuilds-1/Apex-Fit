@@ -49,7 +49,7 @@ private fun WorkoutHistoryEntry(session: TrainingSession, units: String, viewMod
     Card(colors = CardDefaults.cardColors(containerColor = DarkCardSurface)) {
         Column(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(16.dp)) {
             Text(session.sessionType.ifBlank { "Workout" }, color = PrimaryText, fontWeight = FontWeight.Bold)
-            Text("${session.date} · ${session.durationMinutes} min", color = SecondaryText)
+            Text("${session.date} · ${session.durationMinutes} min" + if (session.status == "partial") " · Partial" else "", color = SecondaryText)
             Text(if (expanded) "Hide sets" else "View sets", color = AmberAccent)
             if (expanded) {
                 val flow = remember(session.id) { viewModel.setsForSession(session.id) }

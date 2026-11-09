@@ -67,6 +67,9 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     suspend fun getAllTrainingSessions(): List<TrainingSession>
 
+    @Query("SELECT * FROM workout_sessions WHERE completed = 1 OR status = 'partial' ORDER BY date DESC, completed_at DESC")
+    fun getSavedTrainingSessionsFlow(): Flow<List<TrainingSession>>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTrainingSession(session: TrainingSession): Long
 

@@ -32,7 +32,7 @@ class ProgressViewModel @Inject constructor(
     val personalRecords = dao.getPersonalRecordsWithNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val workoutHistory = dao.getAllCompletedSessionsFlow()
+    val workoutHistory = dao.getSavedTrainingSessionsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setsForSession(sessionId: String): Flow<List<com.apexfit.app.data.ExerciseSet>> = dao.getSetsForSessionFlow(sessionId)
