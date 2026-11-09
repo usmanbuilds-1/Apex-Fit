@@ -247,9 +247,11 @@ object ReadinessFinal {
             for (exercise in session.exercises) {
                 val exerciseId = exercise.id.ifEmpty { exerciseNameToSlug(exercise.name) }
                 val systemicMultiplier = metadata[exerciseId]?.systemicMultiplier
-                val secondaries = MuscleRecoveryData.getSecondaryMuscles(exercise.name, exercise.secondaryMuscles)
-                val secondaryTotalPct = secondaries.sumOf { it.second }
                 val canonicalExerciseMuscle = com.apexfit.app.utils.MuscleAliases.getCanonical(exercise.muscleGroup)
+                val secondaries = MuscleRecoveryData.getSecondaryMuscles(exercise.name, exercise.secondaryMuscles)
+                    .map { (muscle, share) -> MuscleAliases.getCanonical(muscle) to share }
+                    .filter { (muscle, _) -> muscle != canonicalExerciseMuscle }
+                val secondaryTotalPct = secondaries.sumOf { it.second }
 
                 for (set in exercise.sets) {
                     if (set.isWarmup || !set.completed) continue
@@ -257,8 +259,8 @@ object ReadinessFinal {
                     // 1) Muscle fatigue dose & secondary muscle distributions
                     val dose = FatigueDoseCalculator.doseForSet(set)
                     val primaryDose = dose * (1.0 - secondaryTotalPct.coerceAtMost(1.0))
-                    val primaryList = muscleFatigueHistory.getOrPut(exercise.muscleGroup) { mutableListOf() }
-                    primaryList.add(MuscleFatigueSnapshot(exercise.muscleGroup, daysAgo, primaryDose))
+                    val primaryList = muscleFatigueHistory.getOrPut(canonicalExerciseMuscle) { mutableListOf() }
+                    primaryList.add(MuscleFatigueSnapshot(canonicalExerciseMuscle, daysAgo, primaryDose))
 
                     for ((secMuscle, pct) in secondaries) {
                         if (com.apexfit.app.utils.MuscleAliases.getCanonical(secMuscle) != canonicalExerciseMuscle) {
@@ -268,7 +270,7 @@ object ReadinessFinal {
                     }
 
                     // 2) Muscle session total dose accumulation
-                    sessionDosesByMuscle[exercise.muscleGroup] = (sessionDosesByMuscle[exercise.muscleGroup] ?: 0.0) + dose
+                    sessionDosesByMuscle[canonicalExerciseMuscle] = (sessionDosesByMuscle[canonicalExerciseMuscle] ?: 0.0) + dose
 
                     // 3) Systemic dose accumulation
                     val systemicDose = SystemicFatigueCalculator.doseForSet(
@@ -298,7 +300,7 @@ object ReadinessFinal {
         }
 
         // e) todaysMuscleGroups
-        val todaysMuscleGroups = todayExercises.map { it.muscleGroup }.distinct()
+        val todaysMuscleGroups = todayExercises.map { MuscleAliases.getCanonical(it.muscleGroup) }.distinct()
 
         // f) nutritionScore
         val compliance = ComplianceEngine.calcComplianceScores(nutritionLog, completedLast30, targets)
