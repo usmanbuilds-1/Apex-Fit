@@ -53,14 +53,12 @@ fun TrainTab(
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { innerPadding ->
+    // The outer ApexFitApp Scaffold already owns system insets and navigation.
+    // Avoid nesting another full-screen Scaffold in the visible tab content.
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
             Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
@@ -104,6 +102,10 @@ fun TrainTab(
                 2 -> NewPlansSubTab(fitnessViewModel, planBuilderViewModel, onNavigateToPlanBuilder, snackbarHostState)
             }
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -776,12 +778,8 @@ fun WorkoutExecutionSubTab(
         )
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Color.Transparent,
-        modifier = Modifier.fillMaxSize()
-    ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
+    // Shared snackbar is owned by TrainTab; no third nested Scaffold needed.
+    Box(modifier = Modifier.fillMaxSize()) {
             if (activeSession == null) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -864,7 +862,6 @@ fun WorkoutExecutionSubTab(
                     }
                 )
             }
-        }
     }
 }
 
