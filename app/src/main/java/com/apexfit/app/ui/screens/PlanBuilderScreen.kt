@@ -843,6 +843,13 @@ fun PlanBuilderScreen(
                                     exName = match.name
                                     selectedMuscle = match.primaryMuscle
                                     showSuggestions = false
+                                    val previousRest = restText
+                                    coroutineScope.launch {
+                                        val suggested = planBuilderViewModel.exerciseDefaultRestSeconds(match.id)
+                                        if (exName == match.name && restText == previousRest && suggested != null) {
+                                            restText = suggested.toString()
+                                        }
+                                    }
                                 }.padding(vertical = 10.dp, horizontal = 8.dp)) {
                                     Text(match.name, color = PrimaryText, fontSize = 14.sp)
                                     Text("${match.primaryMuscle} · ${match.equipmentRequired}", color = SecondaryText, fontSize = 12.sp)

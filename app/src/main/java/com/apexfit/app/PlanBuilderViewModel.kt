@@ -206,6 +206,9 @@ class PlanBuilderViewModel @Inject constructor(
         _substitutionList.value = list
     }
 
+    suspend fun exerciseDefaultRestSeconds(exerciseId: String): Int? =
+        dao.getMetadataForExercise(exerciseId)?.defaultRestSeconds?.takeIf { it > 0 }
+
     fun loadSubstitutionSuggestions(muscleGroup: String, exerciseName: String) {
         viewModelScope.launch {
             _substitutionList.value = getSubstitutionSuggestions(muscleGroup, exerciseName)

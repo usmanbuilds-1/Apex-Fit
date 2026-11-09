@@ -208,8 +208,8 @@ interface FitnessDao {
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     suspend fun getAllExercises(): List<Exercise>
 
-    @Query("SELECT id FROM exercises WHERE is_user_created = 1")
-    suspend fun getUserCreatedExerciseIds(): List<String>
+    @Query("SELECT * FROM exercises WHERE is_user_created = 1")
+    suspend fun getUserCreatedExercises(): List<Exercise>
 
     // Note: A true full-text search requires an FTS5 virtual table.
     // Interim prefix/word-boundary match allows B-tree index utilization on exercise name.
