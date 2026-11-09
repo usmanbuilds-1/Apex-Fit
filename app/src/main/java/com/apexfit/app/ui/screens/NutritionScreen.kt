@@ -220,7 +220,7 @@ fun NutritionScreen(
         ) {
         item {
             Text("Nutrition", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp))
+                modifier = Modifier.padding(top = 16.dp).testTag("nutrition_content_title"))
         }
         // Date picker swiping bar
         item {
