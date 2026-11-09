@@ -220,6 +220,7 @@ class WorkoutSessionManager(
                 .associateBy { it.exerciseId }
         }
         val lastSets = dao.getLastSetsWithDateForExercises(ids).groupBy { it.exerciseId }
+        val exerciseCategories = dao.getExercisesByIds(ids).associate { it.id to it.category }
 
         val stalledCounts = try {
             dao.getStalledCountsForExercises(ids).associate { it.exerciseId to it.stalledCount }
@@ -232,10 +233,15 @@ class WorkoutSessionManager(
             val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
             val exerciseHistory = lastSets[exerciseSlug].orEmpty()
             val lastSet = exerciseHistory.firstOrNull()
+            val isBodyweight = exerciseCategories[exerciseSlug].equals("Bodyweight", ignoreCase = true)
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
-            if (lastSet == null) {
+            if (isBodyweight && ex.weight <= 0.0 && (lastSet == null || lastSet.weight <= 0.0)) {
+                suggestionsMap[exerciseSlug] = 0.0
+                lastWeightMap[exerciseSlug] = 0.0
+                contextLinesMap[exerciseSlug] = "Bodyweight: log added load only if you use it."
+            } else if (lastSet == null) {
                 // First-time or beginner starting weight
                 suggestedPreferred = if (ex.weight > 0.0) {
                     ex.weight.toDisplayWeight(exerciseUnit)

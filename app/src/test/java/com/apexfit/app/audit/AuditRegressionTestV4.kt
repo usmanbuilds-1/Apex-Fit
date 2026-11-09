@@ -168,6 +168,21 @@ class AuditRegressionTestV4 {
     }
 
     @Test
+    fun unweightedBodyweightExerciseStartsWithZeroAddedLoad() = runBlocking {
+        dao.insertExercises(listOf(Exercise(id = "push-up", name = "Push Up", category = "Bodyweight",
+            primaryMuscle = "Chest", equipmentRequired = "None")))
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
+        val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+        val exercise = PlanExercise(planSessionId = 1, exerciseId = "push-up", name = "Push Up", muscleGroup = "Chest",
+            sets = 2, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 90, notes = "")
+        manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
+            listOf(exercise), 70.0, 175.0, "kg")
+        assertEquals(0.0, manager.activeSession.value!!.exercises.single().sets.first().weight, 0.001)
+        manager.discardAndExit()
+    }
+
+    @Test
     fun progressionUsesAllWorkingSetsFromLatestCompletedSession() = runBlocking {
         repeat(3) { index ->
             dao.insertExerciseSet(ExerciseSet(id = 3000L + index, sessionId = "session_1", exerciseId = "bench-press",
