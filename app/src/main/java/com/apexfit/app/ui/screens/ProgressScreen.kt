@@ -1121,10 +1121,14 @@ fun ProgressMainTabContent(
             }
         }
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        // Do not compose a full-screen SnackbarHost when there is no message.
+        // This avoids an extra overlay/draw layer above the main tab content.
+        if (snackbarHostState.currentSnackbarData != null) {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
