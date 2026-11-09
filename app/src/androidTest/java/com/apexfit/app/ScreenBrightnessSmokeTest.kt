@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
@@ -54,29 +55,42 @@ class ScreenBrightnessSmokeTest {
         compose.waitForIdle()
         compose.onNodeWithTag(titleTag).assertIsDisplayed()
 
-        val screenshot = compose.onNodeWithTag(titleTag).captureToImage().toPixelMap()
-        var bright = 0
-        var sampled = 0
-        for (y in 0 until screenshot.height step 2) {
-            for (x in 0 until screenshot.width step 2) {
-                val color = screenshot[x, y]
-                if (color.red > 0.55f && color.green > 0.55f && color.blue > 0.55f) bright++
-                sampled++
-            }
-        }
-        // White title glyphs occupy far more than 1% of their own bounds.
-        // A 90-99% black scrim produces essentially zero qualifying pixels.
-        assertTrue(
-            "$route title pixels are too dark: $bright of $sampled bright samples",
-            bright > sampled / 100
-        )
-
-        // Save a full app screenshot for inspection in the CI artifact.
+        // Save the full image BEFORE any assertion, so failed runs still produce
+        // evidence instead of hiding the screenshot behind a test exception.
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val out = File(context.filesDir, "render-$route.png")
         out.outputStream().use { output ->
             compose.onRoot().captureToImage().asAndroidBitmap()
                 .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output)
         }
+
+        fun brightSamples(tag: String): Pair<Int, Int> {
+            val pixels = compose.onNodeWithTag(tag).captureToImage().toPixelMap()
+            var bright = 0
+            var samples = 0
+            for (y in 0 until pixels.height step 2) {
+                for (x in 0 until pixels.width step 2) {
+                    val color = pixels[x, y]
+                    if (color.red > 0.55f && color.green > 0.55f && color.blue > 0.55f) bright++
+                    samples++
+                }
+            }
+            return bright to samples
+        }
+        val (titleBright, titleSamples) = brightSamples(titleTag)
+        val (headerBright, headerSamples) = brightSamples("app_logo")
+        println("RENDER_METRICS $route title=$titleBright/$titleSamples header=$headerBright/$headerSamples")
+        val overlayLabels = listOf("REST TIMER", "WORKOUT COMPLETE", "REPS IN RESERVE")
+        println("RENDER_OVERLAYS $route " + overlayLabels.associateWith {
+            compose.onAllNodesWithText(it).fetchSemanticsNodes().size
+        })
+
+        // The header is an independent rendering control. If both are black,
+        // node capture itself is suspect; if only content is dark, investigate
+        // the screen host or a scrim in its content area.
+        assertTrue(
+            "$route heading is not visually white: $titleBright/$titleSamples, header=$headerBright/$headerSamples",
+            titleBright > titleSamples / 100
+        )
     }
 }
