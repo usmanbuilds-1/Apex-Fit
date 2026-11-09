@@ -109,10 +109,10 @@ private fun RecoveryCard(status: MuscleRecoveryStatus) {
         else -> ApexColors.Alert
     }
     val recoveryLabel = when {
-        status.hoursRemaining <= 0 -> "FULLY RECOVERED"
+        status.hoursRemaining <= 0 -> "ESTIMATED RECOVERY"
         status.hoursRemaining < 24 -> "RECOVERING"
-        status.hoursRemaining < 48 -> "NEEDS REST"
-        else -> "FATIGUED"
+        status.hoursRemaining < 48 -> "RECOVERY ESTIMATE"
+        else -> "RECOVERY ESTIMATE"
     }
 
     Card(
@@ -153,7 +153,7 @@ private fun RecoveryCard(status: MuscleRecoveryStatus) {
                 )
                 if (status.hoursRemaining > 0) {
                     Text(
-                        text = "${status.hoursRemaining}h left",
+                        text = "~${status.hoursRemaining}h estimated",
                         color = MutedText,
                         fontSize = 11.sp
                     )
