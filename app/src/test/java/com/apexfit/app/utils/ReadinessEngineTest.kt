@@ -4,6 +4,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReadinessEngineTest {
+    @Test
+    fun workloadRatioDoesNotDetermineReadinessScore() {
+        fun score(acute: Double) = ReadinessFinal.calculate(
+            totalCompletedSessions = 5,
+            todaysMuscleGroups = emptyList(),
+            muscleFatigueHistory = emptyMap(),
+            muscleSessionHistory = emptyMap(),
+            systemicHistory = emptyList(),
+            systemicCapacity = 1500.0,
+            nutritionScore = 80,
+            acuteLoad = acute,
+            chronicLoad = 100.0
+        ).overallPercent
+        assertEquals(score(100.0), score(200.0))
+    }
+
 
     @Test
     fun readinessMatchesTrainingHistoryAcrossMuscleAliases() {
