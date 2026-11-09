@@ -536,6 +536,7 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
+                            .testTag("nav_tab_${destination.route}")
                             .semantics { selected = isSelected }
                             .clickable(role = Role.Tab) { onTabSelected(destination.ordinal) },
                         contentAlignment = Alignment.Center
