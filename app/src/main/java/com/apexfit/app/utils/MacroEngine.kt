@@ -38,26 +38,16 @@ object MacroEngine {
             else -> 0.8
         }).roundToInt().coerceAtLeast(40)
 
-        var proteinCals = proteinG * 4
-        var fatCals     = fatG * 9
-
-        if (proteinCals + fatCals >= calorieTarget) {
-            val totalCals = proteinCals + fatCals
-            if (totalCals > 0) {
-                val scale = (calorieTarget.toDouble() / totalCals.toDouble()).coerceAtLeast(0.0)
-                proteinG = (proteinG * scale).roundToInt()
-                fatG = (fatG * scale).roundToInt()
-                proteinCals = proteinG * 4
-                fatCals = fatG * 9
-            }
+        // Fit protein and fat into the requested energy budget before assigning carbs.
+        // Very low targets cannot satisfy every desired minimum at once.
+        val budget = calorieTarget.coerceAtLeast(0)
+        val desiredCalories = proteinG * 4 + fatG * 9
+        if (desiredCalories > budget && desiredCalories > 0) {
+            val scale = budget.toDouble() / desiredCalories
+            proteinG = (proteinG * scale).toInt()
+            fatG = (fatG * scale).toInt()
         }
-        // Re-apply protein floor — scaling can push protein below minimum
-        proteinG = proteinG.toDouble().coerceIn(100.0, 350.0).roundToInt()
-        proteinCals = proteinG * 4
-        // Recompute carbs to absorb the protein adjustment
-        val carbG = ((calorieTarget - proteinG * 4.0 - fatG * 9.0) / 4.0).coerceAtLeast(0.0)
-
-        val carbsG      = carbG.roundToInt().coerceIn(0, 600)
+        val carbsG = ((budget - proteinG * 4 - fatG * 9) / 4.0).roundToInt()
 
         val weeklySessions = when (goal.lowercase()) {
             "gain muscle" -> 4
@@ -65,7 +55,7 @@ object MacroEngine {
             else          -> 4
         }
         return com.apexfit.app.data.NutritionTargets(
-            calories = calorieTarget,
+            calories = budget,
             protein = proteinG,
             carbs = carbsG,
             fat = fatG,
@@ -118,15 +108,17 @@ object MacroEngine {
         }
 
         val lbm = GoalEngine.estimateLBM(bodyWeightKg, heightCm, sex)
-        val trainingProtein = (lbm * 2.2).roundToInt()  // higher on training days
-        val restProtein = (lbm * 1.8).roundToInt()
+        var trainingProtein = (lbm * 2.2).roundToInt().coerceAtLeast(0)
+        var restProtein = (lbm * 1.8).roundToInt().coerceAtLeast(0)
 
+        // Both day types share a fat target; fit it and each protein target to
+        // the smaller day's energy budget before allocating the remainder to carbs.
         val fat = (bodyWeightKg * 0.9).roundToInt().coerceAtLeast(40)
-
-        val trainingCarbs = (((trainingDayCals - (trainingProtein * 4) - (fat * 9)).toDouble()) / 4.0)
-            .coerceAtLeast(50.0).roundToInt()
-        val restCarbs = (((restDayCals - (restProtein * 4) - (fat * 9)).toDouble()) / 4.0)
-            .coerceAtLeast(30.0).roundToInt()
+            .coerceAtMost(minOf(trainingDayCals, restDayCals).coerceAtLeast(0) / 9)
+        trainingProtein = trainingProtein.coerceAtMost((trainingDayCals - fat * 9).coerceAtLeast(0) / 4)
+        restProtein = restProtein.coerceAtMost((restDayCals - fat * 9).coerceAtLeast(0) / 4)
+        val trainingCarbs = ((trainingDayCals - trainingProtein * 4 - fat * 9).coerceAtLeast(0) / 4.0).roundToInt()
+        val restCarbs = ((restDayCals - restProtein * 4 - fat * 9).coerceAtLeast(0) / 4.0).roundToInt()
 
         return TrainingDayTargets(
             trainingDayCals, restDayCals,
