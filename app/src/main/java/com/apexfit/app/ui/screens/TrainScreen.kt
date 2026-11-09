@@ -61,8 +61,10 @@ fun TrainTab(
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
         ) {
-            Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp).testTag("train_content_title"))
+            Box(modifier = Modifier.testTag("train_title_container")) {
+                Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp).testTag("train_content_title"))
+            }
             // Segmented Control
             Row(
                 modifier = Modifier
