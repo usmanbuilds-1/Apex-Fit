@@ -147,7 +147,7 @@ class WorkoutSessionManager(
         preferredUnits: String
     ) = withContext(Dispatchers.IO) {
         if (!_isStartingSession.compareAndSet(false, true)) return@withContext
-        val slugByExercise = exercises.associate { it.name to exerciseNameToSlug(it.name) }
+        val slugByExercise = exercises.associate { it.name to it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
         val ids = exercises.mapNotNull { slugByExercise[it.name] }
         try {
             if (_activeSession.value != null) return@withContext
@@ -228,7 +228,7 @@ class WorkoutSessionManager(
         }
 
         exercises.forEach { ex ->
-            val exerciseUnit = ex.weightUnit.ifBlank { preferredUnits }
+            val exerciseUnit = preferredUnits.ifBlank { "kg" }
             val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
             val lastSet = lastSets[exerciseSlug]
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
@@ -333,7 +333,7 @@ class WorkoutSessionManager(
 
         // Build the in-memory session with pre-filled sets
         val activeExercises = exercises.map { ex ->
-            val exerciseUnit = ex.weightUnit.ifBlank { preferredUnits }
+            val exerciseUnit = preferredUnits.ifBlank { "kg" }
             val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
             val suggestedWeight = suggestionsMap[exerciseSlug] ?: ex.weight.toDisplayWeight(exerciseUnit)
             ActiveExercise(

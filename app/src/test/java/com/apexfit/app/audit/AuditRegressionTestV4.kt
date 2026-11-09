@@ -146,6 +146,25 @@ class AuditRegressionTestV4 {
         assertTrue(dao.getAllPlans().none { it.name == "Bad" })
     }
 
+    @Test
+    fun workoutUsesStoredExerciseIdAndPreferredUnits() = runBlocking {
+        dao.insertExercises(listOf(Exercise(id = "custom-id-123", name = "Unique Custom Row", category = "Custom",
+            primaryMuscle = "Back", equipmentRequired = "None")))
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
+        val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+        val exercise = PlanExercise(planSessionId = 1, exerciseId = "custom-id-123", name = "Unique Custom Row",
+            muscleGroup = "Back", sets = 1, repsMin = 8, repsMax = 12, weight = 10.0,
+            weightUnit = "kg", restSeconds = 90, notes = "")
+        manager.startSession(PlanSession(id = 1, planId = 1, label = "Pull", day = "Monday", focus = "Back"),
+            listOf(exercise), 70.0, 175.0, "lb")
+        val active = manager.activeSession.value!!.exercises.single()
+        assertEquals("custom-id-123", active.exerciseId)
+        assertEquals("lb", active.sets.single().weightUnit)
+        assertEquals(22.05, active.sets.single().weight, 0.1)
+        manager.discardAndExit()
+    }
+
     // 1. activatePlan_updateDoesNotWipeChildren
     // Creates a plan with child exercises, activates it via dao.deactivateAllPlans()
     // + dao.activatePlan(), verifies plan exercises still exist (no REPLACE cascade wipe).
