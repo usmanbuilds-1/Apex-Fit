@@ -509,6 +509,10 @@ class AuditRegressionTestV4 {
             notes = ""
         )
         val armsSession = PlanSession(id = 2L, planId = 1L, label = "Arms", day = "Tuesday", focus = "Arms")
+        // Starting another workout must not overwrite the active one.
+        sessionManager.startSession(armsSession, listOf(curlExercise), 75.0, 175.0, "kg")
+        assertEquals("Upper", sessionManager.activeSession.value?.sessionType)
+        sessionManager.discardAndExit()
         sessionManager.startSession(armsSession, listOf(curlExercise), 75.0, 175.0, "kg")
         val curlActive = sessionManager.activeSession.value?.exercises?.first()
         assertEquals(31.25, curlActive?.sets?.first()?.weight ?: 0.0, 0.001)
@@ -596,6 +600,7 @@ class AuditRegressionTestV4 {
                     suggested > currentWeight
                 )
                 currentWeight = suggested
+                sessionManager.discardAndExit()
             }
         }
     }
