@@ -84,6 +84,7 @@ import androidx.compose.foundation.text.BasicTextField
 import kotlin.math.cos
 import kotlin.math.sin
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -92,9 +93,25 @@ internal object ApexScreenRoutes {
     const val SETTINGS = "settings"
     const val PLAN_BUILDER = "plan_builder"
     fun tab(index: Int): String? = TopLevelDestination.entries.getOrNull(index)?.route
+    fun isTopLevel(route: String): Boolean = TopLevelDestination.entries.any { it.route == route }
     fun safeReturn(route: String): String =
         TopLevelDestination.entries.firstOrNull { it.route == route }?.route
             ?: TopLevelDestination.HOME.route
+}
+
+// This screen host is deliberately non-animated: there is no NavHost,
+// AnimatedContent, fade, or scrim between Scaffold and the selected screen.
+@Composable
+internal fun ApexDirectScreenHost(
+    route: String,
+    stateHolder: SaveableStateHolder,
+    content: @Composable (String) -> Unit
+) {
+    if (ApexScreenRoutes.isTopLevel(route)) {
+        stateHolder.SaveableStateProvider(route) { content(route) }
+    } else {
+        content(route)
+    }
 }
 
 // Standard glass-like premium card modifier
@@ -386,8 +403,9 @@ fun ApexFitApp(
                 // Bypass Navigation Compose's AnimatedContent, which can leave the
                 // content layer invisible even while the Scaffold bars render.
                 // SaveableStateHolder retains each tab's form and scroll state.
-                when (currentRoute) {
-                    TopLevelDestination.HOME.route -> tabStateHolder.SaveableStateProvider("home") {
+                ApexDirectScreenHost(currentRoute, tabStateHolder) { route ->
+                when (route) {
+                    TopLevelDestination.HOME.route -> {
                         HomeScreen(
                             homeViewModel = homeViewModel,
                             fitnessViewModel = fitnessViewModel,
@@ -397,7 +415,7 @@ fun ApexFitApp(
                             onOpenSettings = openSettings
                         )
                     }
-                    TopLevelDestination.TRAIN.route -> tabStateHolder.SaveableStateProvider("train") {
+                    TopLevelDestination.TRAIN.route -> {
                         TrainTab(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
@@ -407,7 +425,7 @@ fun ApexFitApp(
                             onNavigateToPlanBuilder = openPlanBuilder
                         )
                     }
-                    TopLevelDestination.NUTRITION.route -> tabStateHolder.SaveableStateProvider("nutrition") {
+                    TopLevelDestination.NUTRITION.route -> {
                         NutritionScreen(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
@@ -415,7 +433,7 @@ fun ApexFitApp(
                             onNavigateTo = navigateToTab
                         )
                     }
-                    TopLevelDestination.PROGRESS.route -> tabStateHolder.SaveableStateProvider("progress") {
+                    TopLevelDestination.PROGRESS.route -> {
                         ProgressScreen(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
@@ -434,8 +452,9 @@ fun ApexFitApp(
                         onNavigateBack = navigateBack
                     )
                     else -> {
-                        LaunchedEffect(currentRoute) { currentRoute = TopLevelDestination.HOME.route }
+                        LaunchedEffect(route) { currentRoute = TopLevelDestination.HOME.route }
                     }
+                }
                 }
 
                 // Render smart rest timer overlay if triggered
