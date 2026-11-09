@@ -104,6 +104,17 @@ fun TrainTab(
                 2 -> NewPlansSubTab(fitnessViewModel, planBuilderViewModel, onNavigateToPlanBuilder, snackbarHostState)
             }
         }
+        if (BuildConfig.DEBUG) {
+            // Verify that the actual screen Box draws above the shared canvas.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(10.dp)
+                    .background(Color.White)
+                    .testTag("train_inner_sentinel")
+            )
+        }
         // Do not compose a full-screen SnackbarHost when there is no message.
         // This avoids an extra overlay/draw layer above the main tab content.
         if (snackbarHostState.currentSnackbarData != null) {
