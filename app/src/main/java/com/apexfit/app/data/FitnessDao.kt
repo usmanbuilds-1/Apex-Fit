@@ -208,6 +208,9 @@ interface FitnessDao {
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     suspend fun getAllExercises(): List<Exercise>
 
+    @Query("SELECT * FROM exercises WHERE is_user_created = 1")
+    suspend fun getUserCreatedExercises(): List<Exercise>
+
     // Note: A true full-text search requires an FTS5 virtual table.
     // Interim prefix/word-boundary match allows B-tree index utilization on exercise name.
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 AND (name LIKE :query || '%' OR name LIKE '% ' || :query || '%') ORDER BY name ASC")
@@ -400,7 +403,14 @@ interface FitnessDao {
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
         WHERE es.exerciseId IN (:exerciseIds)
-          AND es.completed = 1
+          AND es.completed = 1 AND es.isWarmup = 0 AND ts.completed = 1
+          AND es.sessionId = (
+              SELECT recent.sessionId FROM exercise_sets recent
+              INNER JOIN workout_sessions recentSession ON recentSession.id = recent.sessionId
+              WHERE recent.exerciseId = es.exerciseId AND recent.completed = 1
+                AND recent.isWarmup = 0 AND recentSession.completed = 1
+              ORDER BY recent.id DESC LIMIT 1
+          )
         ORDER BY es.id DESC
     """)
     suspend fun getLastSetsWithDateForExercises(

@@ -70,15 +70,16 @@ class RestTimerViewModel @Inject constructor(
         restExerciseName = exerciseName
         restStartedAt = SystemClock.elapsedRealtime()
         restDeadline = restStartedAt + restSeconds * 1000L
-        val nextPreview = if (setIndex + 1 < totalSets) {
-            "$exerciseName (set ${setIndex + 2}/$totalSets)"
-        } else {
-            val nextIdx = currentExerciseIdx + 1
-            if (nextIdx < activeExercises.size) {
-                "${activeExercises[nextIdx].exerciseName} (set 1/${activeExercises[nextIdx].sets.size})"
-            } else {
-                "Complete Workout"
+        val exerciseIndex = activeExercises.indexOfFirst { it.exerciseId == exerciseId }
+        val completedExercise = activeExercises.getOrNull(exerciseIndex)
+        val nextIncomplete = completedExercise?.sets?.indexOfFirst { !it.completed } ?: -1
+        val nextPreview = when {
+            nextIncomplete >= 0 -> "$exerciseName (set ${nextIncomplete + 1}/${completedExercise!!.sets.size})"
+            exerciseIndex >= 0 && exerciseIndex + 1 < activeExercises.size -> {
+                val next = activeExercises[exerciseIndex + 1]
+                "${next.exerciseName} (set 1/${next.sets.size})"
             }
+            else -> "Review workout"
         }
         _restTimerNextSetPreview.value = "Next: $nextPreview"
 

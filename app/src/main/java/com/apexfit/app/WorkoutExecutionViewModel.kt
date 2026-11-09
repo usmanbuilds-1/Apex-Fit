@@ -308,17 +308,11 @@ class WorkoutExecutionViewModel @Inject constructor(
             weight = weight,
             reps = reps,
             totalSets = totalSets,
-            isShowingHistory = false
+            selectedRir = 2,
+            isShowingHistory = false,
+            historicalSets = emptyList(),
+            isVisible = true
         )
-
-        viewModelScope.launch {
-            val lastSetForEx = dao.getLastSetForExercise(exerciseId)
-            val rir = lastSetForEx?.repsInReserve ?: 2
-            _rirOverlayState.value = _rirOverlayState.value.copy(
-                selectedRir = rir,
-                isVisible = true
-            )
-        }
     }
 
     fun selectRirOption(rir: Int) {
@@ -364,14 +358,30 @@ class WorkoutExecutionViewModel @Inject constructor(
         )
 
         _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
-        onTriggerRestTimer?.invoke(
-            calculatedRpe,
-            exName,
-            muscleGroup,
-            r,
-            sIdx,
-            totalSets
-        )
+        val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
+        val currentIndex = exercises.indexOfFirst { it.exerciseId == exId }
+        val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed } == true
+        val lastExerciseDone = exerciseDone && currentIndex == exercises.lastIndex
+        if (!lastExerciseDone) {
+            onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, r, sIdx, totalSets)
+        }
+        if (exerciseDone && currentIndex >= 0 && currentIndex < exercises.lastIndex) {
+            _currentExerciseIdx.value = currentIndex + 1
+        }
+    }
+
+    fun completeSetWithRpe(
+        exerciseId: String, exerciseName: String, muscleGroup: String,
+        setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int,
+        onRest: () -> Unit
+    ) {
+        logWorkoutSetState(exerciseId, setIndex, weight, reps, rpe, completed = true,
+            repsInReserve = (10 - rpe).coerceIn(0, 9))
+        val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
+        val index = exercises.indexOfFirst { it.exerciseId == exerciseId }
+        val done = exercises.getOrNull(index)?.sets?.all { it.completed } == true
+        if (!(done && index == exercises.lastIndex)) onRest()
+        if (done && index >= 0 && index < exercises.lastIndex) _currentExerciseIdx.value = index + 1
     }
 
     fun closeRirSelector() {

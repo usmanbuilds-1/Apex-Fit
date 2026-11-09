@@ -732,6 +732,9 @@ fun PlanBuilderScreen(
     // Add / Edit Exercise Dialog
     if (showAddExerciseDialog) {
         val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
+        val libraryState by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
+        val library = (libraryState as? UiState.Success)?.data.orEmpty()
+        var showSuggestions by rememberSaveable { mutableStateOf(false) }
         val preferredUnits by planBuilderViewModel.units.collectAsStateWithLifecycle()
         val defaultUnit = if (!exercise?.weightUnit.isNullOrBlank()) exercise!!.weightUnit else (if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg")
         var unitSuffix by rememberSaveable { mutableStateOf(defaultUnit) }
@@ -810,6 +813,7 @@ fun PlanBuilderScreen(
                         value = exName,
                         onValueChange = {
                             exName = it
+                            showSuggestions = true
                             exNameError = null
                         },
                         isError = exNameError != null,
@@ -827,6 +831,32 @@ fun PlanBuilderScreen(
                         singleLine = true
                     )
 
+                    if (showSuggestions && exName.trim().length >= 2) {
+                        val matches = remember(library, exName) {
+                            library.asSequence().filter { it.name.contains(exName.trim(), ignoreCase = true) }.take(8).toList()
+                        }
+                        if (matches.isEmpty()) {
+                            Text("No match. You can save this as a custom exercise.", color = SecondaryText, fontSize = 12.sp)
+                        } else {
+                            matches.forEach { match ->
+                                Column(Modifier.fillMaxWidth().clickable {
+                                    exName = match.name
+                                    selectedMuscle = match.primaryMuscle
+                                    showSuggestions = false
+                                    val previousRest = restText
+                                    coroutineScope.launch {
+                                        val suggested = planBuilderViewModel.exerciseDefaultRestSeconds(match.id)
+                                        if (exName == match.name && restText == previousRest && suggested != null) {
+                                            restText = suggested.toString()
+                                        }
+                                    }
+                                }.padding(vertical = 10.dp, horizontal = 8.dp)) {
+                                    Text(match.name, color = PrimaryText, fontSize = 14.sp)
+                                    Text("${match.primaryMuscle} · ${match.equipmentRequired}", color = SecondaryText, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
                     Text(stringResource(R.string.plan_builder_muscle_group),
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
