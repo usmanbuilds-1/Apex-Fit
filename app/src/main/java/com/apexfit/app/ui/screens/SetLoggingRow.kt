@@ -57,9 +57,9 @@ fun SetLoggingRow(
     val hapticFeedback = LocalHapticFeedback.current
 
     // Local editing state keyed to stable set id to avoid reset when the session model updates
-    var rawWeight by rememberSaveable(setObj.id) { mutableStateOf(setObj.weight.toString()) }
-    var rawReps by rememberSaveable(setObj.id) { mutableStateOf(setObj.reps.toString()) }
-    var selectedRpe by remember(setObj.id) { mutableStateOf(setObj.rpe) }
+    var rawWeight by rememberSaveable(ex.exerciseId, setObj.id) { mutableStateOf(setObj.weight.toString()) }
+    var rawReps by rememberSaveable(ex.exerciseId, setObj.id) { mutableStateOf(setObj.reps.toString()) }
+    var selectedRpe by remember(ex.exerciseId, setObj.id) { mutableStateOf(setObj.rpe) }
 
     LaunchedEffect(setObj.weight) {
         val current = rawWeight.toDoubleOrNull()
@@ -75,8 +75,8 @@ fun SetLoggingRow(
     }
 
     // Error strings keyed to set id (and set index)
-    var weightError by remember(setObj.id, sIdx) { mutableStateOf("") }
-    var repsError by remember(setObj.id, sIdx) { mutableStateOf("") }
+    var weightError by remember(ex.exerciseId, setObj.id, sIdx) { mutableStateOf("") }
+    var repsError by remember(ex.exerciseId, setObj.id, sIdx) { mutableStateOf("") }
 
     val weightMin = 0.0
     val weightMax = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0

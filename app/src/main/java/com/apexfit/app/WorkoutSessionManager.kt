@@ -313,7 +313,12 @@ class WorkoutSessionManager(
 
                 val suggestedLbs = progressionResult.newWeight
                 
-                val suggestedPreferred = if (exerciseUnit.lowercase() in listOf("lb", "lbs")) {
+                val suggestedPreferred = if (progressionResult.outcome == OutcomeType.STALLED ||
+                    progressionResult.outcome == OutcomeType.PROGRESSING) {
+                    // Holding a load must preserve the actual logged weight, even if it is
+                    // not on the arbitrary increment grid (for example 6 kg dumbbells).
+                    lastSet.weight.toDisplayWeight(exerciseUnit)
+                } else if (exerciseUnit.lowercase() in listOf("lb", "lbs")) {
                     val stepLbs = if (exType == "isolation") 1.25 else 2.5
                     (Math.round(suggestedLbs / stepLbs) * stepLbs * 100.0) / 100.0
                 } else {
@@ -602,6 +607,7 @@ class WorkoutSessionManager(
             val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
                 .associate { it.exerciseId to it.stalledCount }
             lastProgressionResults.forEach { (exerciseId, result) ->
+                if (!trainingSession.completed || allSets.none { it.exerciseId == exerciseId && it.completed && !it.isWarmup }) return@forEach
                 val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
                 val current = currentCounts[exerciseId] ?: 0
                 val newCount = when (r.outcome.name) {

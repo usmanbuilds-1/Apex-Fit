@@ -183,6 +183,26 @@ class AuditRegressionTestV4 {
     }
 
     @Test
+    fun progressionHoldPreservesNonstandardDumbbellWeight() = runBlocking {
+        dao.insertExercises(listOf(Exercise(id = "db-press-six", name = "Dumbbell Six Press", category = "Dumbbell",
+            primaryMuscle = "Chest", equipmentRequired = "Dumbbell")))
+        repeat(3) { index ->
+            dao.insertExerciseSet(ExerciseSet(id = 4000L + index, sessionId = "session_1", exerciseId = "db-press-six",
+                exerciseName = "Dumbbell Six Press", muscleGroup = "Chest", weight = 6.0, reps = 10, rpe = 9,
+                isWarmup = false, completed = true))
+        }
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
+        val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+        val exercise = PlanExercise(planSessionId = 1, exerciseId = "db-press-six", name = "Dumbbell Six Press",
+            muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 6.0, restSeconds = 150, notes = "")
+        manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
+            listOf(exercise), 70.0, 175.0, "kg")
+        assertEquals(6.0, manager.activeSession.value!!.exercises.single().sets.first().weight, 0.001)
+        manager.discardAndExit()
+    }
+
+    @Test
     fun progressionUsesAllWorkingSetsFromLatestCompletedSession() = runBlocking {
         repeat(3) { index ->
             dao.insertExerciseSet(ExerciseSet(id = 3000L + index, sessionId = "session_1", exerciseId = "bench-press",
