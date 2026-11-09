@@ -47,7 +47,7 @@ class NutritionViewModel @Inject constructor(
         val safeCalories = calories.coerceIn(0, 5000)
         val safeProtein  = protein.coerceIn(0.0, 500.0)
         val safeCarbs    = carbs.coerceIn(0.0, 1000.0)
-        val safeFat      = fat.coerceIn(0.0, 400.0)
+        val safeFat      = fat.coerceIn(0.0, 500.0)
         val safeName     = name.trim().take(100).ifEmpty { "Logged Meal" }
         viewModelScope.launch {
             try {
