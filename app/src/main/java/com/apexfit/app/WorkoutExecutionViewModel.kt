@@ -224,6 +224,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         private set
 
     fun startWorkoutSession(planSession: PlanSession) {
+        if (sessionManager.activeSession.value != null || sessionManager.isStartingSession.value) return
         _currentExerciseIdx.value = 0
         _showSessionCompleteScreen.value = false
         _warmupCompleted.value = _warmupCompleted.value.mapValues { false }
