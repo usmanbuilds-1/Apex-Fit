@@ -143,11 +143,11 @@ class WorkoutSessionManager(
         userHeight: Double,
         preferredUnits: String
     ) = withContext(Dispatchers.IO) {
-        if (_isStartingSession.value) return@withContext
-        _isStartingSession.value = true
+        if (!_isStartingSession.compareAndSet(false, true)) return@withContext
         val slugByExercise = exercises.associate { it.name to exerciseNameToSlug(it.name) }
         val ids = exercises.mapNotNull { slugByExercise[it.name] }
         try {
+            if (_activeSession.value != null) return@withContext
             val lastWeightMap = mutableMapOf<String, Double>()
             val suggestionsMap = mutableMapOf<String, Double>()
             val contextLinesMap = mutableMapOf<String, String>()
