@@ -221,7 +221,7 @@ fun NutritionScreen(
         ) {
         item {
             Box(modifier = Modifier.testTag("nutrition_title_container")) {
-                Text("Nutrition", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                Text("Nutrition", color = Color.White, fontFamily = SyneFamily, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 16.dp).testTag("nutrition_content_title"))
             }
         }
