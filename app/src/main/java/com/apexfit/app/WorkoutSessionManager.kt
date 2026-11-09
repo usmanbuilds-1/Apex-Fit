@@ -41,6 +41,8 @@ class WorkoutSessionManager(
     private var metadataMap: Map<String, ExerciseMetadata> = emptyMap()
     private val gson = Gson()
     private var persistJob: Job? = null
+    private val _restoredFromDisk = MutableStateFlow(false)
+    val restoredFromDisk: StateFlow<Boolean> = _restoredFromDisk.asStateFlow()
 
     init {
         scope.launch {
@@ -54,6 +56,7 @@ class WorkoutSessionManager(
                                 "ActiveSession schema mismatch: stored v${restored.schemaVersion}, current v${ActiveSession.CURRENT_VERSION}"
                             )
                         }
+                        _restoredFromDisk.value = true
                         _activeSession.value = restored
                     }
                 } catch (e: Exception) {
@@ -143,11 +146,11 @@ class WorkoutSessionManager(
         userHeight: Double,
         preferredUnits: String
     ) = withContext(Dispatchers.IO) {
-        if (_isStartingSession.value) return@withContext
-        _isStartingSession.value = true
+        if (!_isStartingSession.compareAndSet(false, true)) return@withContext
         val slugByExercise = exercises.associate { it.name to exerciseNameToSlug(it.name) }
         val ids = exercises.mapNotNull { slugByExercise[it.name] }
         try {
+            if (_activeSession.value != null) return@withContext
             val lastWeightMap = mutableMapOf<String, Double>()
             val suggestionsMap = mutableMapOf<String, Double>()
             val contextLinesMap = mutableMapOf<String, String>()

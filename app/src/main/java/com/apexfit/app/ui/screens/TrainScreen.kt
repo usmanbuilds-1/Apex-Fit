@@ -205,12 +205,13 @@ fun ProgramSubTab(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "No dynamic session scheduled for $selectedDay.",
-                        color = SecondaryText,
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 12.sp
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("No workout scheduled for $selectedDay.", color = SecondaryText,
+                            fontFamily = JetBrainsMonoFamily, fontSize = 12.sp)
+                        TextButton(onClick = { fitnessViewModel.setTrainSubTab(2) }) {
+                            Text("Browse or create a plan", color = ApexColors.Primary)
+                        }
+                    }
                 }
             } else {
                 val isImperial = remember(units) { units.lowercase() in listOf("lb", "lbs") }
@@ -803,13 +804,16 @@ fun WorkoutExecutionSubTab(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Select a day above to start your workout.",
+                            text = "Choose a workout from your program to get started.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = SecondaryText,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(horizontal = 24.dp)
                         )
+                        TextButton(onClick = { fitnessViewModel.setTrainSubTab(0) }) {
+                            Text("View program", color = ApexColors.Primary)
+                        }
                     }
                 }
             } else {

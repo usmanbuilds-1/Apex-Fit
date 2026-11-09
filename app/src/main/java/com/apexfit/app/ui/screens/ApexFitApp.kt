@@ -152,6 +152,7 @@ fun ApexFitApp(
     val activeTab = TopLevelDestination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
     val activeSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
+    val restoredFromDisk by workoutExecutionViewModel.sessionManager.restoredFromDisk.collectAsStateWithLifecycle()
     var hasPromptedResume by rememberSaveable { mutableStateOf(false) }
     var showResumeDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -163,8 +164,8 @@ fun ApexFitApp(
         // Handle result
     }
 
-    LaunchedEffect(activeSession, isOnboarded) {
-        if (isOnboarded == true && activeSession != null && !hasPromptedResume) {
+    LaunchedEffect(activeSession, isOnboarded, restoredFromDisk) {
+        if (isOnboarded == true && activeSession != null && restoredFromDisk && !hasPromptedResume) {
             showResumeDialog = true
             hasPromptedResume = true
         }
@@ -212,6 +213,7 @@ fun ApexFitApp(
                 TextButton(
                     onClick = {
                         showResumeDialog = false
+                        fitnessViewModel.setTrainSubTab(1)
                         navController.navigate("train") {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
@@ -394,7 +396,8 @@ fun ApexFitApp(
                             fitnessViewModel = fitnessViewModel,
                             planBuilderViewModel = planBuilderViewModel,
                             workoutExecutionViewModel = workoutExecutionViewModel,
-                            onNavigateTo = navigateToTab
+                            onNavigateTo = navigateToTab,
+                            onOpenSettings = { navController.navigate("settings") }
                         )
                     }
                     composable(
