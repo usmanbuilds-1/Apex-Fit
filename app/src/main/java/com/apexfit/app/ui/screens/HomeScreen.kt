@@ -79,7 +79,8 @@ fun HomeScreen(
     fitnessViewModel: FitnessViewModel = hiltViewModel(),
     planBuilderViewModel: PlanBuilderViewModel = hiltViewModel(),
     workoutExecutionViewModel: WorkoutExecutionViewModel = hiltViewModel(),
-    onNavigateTo: (Int) -> Unit
+    onNavigateTo: (Int) -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val readiness         by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
     val loggedCalories    by homeViewModel.loggedCalories.collectAsStateWithLifecycle()
@@ -93,6 +94,7 @@ fun HomeScreen(
     val userGoal          by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val athleteName by fitnessViewModel.username.collectAsStateWithLifecycle()
     val planSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val activeSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
 
     val configuration = LocalConfiguration.current
     val isNarrowScreen = configuration.screenWidthDp < 600
@@ -137,7 +139,7 @@ fun HomeScreen(
     ) {
         // ── Sticky top bar (No simulated iOS status bar; Android status bar respected)
         item {
-            HomeTopBar(athleteName = athleteName, onSettingsClick = { onNavigateTo(4) })
+            HomeTopBar(athleteName = athleteName, onSettingsClick = onOpenSettings)
         }
 
         // ── Hero section (Sightline to headline/readiness, 36vh / 30vh, bottom fade into #041521)
@@ -155,9 +157,11 @@ fun HomeScreen(
                 TodayWorkoutCard(
                     sessionLabel    = todaySession?.label.orEmpty(),
                     sessionFocus    = todaySession?.focus.orEmpty(),
+                    hasActiveSession = activeSession != null,
 
                     onStartWorkout  = {
-                        todaySession?.let { workoutExecutionViewModel.startWorkoutSession(it) }
+                        if (activeSession == null) todaySession?.let { workoutExecutionViewModel.startWorkoutSession(it) }
+                        fitnessViewModel.setTrainSubTab(if (activeSession != null || todaySession != null) 1 else 0)
                         onNavigateTo(1) // Train tab
                     }
                 )
@@ -334,6 +338,7 @@ private fun TrainingStreakSection(days: Int, onView: () -> Unit) {
 private fun TodayWorkoutCard(
     sessionLabel: String,
     sessionFocus: String,
+    hasActiveSession: Boolean,
     onStartWorkout: () -> Unit
 ) {
     val hasSession = sessionLabel.isNotBlank()
@@ -348,7 +353,7 @@ private fun TodayWorkoutCard(
         Button(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ElectricMint, contentColor = CanvasVoid)) {
-            Text(if (hasSession) "Start workout" else "View training plan", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(if (hasActiveSession) "Resume workout" else if (hasSession) "Start workout" else "View training plan", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
 }
