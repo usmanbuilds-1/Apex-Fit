@@ -208,14 +208,12 @@ fun NutritionScreen(
         }
     }
 
-    Scaffold(
-        containerColor = DarkBackground,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
+    // The application shell already owns the screen Scaffold and safe-area insets.
+    // Keep the content itself as a direct, opaque-free Compose surface.
+    Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .imePadding()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -499,8 +497,12 @@ fun NutritionScreen(
         item {
             Spacer(modifier = Modifier.height(24.dp))
         }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
-}
 
     if (showAddFoodModal) {
         AddFoodSheet(
