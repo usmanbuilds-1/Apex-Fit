@@ -219,8 +219,10 @@ fun NutritionScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
         item {
-            Text("Nutrition", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp).testTag("nutrition_content_title"))
+            Box(modifier = Modifier.testTag("nutrition_title_container")) {
+                Text("Nutrition", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp).testTag("nutrition_content_title"))
+            }
         }
         // Date picker swiping bar
         item {
