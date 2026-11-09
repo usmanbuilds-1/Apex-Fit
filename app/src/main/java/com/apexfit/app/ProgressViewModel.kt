@@ -193,8 +193,8 @@ class ProgressViewModel @Inject constructor(
 // These functions do not touch Room or the UI thread.
 internal object ProgressDataAggregation {
     fun monthlyWorkingSets(
-        sessions: List<TrainingSession>,
-        sets: List<ExerciseSet>,
+        sessions: List<com.apexfit.app.data.TrainingSession>,
+        sets: List<com.apexfit.app.data.ExerciseSet>,
         yearMonth: String
     ): Map<String, Int> {
         val sessionIds = sessions.asSequence()
@@ -211,8 +211,8 @@ internal object ProgressDataAggregation {
     }
 
     fun latestSessionDates(
-        sessions: List<TrainingSession>,
-        sets: List<ExerciseSet>,
+        sessions: List<com.apexfit.app.data.TrainingSession>,
+        sets: List<com.apexfit.app.data.ExerciseSet>,
         muscles: List<String>,
         muscleMatches: (String, String) -> Boolean
     ): Map<String, String> {
