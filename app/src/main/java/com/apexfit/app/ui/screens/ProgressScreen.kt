@@ -600,7 +600,7 @@ fun ProgressMainTabContent(
         ) {
         item {
             Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp))
+                modifier = Modifier.padding(top = 16.dp).testTag("progress_content_title"))
         }
         // Futuristic Top Segmented Tab Selector for clean high-fidelity UX spacing
         item {
