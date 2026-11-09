@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
+import com.apexfit.app.BuildConfig
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -363,6 +364,15 @@ fun ApexFitApp(
                                     fontWeight = FontWeight.Black,
                                     color = Color.White
                                 )
+                                if (BuildConfig.DEBUG) {
+                                    // Visual proof that the new diagnostic APK is installed.
+                                    Text(
+                                        text = "R15",
+                                        fontSize = 9.sp,
+                                        color = ApexColors.Amber,
+                                        modifier = Modifier.padding(start = 8.dp).testTag("render_build_marker")
+                                    )
+                                }
                             }
                         },
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
