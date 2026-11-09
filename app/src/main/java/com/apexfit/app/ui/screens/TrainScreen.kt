@@ -62,7 +62,7 @@ fun TrainTab(
                 .padding(horizontal = 16.dp)
         ) {
             Box(modifier = Modifier.testTag("train_title_container")) {
-                Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                Text("Train", color = Color.White, fontFamily = SyneFamily, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 16.dp, bottom = 4.dp).testTag("train_content_title"))
             }
             // Segmented Control
