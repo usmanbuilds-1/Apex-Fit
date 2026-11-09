@@ -83,23 +83,18 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.text.BasicTextField
 import kotlin.math.cos
 import kotlin.math.sin
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// Keep top-level navigation deterministic. Persistent screen data lives in the
-// activity-scoped ViewModels, so restoring detached destination snapshots is unnecessary.
-private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {
-    if (currentDestination?.route == destination.route) return
-    navigate(destination.route) {
-        popUpTo(graph.findStartDestination().id) { inclusive = false }
-        launchSingleTop = true
-    }
+// No animated destination layer: all screens are drawn directly at full opacity.
+internal object ApexScreenRoutes {
+    const val SETTINGS = "settings"
+    const val PLAN_BUILDER = "plan_builder"
+    fun tab(index: Int): String? = TopLevelDestination.entries.getOrNull(index)?.route
+    fun safeReturn(route: String): String =
+        TopLevelDestination.entries.firstOrNull { it.route == route }?.route
+            ?: TopLevelDestination.HOME.route
 }
 
 // Standard glass-like premium card modifier
@@ -157,10 +152,32 @@ fun ApexFitApp(
 
     val isOnboarded by fitnessViewModel.isOnboarded.collectAsStateWithLifecycle()
 
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    var currentRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
+    var returnRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
+    var selectedPlanId by rememberSaveable { mutableLongStateOf(0L) }
+    val tabStateHolder = rememberSaveableStateHolder()
     val activeTab = TopLevelDestination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+
+    val navigateToTab: (Int) -> Unit = { index ->
+        ApexScreenRoutes.tab(index)?.let { currentRoute = it }
+    }
+    val openSettings: () -> Unit = {
+        if (currentRoute != ApexScreenRoutes.SETTINGS) {
+            returnRoute = ApexScreenRoutes.safeReturn(currentRoute)
+            currentRoute = ApexScreenRoutes.SETTINGS
+        }
+    }
+    val openPlanBuilder: (Long) -> Unit = { planId ->
+        returnRoute = ApexScreenRoutes.safeReturn(currentRoute)
+        selectedPlanId = planId
+        currentRoute = ApexScreenRoutes.PLAN_BUILDER
+    }
+    val navigateBack: () -> Unit = {
+        currentRoute = when (currentRoute) {
+            ApexScreenRoutes.SETTINGS, ApexScreenRoutes.PLAN_BUILDER -> ApexScreenRoutes.safeReturn(returnRoute)
+            else -> TopLevelDestination.HOME.route
+        }
+    }
 
     val activeSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val restoredFromDisk by workoutExecutionViewModel.sessionManager.restoredFromDisk.collectAsStateWithLifecycle()
@@ -225,7 +242,7 @@ fun ApexFitApp(
                     onClick = {
                         showResumeDialog = false
                         fitnessViewModel.setTrainSubTab(1)
-                        navController.navigateToTopLevel(TopLevelDestination.TRAIN)
+                        navigateToTab(TopLevelDestination.TRAIN.ordinal)
                     }
                 ) {
                     Text(stringResource(R.string.onboarding_resume), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = ApexColors.Primary)
@@ -266,8 +283,6 @@ fun ApexFitApp(
         )
     }
 
-    val startDest = TopLevelDestination.HOME.route
-
     when (isOnboarded) {
         null -> Box(
             modifier = Modifier
@@ -305,6 +320,7 @@ fun ApexFitApp(
         )
         } // end false branch
         true -> {
+            BackHandler(enabled = currentRoute != TopLevelDestination.HOME.route) { navigateBack() }
             Scaffold(
             containerColor = DarkBackground,
             topBar = {
@@ -337,7 +353,7 @@ fun ApexFitApp(
                         ),
                         actions = {
                             IconButton(
-                                onClick = { navController.navigate("settings") },
+                                onClick = openSettings,
                                 modifier = Modifier.testTag("settings_button")
                             ) {
                                 Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = PrimaryText)
@@ -347,14 +363,14 @@ fun ApexFitApp(
                 }
             },
             bottomBar = {
-                if (currentRoute != "plan_builder/{planId}" && currentRoute != "settings") {
+                if (currentRoute != ApexScreenRoutes.PLAN_BUILDER && currentRoute != ApexScreenRoutes.SETTINGS) {
                     BottomNavBar(
                         activeTab = activeTab,
                         onTabSelected = { index ->
                             restTimerViewModel.closeRestTimer()
                             workoutExecutionViewModel.closeRirSelector()
                             workoutExecutionViewModel.dismissSessionComplete()
-                            TopLevelDestination.entries.getOrNull(index)?.let(navController::navigateToTopLevel)
+                            navigateToTab(index)
                         }
                     )
                 }
@@ -367,95 +383,58 @@ fun ApexFitApp(
                     .padding(innerPadding)
                     .background(DarkBackground)
             ) {
-                NavHost(
-                    navController = navController,
-                    startDestination = startDest,
-                    modifier = Modifier.fillMaxSize(),
-                    enterTransition = { EnterTransition.None },
-                    exitTransition = { ExitTransition.None },
-                    popEnterTransition = { EnterTransition.None },
-                    popExitTransition = { ExitTransition.None }
-                ) {
-                    composable(
-                        route = "home",
-                        enterTransition = { EnterTransition.None },
-                        exitTransition = { ExitTransition.None }
-                    ) {
-                        val navigateToTab: (Int) -> Unit = { tabIndex ->
-                            TopLevelDestination.entries.getOrNull(tabIndex)?.let(navController::navigateToTopLevel)
-                        }
+                // Bypass Navigation Compose's AnimatedContent, which can leave the
+                // content layer invisible even while the Scaffold bars render.
+                // SaveableStateHolder retains each tab's form and scroll state.
+                when (currentRoute) {
+                    TopLevelDestination.HOME.route -> tabStateHolder.SaveableStateProvider("home") {
                         HomeScreen(
                             homeViewModel = homeViewModel,
                             fitnessViewModel = fitnessViewModel,
                             planBuilderViewModel = planBuilderViewModel,
                             workoutExecutionViewModel = workoutExecutionViewModel,
                             onNavigateTo = navigateToTab,
-                            onOpenSettings = { navController.navigate("settings") }
+                            onOpenSettings = openSettings
                         )
                     }
-                    composable(
-                        route = "train",
-                        enterTransition = { EnterTransition.None },
-                        exitTransition = { ExitTransition.None }
-                    ) {
+                    TopLevelDestination.TRAIN.route -> tabStateHolder.SaveableStateProvider("train") {
                         TrainTab(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             planBuilderViewModel = planBuilderViewModel,
                             workoutExecutionViewModel = workoutExecutionViewModel,
                             restTimerViewModel = restTimerViewModel,
-                            onNavigateToPlanBuilder = { planId ->
-                                navController.navigate("plan_builder/$planId")
-                            }
+                            onNavigateToPlanBuilder = openPlanBuilder
                         )
                     }
-                    composable(
-                        route = "plan_builder/{planId}",
-                        enterTransition = { EnterTransition.None },
-                        exitTransition = { ExitTransition.None }
-                    ) { entry ->
-                        PlanBuilderScreen(
-                            planBuilderViewModel = planBuilderViewModel,
-                            planId = entry.arguments?.getString("planId")?.toLongOrNull() ?: 0L,
-                            onNavigateBack = {
-                                navController.popBackStack()
-                            }
-                        )
-                    }
-                    composable(
-                        route = "nutrition",
-                        enterTransition = { EnterTransition.None },
-                        exitTransition = { ExitTransition.None }
-                    ) {
+                    TopLevelDestination.NUTRITION.route -> tabStateHolder.SaveableStateProvider("nutrition") {
                         NutritionScreen(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             nutritionViewModel = nutritionViewModel,
-                            onNavigateTo = { tabIndex ->
-                                TopLevelDestination.entries.getOrNull(tabIndex)?.let(navController::navigateToTopLevel)
-                            }
+                            onNavigateTo = navigateToTab
                         )
                     }
-                    composable(
-                        route = "progress",
-                        enterTransition = { EnterTransition.None },
-                        exitTransition = { ExitTransition.None }
-                    ) {
+                    TopLevelDestination.PROGRESS.route -> tabStateHolder.SaveableStateProvider("progress") {
                         ProgressScreen(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             progressViewModel = progressViewModel,
                             homeViewModel = homeViewModel,
-                            onNavigateTo = { tabIndex ->
-                                TopLevelDestination.entries.getOrNull(tabIndex)?.let(navController::navigateToTopLevel)
-                            }
+                            onNavigateTo = navigateToTab
                         )
                     }
-                    composable("settings") {
-                        SettingsScreen(
-                            viewModel = fitnessViewModel,
-                            onNavigateBack = { navController.navigateUp() }
-                        )
+                    ApexScreenRoutes.PLAN_BUILDER -> PlanBuilderScreen(
+                        planBuilderViewModel = planBuilderViewModel,
+                        planId = selectedPlanId,
+                        onNavigateBack = navigateBack
+                    )
+                    ApexScreenRoutes.SETTINGS -> SettingsScreen(
+                        viewModel = fitnessViewModel,
+                        onNavigateBack = navigateBack
+                    )
+                    else -> {
+                        LaunchedEffect(currentRoute) { currentRoute = TopLevelDestination.HOME.route }
                     }
                 }
 
