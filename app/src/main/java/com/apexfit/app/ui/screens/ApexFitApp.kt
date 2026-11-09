@@ -83,6 +83,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.text.BasicTextField
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -90,6 +91,16 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+// Keep top-level navigation deterministic. Persistent screen data lives in the
+// activity-scoped ViewModels, so restoring detached destination snapshots is unnecessary.
+private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {
+    if (currentDestination?.route == destination.route) return
+    navigate(destination.route) {
+        popUpTo(graph.findStartDestination().id) { inclusive = false }
+        launchSingleTop = true
+    }
+}
 
 // Standard glass-like premium card modifier
 @Composable
@@ -214,13 +225,7 @@ fun ApexFitApp(
                     onClick = {
                         showResumeDialog = false
                         fitnessViewModel.setTrainSubTab(1)
-                        navController.navigate("train") {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                        navController.navigateToTopLevel(TopLevelDestination.TRAIN)
                     }
                 ) {
                     Text(stringResource(R.string.onboarding_resume), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = ApexColors.Primary)
@@ -261,7 +266,7 @@ fun ApexFitApp(
         )
     }
 
-    val startDest = "home"
+    val startDest = TopLevelDestination.HOME.route
 
     when (isOnboarded) {
         null -> Box(
@@ -349,12 +354,7 @@ fun ApexFitApp(
                             restTimerViewModel.closeRestTimer()
                             workoutExecutionViewModel.closeRirSelector()
                             workoutExecutionViewModel.dismissSessionComplete()
-                            val route = TopLevelDestination.entries[index].route
-                            navController.navigate(route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                            TopLevelDestination.entries.getOrNull(index)?.let(navController::navigateToTopLevel)
                         }
                     )
                 }
@@ -371,25 +371,18 @@ fun ApexFitApp(
                     navController = navController,
                     startDestination = startDest,
                     modifier = Modifier.fillMaxSize(),
-                    enterTransition = { fadeIn(tween(200)) },
-                    exitTransition = { fadeOut(tween(200)) },
-                    popEnterTransition = { fadeIn(tween(200)) },
-                    popExitTransition = { fadeOut(tween(200)) }
+                    enterTransition = { EnterTransition.None },
+                    exitTransition = { ExitTransition.None },
+                    popEnterTransition = { EnterTransition.None },
+                    popExitTransition = { ExitTransition.None }
                 ) {
                     composable(
                         route = "home",
-                        enterTransition = { fadeIn(tween(200)) },
-                        exitTransition = { fadeOut(tween(200)) }
+                        enterTransition = { EnterTransition.None },
+                        exitTransition = { ExitTransition.None }
                     ) {
                         val navigateToTab: (Int) -> Unit = { tabIndex ->
-                            val route = TopLevelDestination.entries.getOrNull(tabIndex)?.route ?: TopLevelDestination.HOME.route
-                            navController.navigate(route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                            TopLevelDestination.entries.getOrNull(tabIndex)?.let(navController::navigateToTopLevel)
                         }
                         HomeScreen(
                             homeViewModel = homeViewModel,
@@ -402,8 +395,8 @@ fun ApexFitApp(
                     }
                     composable(
                         route = "train",
-                        enterTransition = { fadeIn(tween(200)) },
-                        exitTransition = { fadeOut(tween(200)) }
+                        enterTransition = { EnterTransition.None },
+                        exitTransition = { ExitTransition.None }
                     ) {
                         TrainTab(
                             fitnessViewModel = fitnessViewModel,
@@ -418,8 +411,8 @@ fun ApexFitApp(
                     }
                     composable(
                         route = "plan_builder/{planId}",
-                        enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) },
-                        exitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) }
+                        enterTransition = { EnterTransition.None },
+                        exitTransition = { ExitTransition.None }
                     ) { entry ->
                         PlanBuilderScreen(
                             planBuilderViewModel = planBuilderViewModel,
@@ -431,29 +424,22 @@ fun ApexFitApp(
                     }
                     composable(
                         route = "nutrition",
-                        enterTransition = { fadeIn(tween(200)) },
-                        exitTransition = { fadeOut(tween(200)) }
+                        enterTransition = { EnterTransition.None },
+                        exitTransition = { ExitTransition.None }
                     ) {
                         NutritionScreen(
                             fitnessViewModel = fitnessViewModel,
                             algorithmViewModel = algorithmViewModel,
                             nutritionViewModel = nutritionViewModel,
                             onNavigateTo = { tabIndex ->
-                                val route = TopLevelDestination.entries.getOrNull(tabIndex)?.route ?: TopLevelDestination.HOME.route
-                                navController.navigate(route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                TopLevelDestination.entries.getOrNull(tabIndex)?.let(navController::navigateToTopLevel)
                             }
                         )
                     }
                     composable(
                         route = "progress",
-                        enterTransition = { fadeIn(tween(200)) },
-                        exitTransition = { fadeOut(tween(200)) }
+                        enterTransition = { EnterTransition.None },
+                        exitTransition = { ExitTransition.None }
                     ) {
                         ProgressScreen(
                             fitnessViewModel = fitnessViewModel,
@@ -461,14 +447,7 @@ fun ApexFitApp(
                             progressViewModel = progressViewModel,
                             homeViewModel = homeViewModel,
                             onNavigateTo = { tabIndex ->
-                                val route = TopLevelDestination.entries.getOrNull(tabIndex)?.route ?: TopLevelDestination.HOME.route
-                                navController.navigate(route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                TopLevelDestination.entries.getOrNull(tabIndex)?.let(navController::navigateToTopLevel)
                             }
                         )
                     }
