@@ -42,15 +42,21 @@ class ScreenBrightnessSmokeTest {
             compose.onAllNodesWithTag("nav_tab_train").fetchSemanticsNodes().isNotEmpty()
         }
 
-        val results = listOf(
+        val tabs = listOf(
             "train" to "train_title_container",
             "nutrition" to "nutrition_title_container",
             "progress" to "progress_title_container"
-        ).associate { (route, title) -> route to checkScreenBrightness(route, title) }
+        )
+        val before = tabs.associate { (route, title) -> route to checkScreenBrightness(route, title) }
+        // Debug-only switch: remove the shell's app bar and rerun the exact same
+        // capture, to test whether the route-dependent topBar causes dim content.
+        compose.onNodeWithTag("nav_tab_train").performClick()
+        compose.onNodeWithTag("toggle_debug_top_bar").performClick()
+        val after = tabs.associate { (route, title) -> route to checkScreenBrightness(route, title) }
         assertTrue(
-            "Content contrast failed with reference controls: " +
-                results.mapValues { it.value.second },
-            results.values.all { it.first }
+            "Rendering comparison with top bar shown: " + before.mapValues { it.value.second } +
+                "; hidden: " + after.mapValues { it.value.second },
+            after.values.all { it.first }
         )
     }
 
@@ -85,13 +91,19 @@ class ScreenBrightnessSmokeTest {
             return bright to samples
         }
         val (titleBright, titleSamples) = brightSamples(titleTag)
-        val (headerBright, headerSamples) = brightSamples("app_logo")
+        val (headerBright, headerSamples) =
+            if (compose.onAllNodesWithTag("app_logo").fetchSemanticsNodes().isNotEmpty()) {
+                brightSamples("app_logo")
+            } else -1 to 0
+        val (rootBright, rootSamples) = brightSamples("root_content_sentinel")
+        val (innerBright, innerSamples) = brightSamples("${route}_inner_sentinel")
         val overlayLabels = listOf("REST TIMER", "WORKOUT COMPLETE", "REPS IN RESERVE")
         val overlayCounts = overlayLabels.associateWith {
             compose.onAllNodesWithText(it).fetchSemanticsNodes().size
         }
         val diagnostics = "RENDER_METRICS $route title=$titleBright/$titleSamples " +
-            "header=$headerBright/$headerSamples overlays=$overlayCounts"
+            "header=$headerBright/$headerSamples root=$rootBright/$rootSamples " +
+            "inner=$innerBright/$innerSamples overlays=$overlayCounts"
         println(diagnostics)
         File(context.filesDir, "render-debug-$route.txt").writeText(diagnostics)
         // External app-specific folder can be pulled with adb even if run-as fails.
