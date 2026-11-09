@@ -49,17 +49,9 @@ class ProgressViewModel @Inject constructor(
         repository.recent90DaySessionsFlow,
         repository.recent90DaySetsFlow
     ) { sessions, allSets ->
-        val currentMonthPrefix = java.time.YearMonth.now().toString()
-        val thisMonthSessions = sessions.filter { it.date.startsWith(currentMonthPrefix) }
-        val thisMonthSessionIds = thisMonthSessions.map { it.id }.toSet()
-        val finishedSets = allSets.filter { it.completed && !it.isWarmup && it.sessionId in thisMonthSessionIds }
-        
-        val axes = com.apexfit.app.utils.MuscleGroups.ALL
-        val result = axes.associateWith { axis ->
-            finishedSets.count { set ->
-                set.muscleGroup.lowercase().trim() == axis.lowercase().trim()
-            }
-        }
+        val result = ProgressDataAggregation.monthlyWorkingSets(
+            sessions, allSets, java.time.YearMonth.now().toString()
+        )
         UiState.Success(result) as UiState<Map<String, Int>>
     }
     .flowOn(Dispatchers.Default)
@@ -159,14 +151,15 @@ class ProgressViewModel @Inject constructor(
 
         val muscles = com.apexfit.app.utils.MuscleGroups.ALL
         val nowMs = System.currentTimeMillis()
-        val sessionsById = sessions.associateBy { it.id }
+        // Scan workout sets only once and reuse each muscle-group match. Previously this
+        // filtered and sorted up to 90 days of sets separately for every muscle.
+        val latestDates = ProgressDataAggregation.latestSessionDates(
+            sessions, allSets, muscles, ::isMuscleMatch
+        )
 
         return muscles.map { muscle ->
-            val matchingSets = allSets.filter { set ->
-                set.completed && !set.isWarmup && isMuscleMatch(set.muscleGroup, muscle)
-            }
-
-            if (matchingSets.isEmpty()) {
+            val lastDateStr = latestDates[muscle]
+            if (lastDateStr == null) {
                 MuscleRecoveryStatus(
                     muscleGroup = muscle,
                     hoursRemaining = 0,
@@ -174,44 +167,18 @@ class ProgressViewModel @Inject constructor(
                     lastTrainedDate = ""
                 )
             } else {
-                // Find the most recent session that trained this muscle
-                val setsWithDates = matchingSets.mapNotNull { set ->
-                    val session = sessionsById[set.sessionId] ?: return@mapNotNull null
-                    set to session
-                }.sortedByDescending { it.second.date }
-
-                if (setsWithDates.isEmpty()) {
-                    MuscleRecoveryStatus(
-                        muscleGroup = muscle,
-                        hoursRemaining = 0,
-                        recoveryFraction = 1.0f,
-                        lastTrainedDate = ""
-                    )
-                } else {
-                    val (_, lastSession) = setsWithDates.first()
-                    val lastDateStr = lastSession.date
-                    val lastDateMs = com.apexfit.app.utils.DateTimeUtils.parseDate(lastDateStr)?.time
-                        ?: nowMs
-
-                    val elapsedHours = maxOf(0.0, (nowMs - lastDateMs).toDouble() / (1000.0 * 60 * 60))
-                    val tau = tauForMuscle(muscle.lowercase())
-
-                    // recoveryFraction follows 1 - exp(-t/tau):
-                    // 0.0 = just trained (fatigued), approaches 1.0 as rest time increases (fully recovered).
-                    // Higher recoveryFraction = more recovered.
-                    val freshness = Math.exp(-elapsedHours / tau).toFloat().coerceIn(0f, 1f)
-
-                    // 95% recovery threshold = 3 × tau (e^-3 ≈ 0.05 fatigue remaining)
-                    val fullRecoveryHours = 3.0 * tau
-                    val hoursRemaining = maxOf(0, (fullRecoveryHours - elapsedHours).toInt())
-
-                    MuscleRecoveryStatus(
-                        muscleGroup = muscle,
-                        hoursRemaining = hoursRemaining,
-                        recoveryFraction = 1.0f - freshness,
-                        lastTrainedDate = lastDateStr
-                    )
-                }
+                val lastDateMs = com.apexfit.app.utils.DateTimeUtils.parseDate(lastDateStr)?.time
+                    ?: nowMs
+                val elapsedHours = maxOf(0.0, (nowMs - lastDateMs).toDouble() / (1000.0 * 60 * 60))
+                val tau = tauForMuscle(muscle.lowercase())
+                val freshness = Math.exp(-elapsedHours / tau).toFloat().coerceIn(0f, 1f)
+                val hoursRemaining = maxOf(0, (3.0 * tau - elapsedHours).toInt())
+                MuscleRecoveryStatus(
+                    muscleGroup = muscle,
+                    hoursRemaining = hoursRemaining,
+                    recoveryFraction = 1.0f - freshness,
+                    lastTrainedDate = lastDateStr
+                )
             }
         }
     }
@@ -219,5 +186,52 @@ class ProgressViewModel @Inject constructor(
     public override fun onCleared() {
         super.onCleared()
         viewModelScope.cancel()
+    }
+}
+
+// Pure aggregations are shared by the reactive Progress flow and regression tests.
+// These functions do not touch Room or the UI thread.
+internal object ProgressDataAggregation {
+    fun monthlyWorkingSets(
+        sessions: List<TrainingSession>,
+        sets: List<ExerciseSet>,
+        yearMonth: String
+    ): Map<String, Int> {
+        val sessionIds = sessions.asSequence()
+            .filter { it.date.startsWith(yearMonth) }
+            .map { it.id }
+            .toHashSet()
+        val counts = HashMap<String, Int>()
+        for (set in sets) {
+            if (!set.completed || set.isWarmup || set.sessionId !in sessionIds) continue
+            val muscle = set.muscleGroup.lowercase().trim()
+            counts[muscle] = (counts[muscle] ?: 0) + 1
+        }
+        return MuscleGroups.ALL.associateWith { counts[it.lowercase().trim()] ?: 0 }
+    }
+
+    fun latestSessionDates(
+        sessions: List<TrainingSession>,
+        sets: List<ExerciseSet>,
+        muscles: List<String>,
+        muscleMatches: (String, String) -> Boolean
+    ): Map<String, String> {
+        val datesBySession = sessions.associate { it.id to it.date }
+        val musclesByGroup = HashMap<String, List<String>>()
+        val latestDates = HashMap<String, String>()
+        for (set in sets) {
+            if (!set.completed || set.isWarmup) continue
+            val date = datesBySession[set.sessionId] ?: continue
+            val matchingMuscles = musclesByGroup.getOrPut(set.muscleGroup) {
+                muscles.filter { muscleMatches(set.muscleGroup, it) }
+            }
+            for (muscle in matchingMuscles) {
+                val previousDate = latestDates[muscle]
+                if (previousDate == null || date > previousDate) {
+                    latestDates[muscle] = date
+                }
+            }
+        }
+        return latestDates
     }
 }
