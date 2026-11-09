@@ -589,14 +589,12 @@ fun ProgressMainTabContent(
     val filteredWeights = remember(weightHistory, deletionKeys) { weightHistory.filter { it.id !in deletionKeys } }
     val visibleWeights = filteredWeights
 
-    Scaffold(
-        containerColor = DarkBackground,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
+    // The app owns the screen's single Scaffold. Progress content should not
+    // be placed under another full-screen Scaffold rendering layer.
+    Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -1122,8 +1120,12 @@ fun ProgressMainTabContent(
                 }
             }
         }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
-}
 }
 
 private fun buildPentagonPath(size: Size, scale: Float, currentMaxVal: Float = 10f): Path {
