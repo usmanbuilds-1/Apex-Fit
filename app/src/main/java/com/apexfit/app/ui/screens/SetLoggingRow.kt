@@ -78,7 +78,7 @@ fun SetLoggingRow(
     var weightError by remember(setObj.id, sIdx) { mutableStateOf("") }
     var repsError by remember(setObj.id, sIdx) { mutableStateOf("") }
 
-    val weightMin = 0.25
+    val weightMin = 0.0
     val weightMax = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
 
     // Commit helpers — call when editing finishes (focus loss or explicit commit)
@@ -204,16 +204,16 @@ fun SetLoggingRow(
                             if (dVal != null) {
                                 if (dVal > weightMax) {
                                     finalStr = "$weightMax"
-                                    error = "Weight: 0.25–$weightMax $unitSuffix"
+                                    error = "Weight: 0–$weightMax $unitSuffix"
                                 } else if (dVal < weightMin) {
                                     val isTypingPrefix = clean == "0" || clean == "0." || clean == "0.2"
                                     if (!isTypingPrefix) {
-                                        finalStr = "0.25"
+                                        finalStr = "0"
                                     }
-                                    error = "Weight: 0.25–$weightMax $unitSuffix"
+                                    error = "Weight: 0–$weightMax $unitSuffix"
                                 }
                             } else if (clean.isNotEmpty()) {
-                                error = "Weight: 0.25–$weightMax $unitSuffix"
+                                error = "Weight: 0–$weightMax $unitSuffix"
                             }
 
                             // update local buffer only; do NOT push model update on every keystroke

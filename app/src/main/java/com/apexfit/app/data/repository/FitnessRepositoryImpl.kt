@@ -416,9 +416,17 @@ class FitnessRepositoryImpl @Inject constructor(
         // Step 4: remap each exercise's planSessionId to the correct new ID and resolve exerciseId FK
         val remappedExercises = exercises.map { exercise ->
             val sessionIndex = sessions.indexOfFirst { it.id == exercise.planSessionId }
-                .takeIf { it >= 0 } ?: 0
-            val exerciseId = dao.getExerciseByName(exercise.name)?.id
-                ?: com.apexfit.app.utils.exerciseNameToSlug(exercise.name)
+            require(sessionIndex >= 0) { "Exercise has no matching training day" }
+            val existing = dao.getExerciseByName(exercise.name)
+            val exerciseId = if (existing != null) existing.id else {
+                val slug = com.apexfit.app.utils.exerciseNameToSlug(exercise.name)
+                val id = if (dao.getExerciseById(slug) == null) slug else java.util.UUID.randomUUID().toString()
+                dao.insertExercises(listOf(Exercise(
+                    id = id, name = exercise.name, category = "User Created",
+                    primaryMuscle = exercise.muscleGroup, equipmentRequired = "Unknown", isUserCreated = 1
+                )))
+                id
+            }
             exercise.copy(
                 planSessionId = sessionIdMap[sessionIndex] ?: 0L,
                 exerciseId = exerciseId,

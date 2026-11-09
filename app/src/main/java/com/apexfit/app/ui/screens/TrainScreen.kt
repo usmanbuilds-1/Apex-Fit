@@ -48,7 +48,7 @@ fun TrainTab(
     planBuilderViewModel: PlanBuilderViewModel,
     workoutExecutionViewModel: WorkoutExecutionViewModel,
     restTimerViewModel: RestTimerViewModel,
-    onNavigateToPlanBuilder: () -> Unit
+    onNavigateToPlanBuilder: (Long) -> Unit
 ) {
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -877,7 +877,7 @@ fun WorkoutExecutionSubTab(
 fun NewPlansSubTab(
     fitnessViewModel: FitnessViewModel,
     planBuilderViewModel: PlanBuilderViewModel,
-    onNavigateToPlanBuilder: () -> Unit,
+    onNavigateToPlanBuilder: (Long) -> Unit,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
     val plans by planBuilderViewModel.workoutPlans.collectAsStateWithLifecycle()
@@ -900,7 +900,7 @@ fun NewPlansSubTab(
     ) {
         item {
             Button(
-                onClick = onNavigateToPlanBuilder,
+                onClick = { onNavigateToPlanBuilder(0L) },
                 colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
@@ -984,6 +984,9 @@ fun NewPlansSubTab(
                         )
                     }
 
+                    TextButton(onClick = { onNavigateToPlanBuilder(plan.id) }) {
+                        Text("Edit", color = ApexColors.Primary)
+                    }
                     if (!isActive) {
                         Button(
                             onClick = {

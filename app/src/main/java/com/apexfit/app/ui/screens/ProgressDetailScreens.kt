@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -180,6 +181,14 @@ fun BodyMeasurementDetailScreen(
     val measurements by progressViewModel.measurementsForBodyPart(bodyPart).collectAsStateWithLifecycle(initialValue = emptyList())
     var newValue by rememberSaveable { mutableStateOf("") }
     var error by rememberSaveable { mutableStateOf("") }
+    var deleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    deleteId?.let { id ->
+        AlertDialog(onDismissRequest = { deleteId = null },
+            title = { Text("Delete measurement?") },
+            text = { Text("This measurement will be removed from your history.") },
+            confirmButton = { TextButton(onClick = { progressViewModel.deleteBodyMeasurement(id); deleteId = null }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { deleteId = null }) { Text("Cancel") } })
+    }
     val units by progressViewModel.units.collectAsStateWithLifecycle()
     val lengthUnit = if (units == "kg") "cm" else "in"
     // TODO v1.1: Add separate Length Units selector in Settings (M-022 full implementation)
@@ -311,6 +320,9 @@ fun BodyMeasurementDetailScreen(
                                 color = PrimaryText,
                                 fontWeight = FontWeight.Bold
                             )
+                            IconButton(onClick = { deleteId = m.id }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete measurement", tint = SecondaryText)
+                            }
                         }
                     }
                 }
