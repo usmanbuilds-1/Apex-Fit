@@ -443,7 +443,6 @@ fun NutritionScreen(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(DarkCardSurface)
                                 .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(10.dp))
-                                .clickable(onClick = {})
                                 .padding(12.dp)
                         ) {
                             Row(
@@ -555,7 +554,10 @@ fun AddFoodSheet(
         title = { Text(stringResource(R.string.nutrition_log_food_intake), fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
         containerColor = DarkCardSurface,
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text(
                     text = run {
                         val fmt = remember { java.time.format.DateTimeFormatter.ofPattern("HH:mm") }
