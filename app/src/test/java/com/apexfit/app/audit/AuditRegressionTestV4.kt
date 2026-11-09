@@ -183,6 +183,35 @@ class AuditRegressionTestV4 {
     }
 
     @Test
+    fun skippedAndPartialWorkoutsDoNotAdvancePlateauCounters() = runBlocking {
+        AppDatabase.setTestDatabase(db)
+        try {
+            dao.insertExerciseMetadata(com.apexfit.app.data.ExerciseMetadata(exerciseId = "bench-press"))
+            dao.insertExerciseSet(ExerciseSet(id = 4900, sessionId = "session_1", exerciseId = "bench-press",
+                exerciseName = "Bench Press", muscleGroup = "Chest", weight = 20.0, reps = 2, rpe = 9,
+                isWarmup = false, completed = true))
+            val store = DataStoreManager.getInstance(context)
+            val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+            val manager = com.apexfit.app.WorkoutSessionManager(repo, store,
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+            val bench = PlanExercise(planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
+                muscleGroup = "Chest", sets = 1, repsMin = 8, repsMax = 12, weight = 20.0, restSeconds = 90, notes = "")
+            val squat = bench.copy(id = 2, exerciseId = "squat", name = "Squat", muscleGroup = "Legs")
+            val plan = PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest")
+            manager.startSession(plan, listOf(bench, squat), 70.0, 175.0, "kg")
+            manager.updateSet("squat", 0, 20.0, 10, 8, 0, true)
+            manager.commitToDatabase(4)
+            assertEquals(0, dao.getStalledCountForExercise("bench-press"))
+            manager.startSession(plan, listOf(bench), 70.0, 175.0, "kg")
+            manager.updateSet("bench-press", 0, 20.0, 10, 8, 0, true)
+            manager.commitToDatabase(4, isPartial = true)
+            assertEquals(0, dao.getStalledCountForExercise("bench-press"))
+        } finally {
+            AppDatabase.setTestDatabase(null)
+        }
+    }
+
+    @Test
     fun progressionHoldPreservesNonstandardDumbbellWeight() = runBlocking {
         dao.insertExercises(listOf(Exercise(id = "db-press-six", name = "Dumbbell Six Press", category = "Dumbbell",
             primaryMuscle = "Chest", equipmentRequired = "Dumbbell")))
