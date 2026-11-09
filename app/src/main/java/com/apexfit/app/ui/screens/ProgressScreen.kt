@@ -14,6 +14,7 @@ import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import com.apexfit.app.BuildConfig
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -589,20 +590,20 @@ fun ProgressMainTabContent(
     val filteredWeights = remember(weightHistory, deletionKeys) { weightHistory.filter { it.id !in deletionKeys } }
     val visibleWeights = filteredWeights
 
-    Scaffold(
-        containerColor = DarkBackground,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
+    // The app owns the screen's single Scaffold. Progress content should not
+    // be placed under another full-screen Scaffold rendering layer.
+    Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
         item {
-            Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp))
+            Box(modifier = Modifier.testTag("progress_title_container")) {
+                Text("Progress", color = Color.White, fontFamily = SyneFamily, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp).testTag("progress_content_title"))
+            }
         }
         // Futuristic Top Segmented Tab Selector for clean high-fidelity UX spacing
         item {
@@ -1122,8 +1123,27 @@ fun ProgressMainTabContent(
                 }
             }
         }
+        }
+        if (BuildConfig.DEBUG) {
+            // Verify that the actual screen Box draws above the shared canvas.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(10.dp)
+                    .background(Color.White)
+                    .testTag("progress_inner_sentinel")
+            )
+        }
+        // Do not compose a full-screen SnackbarHost when there is no message.
+        // This avoids an extra overlay/draw layer above the main tab content.
+        if (snackbarHostState.currentSnackbarData != null) {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
-}
 }
 
 private fun buildPentagonPath(size: Size, scale: Float, currentMaxVal: Float = 10f): Path {

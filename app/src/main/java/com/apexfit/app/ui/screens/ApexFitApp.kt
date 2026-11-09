@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
+import com.apexfit.app.BuildConfig
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -172,6 +173,7 @@ fun ApexFitApp(
     var currentRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
     var returnRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
     var selectedPlanId by rememberSaveable { mutableLongStateOf(0L) }
+    var debugHideTabHeader by remember { mutableStateOf(false) }
     val tabStateHolder = rememberSaveableStateHolder()
     val activeTab = TopLevelDestination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
@@ -341,7 +343,7 @@ fun ApexFitApp(
             Scaffold(
             containerColor = DarkBackground,
             topBar = {
-                if (currentRoute in listOf("train", "nutrition", "progress")) {
+                if (!debugHideTabHeader && currentRoute in listOf("train", "nutrition", "progress")) {
                     CenterAlignedTopAppBar(
                         title = {
                             Row(
@@ -363,12 +365,29 @@ fun ApexFitApp(
                                     fontWeight = FontWeight.Black,
                                     color = Color.White
                                 )
+                                if (BuildConfig.DEBUG) {
+                                    // Visual proof that the new diagnostic APK is installed.
+                                    Text(
+                                        text = "R15",
+                                        fontSize = 9.sp,
+                                        color = ApexColors.Amber,
+                                        modifier = Modifier.padding(start = 8.dp).testTag("render_build_marker")
+                                    )
+                                }
                             }
                         },
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                             containerColor = DarkBackground
                         ),
                         actions = {
+                            if (BuildConfig.DEBUG) {
+                                IconButton(
+                                    modifier = Modifier.testTag("toggle_debug_top_bar"),
+                                    onClick = { debugHideTabHeader = true }
+                                ) {
+                                    Text("×", color = ApexColors.Amber, fontSize = 18.sp)
+                                }
+                            }
                             IconButton(
                                 onClick = openSettings,
                                 modifier = Modifier.testTag("settings_button")
@@ -457,6 +476,18 @@ fun ApexFitApp(
                 }
                 }
 
+                if (BuildConfig.DEBUG) {
+                    // Compare this independent draw layer with the routed screen beneath.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(10.dp)
+                            .background(Color.White)
+                            .testTag("root_content_sentinel")
+                    )
+                }
+
                 // Render smart rest timer overlay if triggered
                 val showRestOverlay by restTimerViewModel.showRestOverlay.collectAsStateWithLifecycle()
                 if (showRestOverlay) {
@@ -526,6 +557,7 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
+                            .testTag("nav_tab_${destination.route}")
                             .semantics { selected = isSelected }
                             .clickable(role = Role.Tab) { onTabSelected(destination.ordinal) },
                         contentAlignment = Alignment.Center

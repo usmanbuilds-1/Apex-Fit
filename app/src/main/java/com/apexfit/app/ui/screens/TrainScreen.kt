@@ -53,18 +53,18 @@ fun TrainTab(
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { innerPadding ->
+    // The outer ApexFitApp Scaffold already owns system insets and navigation.
+    // Avoid nesting another full-screen Scaffold in the visible tab content.
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
-            Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+            Box(modifier = Modifier.testTag("train_title_container")) {
+                Text("Train", color = Color.White, fontFamily = SyneFamily, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp).testTag("train_content_title"))
+            }
             // Segmented Control
             Row(
                 modifier = Modifier
@@ -103,6 +103,25 @@ fun TrainTab(
                 1 -> WorkoutExecutionSubTab(fitnessViewModel, workoutExecutionViewModel, restTimerViewModel, snackbarHostState)
                 2 -> NewPlansSubTab(fitnessViewModel, planBuilderViewModel, onNavigateToPlanBuilder, snackbarHostState)
             }
+        }
+        if (BuildConfig.DEBUG) {
+            // Verify that the actual screen Box draws above the shared canvas.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(10.dp)
+                    .background(Color.White)
+                    .testTag("train_inner_sentinel")
+            )
+        }
+        // Do not compose a full-screen SnackbarHost when there is no message.
+        // This avoids an extra overlay/draw layer above the main tab content.
+        if (snackbarHostState.currentSnackbarData != null) {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 }
@@ -776,12 +795,8 @@ fun WorkoutExecutionSubTab(
         )
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Color.Transparent,
-        modifier = Modifier.fillMaxSize()
-    ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
+    // Shared snackbar is owned by TrainTab; no third nested Scaffold needed.
+    Box(modifier = Modifier.fillMaxSize()) {
             if (activeSession == null) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -864,7 +879,6 @@ fun WorkoutExecutionSubTab(
                     }
                 )
             }
-        }
     }
 }
 

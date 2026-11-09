@@ -24,6 +24,7 @@ import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import com.apexfit.app.BuildConfig
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -208,21 +209,21 @@ fun NutritionScreen(
         }
     }
 
-    Scaffold(
-        containerColor = DarkBackground,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
+    // The application shell already owns the screen Scaffold and safe-area insets.
+    // Keep the content itself as a direct, opaque-free Compose surface.
+    Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .imePadding()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
         item {
-            Text("Nutrition", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp))
+            Box(modifier = Modifier.testTag("nutrition_title_container")) {
+                Text("Nutrition", color = Color.White, fontFamily = SyneFamily, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp).testTag("nutrition_content_title"))
+            }
         }
         // Date picker swiping bar
         item {
@@ -499,8 +500,27 @@ fun NutritionScreen(
         item {
             Spacer(modifier = Modifier.height(24.dp))
         }
+        }
+        if (BuildConfig.DEBUG) {
+            // Verify that the actual screen Box draws above the shared canvas.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(10.dp)
+                    .background(Color.White)
+                    .testTag("nutrition_inner_sentinel")
+            )
+        }
+        // Do not compose a full-screen SnackbarHost when there is no message.
+        // This avoids an extra overlay/draw layer above the main tab content.
+        if (snackbarHostState.currentSnackbarData != null) {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
-}
 
     if (showAddFoodModal) {
         AddFoodSheet(

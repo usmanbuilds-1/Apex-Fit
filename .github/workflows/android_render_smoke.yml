@@ -1,0 +1,49 @@
+name: Android screen brightness smoke test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/src/main/java/com/apexfit/app/ui/screens/**'
+      - 'app/src/androidTest/**'
+      - '.github/workflows/android_render_smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Enable KVM
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Run UI and screenshot contrast checks on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_3a
+          disable-animations: true
+          script: bash .github/scripts/android_render_smoke.sh
+      - name: Upload visible screen screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screen-render-screenshots
+          path: render-screenshots/*
+          if-no-files-found: ignore
+      - name: Upload device test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-render-test-results
+          path: app/build/outputs/androidTest-results/connected/**
+          if-no-files-found: ignore
