@@ -42,12 +42,15 @@ class ScreenBrightnessSmokeTest {
             compose.onAllNodesWithTag("nav_tab_train").fetchSemanticsNodes().isNotEmpty()
         }
 
-        assertScreenBrightness("train", "train_content_title")
-        assertScreenBrightness("nutrition", "nutrition_content_title")
-        assertScreenBrightness("progress", "progress_content_title")
+        val results = listOf(
+            "train" to "train_content_title",
+            "nutrition" to "nutrition_content_title",
+            "progress" to "progress_content_title"
+        ).associate { (route, title) -> route to checkScreenBrightness(route, title) }
+        assertTrue("Content titles are not bright: $results", results.values.all { it })
     }
 
-    private fun assertScreenBrightness(route: String, titleTag: String) {
+    private fun checkScreenBrightness(route: String, titleTag: String): Boolean {
         compose.onNodeWithTag("nav_tab_$route").performClick()
         compose.waitUntil(timeoutMillis = 60_000) {
             compose.onAllNodesWithTag(titleTag).fetchSemanticsNodes().isNotEmpty()
@@ -88,9 +91,6 @@ class ScreenBrightnessSmokeTest {
         // The header is an independent rendering control. If both are black,
         // node capture itself is suspect; if only content is dark, investigate
         // the screen host or a scrim in its content area.
-        assertTrue(
-            "$route heading is not visually white: $titleBright/$titleSamples, header=$headerBright/$headerSamples",
-            titleBright > titleSamples / 100
-        )
+        return titleBright > titleSamples / 100
     }
 }
