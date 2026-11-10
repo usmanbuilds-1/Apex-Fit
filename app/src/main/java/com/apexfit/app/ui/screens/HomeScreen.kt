@@ -53,11 +53,11 @@ import java.util.Locale
 
 // ─── Design System Palette Constants (Strict Anti-Slop 7/7) ─────────────────
 private val CanvasVoid     = Color(0xFF041521)
-private val SurfaceNight1  = Color(0xFF081C27)
-private val SurfaceNight2  = Color(0xFF0D2330)
+private val SurfaceNight1  get() = ApexColors.Surface
+private val SurfaceNight2  get() = ApexColors.SurfaceRaised
 private val ElectricMint   = Color(0xFF47E1C2)
-private val TextMuted      = Color(0xFF8EA0AE)
-private val TextTertiary   = Color(0xFF4B6171)
+private val TextMuted      get() = ApexColors.TextSecondary
+private val TextTertiary   get() = ApexColors.TextTertiary
 private val BrandText      = Color(0xFFC6D2DB)
 private val BorderMuted    = Color(0xFF242F3A)
 

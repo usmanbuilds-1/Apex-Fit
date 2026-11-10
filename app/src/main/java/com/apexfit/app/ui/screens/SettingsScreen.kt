@@ -174,7 +174,7 @@ fun SettingsScreen(
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = DarkRaised,
                 unfocusedContainerColor = DarkRaised,
-                focusedIndicatorColor = if (nameError != null) RedAccent else AmberAccent,
+                focusedIndicatorColor = if (nameError != null) RedAccent else ApexColors.Primary,
                 unfocusedIndicatorColor = if (nameError != null) RedAccent else BorderSubtle
             )
         )
@@ -209,14 +209,15 @@ fun SettingsScreen(
                         )
                         .semantics { selected = isSelected }
                         .clickable(role = Role.Tab) { editGoal = option }
-                        .padding(vertical = 12.dp),
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = option,
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontFamily = InterFamily,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = if (isSelected) ApexColors.OnGlow else PrimaryText
                     )
                 }
@@ -246,7 +247,8 @@ fun SettingsScreen(
                         .background(if (selected) ApexColors.Primary else DarkRaised)
                         .border(1.dp, if (selected) ApexColors.Primary else BorderSubtle, RoundedCornerShape(10.dp))
                         .semantics { this.selected = selected }
-                        .clickable(role = Role.Switch) { editIsManual = isManual }
+                        .clickable(role = Role.Tab) { editIsManual = isManual }
+                        .heightIn(min = 48.dp)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {

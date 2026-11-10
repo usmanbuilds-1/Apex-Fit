@@ -69,11 +69,11 @@ fun ExerciseListSection(
         item {
             PremiumCard(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "PRE-SESSION WARMUP CHECKLIST",
-                    fontFamily = SyneFamily,
-                    fontSize = 10.sp,
-                    color = AmberAccent,
-                    letterSpacing = 1.5.sp,
+                    text = "Warm up",
+                    fontFamily = InterFamily,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PrimaryText,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
@@ -95,9 +95,9 @@ fun ExerciseListSection(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = item,
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 11.sp,
-                    color = if (comp) MutedText else PrimaryText,
+                    fontFamily = InterFamily,
+                    fontSize = 14.sp,
+                    color = if (comp) SecondaryText else PrimaryText,
                     textDecoration = if (comp) TextDecoration.LineThrough else TextDecoration.None
                 )
             }
@@ -129,9 +129,10 @@ fun ExerciseListSection(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(DarkRaised)
                                     .clickable(role = Role.Button) { showPlateCalc = !showPlateCalc }
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .heightIn(min = 48.dp)
+                                    .padding(horizontal = 12.dp, vertical = 12.dp)
                             ) {
-                                Text(stringResource(R.string.train_plate_calc), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
+                                Text(stringResource(R.string.train_plate_calc), fontFamily = InterFamily, fontSize = 13.sp, color = ApexColors.Primary)
                             }
                             Box(
                                 modifier = Modifier
