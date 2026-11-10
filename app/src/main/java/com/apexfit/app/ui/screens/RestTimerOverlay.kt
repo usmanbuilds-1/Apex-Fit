@@ -2,6 +2,8 @@ package com.apexfit.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,13 +45,14 @@ fun RestTimerOverlay(
     ) {
         Card(
             modifier = Modifier
+                .widthIn(max = 480.dp)
                 .fillMaxWidth()
                 .padding(16.dp),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
@@ -58,7 +61,7 @@ fun RestTimerOverlay(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "REST TIMER",
+                        text = "Rest",
                         style = MaterialTheme.typography.titleSmall,
                         color = SecondaryText,
                         fontWeight = FontWeight.Bold
@@ -122,14 +125,14 @@ private fun RestTimerDisplay(seconds: Int, totalSeconds: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = formatTimerTime(seconds),
-            fontSize = 56.sp,
+            fontSize = 48.sp,
             fontWeight = FontWeight.Black,
             color = ApexColors.Primary,
             fontFamily = SyneFamily
         )
         Spacer(modifier = Modifier.height(8.dp))
         LinearProgressIndicator(
-            progress = { if (totalSeconds > 0) (totalSeconds - seconds).toFloat() / totalSeconds else 0f },
+            progress = { if (totalSeconds > 0) ((totalSeconds - seconds).toFloat() / totalSeconds).coerceIn(0f, 1f) else 0f },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(4.dp),
@@ -152,12 +155,14 @@ private fun RestTimerButtons(
     ) {
         TextButton(
             onClick = onSubtractTime,
+            modifier = Modifier.heightIn(min = 48.dp),
             enabled = canSubtract
         ) {
-            Text(stringResource(R.string.overlay_15s), color = SecondaryText, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.overlay_15s), color = if (canSubtract) SecondaryText else MutedText.copy(alpha = 0.5f), fontWeight = FontWeight.Bold)
         }
         TextButton(
-            onClick = onAddTime
+            onClick = onAddTime,
+            modifier = Modifier.heightIn(min = 48.dp)
         ) {
             Text(stringResource(R.string.overlay_15s_1), color = ApexColors.Primary, fontWeight = FontWeight.Bold)
         }
@@ -169,7 +174,7 @@ private fun RestTimerButtons(
     ) {
         Button(
             onClick = onSkip,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
             shape = RoundedCornerShape(12.dp)
         ) {
