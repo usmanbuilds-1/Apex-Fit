@@ -210,7 +210,8 @@ class FitnessRepositoryImpl @Inject constructor(
             weightFlow,
             completedTodayFlow,
             activePlanSessionsFlow,
-            bioProfileFlow
+            bioProfileFlow,
+            nutritionEntriesFlow
         ) { values ->
             val isManual            = values[0] as Boolean
             val manualCals          = values[1] as Int
@@ -221,19 +222,17 @@ class FitnessRepositoryImpl @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             val planSessions        = values[5] as List<PlanSession>
             val bio                 = values[6] as BioProfile
+            @Suppress("UNCHECKED_CAST")
+            val nutrition           = values[7] as List<NutritionEntry>
 
             val latestWeight = weights.maxByOrNull { it.date }?.weight
                 ?: bio.currentWeightKg
             val calories: Int = if (isManual) {
                 manualCals
             } else {
-                val recentWeights = weights
-                    .sortedByDescending { it.date }
-                    .take(14)
-                    .map { com.apexfit.app.utils.WeightEntry(date = it.date, weight = it.weight) }
                 val tdeeResult = TdeeEngine.calcAdaptiveTDEE(
-                    weightLog      = recentWeights,
-                    nutritionLog   = emptyList(),
+                    weightLog      = weights,
+                    nutritionLog   = nutrition,
                     heightCm       = bio.heightCm,
                     ageYears       = bio.ageYears,
                     biologicalSex  = bio.biologicalSex,
