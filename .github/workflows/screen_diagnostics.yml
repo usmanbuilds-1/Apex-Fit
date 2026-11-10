@@ -1,0 +1,52 @@
+name: Android screen diagnostics
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: chmod +x gradlew && ./gradlew :app:assembleDebug --no-daemon
+      - name: Enable hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Capture actual screens
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            mkdir -p screen-captures
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -n com.apexfit.app/.MainActivity
+            sleep 20
+            adb shell input tap 540 1750
+            sleep 8
+            adb shell uiautomator dump /sdcard/window.xml
+            adb pull /sdcard/window.xml screen-captures/initial.xml
+            adb exec-out screencap -p > screen-captures/initial.png
+            for tab in home train nutrition progress; do
+              case "$tab" in home) x=135;; train) x=405;; nutrition) x=675;; progress) x=945;; esac
+              adb shell input tap "$x" 2245
+              sleep 5
+              adb shell uiautomator dump /sdcard/window.xml
+              adb pull /sdcard/window.xml "screen-captures/$tab.xml"
+              adb exec-out screencap -p > "screen-captures/$tab.png"
+            done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screen-captures
+          path: screen-captures/
