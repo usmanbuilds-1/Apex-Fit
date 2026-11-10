@@ -92,26 +92,27 @@ object ApexColors {
 }
 
 // ─── Legacy Aliases ───────────────────────────────────────────────────────────
-// Kept so existing screens compile through Phase 7 rebuilds.
+// Resolve aliases on access: eagerly reading ApexColors during palette initialization
+// creates a cycle and permanently captures uninitialized (black) color values.
 // Do NOT use in new or rebuilt screens — reference ApexColors.* directly.
 
-val DarkBackground  = ApexColors.Canvas
-val DarkRaised      = ApexColors.SurfaceRaised
-val DarkCardSurface = ApexColors.Surface
-val AmberAccent     = ApexColors.Amber
-val BlueAccent      = ApexColors.Focus
-val RedAccent       = ApexColors.Alert
-val GreenAccent     = ApexColors.Primary
-val IndigoAccent    = ApexColors.Focus
-val PrimaryText     = ApexColors.TextPrimary
-val SecondaryText   = ApexColors.TextSecondary
-val MutedText       = ApexColors.TextTertiary
-val BorderBright    = ApexColors.BorderStrong
-val BorderSubtle    = ApexColors.BorderSubtle
-val OrangeAccent    = ApexColors.Amber
-val BackgroundDark  = ApexColors.Canvas
-val SurfaceDark     = ApexColors.Surface
-val CardDark        = ApexColors.Surface
-val DividerDark     = ApexColors.BorderSubtle
-val GreenSuccess    = ApexColors.Victory
-val RedError        = ApexColors.Alert
+val DarkBackground  get() = ApexColors.Canvas
+val DarkRaised      get() = ApexColors.SurfaceRaised
+val DarkCardSurface get() = ApexColors.Surface
+val AmberAccent     get() = ApexColors.Amber
+val BlueAccent      get() = ApexColors.Focus
+val RedAccent       get() = ApexColors.Alert
+val GreenAccent     get() = ApexColors.Primary
+val IndigoAccent    get() = ApexColors.Focus
+val PrimaryText     get() = ApexColors.TextPrimary
+val SecondaryText   get() = ApexColors.TextSecondary
+val MutedText       get() = ApexColors.TextTertiary
+val BorderBright    get() = ApexColors.BorderStrong
+val BorderSubtle    get() = ApexColors.BorderSubtle
+val OrangeAccent    get() = ApexColors.Amber
+val BackgroundDark  get() = ApexColors.Canvas
+val SurfaceDark     get() = ApexColors.Surface
+val CardDark        get() = ApexColors.Surface
+val DividerDark     get() = ApexColors.BorderSubtle
+val GreenSuccess    get() = ApexColors.Victory
+val RedError        get() = ApexColors.Alert
