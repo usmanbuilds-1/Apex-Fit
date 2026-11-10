@@ -152,9 +152,9 @@ fun ProgramSubTab(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) AmberAccent else DarkCardSurface)
+                            .background(if (isSelected) ApexColors.Primary else DarkCardSurface)
                             .border(
-                                BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
+                                BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
                                 RoundedCornerShape(14.dp)
                             )
                             .semantics { selected = isSelected }

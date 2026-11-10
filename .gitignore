@@ -27,3 +27,6 @@ replay_pid*.log
 # Gradle build outputs (belt-and-suspenders)
 **/build/
 *.hprof
+
+# Downloaded Impeccable executable; the launcher installs the verified binary as needed.
+/.agents/skills/impeccable/scripts/bin/

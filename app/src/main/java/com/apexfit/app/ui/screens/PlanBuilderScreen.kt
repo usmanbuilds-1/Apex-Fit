@@ -224,10 +224,10 @@ fun PlanBuilderScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(stringResource(R.string.plan_builder_plan_details),
-                            fontFamily = SyneFamily,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = OrangeAccent
+                            fontFamily = InterFamily,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PrimaryText
                         )
 
                         OutlinedTextField(
@@ -244,9 +244,9 @@ fun PlanBuilderScreen(
                                 .fillMaxWidth()
                                 .testTag("plan_name_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = OrangeAccent,
+                                focusedBorderColor = ApexColors.Primary,
                                 unfocusedBorderColor = BorderSubtle,
-                                cursorColor = OrangeAccent
+                                cursorColor = ApexColors.Primary
                             ),
                             singleLine = true
                         )
@@ -260,9 +260,9 @@ fun PlanBuilderScreen(
                                 .fillMaxWidth()
                                 .testTag("plan_goal_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = OrangeAccent,
+                                focusedBorderColor = ApexColors.Primary,
                                 unfocusedBorderColor = BorderSubtle,
-                                cursorColor = OrangeAccent
+                                cursorColor = ApexColors.Primary
                             ),
                             singleLine = true
                         )
@@ -298,7 +298,7 @@ fun PlanBuilderScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text(stringResource(R.string.plan_builder_add_day), fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.plan_builder_add_day), fontFamily = InterFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -332,9 +332,9 @@ fun PlanBuilderScreen(
                                 textAlign = TextAlign.Center
                             )
                             Text(stringResource(R.string.plan_builder_click_add_day_to_construct_you),
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                color = MutedText,
+                                fontFamily = InterFamily,
+                                fontSize = 14.sp,
+                                color = SecondaryText,
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -638,9 +638,9 @@ fun PlanBuilderScreen(
                             .fillMaxWidth()
                             .testTag("day_name_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = OrangeAccent,
+                            focusedBorderColor = ApexColors.Primary,
                             unfocusedBorderColor = BorderSubtle,
-                            cursorColor = OrangeAccent
+                            cursorColor = ApexColors.Primary
                         ),
                         singleLine = true
                     )
@@ -663,18 +663,20 @@ fun PlanBuilderScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) OrangeAccent else DarkBackground)
-                                    .border(BorderStroke(1.dp, if (isSelected) OrangeAccent else BorderSubtle), RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) ApexColors.Primary else DarkBackground)
+                                    .border(BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle), RoundedCornerShape(8.dp))
                                     .semantics { selected = isSelected }
                                     .clickable(role = Role.Tab) { selectedDayOfWeek = day }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    .heightIn(min = 48.dp)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = day,
                                     fontFamily = JetBrainsMonoFamily,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else SecondaryText
+                                    color = if (isSelected) ApexColors.OnGlow else SecondaryText
                                 )
                             }
                         }
@@ -824,9 +826,9 @@ fun PlanBuilderScreen(
                             .fillMaxWidth()
                             .testTag("exercise_name_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = OrangeAccent,
+                            focusedBorderColor = ApexColors.Primary,
                             unfocusedBorderColor = BorderSubtle,
-                            cursorColor = OrangeAccent
+                            cursorColor = ApexColors.Primary
                         ),
                         singleLine = true
                     )
@@ -921,7 +923,7 @@ fun PlanBuilderScreen(
                                 .weight(1f)
                                 .testTag("exercise_sets_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = OrangeAccent,
+                                focusedBorderColor = ApexColors.Primary,
                                 unfocusedBorderColor = BorderSubtle
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -942,7 +944,7 @@ fun PlanBuilderScreen(
                                 .weight(1.1f)
                                 .testTag("exercise_reps_min_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = OrangeAccent,
+                                focusedBorderColor = ApexColors.Primary,
                                 unfocusedBorderColor = BorderSubtle
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -962,7 +964,7 @@ fun PlanBuilderScreen(
                                 .weight(1.1f)
                                 .testTag("exercise_reps_max_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = OrangeAccent,
+                                focusedBorderColor = ApexColors.Primary,
                                 unfocusedBorderColor = BorderSubtle
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -989,7 +991,7 @@ fun PlanBuilderScreen(
                                 .weight(1f)
                                 .testTag("exercise_weight_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = OrangeAccent,
+                                focusedBorderColor = ApexColors.Primary,
                                 unfocusedBorderColor = BorderSubtle
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -1002,7 +1004,7 @@ fun PlanBuilderScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(DarkBackground)
                                 .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(8.dp))
-                                .height(56.dp)
+                                .heightIn(min = 56.dp)
                                 .padding(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -1011,7 +1013,7 @@ fun PlanBuilderScreen(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelected) OrangeAccent else Color.Transparent)
+                                        .background(if (isSelected) ApexColors.Primary else Color.Transparent)
                                         .semantics { selected = isSelected }
                                         .clickable(role = Role.Tab) {
                                             if (!unitSuffix.equals(unit, ignoreCase = true)) {
@@ -1027,6 +1029,7 @@ fun PlanBuilderScreen(
                                                 unitSuffix = unit
                                             }
                                         }
+                                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                         .testTag("unit_toggle_$unit"),
                                     contentAlignment = Alignment.Center
@@ -1036,7 +1039,7 @@ fun PlanBuilderScreen(
                                         fontFamily = JetBrainsMonoFamily,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else SecondaryText
+                                        color = if (isSelected) ApexColors.OnGlow else SecondaryText
                                     )
                                 }
                             }
@@ -1052,7 +1055,7 @@ fun PlanBuilderScreen(
                             .fillMaxWidth()
                             .testTag("exercise_rest_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = OrangeAccent,
+                            focusedBorderColor = ApexColors.Primary,
                             unfocusedBorderColor = BorderSubtle
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -1068,7 +1071,7 @@ fun PlanBuilderScreen(
                             .fillMaxWidth()
                             .testTag("exercise_notes_input"),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = OrangeAccent,
+                            focusedBorderColor = ApexColors.Primary,
                             unfocusedBorderColor = BorderSubtle
                         ),
                         maxLines = 3

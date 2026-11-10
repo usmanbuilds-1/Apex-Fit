@@ -906,4 +906,24 @@ class AuditRegressionTestV4 {
         val stalledWeight = sessionManager.activeSession.value?.exercises?.first()?.sets?.first()?.weight ?: 0.0
         assertEquals(100.0, stalledWeight, 0.001)
     }
+
+    @Test
+    fun corruptSavedWorkoutReportsRestoreFailureWithoutCrashing() = runBlocking {
+        val store = DataStoreManager.getInstance(context)
+        store.saveActiveSessionJson("{")
+        // Prime the flow so an unconfined coroutine can resume immediately.
+        store.activeSessionJsonFlow.first()
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined)
+        try {
+            val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+            val manager = com.apexfit.app.WorkoutSessionManager(repo, store, scope, dao, context)
+            kotlinx.coroutines.withTimeout(10_000) {
+                manager.sessionRestoreFailed.first { it }
+            }
+            assertEquals(null, manager.activeSession.value)
+        } finally {
+            scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+            store.saveActiveSessionJson(null)
+        }
+    }
 }

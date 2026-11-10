@@ -44,32 +44,6 @@ class WorkoutSessionManager(
     private val _restoredFromDisk = MutableStateFlow(false)
     val restoredFromDisk: StateFlow<Boolean> = _restoredFromDisk.asStateFlow()
 
-    init {
-        scope.launch {
-            val json = dataStore.activeSessionJsonFlow.firstOrNull()
-            if (!json.isNullOrEmpty()) {
-                try {
-                    val restored = gson.fromJson(json, ActiveSession::class.java)
-                    if (restored != null) {
-                        if (restored.schemaVersion != ActiveSession.CURRENT_VERSION) {
-                            throw IllegalStateException(
-                                "ActiveSession schema mismatch: stored v${restored.schemaVersion}, current v${ActiveSession.CURRENT_VERSION}"
-                            )
-                        }
-                        _restoredFromDisk.value = true
-                        _activeSession.value = restored
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("WorkoutSessionManager", "Session restore failed — clearing corrupt JSON", e)
-                    _sessionRestoreFailed.value = true
-                    scope.launch {
-                        try { dataStore.saveActiveSessionJson(null) } catch (_: Exception) { }
-                    }
-                }
-            }
-        }
-    }
-
     // ── Active session state ──────────────────────────────────────
     private val _activeSession = MutableStateFlow<ActiveSession?>(null)
     val activeSession: StateFlow<ActiveSession?> = _activeSession
@@ -96,6 +70,33 @@ class WorkoutSessionManager(
 
     private val _currentRestSeconds = MutableStateFlow(0)
     val currentRestSeconds: StateFlow<Int> = _currentRestSeconds.asStateFlow()
+
+    init {
+        scope.launch {
+            val json = dataStore.activeSessionJsonFlow.firstOrNull()
+            if (!json.isNullOrEmpty()) {
+                try {
+                    val restored = gson.fromJson(json, ActiveSession::class.java)
+                    if (restored != null) {
+                        if (restored.schemaVersion != ActiveSession.CURRENT_VERSION) {
+                            throw IllegalStateException(
+                                "ActiveSession schema mismatch: stored v${restored.schemaVersion}, current v${ActiveSession.CURRENT_VERSION}"
+                            )
+                        }
+                        _restoredFromDisk.value = true
+                        _activeSession.value = restored
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("WorkoutSessionManager", "Session restore failed — clearing corrupt JSON", e)
+                    _sessionRestoreFailed.value = true
+                    scope.launch {
+                        try { dataStore.saveActiveSessionJson(null) } catch (_: Exception) { }
+                    }
+                }
+            }
+        }
+    }
+
 
     fun incrementRestSeconds() {
         _currentRestSeconds.value++
