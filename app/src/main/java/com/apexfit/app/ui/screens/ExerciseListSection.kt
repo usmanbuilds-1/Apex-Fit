@@ -236,8 +236,8 @@ fun ExerciseListSection(
                         ) {
                             Text(
                                 stringResource(R.string.train_add_extra_set),
-                                fontFamily = SyneFamily,
-                                fontSize = 11.sp,
+                                fontFamily = InterFamily,
+                                fontSize = 13.sp,
                                 color = if (canAddSet) PrimaryText else MutedText
                             )
                         }
@@ -255,9 +255,9 @@ fun ExerciseListSection(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
-                                text = if (currentIdx == exercises.size - 1) "FINISH WORKOUT" else "NEXT EXERCISE →",
-                                fontFamily = SyneFamily,
-                                fontSize = 11.sp,
+                                text = if (currentIdx == exercises.size - 1) "Finish workout" else "Next exercise",
+                                fontFamily = InterFamily,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = ApexColors.OnGlow
                             )
@@ -290,7 +290,7 @@ fun ExerciseListSection(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                             .testTag("skip_exercise_button")
                     ) {
                         Icon(
@@ -301,9 +301,9 @@ fun ExerciseListSection(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "SKIP THIS EXERCISE",
-                            fontFamily = SyneFamily,
-                            fontSize = 11.sp,
+                            text = "Skip this exercise",
+                            fontFamily = InterFamily,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryText
                         )
@@ -327,7 +327,7 @@ fun ExerciseListSection(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                     ) {
                         Text(
                             stringResource(R.string.train_complete_recovery_session),
@@ -345,7 +345,7 @@ fun ExerciseListSection(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                             .testTag("finish_early_button")
                     ) {
                         Text(
@@ -364,7 +364,7 @@ fun ExerciseListSection(
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .heightIn(min = 48.dp)
                 ) {
                     Text(
                         stringResource(R.string.train_cancel_current_workout_run),
