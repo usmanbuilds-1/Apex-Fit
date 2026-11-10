@@ -32,14 +32,17 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -n com.apexfit.app/.MainActivity
             sleep 20
-            adb shell input tap 540 1750
+            size=$(adb shell wm size | tr -d '\r' | awk '{print $3}' | tail -1)
+            width=$(echo "$size" | cut -dx -f1)
+            height=$(echo "$size" | cut -dx -f2)
+            adb shell input tap $((width / 2)) $((height * 89 / 100))
             sleep 8
             adb shell uiautomator dump /sdcard/window.xml
             adb pull /sdcard/window.xml screen-captures/initial.xml
             adb exec-out screencap -p > screen-captures/initial.png
             for tab in home train nutrition progress; do
-              case "$tab" in home) x=135;; train) x=405;; nutrition) x=675;; progress) x=945;; esac
-              adb shell input tap "$x" 2245
+              case "$tab" in home) part=1;; train) part=3;; nutrition) part=5;; progress) part=7;; esac
+              adb shell input tap $((width * part / 8)) $((height * 94 / 100))
               sleep 5
               adb shell uiautomator dump /sdcard/window.xml
               adb pull /sdcard/window.xml "screen-captures/$tab.xml"
