@@ -885,15 +885,15 @@ fun NewPlansSubTab(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = ApexColors.OnGlow,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         stringResource(R.string.train_build_custom_workout_plan),
-                        fontFamily = SyneFamily,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        fontFamily = InterFamily,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ApexColors.OnGlow
                     )
                 }
             }
@@ -902,11 +902,11 @@ fun NewPlansSubTab(
         // List of athletic directories
         item {
             Text(
-                text = "REGISTERED TRAINING DIRECTORIES",
-                fontFamily = SyneFamily,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MutedText
+                text = "Your plans",
+                fontFamily = InterFamily,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PrimaryText
             )
         }
 
@@ -917,7 +917,7 @@ fun NewPlansSubTab(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(DarkCardSurface)
-                    .border(BorderStroke(1.dp, if (isActive) AmberAccent else BorderSubtle), RoundedCornerShape(12.dp))
+                    .border(BorderStroke(1.dp, if (isActive) ApexColors.Primary else BorderSubtle), RoundedCornerShape(12.dp))
                     .padding(16.dp)
             ) {
                 Row(
