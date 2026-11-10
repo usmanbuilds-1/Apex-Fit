@@ -339,7 +339,7 @@ fun NutritionScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(if (hasCalorieTarget) stringResource(R.string.nutrition_fmt_str, (loggedCalories * 100 / calorieTarget).coerceIn(0, 100)) else "—", fontFamily = InterFamily, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-                            Text(stringResource(R.string.nutrition_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+                            Text(if (hasCalorieTarget) "of target" else "kcal", fontFamily = InterFamily, fontSize = 11.sp, color = SecondaryText)
                         }
                     }
 
@@ -368,7 +368,7 @@ fun NutritionScreen(
                     .height(48.dp)
                     .testTag("add_nutrition_button")
             ) {
-                Text(stringResource(R.string.nutrition_log_meal), fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = ApexColors.OnGlow)
+                Text(stringResource(R.string.nutrition_log_meal), fontFamily = InterFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ApexColors.OnGlow)
             }
         }
 
@@ -376,10 +376,10 @@ fun NutritionScreen(
         item {
             Text(
                 text = if (selectedDate == todayDateStr) "Today's meals" else "Meals for $selectedDate",
-                fontFamily = SyneFamily,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MutedText
+                fontFamily = InterFamily,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PrimaryText
             )
         }
 
@@ -391,7 +391,7 @@ fun NutritionScreen(
                         .height(80.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(stringResource(R.string.nutrition_no_meals_logged_yet), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+                    Text(stringResource(R.string.nutrition_no_meals_logged_yet), fontFamily = InterFamily, fontSize = 14.sp, color = SecondaryText)
                 }
             }
         } else {

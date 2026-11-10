@@ -142,7 +142,7 @@ fun HomeScreen(
             HomeTopBar(athleteName = athleteName, onSettingsClick = onOpenSettings)
         }
 
-        // ── Hero section (Sightline to headline/readiness, 36vh / 30vh, bottom fade into #041521)
+        // Compact visual header keeps the workout action near the top.
         item { HomeTrainingHero() }
 
         // ── Padded content cards ───────────────────────────────────────────
@@ -293,14 +293,11 @@ private fun HomeTopBar(athleteName: String, onSettingsClick: () -> Unit) {
     }
 }
 
-// ─── Hero Section ─────────────────────────────────────────────────────────────
-// Rule 1: Sightline lands on headline/readiness — never exits canvas.
-// Height: 36vh default, 30vh on ≤667pt devices. Bottom gradient fade into #041521.
-// Rule 2: Eyebrow "YOUR TRAINING, IN RHYTHM" → #8EA0AE. Subline "One set at a time." → #8EA0AE.
+// ─── Compact visual header ──────────────────────────────────────────────────
 
 @Composable
 private fun HomeTrainingHero() {
-    Box(Modifier.fillMaxWidth().height(260.dp).background(CanvasVoid)) {
+    Box(Modifier.fillMaxWidth().height(128.dp).background(CanvasVoid)) {
         Image(painter = painterResource(R.drawable.home_athlete), contentDescription = null,
             contentScale = ContentScale.Crop, alignment = Alignment.Center,
             modifier = Modifier.fillMaxSize())
@@ -310,13 +307,10 @@ private fun HomeTrainingHero() {
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
             0f to Color.Transparent, .72f to Color.Transparent, 1f to CanvasVoid)))
         Column(Modifier.align(Alignment.CenterStart).padding(horizontal = ApexSpacing.screenPadding)) {
-            Text("YOUR TRAINING, IN RHYTHM", color = TextMuted, fontSize = 11.sp,
-                letterSpacing = 1.3.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(10.dp))
-            Text("Today, we\ntrain.", color = Color.White, fontSize = 34.sp,
-                lineHeight = 39.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Text("One set at a time.", color = BrandText, fontSize = 16.sp)
+            Text("Today", color = Color.White, fontSize = 28.sp,
+                lineHeight = 34.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text("One set at a time.", color = BrandText, fontSize = 14.sp)
         }
     }
 }

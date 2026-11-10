@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.times
+import com.apexfit.app.ui.components.ApexSegmentedControl
 import com.apexfit.app.ui.components.MuscleHeatmapCanvas
 import com.apexfit.app.data.HeatmapEntry
 import androidx.compose.ui.text.input.KeyboardType
@@ -604,57 +605,12 @@ fun ProgressMainTabContent(
             Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 16.dp))
         }
-        // Futuristic Top Segmented Tab Selector for clean high-fidelity UX spacing
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ApexColors.SurfaceSunken)
-                    .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val tabs = listOf(
-                    Triple(0, "Muscle Volume", R.drawable.ic_fitness_center),
-                    Triple(1, "Recovery", R.drawable.ic_check_circle),
-                    Triple(2, "Body", R.drawable.ic_bar_chart)
-                )
-                tabs.forEach { (index, title, icon) ->
-                    val isSelected = activeSubTab == index
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) ApexColors.Primary else Color.Transparent)
-                            .clickable { activeSubTab = index }
-                            .padding(vertical = 12.dp)
-                            .heightIn(min = 48.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painter = painterResource(icon),
-                                contentDescription = title,
-                                tint = if (isSelected) ApexColors.OnGlow else MutedText,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = title,
-                                fontFamily = InterFamily,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) ApexColors.OnGlow else SecondaryText
-                            )
-                        }
-                    }
-                }
-            }
+            ApexSegmentedControl(
+                labels = listOf("Muscle volume", "Recovery", "Body"),
+                selectedIndex = activeSubTab,
+                onSelect = { activeSubTab = it }
+            )
         }
 
         item {
@@ -1000,7 +956,7 @@ fun ProgressMainTabContent(
                     "hip abductors", "hip adductors", "tibialis anterior"
                 )
                 val balanceText = when {
-                    activeMuscles == 0 -> "Untrained"
+                    activeMuscles == 0 -> "No data yet"
                     else -> {
                         val upperSets = upperKeys.sumOf { muscleVolumeMap[it] ?: 0 }
                         val lowerSets = lowerKeys.sumOf { muscleVolumeMap[it] ?: 0 }
@@ -1012,118 +968,32 @@ fun ProgressMainTabContent(
                     }
                 }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                        .background(ApexColors.Surface).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Total Sets Card
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(ApexColors.SurfaceSunken)
-                            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-                            .padding(10.dp)
-                    ) {
-                        Column {
-                            Text(
-                                text = "WEEKLY VOLUME",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MutedText
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "$totalSets",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = AmberAccent
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "sets",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 11.sp,
-                                    color = MutedText
-                                )
-                            }
-                        }
-                    }
-
-                    // Active Targets Card
-                    Box(
-                        modifier = Modifier
-                            .weight(1.3f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(ApexColors.SurfaceSunken)
-                            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-                            .padding(10.dp)
-                    ) {
-                        Column {
-                            Text(
-                                text = "ACTIVE TARGETS",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MutedText
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "$activeMuscles",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = GreenAccent
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "/23 muscles",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 11.sp,
-                                    color = MutedText
-                                )
-                            }
-                        }
-                    }
-
-                    // Balance Status Card
-                    Box(
-                        modifier = Modifier
-                            .weight(1.1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(ApexColors.SurfaceSunken)
-                            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-                            .padding(10.dp)
-                    ) {
-                        Column {
-                            Text(
-                                text = "BALANCE",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MutedText
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = balanceText,
-                                fontFamily = SyneFamily,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = GreenAccent
-                            )
-                        }
-                    }
+                    Text("This week", color = PrimaryText, fontFamily = InterFamily,
+                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    ProgressSummaryRow("Volume", "$totalSets sets")
+                    ProgressSummaryRow("Active muscles", "$activeMuscles / 23")
+                    ProgressSummaryRow("Balance", balanceText)
                 }
             }
         }
     }
 }
+}
+
+@Composable
+private fun ProgressSummaryRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f), color = SecondaryText,
+            fontFamily = InterFamily, fontSize = 14.sp)
+        Text(value, color = PrimaryText, fontFamily = InterFamily, fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
+    }
 }
 
 private fun buildPentagonPath(size: Size, scale: Float, currentMaxVal: Float = 10f): Path {

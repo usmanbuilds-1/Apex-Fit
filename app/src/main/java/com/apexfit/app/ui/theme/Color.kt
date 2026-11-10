@@ -23,7 +23,7 @@ private val Night0          = Color(0xFF04151E) // SurfaceSunken (recessed wells
 
 private val White           = Color(0xFFFFFFFF)
 private val Grey1           = Color(0xFF8B98A5) // Secondary text
-private val Grey2           = Color(0xFF5C6873) // Tertiary text
+private val Grey2           = Color(0xFF91A0AC) // Tertiary text
 
 private val GoldAmber       = Color(0xFFF2B33D) // Caution, deload
 private val AmberSoftFill   = Color(0xFF3A2F1A)
