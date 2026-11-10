@@ -118,7 +118,7 @@ fun NutritionScreen(
         completedSessions.any { it.date == selectedDate && it.isCompleted }
     }
     val todayPlannedSession = remember(activePlanSessions, selectedDate, todayDateStr, selectedDayString) {
-        if (selectedDate == todayDateStr) activePlanSessions.firstOrNull { it.day.equals(selectedDayString, ignoreCase = true) } else null
+        if (selectedDate >= todayDateStr) activePlanSessions.firstOrNull { it.day.equals(selectedDayString, ignoreCase = true) } else null
     }
     val isPlannedTrainingToday = remember(todayPlannedSession) {
         todayPlannedSession != null &&
