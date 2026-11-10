@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.*
 import com.apexfit.app.R
+import com.apexfit.app.ui.components.ApexSegmentedControl
 import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.*
@@ -65,38 +66,12 @@ fun TrainTab(
         ) {
             Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-            // Segmented Control
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkCardSurface)
-                    .padding(4.dp)
-            ) {
-                listOf("Program", "Workout", "Plans").forEachIndexed { index, title ->
-                    val isSelected = subTab == index
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(if (isSelected) ApexColors.Primary else Color.Transparent)
-                            .semantics { selected = isSelected }
-                            .clickable(role = Role.Tab) { fitnessViewModel.setTrainSubTab(index) }
-                            .padding(vertical = 12.dp)
-                            .heightIn(min = 48.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = title,
-                            fontFamily = InterFamily,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) ApexColors.OnGlow else SecondaryText
-                        )
-                    }
-                }
-            }
+            ApexSegmentedControl(
+                labels = listOf("Program", "Workout", "Plans"),
+                selectedIndex = subTab,
+                onSelect = fitnessViewModel::setTrainSubTab,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
 
             when (subTab) {
                 0 -> ProgramSubTab(fitnessViewModel, planBuilderViewModel, workoutExecutionViewModel)
@@ -185,7 +160,8 @@ fun ProgramSubTab(
                             .semantics { selected = isSelected }
                             .clickable(role = Role.Tab) { planBuilderViewModel.selectDay(day) }
                             .heightIn(min = 48.dp)
-                            .padding(horizontal = 12.dp)
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = day.substring(0, 3).uppercase(),
@@ -201,16 +177,16 @@ fun ProgramSubTab(
             Spacer(modifier = Modifier.height(8.dp))
 
             if (selectedDaySession == null) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No workout scheduled for $selectedDay.", color = SecondaryText,
-                            fontFamily = JetBrainsMonoFamily, fontSize = 12.sp)
-                        TextButton(onClick = { fitnessViewModel.setTrainSubTab(2) }) {
-                            Text("Browse or create a plan", color = ApexColors.Primary)
-                        }
+                    Text("No workout scheduled for $selectedDay", color = PrimaryText,
+                        fontFamily = InterFamily, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Choose another day or explore your plans.", color = SecondaryText,
+                        fontFamily = InterFamily, fontSize = 14.sp)
+                    TextButton(onClick = { fitnessViewModel.setTrainSubTab(2) }) {
+                        Text("Browse or create a plan", color = ApexColors.Primary)
                     }
                 }
             } else {
