@@ -254,7 +254,7 @@ fun BodyMeasurementDetailScreen(
                     )
                 )
                 if (error.isNotEmpty()) {
-                    Text(error, color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    Text(error, color = ApexColors.Alert, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
@@ -267,11 +267,11 @@ fun BodyMeasurementDetailScreen(
                             newValue = ""
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(stringResource(R.string.progress_detail_save_measurement), color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.progress_detail_save_measurement), color = ApexColors.OnGlow, fontWeight = FontWeight.Bold)
                 }
             }
         }
