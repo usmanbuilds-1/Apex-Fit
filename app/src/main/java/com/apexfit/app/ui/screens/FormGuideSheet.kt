@@ -19,8 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexfit.app.data.Exercise
-import com.apexfit.app.data.HeatmapEntry
-import com.apexfit.app.ui.components.MuscleHeatmapCanvas
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.FormGuideContent
 
@@ -70,33 +68,6 @@ fun FormGuideSheet(
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = SecondaryText)
                     }
                 }
-
-                // Heatmap Data Preparation
-                val heatmap = remember(exercise) {
-                    buildMap {
-                        this[exercise.primaryMuscle.lowercase()] = HeatmapEntry(
-                            volume = 100,
-                            intensity = 80,
-                            level = "high",
-                            colorHex = "#E84040"
-                        )
-                        exercise.secondaryMuscles.forEach { secondary ->
-                            this[secondary.lowercase()] = HeatmapEntry(
-                                volume = 50,
-                                intensity = 40,
-                                level = "medium",
-                                colorHex = "#E8A020"
-                            )
-                        }
-                    }
-                }
-
-                MuscleHeatmapCanvas(
-                    heatmap = heatmap,
-                    modifier = Modifier.height(200.dp)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
 
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
