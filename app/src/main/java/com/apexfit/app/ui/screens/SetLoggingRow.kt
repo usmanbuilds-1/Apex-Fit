@@ -185,7 +185,7 @@ fun SetLoggingRow(
 
                 // Weight textfield
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.train_weight), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+                    Text(stringResource(R.string.train_weight), fontFamily = InterFamily, fontSize = 13.sp, color = SecondaryText)
                     BasicTextField(
                         value = rawWeight,
                         onValueChange = { input ->
@@ -223,9 +223,10 @@ fun SetLoggingRow(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 14.sp),
                         modifier = Modifier
-                            .background(DarkRaised, RoundedCornerShape(4.dp))
-                            .padding(6.dp)
                             .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .background(DarkRaised, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 12.dp)
                             // commit to ViewModel when focus is lost
                             .onFocusChanged { focusState ->
                                 if (!focusState.isFocused) {
@@ -285,7 +286,7 @@ fun SetLoggingRow(
 
                 // Reps textfield
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.train_reps), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+                    Text(stringResource(R.string.train_reps), fontFamily = InterFamily, fontSize = 13.sp, color = SecondaryText)
                     BasicTextField(
                         value = rawReps,
                         onValueChange = { input ->
@@ -312,9 +313,10 @@ fun SetLoggingRow(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily, fontSize = 14.sp),
                         modifier = Modifier
-                            .background(DarkRaised, RoundedCornerShape(4.dp))
-                            .padding(6.dp)
                             .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .background(DarkRaised, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 12.dp)
                             .onFocusChanged { focusState ->
                                 if (!focusState.isFocused) {
                                     commitReps()
@@ -364,46 +366,32 @@ fun SetLoggingRow(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Custom Segmented Button select row for RPE (1 to 10)
-            Text(stringResource(R.string.train_rpe, selectedRpe), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(DarkRaised)
-                    .padding(2.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                (1..10).forEach { rpeVal ->
-                    val isRpeSelected = selectedRpe == rpeVal
-                    val zoneColor = when (rpeVal) {
-                        in 1..5 -> ApexColors.Victory
-                        in 6..7 -> ApexColors.Amber
-                        else -> ApexColors.Alert
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (isRpeSelected) zoneColor else Color.Transparent)
-                            .semantics { selected = isRpeSelected }
-                            .clickable(role = Role.Button) {
-                                selectedRpe = rpeVal
-                                val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                                val r = rawReps.toIntOrNull() ?: setObj.reps
-                                onLogSetState(ex.exerciseId, sIdx, w, r, rpeVal, setObj.completed, setObj.restTaken)
+            Text(stringResource(R.string.train_rpe, selectedRpe), fontFamily = InterFamily,
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SecondaryText)
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(1..5, 6..10).forEach { range ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                        range.forEach { rpeVal ->
+                            val isRpeSelected = selectedRpe == rpeVal
+                            Box(
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isRpeSelected) ApexColors.Primary else DarkRaised)
+                                    .semantics { selected = isRpeSelected }
+                                    .clickable(role = Role.RadioButton) {
+                                        selectedRpe = rpeVal
+                                        val w = rawWeight.toDoubleOrNull() ?: setObj.weight
+                                        val r = rawReps.toIntOrNull() ?: setObj.reps
+                                        onLogSetState(ex.exerciseId, sIdx, w, r, rpeVal, setObj.completed, setObj.restTaken)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(rpeVal.toString(), fontFamily = InterFamily, fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isRpeSelected) ApexColors.OnGlow else PrimaryText)
                             }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = rpeVal.toString(),
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isRpeSelected) ApexColors.OnGlow else zoneColor.copy(alpha = 0.7f)
-                        )
+                        }
                     }
                 }
             }

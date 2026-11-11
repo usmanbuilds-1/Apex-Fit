@@ -35,7 +35,7 @@
     <string name="train_complete_recovery_session">COMPLETE RECOVERY SESSION</string>
     <string name="train_finish_workout_early_save_prog">FINISH WORKOUT EARLY &amp; SAVE PROGRESS</string>
     <string name="train_cancel_current_workout_run">CANCEL CURRENT WORKOUT RUN</string>
-    <string name="train_build_custom_workout_plan">BUILD CUSTOM WORKOUT PLAN</string>
+    <string name="train_build_custom_workout_plan">Create a plan</string>
     <string name="train_active">ACTIVE</string>
     <string name="train_activate">Activate</string>
     <string name="train_focus_on_compound_control_lock">%1$s: Focus on compound control, locking joint stabilizers at end of concentric contraction.</string>
