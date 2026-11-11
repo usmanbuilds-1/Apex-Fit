@@ -536,18 +536,8 @@ fun ProgressMainTabContent(
         2 -> listOf(weightHistoryState, measurementsState)
         else -> emptyList()
     }
-    if (visibleDataStates.any { it is UiState.Loading }) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = BlueAccent)
-        }
-        return
-    }
-    if (visibleDataStates.any { it is UiState.Error }) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.progress_error_loading_progress_data), color = Color.White)
-        }
-        return
-    }
+    val isSectionLoading = visibleDataStates.any { it is UiState.Loading }
+    val isSectionError = visibleDataStates.any { it is UiState.Error }
 
     val weightHistory: List<com.apexfit.app.ui.models.UiWeightEntry> = (weightHistoryState as? UiState.Success)?.data ?: emptyList()
     val measurements: List<com.apexfit.app.ui.models.UiBodyMeasurement> = (measurementsState as? UiState.Success)?.data ?: emptyList()
@@ -613,6 +603,23 @@ fun ProgressMainTabContent(
             )
         }
 
+        if (isSectionLoading || isSectionError) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (isSectionLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = ApexColors.Primary, strokeWidth = 2.dp)
+                        Text("Loading progress…", color = SecondaryText)
+                    } else {
+                        Text(stringResource(R.string.progress_error_loading_progress_data), color = ApexColors.Alert)
+                    }
+                }
+            }
+        }
+
         item {
             Column(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
@@ -644,7 +651,7 @@ fun ProgressMainTabContent(
         }
 
         // Category 2: BODY METRICS
-        if (activeSubTab == 2) {
+        if (activeSubTab == 2 && !isSectionLoading && !isSectionError) {
             // Quick Body weight log text field
             item {
                 var inputWeight by rememberSaveable { mutableStateOf("") }
@@ -778,7 +785,7 @@ fun ProgressMainTabContent(
         } // End of activeSubTab == 2
 
         // Category 1: BIO RECOVERY
-        if (activeSubTab == 1) {
+        if (activeSubTab == 1 && !isSectionLoading && !isSectionError) {
             // Showcase 1: Semicircular Fatigue Needle gauge drawn with Canvas
             item {
                 val needleAnimState = remember { Animatable(0f) }
@@ -929,7 +936,7 @@ fun ProgressMainTabContent(
         } // End of activeSubTab == 1
 
         // Category 2 Continued: BODY METRICS - Part 2 (Measurements)
-        if (activeSubTab == 2) {
+        if (activeSubTab == 2 && !isSectionLoading && !isSectionError) {
             // Showcase 1.6: Body Measurements list/entry rows
             item {
                 BodyMeasurementsTrackerPanel(
