@@ -1,6 +1,8 @@
 package com.apexfit.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -19,6 +21,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,7 +72,7 @@ fun RpeRirSelectorSheet(
             colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (currentPage == 0) {
@@ -103,26 +108,23 @@ fun RpeRirSelectorSheet(
                     )
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        RIR_OPTIONS.forEach { rir ->
-                            val isSelected = selectedRir == rir
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isSelected) OrangeAccent else DarkRaised)
-                                    .clickable { onSelectRirOption(rir) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = rir.toString(),
-                                    color = if (isSelected) Color.Black else PrimaryText,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
-                                )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        RIR_OPTIONS.chunked(3).forEach { choices ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                choices.forEach { rir ->
+                                    val isSelected = selectedRir == rir
+                                    Box(
+                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) ApexColors.Primary else DarkRaised)
+                                            .semantics { selected = isSelected }
+                                            .clickable(role = Role.RadioButton) { onSelectRirOption(rir) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(rir.toString(), color = if (isSelected) ApexColors.OnGlow else PrimaryText,
+                                            fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -134,12 +136,12 @@ fun RpeRirSelectorSheet(
                     }
                     Button(
                         onClick = onConfirmRirAndNextSet,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         enabled = true,
                         colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(stringResource(R.string.overlay_confirm_next_set), color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overlay_confirm_next_set), color = ApexColors.OnGlow, fontWeight = FontWeight.Bold)
                     }
                 } else {
                     // Page 2: History
@@ -211,7 +213,7 @@ fun RpeRirSelectorSheet(
                         colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(stringResource(R.string.overlay_confirm_next_set), color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overlay_confirm_next_set), color = ApexColors.OnGlow, fontWeight = FontWeight.Bold)
                     }
                 }
             }
