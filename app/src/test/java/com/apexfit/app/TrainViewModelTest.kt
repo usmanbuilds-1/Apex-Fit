@@ -175,4 +175,47 @@ class TrainViewModelTest {
 
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
+    @Test
+    fun defaultPlanDoesNotReplaceExistingPlan() = runTest(testDispatcher) {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val dao = testDb!!.fitnessDao()
+        val existingId = dao.insertWorkoutPlan(WorkoutPlan(
+            name = "My plan", goal = "General", isActive = true, createdAt = 1L
+        ))
+        val store = DataStoreManager.getInstance(application)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(testDb!!, dao, store)
+        val viewModel = PlanBuilderViewModel(application, repo, store, dao)
+
+        viewModel.seedDefaultWorkoutPlan()
+
+        val plans = dao.getAllPlans()
+        assertEquals(1, plans.size)
+        assertEquals(existingId, plans.single().id)
+        assertEquals("My plan", plans.single().name)
+        assertTrue(plans.single().isActive)
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
+    }
+
+    @Test
+    fun defaultPlanIsSeededOnceWithNoFixedLoads() = runTest(testDispatcher) {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val dao = testDb!!.fitnessDao()
+        val store = DataStoreManager.getInstance(application)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(testDb!!, dao, store)
+        val viewModel = PlanBuilderViewModel(application, repo, store, dao)
+
+        viewModel.seedDefaultWorkoutPlan()
+        viewModel.seedDefaultWorkoutPlan()
+
+        val plan = dao.getAllPlans().single()
+        assertEquals("Scientific Hypertrophy Split", plan.name)
+        assertTrue(plan.isActive)
+        val sessions = dao.getSessionsForPlan(plan.id)
+        assertEquals(4, sessions.size)
+        val exercises = sessions.flatMap { dao.getExercisesForSession(it.id) }
+        assertEquals(20, exercises.size)
+        assertTrue(exercises.all { it.weight == 0.0 })
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
+    }
+
 }
