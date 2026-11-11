@@ -32,13 +32,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexfit.app.R
 import com.apexfit.app.data.OnboardingProfile
+import com.apexfit.app.ui.theme.ApexColors
 
-private val SetupGround = Color(0xFF101617)
-private val SetupSurface = Color(0xFF1B2223)
-private val SetupRaised = Color(0xFF283031)
-private val SetupText = Color(0xFFF3F5F3)
-private val SetupMuted = Color(0xFFADB7B8)
-private val SetupMint = Color(0xFF47E1C2)
+private val SetupGround get() = ApexColors.Canvas
+private val SetupSurface get() = ApexColors.Surface
+private val SetupRaised get() = ApexColors.SurfaceRaised
+private val SetupText get() = ApexColors.TextPrimary
+private val SetupMuted get() = ApexColors.TextSecondary
+private val SetupMint get() = ApexColors.Primary
 private val SetupFont = FontFamily(Font(R.font.onboarding_jakarta))
 private data class SetupChoice(val value: String, val title: String, val description: String)
 private val SetupGoals = listOf(
@@ -291,7 +292,7 @@ private fun SetupOption(choice: SetupChoice, selected: Boolean, enabled: Boolean
 @Composable
 private fun SetupButton(label: String, enabled: Boolean, saving: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Button(onClick, enabled = enabled, shape = CircleShape, modifier = modifier.heightIn(min = 54.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = SetupMint, contentColor = Color(0xFF06231E),
+        colors = ButtonDefaults.buttonColors(containerColor = SetupMint, contentColor = ApexColors.OnGlow,
             disabledContainerColor = SetupMint.copy(alpha = .35f), disabledContentColor = SetupText.copy(alpha = .5f))) {
         if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = SetupGround)
         else {
