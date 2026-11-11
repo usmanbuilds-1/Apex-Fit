@@ -257,6 +257,12 @@ class PlanBuilderViewModel @Inject constructor(
     }
 
     suspend fun seedDefaultWorkoutPlan() {
+        if (dao.getAllPlans().isNotEmpty()) return
+        // The application seeds asynchronously; a plan must not reference exercises
+        // until the library is present. Seed is safe to repeat and preserves custom entries.
+        com.apexfit.app.utils.SeedService.seed(getApplication())
+        db.withTransaction {
+        if (dao.getAllPlans().isNotEmpty()) return@withTransaction
         val plan = WorkoutPlan(
             id = 0,
             name = "Scientific Hypertrophy Split",
@@ -265,7 +271,6 @@ class PlanBuilderViewModel @Inject constructor(
             createdAt = System.currentTimeMillis()
         )
 
-        dao.deleteAllPlans()  // cascades to plan_sessions and plan_exercises via FK
         val generatedPlanId = dao.insertWorkoutPlan(plan)
         
         val sessions = listOf(
@@ -283,32 +288,32 @@ class PlanBuilderViewModel @Inject constructor(
 
         val exercises = listOf(
             // Monday - Upper A
-            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Incline Barbell Bench Press", muscleGroup = "Chest", sets = 4, repsMin = 6, repsMax = 10, weight = 80.0, restSeconds = 120, notes = "Focus on the deep stretch at chest level."),
-            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Weighted Pull-Up", muscleGroup = "Back", sets = 4, repsMin = 6, repsMax = 10, weight = 5.0, restSeconds = 120, notes = "Control the eccentric descent."),
-            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Dumbbell Lateral Raise", muscleGroup = "Shoulders", sets = 3, repsMin = 10, repsMax = 15, weight = 12.5, restSeconds = 90, notes = "Slight torso lean forward."),
-            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Incline Dumbbell Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 8, repsMax = 12, weight = 14.0, restSeconds = 90, notes = "Biceps fully stretched at bottom."),
-            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Dual Rope Tricep Pushdown", muscleGroup = "Triceps", sets = 3, repsMin = 10, repsMax = 15, weight = 25.0, restSeconds = 90, notes = "Flare ropes outward at end of range."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Incline Barbell Bench Press", muscleGroup = "Chest", sets = 4, repsMin = 6, repsMax = 10, weight = 0.0, restSeconds = 120, notes = "Focus on the deep stretch at chest level."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Weighted Pull-Up", muscleGroup = "Back", sets = 4, repsMin = 6, repsMax = 10, weight = 0.0, restSeconds = 120, notes = "Control the eccentric descent."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Dumbbell Lateral Raise", muscleGroup = "Shoulders", sets = 3, repsMin = 10, repsMax = 15, weight = 0.0, restSeconds = 90, notes = "Slight torso lean forward."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Incline Dumbbell Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 90, notes = "Biceps fully stretched at bottom."),
+            PlanExercise(id = 0, planSessionId = upperASessionId, name = "Dual Rope Tricep Pushdown", muscleGroup = "Triceps", sets = 3, repsMin = 10, repsMax = 15, weight = 0.0, restSeconds = 90, notes = "Flare ropes outward at end of range."),
 
             // Tuesday - Lower A
-            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Barbell Back Squat", muscleGroup = "Quads", sets = 4, repsMin = 6, repsMax = 8, weight = 100.0, restSeconds = 180, notes = "Keep knees tracking over toes."),
-            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Romanian Deadlift", muscleGroup = "Hamstrings", sets = 4, repsMin = 8, repsMax = 12, weight = 90.0, restSeconds = 120, notes = "Hinge at hips, keep back flat."),
-            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Leg Press (High & Wide)", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 12, weight = 160.0, restSeconds = 120, notes = "Aesthetic emphasis on quad sweep."),
-            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Seated Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 15, weight = 50.0, restSeconds = 90, notes = "Hard squeeze at full flexion."),
-            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Standing Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 60.0, restSeconds = 60, notes = "2-second pause at full stretch."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Barbell Back Squat", muscleGroup = "Quads", sets = 4, repsMin = 6, repsMax = 8, weight = 0.0, restSeconds = 180, notes = "Keep knees tracking over toes."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Romanian Deadlift", muscleGroup = "Hamstrings", sets = 4, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 120, notes = "Hinge at hips, keep back flat."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Leg Press (High & Wide)", muscleGroup = "Quads", sets = 3, repsMin = 10, repsMax = 12, weight = 0.0, restSeconds = 120, notes = "Aesthetic emphasis on quad sweep."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Seated Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 15, weight = 0.0, restSeconds = 90, notes = "Hard squeeze at full flexion."),
+            PlanExercise(id = 0, planSessionId = lowerASessionId, name = "Standing Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 15, weight = 0.0, restSeconds = 60, notes = "2-second pause at full stretch."),
 
             // Thursday - Upper B
-            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Standing Overhead Press", muscleGroup = "Shoulders", sets = 4, repsMin = 6, repsMax = 10, weight = 50.0, restSeconds = 120, notes = "Press overhead in a straight line."),
-            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Chest-Supported Dumbbell Row", muscleGroup = "Back", sets = 4, repsMin = 8, repsMax = 12, weight = 25.0, restSeconds = 120, notes = "Squeeze shoulder blades together."),
-            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Flat Dumbbell Press", muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 30.0, restSeconds = 120, notes = "Drive dumbbells toward center on press."),
-            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Lat Pulldown (Neutral Grip)", muscleGroup = "Back", sets = 3, repsMin = 8, repsMax = 12, weight = 65.0, restSeconds = 90, notes = "Pull down to upper collarbone."),
-            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Hammer Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 10, repsMax = 15, weight = 15.0, restSeconds = 90, notes = "Focus on brachialis and forearm development."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Standing Overhead Press", muscleGroup = "Shoulders", sets = 4, repsMin = 6, repsMax = 10, weight = 0.0, restSeconds = 120, notes = "Press overhead in a straight line."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Chest-Supported Dumbbell Row", muscleGroup = "Back", sets = 4, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 120, notes = "Squeeze shoulder blades together."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Flat Dumbbell Press", muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 120, notes = "Drive dumbbells toward center on press."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Lat Pulldown (Neutral Grip)", muscleGroup = "Back", sets = 3, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 90, notes = "Pull down to upper collarbone."),
+            PlanExercise(id = 0, planSessionId = upperBSessionId, name = "Hammer Bicep Curl", muscleGroup = "Biceps", sets = 3, repsMin = 10, repsMax = 15, weight = 0.0, restSeconds = 90, notes = "Focus on brachialis and forearm development."),
 
             // Friday - Lower B
-            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Conventional Deadlift", muscleGroup = "Hamstrings", sets = 3, repsMin = 5, repsMax = 8, weight = 120.0, restSeconds = 180, notes = "Pull slack out of the bar before initiating lift."),
-            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Bulgarian Split Squat", muscleGroup = "Quads", sets = 3, repsMin = 8, repsMax = 12, weight = 20.0, restSeconds = 120, notes = "Slight forward torso lean for glutes & quads."),
-            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Barbell Hip Thrust", muscleGroup = "Glutes", sets = 4, repsMin = 8, repsMax = 12, weight = 100.0, restSeconds = 120, notes = "1-second pause at peak glute contraction."),
-            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Lying Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 15, weight = 45.0, restSeconds = 90, notes = "Keep hips pressed firmly into pad."),
-            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Seated Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 20, weight = 40.0, restSeconds = 60, notes = "Targets soleus muscle.")
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Conventional Deadlift", muscleGroup = "Hamstrings", sets = 3, repsMin = 5, repsMax = 8, weight = 0.0, restSeconds = 180, notes = "Pull slack out of the bar before initiating lift."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Bulgarian Split Squat", muscleGroup = "Quads", sets = 3, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 120, notes = "Slight forward torso lean for glutes & quads."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Barbell Hip Thrust", muscleGroup = "Glutes", sets = 4, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 120, notes = "1-second pause at peak glute contraction."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Lying Leg Curl", muscleGroup = "Hamstrings", sets = 3, repsMin = 10, repsMax = 15, weight = 0.0, restSeconds = 90, notes = "Keep hips pressed firmly into pad."),
+            PlanExercise(id = 0, planSessionId = lowerBSessionId, name = "Seated Calf Raise", muscleGroup = "Calves", sets = 4, repsMin = 12, repsMax = 20, weight = 0.0, restSeconds = 60, notes = "Targets soleus muscle.")
         )
 
         val resolvedExercises = exercises.map { exercise ->
@@ -318,5 +323,6 @@ class PlanBuilderViewModel @Inject constructor(
         }
 
         dao.insertPlanExercises(resolvedExercises)
+        }
     }
 }
