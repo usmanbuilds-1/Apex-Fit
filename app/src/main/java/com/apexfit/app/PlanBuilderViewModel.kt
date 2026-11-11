@@ -256,7 +256,12 @@ class PlanBuilderViewModel @Inject constructor(
         }
     }
 
-    suspend fun seedDefaultWorkoutPlan() = db.withTransaction {
+    suspend fun seedDefaultWorkoutPlan() {
+        if (dao.getAllPlans().isNotEmpty()) return
+        // The application seeds asynchronously; a plan must not reference exercises
+        // until the library is present. Seed is safe to repeat and preserves custom entries.
+        com.apexfit.app.utils.SeedService.seed(getApplication())
+        db.withTransaction {
         if (dao.getAllPlans().isNotEmpty()) return@withTransaction
         val plan = WorkoutPlan(
             id = 0,
@@ -318,5 +323,6 @@ class PlanBuilderViewModel @Inject constructor(
         }
 
         dao.insertPlanExercises(resolvedExercises)
+        }
     }
 }
