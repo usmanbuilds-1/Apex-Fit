@@ -910,6 +910,20 @@ fun NewPlansSubTab(
             )
         }
 
+        if (plans.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("No plans yet", color = PrimaryText, fontFamily = InterFamily,
+                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Create a plan to organize your training days and exercises.",
+                        color = SecondaryText, fontFamily = InterFamily, fontSize = 14.sp)
+                }
+            }
+        }
+
         items(plans, key = { it.id }) { plan ->
             val isActive = activePlan?.id == plan.id
             Box(
