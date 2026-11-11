@@ -52,7 +52,7 @@ import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
 
 // ─── Design System Palette Constants (Strict Anti-Slop 7/7) ─────────────────
-private val CanvasVoid     = Color(0xFF041521)
+private val CanvasVoid     get() = ApexColors.Canvas
 private val SurfaceNight1  get() = ApexColors.Surface
 private val SurfaceNight2  get() = ApexColors.SurfaceRaised
 private val ElectricMint   = Color(0xFF47E1C2)

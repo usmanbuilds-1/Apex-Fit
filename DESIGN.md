@@ -1,6 +1,6 @@
 # Apex Fit — product interface direction
 
-Native Kotlin / Jetpack Compose. Keep the existing navy canvas and mint brand accent.
+Native Kotlin / Jetpack Compose. Use the first onboarding screen as the color reference: charcoal-green canvas (#101617), layered surfaces (#1B2223 and #283031), warm off-white text, and the mint brand accent (#47E1C2).
 
 ## First-screen purpose
 Today answers: What should I do next? Show the real scheduled workout and its primary action before secondary metrics. Keep photos and large editorial headings in onboarding, not above the daily task.

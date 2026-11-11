@@ -1,6 +1,8 @@
 package com.apexfit.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -53,7 +55,7 @@ fun SessionCompleteSheet(
             colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Trophy / celebration icon
@@ -66,7 +68,7 @@ fun SessionCompleteSheet(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "WORKOUT COMPLETE",
+                    text = "Workout complete",
                     style = MaterialTheme.typography.titleLarge,
                     color = PrimaryText,
                     fontWeight = FontWeight.Black,
@@ -107,9 +109,9 @@ fun SessionCompleteSheet(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "🏆 PERSONAL RECORDS CONQUERED",
+                                text = "Personal records",
                                 style = MaterialTheme.typography.titleSmall,
-                                color = OrangeAccent,
+                                color = ApexColors.Primary,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -129,11 +131,11 @@ fun SessionCompleteSheet(
 
                 Button(
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(stringResource(R.string.overlay_done), color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(stringResource(R.string.overlay_done), color = ApexColors.OnGlow, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
         }

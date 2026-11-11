@@ -4,8 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // APEX FIT · Design System v2 "Night Signal"
-// Every value in this file is pixel-sampled from the approved Home mockup or
-// directly specified in the v2 design system document. Zero ad-hoc hex values.
+// The surface and text palette follows the approved onboarding screen.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── Raw Palette ─────────────────────────────────────────────────────────────
@@ -15,15 +14,17 @@ private val ElectricMint    = Color(0xFF47E1C2) // Primary glow — sampled from
 private val MintDeep        = Color(0xFF3CBFA5) // Pressed states
 private val MintMist        = Color(0xFF0F3537) // Tint backgrounds, selected chips
 private val MintMistDeep    = Color(0xFF174D4B) // Meta text on glow fills
-private val Void            = Color(0xFF041521) // Canvas / ink on glow
+private val Void            = Color(0xFF101617) // Canvas / ink on glow
 
-private val Night1          = Color(0xFF0B202B) // Surface
-private val Night2          = Color(0xFF112B37) // SurfaceRaised
-private val Night0          = Color(0xFF04151E) // SurfaceSunken (recessed wells)
+private val OnMint          = Color(0xFF06231E) // Ink on mint actions
 
-private val White           = Color(0xFFFFFFFF)
-private val Grey1           = Color(0xFFAABAC5) // Secondary text
-private val Grey2           = Color(0xFF91A0AC) // Tertiary text
+private val Night1          = Color(0xFF1B2223) // Surface
+private val Night2          = Color(0xFF283031) // SurfaceRaised
+private val Night0          = Color(0xFF101617) // SurfaceSunken (recessed wells)
+
+private val White           = Color(0xFFF3F5F3)
+private val Grey1           = Color(0xFFADB7B8) // Secondary text
+private val Grey2           = Color(0xFFA4B2B3) // Tertiary text
 
 private val GoldAmber       = Color(0xFFF2B33D) // Caution, deload
 private val AmberSoftFill   = Color(0xFF3A2F1A)
@@ -51,7 +52,7 @@ object ApexColors {
     val Primary         = ElectricMint  // CTAs, active states, rings, links, energy
     val PrimaryDeep     = MintDeep      // Pressed states, arc strokes on tinted fills
     val PrimaryMist     = MintMist      // Selected chips, tint backgrounds
-    val OnGlow          = Void          // Text/icons on Primary fills — the inversion rule
+    val OnGlow          = OnMint          // Text/icons on Primary fills — the inversion rule
     val OnGlowSecondary = MintMistDeep  // Meta text on Primary fills
 
     // Semantic states
