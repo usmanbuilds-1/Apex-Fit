@@ -31,12 +31,15 @@ jobs:
             adb shell am start -n com.apexfit.app/.UiReviewActivity --es view workout
             sleep 4
             adb exec-out screencap -p > review-captures/workout.png
+            adb shell am force-stop com.apexfit.app
             adb shell am start -n com.apexfit.app/.UiReviewActivity --es view rir
             sleep 4
             adb exec-out screencap -p > review-captures/rir.png
+            adb shell am force-stop com.apexfit.app
             adb shell am start -n com.apexfit.app/.UiReviewActivity --es view rest
             sleep 4
             adb exec-out screencap -p > review-captures/rest.png
+            adb shell am force-stop com.apexfit.app
             adb shell am start -n com.apexfit.app/.UiReviewActivity --es view complete
             sleep 4
             adb exec-out screencap -p > review-captures/complete.png
@@ -45,6 +48,7 @@ jobs:
             adb shell am start -n com.apexfit.app/.UiReviewActivity --es view workout
             sleep 4
             adb exec-out screencap -p > review-captures/workout_large.png
+            adb shell am force-stop com.apexfit.app
             adb shell am start -n com.apexfit.app/.UiReviewActivity --es view complete
             sleep 4
             adb exec-out screencap -p > review-captures/complete_large.png
