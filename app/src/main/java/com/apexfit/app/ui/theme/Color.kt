@@ -16,7 +16,9 @@ private val MintMist        = Color(0xFF0F3537) // Tint backgrounds, selected ch
 private val MintMistDeep    = Color(0xFF174D4B) // Meta text on glow fills
 private val Void            = Color(0xFF101617) // Canvas / ink on glow
 
-private val OnMint          = Color(0xFF06231E) // Ink on mint actions\n\nprivate val Night1          = Color(0xFF1B2223) // Surface
+private val OnMint          = Color(0xFF06231E) // Ink on mint actions
+
+private val Night1          = Color(0xFF1B2223) // Surface
 private val Night2          = Color(0xFF283031) // SurfaceRaised
 private val Night0          = Color(0xFF101617) // SurfaceSunken (recessed wells)
 
