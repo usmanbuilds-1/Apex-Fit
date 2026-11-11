@@ -21,6 +21,7 @@ class UiReviewActivity : ComponentActivity() {
         setContent {
             ApexFitTheme {
                 when (view) {
+                    "rir" -> RpeRirSelectorSheet(2, 20.0, 10, emptyList(), false, "kg", {}, {}, {}, {})
                     "rest" -> RestTimerOverlay(85, 120, {}, {}, {}, "Last: 8 reps", "Next: 10 reps")
                     "complete" -> SessionCompleteSheet(
                         listOf(UiExerciseSet(weight = 20.0, reps = 10, rpe = 8)),
