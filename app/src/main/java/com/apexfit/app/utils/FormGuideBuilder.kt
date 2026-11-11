@@ -13,7 +13,7 @@ data class FormGuideContent(
 object FormGuideBuilder {
     private data class Cues(val setup: String, val execution: String, val mistake: String)
 
-    // Reviewed movement-specific cues for the exercises used in the onboarding plans.
+    // Movement-specific cues for exercises used in the onboarding plans.
     private val starterCues = mapOf(
         "flat-dumbbell-press" to Cues(
             "Lie on a flat bench with your feet planted. Hold the dumbbells above your chest.",
