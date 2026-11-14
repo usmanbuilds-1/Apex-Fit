@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.PlanBuilderViewModel
+import com.apexfit.app.WorkoutImportViewModel
 import com.apexfit.app.data.WorkoutPlan
 import com.apexfit.app.data.PlanSession
 import com.apexfit.app.data.PlanExercise
@@ -47,7 +49,8 @@ import com.apexfit.app.utils.MuscleGroups
 fun PlanBuilderScreen(
     planBuilderViewModel: PlanBuilderViewModel,
     planId: Long,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    workoutImportViewModel: WorkoutImportViewModel = hiltViewModel()
 ) {
     DisposableEffect(Unit) {
         onDispose {
@@ -74,6 +77,7 @@ fun PlanBuilderScreen(
     var sessionToDelete by rememberSaveable { mutableStateOf<PlanSession?>(null) }
     var exerciseToDelete by rememberSaveable { mutableStateOf<PlanExercise?>(null) }
     var isSaving by remember { mutableStateOf(false) }
+    var showWorkoutImporter by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(planId) {
         try {
@@ -103,6 +107,22 @@ fun PlanBuilderScreen(
                 TextButton(onClick = onNavigateBack) { Text("Go back") }
             }
         }
+        return
+    }
+
+    if (showWorkoutImporter) {
+        WorkoutImportFlow(
+            viewModel = workoutImportViewModel,
+            onClose = {
+                workoutImportViewModel.clear()
+                showWorkoutImporter = false
+            },
+            onSaved = {
+                workoutImportViewModel.clear()
+                showWorkoutImporter = false
+                onNavigateBack()
+            }
+        )
         return
     }
 
@@ -209,6 +229,29 @@ fun PlanBuilderScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (planId == 0L && sessionsList.isEmpty() && planName.isBlank()) {
+                item {
+                    OutlinedButton(
+                        onClick = { showWorkoutImporter = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                            .height(50.dp),
+                        border = BorderStroke(1.dp, ApexColors.Primary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Import workout from text",
+                            fontFamily = InterFamily,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ApexColors.Primary
+                        )
+                    }
+                }
+            }
+
             // Plan Meta Details Card
             item {
                 Card(
