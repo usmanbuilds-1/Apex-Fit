@@ -56,10 +56,16 @@ object ExerciseMediaCatalog {
                 }
             }
 
+            val rawVideo = if (videoRoot.has(exerciseId) && !videoRoot.isNull(exerciseId)) {
+                videoRoot.optString(exerciseId)
+            } else {
+                null
+            }
+
             ExerciseMedia(
                 sourceId = sourceId,
                 imageUrls = imageUrls,
-                youtubeVideoId = normalizeYouTubeVideoId(videoRoot.optString(exerciseId, null))
+                youtubeVideoId = normalizeYouTubeVideoId(rawVideo)
             )
         }
     }
