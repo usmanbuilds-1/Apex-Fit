@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,6 +47,7 @@ fun ExerciseListSection(
     weightContextLines: Map<String, String>,
     preferredUnits: String,
     showRirOverlay: Boolean,
+    onOpenFormGuide: (String) -> Unit,
     onToggleWarmupItem: (String) -> Unit,
     onLogSetState: (exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int) -> Unit,
     onCompleteSet: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int) -> Unit,
@@ -166,6 +168,27 @@ fun ExerciseListSection(
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = AmberAccent
+                        )
+                    }
+
+                    TextButton(
+                        onClick = { onOpenFormGuide(ex.name) },
+                        contentPadding = PaddingValues(horizontal = 0.dp),
+                        modifier = Modifier.heightIn(min = 44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Info,
+                            contentDescription = null,
+                            tint = ApexColors.Primary,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(7.dp))
+                        Text(
+                            text = "Form guide",
+                            fontFamily = InterFamily,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PrimaryText
                         )
                     }
                 }
