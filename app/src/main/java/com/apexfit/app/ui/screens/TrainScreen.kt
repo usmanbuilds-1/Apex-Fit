@@ -112,16 +112,9 @@ fun ProgramSubTab(
     val onOpenFormGuide: (String) -> Unit = remember(scope, context) {
         { exerciseName ->
             scope.launch {
-                val db = com.apexfit.app.data.AppDatabase.getDatabase(context)
-                val slug = exerciseNameToSlug(exerciseName)
-                val (exercise, metadata) = withContext(Dispatchers.IO) {
-                    val foundEx = db.fitnessDao().getExerciseById(slug)
-                    val meta = if (foundEx != null) db.fitnessDao().getMetadataForExercise(slug) else null
-                    Pair(foundEx, meta)
-                }
-                if (exercise != null) {
+                loadFormGuideData(context, exerciseName)?.let { (exercise, content) ->
                     formGuideExercise = exercise
-                    formGuideContent = FormGuideBuilder.buildFormGuide(exercise, metadata)
+                    formGuideContent = content
                 }
             }
         }
@@ -460,6 +453,19 @@ fun WorkoutExecutionSubTab(
     var showNormalFinishFeelDialog by rememberSaveable { mutableStateOf(false) }
     var selectedFeelRating by rememberSaveable { mutableStateOf(4) }
     var showExitDialog by rememberSaveable { mutableStateOf(false) }
+
+    var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
+    var formGuideContent by remember { mutableStateOf<FormGuideContent?>(null) }
+    val onOpenFormGuide: (String) -> Unit = remember(scope, context) {
+        { exerciseName ->
+            scope.launch {
+                loadFormGuideData(context, exerciseName)?.let { (exercise, content) ->
+                    formGuideExercise = exercise
+                    formGuideContent = content
+                }
+            }
+        }
+    }
 
     saveError?.let { err ->
         AlertDialog(
@@ -803,6 +809,7 @@ fun WorkoutExecutionSubTab(
                     weightContextLines = weightContextLines,
                     preferredUnits = preferredUnits,
                     showRirOverlay = showRirOverlay,
+                    onOpenFormGuide = onOpenFormGuide,
                     onToggleWarmupItem = { workoutExecutionViewModel.toggleWarmupItem(it) },
                     onLogSetState = { exId, sIdx, w, r, rpe, comp, restTaken ->
                         workoutExecutionViewModel.logWorkoutSetState(
@@ -840,8 +847,35 @@ fun WorkoutExecutionSubTab(
                     }
                 )
             }
+
+            if (formGuideExercise != null && formGuideContent != null) {
+                val exercise = formGuideExercise
+                val content = formGuideContent
+                if (exercise != null && content != null) {
+                    FormGuideSheet(
+                        exercise = exercise,
+                        content = content,
+                        onDismiss = {
+                            formGuideExercise = null
+                            formGuideContent = null
+                        }
+                    )
+                }
+            }
         }
     }
+}
+
+private suspend fun loadFormGuideData(
+    context: android.content.Context,
+    exerciseName: String
+): Pair<com.apexfit.app.data.Exercise, FormGuideContent>? = withContext(Dispatchers.IO) {
+    val dao = com.apexfit.app.data.AppDatabase.getDatabase(context).fitnessDao()
+    val slug = exerciseNameToSlug(exerciseName)
+    val exercise = dao.getExerciseById(slug) ?: dao.getExerciseByName(exerciseName)
+        ?: return@withContext null
+    val metadata = dao.getMetadataForExercise(exercise.id)
+    exercise to FormGuideBuilder.buildFormGuide(exercise, metadata)
 }
 
 @Composable
