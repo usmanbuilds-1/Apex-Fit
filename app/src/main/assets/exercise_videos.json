@@ -1550,5 +1550,437 @@
     "match_type": "fuzzy",
     "match_score": 78,
     "channel": "DEMIC"
+  },
+  "smith-machine-close-grip-bench-press": {
+    "video_id": "jwZc2BjF6dY",
+    "url": "https://www.youtube.com/shorts/jwZc2BjF6dY",
+    "title": "❌ Stop Making These Smith Machine Bench Press Mistakes",
+    "match_type": "fuzzy",
+    "match_score": 70,
+    "channel": "DEMIC"
+  },
+  "smith-machine-hip-raise": {
+    "video_id": "QUd5en3nnVU",
+    "url": "https://www.youtube.com/shorts/QUd5en3nnVU",
+    "title": "Hip Raises Exercises #shorts #loseweight",
+    "match_type": "fuzzy",
+    "match_score": 76,
+    "channel": "DEMIC"
+  },
+  "smith-machine-incline-bench-press": {
+    "video_id": "wV7glXVC5QI",
+    "url": "https://www.youtube.com/shorts/wV7glXVC5QI",
+    "title": "🔥 The Perfect Incline Smith Machine Bench Press",
+    "match_type": "fuzzy",
+    "match_score": 88,
+    "channel": "DEMIC"
+  },
+  "smith-machine-leg-press": {
+    "video_id": "E04LgZuDzc0",
+    "url": "https://www.youtube.com/shorts/E04LgZuDzc0",
+    "title": "🔥 Smith Machine vs Leg Press: Just Move Your Feet",
+    "match_type": "exact",
+    "match_score": 93,
+    "channel": "DEMIC"
+  },
+  "smith-machine-overhead-shoulder-press": {
+    "video_id": "YPTlts9o0gA",
+    "url": "https://www.youtube.com/shorts/YPTlts9o0gA",
+    "title": "🔥 The RIGHT Way to Do the Smith Machine Shoulder Press",
+    "match_type": "fuzzy",
+    "match_score": 76,
+    "channel": "DEMIC"
+  },
+  "smith-machine-squat": {
+    "video_id": "5ISqplh90Sk",
+    "url": "https://www.youtube.com/shorts/5ISqplh90Sk",
+    "title": "🎯 A Perfect Squat on the Smith Machine (Step-by-Step Form) 💪 The Smith machine helps you",
+    "match_type": "fuzzy",
+    "match_score": 87,
+    "channel": "DEMIC"
+  },
+  "smith-machine-stiff-legged-deadlift": {
+    "video_id": "Dkxdcz3qFD8",
+    "url": "https://www.youtube.com/shorts/Dkxdcz3qFD8",
+    "title": "🔥 Learn the Difference: Stiff vs RDL vs Deadlift 3 powerful variations, 3 different",
+    "match_type": "fuzzy",
+    "match_score": 68,
+    "channel": "DEMIC"
+  },
+  "smith-single-leg-split-squat": {
+    "video_id": "-RffMuhmYc4",
+    "url": "https://www.youtube.com/shorts/-RffMuhmYc4",
+    "title": "❌Wrong Vs ✅Right - Split Squat🔥💪",
+    "match_type": "fuzzy",
+    "match_score": 76,
+    "channel": "DEMIC"
+  },
+  "speed-box-squat": {
+    "video_id": "6a9KPjfVLZY",
+    "url": "https://www.youtube.com/shorts/6a9KPjfVLZY",
+    "title": "🔥 Are You Doing Your Squats the Right Way?",
+    "match_type": "fuzzy",
+    "match_score": 74,
+    "channel": "DEMIC"
+  },
+  "speed-squats": {
+    "video_id": "6a9KPjfVLZY",
+    "url": "https://www.youtube.com/shorts/6a9KPjfVLZY",
+    "title": "🔥 Are You Doing Your Squats the Right Way?",
+    "match_type": "fuzzy",
+    "match_score": 84,
+    "channel": "DEMIC"
+  },
+  "bulgarian-split-squat": {
+    "video_id": "-RffMuhmYc4",
+    "url": "https://www.youtube.com/shorts/-RffMuhmYc4",
+    "title": "❌Wrong Vs ✅Right - Split Squat🔥💪",
+    "match_type": "fuzzy",
+    "match_score": 91,
+    "channel": "DEMIC"
+  },
+  "split-squat-with-dumbbells": {
+    "video_id": "-RffMuhmYc4",
+    "url": "https://www.youtube.com/shorts/-RffMuhmYc4",
+    "title": "❌Wrong Vs ✅Right - Split Squat🔥💪",
+    "match_type": "fuzzy",
+    "match_score": 91,
+    "channel": "DEMIC"
+  },
+  "split-squats": {
+    "video_id": "-RffMuhmYc4",
+    "url": "https://www.youtube.com/shorts/-RffMuhmYc4",
+    "title": "❌Wrong Vs ✅Right - Split Squat🔥💪",
+    "match_type": "exact",
+    "match_score": 100,
+    "channel": "DEMIC"
+  },
+  "squat-with-bands": {
+    "video_id": "6a9KPjfVLZY",
+    "url": "https://www.youtube.com/shorts/6a9KPjfVLZY",
+    "title": "🔥 Are You Doing Your Squats the Right Way?",
+    "match_type": "fuzzy",
+    "match_score": 84,
+    "channel": "DEMIC"
+  },
+  "squat-with-chains": {
+    "video_id": "6a9KPjfVLZY",
+    "url": "https://www.youtube.com/shorts/6a9KPjfVLZY",
+    "title": "🔥 Are You Doing Your Squats the Right Way?",
+    "match_type": "fuzzy",
+    "match_score": 84,
+    "channel": "DEMIC"
+  },
+  "squat-with-plate-movers": {
+    "video_id": "6a9KPjfVLZY",
+    "url": "https://www.youtube.com/shorts/6a9KPjfVLZY",
+    "title": "🔥 Are You Doing Your Squats the Right Way?",
+    "match_type": "fuzzy",
+    "match_score": 74,
+    "channel": "DEMIC"
+  },
+  "squats-with-bands": {
+    "video_id": "6a9KPjfVLZY",
+    "url": "https://www.youtube.com/shorts/6a9KPjfVLZY",
+    "title": "🔥 Are You Doing Your Squats the Right Way?",
+    "match_type": "fuzzy",
+    "match_score": 84,
+    "channel": "DEMIC"
+  },
+  "standing-biceps-cable-curl": {
+    "video_id": "XaFVnEca4n8",
+    "url": "https://www.youtube.com/shorts/XaFVnEca4n8",
+    "title": "🔥💪 Bayesian Curls for Bigger Biceps Bayesian Curls are one of the best cable exercises for",
+    "match_type": "fuzzy",
+    "match_score": 67,
+    "channel": "DEMIC"
+  },
+  "standing-bradford-press": {
+    "video_id": "58ltZLBbZs0",
+    "url": "https://www.youtube.com/shorts/58ltZLBbZs0",
+    "title": "💪 Are You Making These Shoulder Press Mistakes?",
+    "match_type": "fuzzy",
+    "match_score": 66,
+    "channel": "DEMIC"
+  },
+  "standing-dumbbell-press": {
+    "video_id": "58ltZLBbZs0",
+    "url": "https://www.youtube.com/shorts/58ltZLBbZs0",
+    "title": "💪 Are You Making These Shoulder Press Mistakes?",
+    "match_type": "fuzzy",
+    "match_score": 66,
+    "channel": "DEMIC"
+  },
+  "standing-dumbbell-triceps-extension": {
+    "video_id": "Vf2ja38ScVw",
+    "url": "https://www.youtube.com/shorts/Vf2ja38ScVw",
+    "title": "💪 Perfect Your Cable Triceps Extension With These Tips",
+    "match_type": "fuzzy",
+    "match_score": 70,
+    "channel": "DEMIC"
+  },
+  "standing-inner-biceps-curl": {
+    "video_id": "oHbfdv_fh68",
+    "url": "https://www.youtube.com/shorts/oHbfdv_fh68",
+    "title": "🔥 Bicep Curl Mistakes to Avoid",
+    "match_type": "fuzzy",
+    "match_score": 68,
+    "channel": "DEMIC"
+  },
+  "standing-overhead-press": {
+    "video_id": "58ltZLBbZs0",
+    "url": "https://www.youtube.com/shorts/58ltZLBbZs0",
+    "title": "💪 Are You Making These Shoulder Press Mistakes?",
+    "match_type": "fuzzy",
+    "match_score": 66,
+    "channel": "DEMIC"
+  },
+  "standing-military-press": {
+    "video_id": "58ltZLBbZs0",
+    "url": "https://www.youtube.com/shorts/58ltZLBbZs0",
+    "title": "💪 Are You Making These Shoulder Press Mistakes?",
+    "match_type": "fuzzy",
+    "match_score": 66,
+    "channel": "DEMIC"
+  },
+  "standing-overhead-barbell-triceps-extension": {
+    "video_id": "OSW4fZW3Yu8",
+    "url": "https://www.youtube.com/shorts/OSW4fZW3Yu8",
+    "title": "🔥Most People Set Up Overhead Cable Tricep Extensions WRONG❌",
+    "match_type": "fuzzy",
+    "match_score": 71,
+    "channel": "DEMIC"
+  },
+  "standing-towel-triceps-extension": {
+    "video_id": "Vf2ja38ScVw",
+    "url": "https://www.youtube.com/shorts/Vf2ja38ScVw",
+    "title": "💪 Perfect Your Cable Triceps Extension With These Tips",
+    "match_type": "fuzzy",
+    "match_score": 70,
+    "channel": "DEMIC"
+  },
+  "stiff-legged-barbell-deadlift": {
+    "video_id": "Dkxdcz3qFD8",
+    "url": "https://www.youtube.com/shorts/Dkxdcz3qFD8",
+    "title": "🔥 Learn the Difference: Stiff vs RDL vs Deadlift 3 powerful variations, 3 different",
+    "match_type": "fuzzy",
+    "match_score": 72,
+    "channel": "DEMIC"
+  },
+  "stiff-legged-dumbbell-deadlift": {
+    "video_id": "Dkxdcz3qFD8",
+    "url": "https://www.youtube.com/shorts/Dkxdcz3qFD8",
+    "title": "🔥 Learn the Difference: Stiff vs RDL vs Deadlift 3 powerful variations, 3 different",
+    "match_type": "fuzzy",
+    "match_score": 72,
+    "channel": "DEMIC"
+  },
+  "straight-arm-dumbbell-pullover": {
+    "video_id": "iVr-7t9_zXk",
+    "url": "https://www.youtube.com/shorts/iVr-7t9_zXk",
+    "title": "💪 Dumbbell Pullover: Chest or Back? Know the Difference!",
+    "match_type": "fuzzy",
+    "match_score": 72,
+    "channel": "DEMIC"
+  },
+  "sumo-deadlift": {
+    "video_id": "4khjLGQ_cRg",
+    "url": "https://www.youtube.com/shorts/4khjLGQ_cRg",
+    "title": "🏋️♂️ How to Deadlift with Perfect Form (Fix These Mistakes)",
+    "match_type": "fuzzy",
+    "match_score": 66,
+    "channel": "DEMIC"
+  },
+  "suspended-push-up": {
+    "video_id": "aus4JoMbbPE",
+    "url": "https://www.youtube.com/shorts/aus4JoMbbPE",
+    "title": "6 Best Push-Ups Variations For Chest 🔥💪",
+    "match_type": "fuzzy",
+    "match_score": 86,
+    "channel": "DEMIC"
+  },
+  "suspended-row": {
+    "video_id": "58zn1wLMcgs",
+    "url": "https://www.youtube.com/shorts/58zn1wLMcgs",
+    "title": "🚫 Stop Rowing Wrong — Here’s the Right Form ✅",
+    "match_type": "fuzzy",
+    "match_score": 75,
+    "channel": "DEMIC"
+  },
+  "suspended-split-squat": {
+    "video_id": "-RffMuhmYc4",
+    "url": "https://www.youtube.com/shorts/-RffMuhmYc4",
+    "title": "❌Wrong Vs ✅Right - Split Squat🔥💪",
+    "match_type": "fuzzy",
+    "match_score": 91,
+    "channel": "DEMIC"
+  },
+  "t-bar-row-with-handle": {
+    "video_id": "nrY5qb8PFuk",
+    "url": "https://www.youtube.com/shorts/nrY5qb8PFuk",
+    "title": "🔥 T-Bar Rows Done Right = Massive Upper Back",
+    "match_type": "fuzzy",
+    "match_score": 73,
+    "channel": "DEMIC"
+  },
+  "trap-bar-deadlift": {
+    "video_id": "4khjLGQ_cRg",
+    "url": "https://www.youtube.com/shorts/4khjLGQ_cRg",
+    "title": "🏋️♂️ How to Deadlift with Perfect Form (Fix These Mistakes)",
+    "match_type": "fuzzy",
+    "match_score": 69,
+    "channel": "DEMIC"
+  },
+  "tricep-dumbbell-kickback": {
+    "video_id": "hzGKOwxbUQY",
+    "url": "https://www.youtube.com/shorts/hzGKOwxbUQY",
+    "title": "💪❌ Stop Doing Triceps Kickbacks Wrong",
+    "match_type": "fuzzy",
+    "match_score": 87,
+    "channel": "DEMIC"
+  },
+  "triceps-overhead-extension-with-rope": {
+    "video_id": "OSW4fZW3Yu8",
+    "url": "https://www.youtube.com/shorts/OSW4fZW3Yu8",
+    "title": "🔥Most People Set Up Overhead Cable Tricep Extensions WRONG❌",
+    "match_type": "fuzzy",
+    "match_score": 81,
+    "channel": "DEMIC"
+  },
+  "triceps-pushdown": {
+    "video_id": "MUvgPcr0SxM",
+    "url": "https://www.youtube.com/shorts/MUvgPcr0SxM",
+    "title": "💪 Perfect Your Triceps Pushdown Technique",
+    "match_type": "exact",
+    "match_score": 100,
+    "channel": "DEMIC"
+  },
+  "tuck-crunch": {
+    "video_id": "JV0WLEKnwCg",
+    "url": "https://www.youtube.com/shorts/JV0WLEKnwCg",
+    "title": "Perfect Your Kneeling Cable Crunch Form 🔥",
+    "match_type": "fuzzy",
+    "match_score": 65,
+    "channel": "DEMIC"
+  },
+  "two-arm-dumbbell-preacher-curl": {
+    "video_id": "RxhQUbcB1KU",
+    "url": "https://www.youtube.com/shorts/RxhQUbcB1KU",
+    "title": "⚠️ Avoid These Preacher Curl Mistakes",
+    "match_type": "fuzzy",
+    "match_score": 68,
+    "channel": "DEMIC"
+  },
+  "two-arm-kettlebell-military-press": {
+    "video_id": "58ltZLBbZs0",
+    "url": "https://www.youtube.com/shorts/58ltZLBbZs0",
+    "title": "💪 Are You Making These Shoulder Press Mistakes?",
+    "match_type": "fuzzy",
+    "match_score": 68,
+    "channel": "DEMIC"
+  },
+  "underhand-cable-pulldowns": {
+    "video_id": "FU8kvbDShmc",
+    "url": "https://www.youtube.com/shorts/FU8kvbDShmc",
+    "title": "💪 Same Pulldown",
+    "match_type": "fuzzy",
+    "match_score": 67,
+    "channel": "DEMIC"
+  },
+  "lat-pulldown-neutral-grip": {
+    "video_id": "FU8kvbDShmc",
+    "url": "https://www.youtube.com/shorts/FU8kvbDShmc",
+    "title": "💪 Same Pulldown",
+    "match_type": "fuzzy",
+    "match_score": 67,
+    "channel": "DEMIC"
+  },
+  "v-bar-pulldown": {
+    "video_id": "FU8kvbDShmc",
+    "url": "https://www.youtube.com/shorts/FU8kvbDShmc",
+    "title": "💪 Same Pulldown",
+    "match_type": "fuzzy",
+    "match_score": 67,
+    "channel": "DEMIC"
+  },
+  "v-bar-pullup": {
+    "video_id": "bJB5obIE7iU",
+    "url": "https://www.youtube.com/shorts/bJB5obIE7iU",
+    "title": "💪 The Perfect Pull-Up Form - Avoid These Mistakes",
+    "match_type": "fuzzy",
+    "match_score": 78,
+    "channel": "DEMIC"
+  },
+  "weighted-bench-dip": {
+    "video_id": "4YHsGYe5wls",
+    "url": "https://www.youtube.com/shorts/4YHsGYe5wls",
+    "title": "❌ Common Bench Dip Mistakes and How to Avoid Them",
+    "match_type": "fuzzy",
+    "match_score": 87,
+    "channel": "DEMIC"
+  },
+  "weighted-pull-up": {
+    "video_id": "bJB5obIE7iU",
+    "url": "https://www.youtube.com/shorts/bJB5obIE7iU",
+    "title": "💪 The Perfect Pull-Up Form - Avoid These Mistakes",
+    "match_type": "fuzzy",
+    "match_score": 87,
+    "channel": "DEMIC"
+  },
+  "weighted-pull-ups": {
+    "video_id": "bJB5obIE7iU",
+    "url": "https://www.youtube.com/shorts/bJB5obIE7iU",
+    "title": "💪 The Perfect Pull-Up Form - Avoid These Mistakes",
+    "match_type": "fuzzy",
+    "match_score": 87,
+    "channel": "DEMIC"
+  },
+  "weighted-squat": {
+    "video_id": "6a9KPjfVLZY",
+    "url": "https://www.youtube.com/shorts/6a9KPjfVLZY",
+    "title": "🔥 Are You Doing Your Squats the Right Way?",
+    "match_type": "fuzzy",
+    "match_score": 84,
+    "channel": "DEMIC"
+  },
+  "wide-stance-barbell-squat": {
+    "video_id": "syZq8UQNnps",
+    "url": "https://www.youtube.com/shorts/syZq8UQNnps",
+    "title": "🔥 Barbell Squats: Are You Doing Them Right?",
+    "match_type": "fuzzy",
+    "match_score": 66,
+    "channel": "DEMIC"
+  },
+  "wide-grip-barbell-bench-press": {
+    "video_id": "VJKA7R_oqzo",
+    "url": "https://www.youtube.com/shorts/VJKA7R_oqzo",
+    "title": "💥 Build a Bigger Chest With These 6 Bench Press Tips",
+    "match_type": "fuzzy",
+    "match_score": 65,
+    "channel": "DEMIC"
+  },
+  "wide-grip-lat-pulldown": {
+    "video_id": "ZtIuyEU3WaM",
+    "url": "https://www.youtube.com/shorts/ZtIuyEU3WaM",
+    "title": "✅ The PERFECT Lat Pulldown (DO THIS!)",
+    "match_type": "fuzzy",
+    "match_score": 68,
+    "channel": "DEMIC"
+  },
+  "zercher-squats": {
+    "video_id": "6a9KPjfVLZY",
+    "url": "https://www.youtube.com/shorts/6a9KPjfVLZY",
+    "title": "🔥 Are You Doing Your Squats the Right Way?",
+    "match_type": "fuzzy",
+    "match_score": 84,
+    "channel": "DEMIC"
+  },
+  "zottman-preacher-curl": {
+    "video_id": "RxhQUbcB1KU",
+    "url": "https://www.youtube.com/shorts/RxhQUbcB1KU",
+    "title": "⚠️ Avoid These Preacher Curl Mistakes",
+    "match_type": "fuzzy",
+    "match_score": 78,
+    "channel": "DEMIC"
   }
 }
