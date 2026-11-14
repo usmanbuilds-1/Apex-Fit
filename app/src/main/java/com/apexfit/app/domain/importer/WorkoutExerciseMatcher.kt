@@ -275,7 +275,7 @@ class WorkoutExerciseMatcher(entries: List<ExerciseLibraryEntry>) {
             return cleaned.split(Regex("\\s+"))
                 .flatMap { token -> SYNONYMS[token] ?: listOf(token) }
                 .map { token -> CANONICAL[token] ?: simpleStem(token) }
-                .filter { it.length > 1 && it !in FILLER && !it.all(Char::isDigit) }
+                .filter { token -> token.length > 1 && token !in FILLER && !token.all { it.isDigit() } }
         }
 
         private fun simpleStem(token: String): String = when {
