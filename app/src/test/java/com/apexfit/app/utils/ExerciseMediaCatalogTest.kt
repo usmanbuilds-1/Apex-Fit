@@ -51,7 +51,8 @@ class ExerciseMediaCatalogTest {
             {
               "dumbbell-lateral-raise": {
                 "source_id": "Side_Lateral_Raise",
-                "images": ["Side_Lateral_Raise/0.jpg", "Side_Lateral_Raise/1.jpg"]
+                "images": ["Side_Lateral_Raise/0.jpg", "Side_Lateral_Raise/1.jpg"],
+                "instructions": ["Stand tall.", "Raise under control."]
               }
             }
         """.trimIndent()
@@ -67,6 +68,7 @@ class ExerciseMediaCatalogTest {
         assertEquals("Side_Lateral_Raise", result.sourceId)
         assertEquals("dQw4w9WgXcQ", result.youtubeVideoId)
         assertEquals(2, result.imageUrls.size)
+        assertEquals(listOf("Stand tall.", "Raise under control."), result.instructions)
         assertTrue(result.imageUrls.first().contains("Side_Lateral_Raise/0.jpg"))
     }
 }

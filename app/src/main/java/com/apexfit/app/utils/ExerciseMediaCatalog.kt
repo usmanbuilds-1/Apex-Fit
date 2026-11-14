@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets
 data class ExerciseMedia(
     val sourceId: String?,
     val imageUrls: List<String>,
+    val instructions: List<String>,
     val youtubeVideoId: String?
 )
 
@@ -55,6 +56,17 @@ object ExerciseMediaCatalog {
                     }
                 }
             }
+            val instructionArray = mediaEntry?.optJSONArray("instructions")
+            val instructions = buildList {
+                if (instructionArray != null) {
+                    for (index in 0 until instructionArray.length()) {
+                        instructionArray.optString(index)
+                            .trim()
+                            .takeIf { it.isNotEmpty() }
+                            ?.let(::add)
+                    }
+                }
+            }
 
             val rawVideo = if (videoRoot.has(exerciseId) && !videoRoot.isNull(exerciseId)) {
                 videoRoot.optString(exerciseId)
@@ -65,6 +77,7 @@ object ExerciseMediaCatalog {
             ExerciseMedia(
                 sourceId = sourceId,
                 imageUrls = imageUrls,
+                instructions = instructions,
                 youtubeVideoId = normalizeYouTubeVideoId(rawVideo)
             )
         }
