@@ -412,19 +412,43 @@ class FitnessRepositoryImpl @Inject constructor(
             index to newId
         }.toMap()
 
-        // Step 4: remap each exercise's planSessionId to the correct new ID and resolve exerciseId FK
+        // Step 4: resolve known exercise IDs in one batch. Imported/manual plans normally
+        // already carry catalog IDs, so avoid an N+ name lookup during plan saves.
+        val suppliedExerciseIds = exercises
+            .map { it.exerciseId }
+            .filter { it.isNotBlank() }
+            .distinct()
+        val knownExercisesById = if (suppliedExerciseIds.isEmpty()) {
+            emptyMap()
+        } else {
+            dao.getExercisesByIds(suppliedExerciseIds).associateBy { it.id }
+        }
+
         val remappedExercises = exercises.map { exercise ->
             val sessionIndex = sessions.indexOfFirst { it.id == exercise.planSessionId }
             require(sessionIndex >= 0) { "Exercise has no matching training day" }
-            val existing = dao.getExerciseByName(exercise.name)
-            val exerciseId = if (existing != null) existing.id else {
-                val slug = com.apexfit.app.utils.exerciseNameToSlug(exercise.name)
-                val id = if (dao.getExerciseById(slug) == null) slug else java.util.UUID.randomUUID().toString()
-                dao.insertExercises(listOf(Exercise(
-                    id = id, name = exercise.name, category = "User Created",
-                    primaryMuscle = exercise.muscleGroup, equipmentRequired = "Unknown", isUserCreated = 1
-                )))
-                id
+
+            val knownById = knownExercisesById[exercise.exerciseId]
+            val exerciseId = if (knownById != null) {
+                knownById.id
+            } else {
+                // Compatibility fallback for older/manual callers that only supplied a name.
+                val existing = dao.getExerciseByName(exercise.name)
+                if (existing != null) {
+                    existing.id
+                } else {
+                    val slug = com.apexfit.app.utils.exerciseNameToSlug(exercise.name)
+                    val id = if (dao.getExerciseById(slug) == null) slug else java.util.UUID.randomUUID().toString()
+                    dao.insertExercises(listOf(Exercise(
+                        id = id,
+                        name = exercise.name,
+                        category = "User Created",
+                        primaryMuscle = exercise.muscleGroup,
+                        equipmentRequired = "Unknown",
+                        isUserCreated = 1
+                    )))
+                    id
+                }
             }
             exercise.copy(
                 planSessionId = sessionIdMap[sessionIndex] ?: 0L,
