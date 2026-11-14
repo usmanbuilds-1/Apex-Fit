@@ -46,7 +46,7 @@ class ExerciseMediaCatalogTest {
     }
 
     @Test
-    fun catalogCombinesImagesAndOptionalVideo() {
+    fun catalogCombinesImagesAndStructuredVideoMetadata() {
         val media = """
             {
               "dumbbell-lateral-raise": {
@@ -81,7 +81,6 @@ class ExerciseMediaCatalogTest {
         assertEquals(listOf("Stand tall.", "Raise under control."), result.instructions)
         assertTrue(result.imageUrls.first().contains("Side_Lateral_Raise/0.jpg"))
     }
-}
 
     @Test
     fun legacyStringVideoMapping_remainsSupported() {
@@ -100,3 +99,4 @@ class ExerciseMediaCatalogTest {
         assertEquals("dQw4w9WgXcQ", result.youtubeVideoId)
         assertNull(result.youtubeVideoTitle)
     }
+}
