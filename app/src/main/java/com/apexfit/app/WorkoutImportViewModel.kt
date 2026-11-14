@@ -282,9 +282,18 @@ class WorkoutImportViewModel @Inject constructor(
                         val exerciseId = requireNotNull(exercise.selectedExerciseId)
                         val name = requireNotNull(exercise.selectedExerciseName)
                         val muscle = exercise.muscleGroup ?: "Other"
+                        val importedWeight = exercise.weight
+                        val canonicalWeightKg = when {
+                            importedWeight == null -> 0.0
+                            exercise.weightUnit == ImportWeightUnit.LB -> importedWeight * 0.45359237
+                            else -> importedWeight
+                        }
                         val notes = buildList {
                             if (exercise.repTarget == ImportRepTarget.AMRAP) add("Imported target: AMRAP")
                             if (exercise.repTarget == ImportRepTarget.FAILURE) add("Imported target: to failure")
+                            if (importedWeight != null && exercise.weightUnit == ImportWeightUnit.LB) {
+                                add("Imported load: " + formatImportedWeight(importedWeight) + " lb")
+                            }
                             if (exercise.notes.isNotBlank()) add(exercise.notes.trim())
                         }.distinct().joinToString(" · ")
                         PlanExercise(
@@ -296,8 +305,8 @@ class WorkoutImportViewModel @Inject constructor(
                             sets = requireNotNull(exercise.sets),
                             repsMin = requireNotNull(exercise.repsMin),
                             repsMax = requireNotNull(exercise.repsMax),
-                            weight = exercise.weight ?: 0.0,
-                            weightUnit = exercise.weightUnit.code,
+                            weight = canonicalWeightKg,
+                            weightUnit = "kg",
                             restSeconds = exercise.restSeconds
                                 ?: metadataById[exerciseId]?.defaultRestSeconds
                                 ?: 120,
@@ -366,6 +375,9 @@ class WorkoutImportViewModel @Inject constructor(
             day.copy(exercises = day.exercises.map { if (it.key == exerciseKey) transform(it) else it })
         }
     }
+
+    private fun formatImportedWeight(value: Double): String =
+        if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()
 
     private fun sanitizeDecimal(value: String): String {
         val filtered = value.filter { it.isDigit() || it == '.' }
