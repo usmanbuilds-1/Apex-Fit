@@ -875,7 +875,12 @@ private suspend fun loadFormGuideData(
     val exercise = dao.getExerciseById(slug) ?: dao.getExerciseByName(exerciseName)
         ?: return@withContext null
     val metadata = dao.getMetadataForExercise(exercise.id)
-    exercise to FormGuideBuilder.buildFormGuide(exercise, metadata)
+    val sourceInstructions = ExerciseMediaCatalog.get(context, exercise.id)?.instructions.orEmpty()
+    exercise to FormGuideBuilder.buildFormGuide(
+        exercise = exercise,
+        metadata = metadata,
+        sourceInstructions = sourceInstructions
+    )
 }
 
 @Composable
