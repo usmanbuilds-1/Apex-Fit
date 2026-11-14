@@ -46,7 +46,7 @@ class ExerciseMediaCatalogTest {
     }
 
     @Test
-    fun catalogCombinesImagesAndOptionalVideo() {
+    fun catalogCombinesImagesAndStructuredVideoMetadata() {
         val media = """
             {
               "dumbbell-lateral-raise": {
@@ -58,7 +58,13 @@ class ExerciseMediaCatalogTest {
         """.trimIndent()
         val videos = """
             {
-              "dumbbell-lateral-raise": "https://youtube.com/shorts/dQw4w9WgXcQ"
+              "dumbbell-lateral-raise": {
+                "video_id": "dQw4w9WgXcQ",
+                "title": "Perfect Lateral Raise",
+                "match_type": "fuzzy",
+                "match_score": 89,
+                "channel": "DEMIC"
+              }
             }
         """.trimIndent()
 
@@ -67,8 +73,30 @@ class ExerciseMediaCatalogTest {
 
         assertEquals("Side_Lateral_Raise", result.sourceId)
         assertEquals("dQw4w9WgXcQ", result.youtubeVideoId)
+        assertEquals("Perfect Lateral Raise", result.youtubeVideoTitle)
+        assertEquals("fuzzy", result.youtubeMatchType)
+        assertEquals(89, result.youtubeMatchScore)
+        assertEquals("DEMIC", result.youtubeChannel)
         assertEquals(2, result.imageUrls.size)
         assertEquals(listOf("Stand tall.", "Raise under control."), result.instructions)
         assertTrue(result.imageUrls.first().contains("Side_Lateral_Raise/0.jpg"))
+    }
+
+    @Test
+    fun legacyStringVideoMapping_remainsSupported() {
+        val media = """
+            {
+              "plank": {
+                "source_id": "Plank",
+                "images": [],
+                "instructions": []
+              }
+            }
+        """.trimIndent()
+        val videos = """{"plank":"https://youtu.be/dQw4w9WgXcQ"}"""
+
+        val result = ExerciseMediaCatalog.parseCatalog(media, videos).getValue("plank")
+        assertEquals("dQw4w9WgXcQ", result.youtubeVideoId)
+        assertNull(result.youtubeVideoTitle)
     }
 }

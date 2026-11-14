@@ -91,13 +91,23 @@ fun ExerciseMediaPanel(
         }
 
         currentMedia.youtubeVideoId?.let { videoId ->
-            YouTubeTechniqueVideo(videoId = videoId)
+            YouTubeTechniqueVideo(
+                videoId = videoId,
+                title = currentMedia.youtubeVideoTitle,
+                matchType = currentMedia.youtubeMatchType,
+                channel = currentMedia.youtubeChannel
+            )
         }
     }
 }
 
 @Composable
-private fun YouTubeTechniqueVideo(videoId: String) {
+private fun YouTubeTechniqueVideo(
+    videoId: String,
+    title: String?,
+    matchType: String?,
+    channel: String?
+) {
     var showPlayer by rememberSaveable(videoId) { mutableStateOf(false) }
     var webView by remember(videoId) { mutableStateOf<WebView?>(null) }
 
@@ -106,12 +116,32 @@ private fun YouTubeTechniqueVideo(videoId: String) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "TECHNIQUE VIDEO",
+            text = if (matchType == "exact") "TECHNIQUE VIDEO" else "RELATED TECHNIQUE",
             fontFamily = JetBrainsMonoFamily,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = AmberAccent
         )
+
+        title?.let {
+            Text(
+                text = it,
+                fontFamily = InterFamily,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PrimaryText,
+                lineHeight = 18.sp
+            )
+        }
+
+        if (!channel.isNullOrBlank()) {
+            Text(
+                text = if (matchType == "exact") channel else "$channel · related movement guide",
+                fontFamily = JetBrainsMonoFamily,
+                fontSize = 10.sp,
+                color = MutedText
+            )
+        }
 
         if (!showPlayer) {
             OutlinedButton(

@@ -11,7 +11,11 @@ data class ExerciseMedia(
     val sourceId: String?,
     val imageUrls: List<String>,
     val instructions: List<String>,
-    val youtubeVideoId: String?
+    val youtubeVideoId: String?,
+    val youtubeVideoTitle: String? = null,
+    val youtubeMatchType: String? = null,
+    val youtubeMatchScore: Int? = null,
+    val youtubeChannel: String? = null
 )
 
 object ExerciseMediaCatalog {
@@ -47,6 +51,7 @@ object ExerciseMediaCatalog {
         return exerciseIds.associateWith { exerciseId ->
             val mediaEntry = mediaRoot.optJSONObject(exerciseId)
             val sourceId = mediaEntry?.optString("source_id")?.takeIf { it.isNotBlank() }
+
             val images = mediaEntry?.optJSONArray("images")
             val imageUrls = buildList {
                 if (images != null) {
@@ -56,6 +61,7 @@ object ExerciseMediaCatalog {
                     }
                 }
             }
+
             val instructionArray = mediaEntry?.optJSONArray("instructions")
             val instructions = buildList {
                 if (instructionArray != null) {
@@ -68,17 +74,47 @@ object ExerciseMediaCatalog {
                 }
             }
 
-            val rawVideo = if (videoRoot.has(exerciseId) && !videoRoot.isNull(exerciseId)) {
-                videoRoot.optString(exerciseId)
+            val videoValue = if (videoRoot.has(exerciseId) && !videoRoot.isNull(exerciseId)) {
+                videoRoot.opt(exerciseId)
             } else {
                 null
+            }
+
+            var videoId: String? = null
+            var videoTitle: String? = null
+            var matchType: String? = null
+            var matchScore: Int? = null
+            var channel: String? = null
+
+            when (videoValue) {
+                is JSONObject -> {
+                    videoId = normalizeYouTubeVideoId(
+                        videoValue.optString("video_id").takeIf { it.isNotBlank() }
+                            ?: videoValue.optString("url").takeIf { it.isNotBlank() }
+                    )
+                    videoTitle = videoValue.optString("title").trim().takeIf { it.isNotEmpty() }
+                    matchType = videoValue.optString("match_type").trim().takeIf { it.isNotEmpty() }
+                    matchScore = if (videoValue.has("match_score") && !videoValue.isNull("match_score")) {
+                        videoValue.optInt("match_score")
+                    } else {
+                        null
+                    }
+                    channel = videoValue.optString("channel").trim().takeIf { it.isNotEmpty() }
+                }
+                is String -> {
+                    videoId = normalizeYouTubeVideoId(videoValue)
+                }
             }
 
             ExerciseMedia(
                 sourceId = sourceId,
                 imageUrls = imageUrls,
                 instructions = instructions,
-                youtubeVideoId = normalizeYouTubeVideoId(rawVideo)
+                youtubeVideoId = videoId,
+                youtubeVideoTitle = videoTitle,
+                youtubeMatchType = matchType,
+                youtubeMatchScore = matchScore,
+                youtubeChannel = channel
             )
         }
     }
