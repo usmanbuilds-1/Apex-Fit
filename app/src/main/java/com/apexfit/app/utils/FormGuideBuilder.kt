@@ -12,9 +12,16 @@ data class FormGuideContent(
 )
 
 object FormGuideBuilder {
-    fun buildFormGuide(exercise: Exercise, metadata: ExerciseMetadata?): FormGuideContent {
+    fun buildFormGuide(
+        exercise: Exercise,
+        metadata: ExerciseMetadata?,
+        sourceInstructions: List<String> = emptyList()
+    ): FormGuideContent {
         val forceType = metadata?.forceType ?: "movement"
-        val instructions = parseNumberedInstructions(metadata?.notes)
+        val instructions = sourceInstructions
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .ifEmpty { parseNumberedInstructions(metadata?.notes) }
 
         val setup =
             "For this ${exercise.category.lowercase()} exercise utilizing a $forceType pattern, ensure a stable base and proper bracing before initiating the movement."
