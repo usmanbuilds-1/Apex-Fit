@@ -124,6 +124,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.gson)
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.core)
