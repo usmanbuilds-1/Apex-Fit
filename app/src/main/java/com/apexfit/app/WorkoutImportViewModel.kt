@@ -59,8 +59,16 @@ class WorkoutImportViewModel @Inject constructor(
     private var libraryLoaded = false
 
     fun updateInput(text: String) {
+        val tooLarge = text.length > WorkoutTextNormalizer.MAX_INPUT_CHARS
         val bounded = text.take(WorkoutTextNormalizer.MAX_INPUT_CHARS)
-        _uiState.value = _uiState.value.copy(inputText = bounded, errorMessage = null)
+        _uiState.value = _uiState.value.copy(
+            inputText = bounded,
+            errorMessage = if (tooLarge) {
+                "Paste is limited to " + WorkoutTextNormalizer.MAX_INPUT_CHARS + " characters for safe local parsing."
+            } else {
+                null
+            }
+        )
     }
 
     fun clear() {
