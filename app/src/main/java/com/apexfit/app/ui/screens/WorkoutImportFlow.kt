@@ -12,11 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -169,7 +165,7 @@ private fun WorkoutImportPasteScreen(
                     TextButton(onClick = {
                         clipboard.getText()?.text?.let(onInput)
                     }) {
-                        Icon(Icons.Filled.ContentPaste, null)
+                        Icon(Icons.Filled.Add, null)
                         Spacer(Modifier.width(6.dp))
                         Text("Paste")
                     }
@@ -375,9 +371,9 @@ private fun ImportedDayCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("TRAINING DAY", color = AmberAccent, fontFamily = JetBrainsMonoFamily, fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onMoveUp) { Icon(Icons.Filled.ArrowUpward, "Move day up", tint = SecondaryText) }
-                IconButton(onClick = onMoveDown) { Icon(Icons.Filled.ArrowDownward, "Move day down", tint = SecondaryText) }
-                IconButton(onClick = onDeleteDay) { Icon(Icons.Filled.DeleteOutline, "Delete day", tint = ApexColors.Alert) }
+                IconButton(onClick = onMoveUp) { Text("↑", color = SecondaryText, fontSize = 18.sp) }
+                IconButton(onClick = onMoveDown) { Text("↓", color = SecondaryText, fontSize = 18.sp) }
+                IconButton(onClick = onDeleteDay) { Text("×", color = ApexColors.Alert, fontSize = 22.sp) }
             }
             OutlinedTextField(
                 value = day.label,
@@ -444,9 +440,9 @@ private fun ImportedExerciseCard(
                     Text("Source: " + exercise.sourceName, color = MutedText, fontSize = 10.sp)
                 }
             }
-            IconButton(onClick = onMoveUp) { Icon(Icons.Filled.ArrowUpward, "Move up", tint = SecondaryText) }
-            IconButton(onClick = onMoveDown) { Icon(Icons.Filled.ArrowDownward, "Move down", tint = SecondaryText) }
-            IconButton(onClick = onDelete) { Icon(Icons.Filled.DeleteOutline, "Delete exercise", tint = ApexColors.Alert) }
+            IconButton(onClick = onMoveUp) { Text("↑", color = SecondaryText, fontSize = 18.sp) }
+            IconButton(onClick = onMoveDown) { Text("↓", color = SecondaryText, fontSize = 18.sp) }
+            IconButton(onClick = onDelete) { Text("×", color = ApexColors.Alert, fontSize = 22.sp) }
         }
 
         MatchStatus(exercise, onConfirm, onChoose, onSelectCandidate)
