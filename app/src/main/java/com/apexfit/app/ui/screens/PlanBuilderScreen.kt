@@ -240,7 +240,7 @@ fun PlanBuilderScreen(
                         border = BorderStroke(1.dp, ApexColors.Primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "Import workout from text",
