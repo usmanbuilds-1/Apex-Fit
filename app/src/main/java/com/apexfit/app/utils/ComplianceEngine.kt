@@ -59,8 +59,12 @@ object ComplianceEngine {
         val expectedSessions = ((evaluatedDays / 7.0) * targets.weeklyTrainingSessions)
             .roundToInt()
             .coerceAtLeast(if (targets.weeklyTrainingSessions > 0) 1 else 0)
+        // Onboarding frequency is expressed as training days per week, so
+        // multiple sessions logged on the same date must not count as multiple
+        // adherence days.
+        val completedTrainingDays = recentTraining.map { it.date }.distinct().size
         val trainingScore = if (expectedSessions > 0) {
-            minOf(100, ((recentTraining.size.toDouble() * 100) / expectedSessions).roundToInt())
+            minOf(100, ((completedTrainingDays.toDouble() * 100) / expectedSessions).roundToInt())
         } else {
             0
         }
