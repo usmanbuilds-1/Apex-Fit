@@ -118,6 +118,33 @@ Do not introduce:
 
 Do not solve empty space with decoration. Do not create a new screen, card, or tab simply because a new capability exists.
 
+## Adaptive progression
+
+Apex Fit has two distinct progression concepts and the UI must not blur them:
+
+1. **Load / rep progression** — the existing `ProgressionEngine` remains authoritative for next-session weight suggestions. A clean success requires the prescribed working sets to reach the top of the rep range at RPE ≤ 8. RPE 9 is not a clean progression success. Stalled work holds load; repeated failed sessions may trigger the existing deload behavior.
+2. **Set-volume progression** — a separate adaptive layer may change the number of prescribed working sets. It must not be inferred from the Muscle Volume heatmap itself.
+
+Set-volume progression requirements:
+- make no change from a single good or bad session;
+- require repeated evidence across distinct completed exposures;
+- be goal-aware: do not automatically increase hypertrophy-style set volume for goals where that is not appropriate;
+- do not increase load and set count for the same exercise in the same progression step; change one training variable at a time;
+- increase conservatively, at most **+1 prescribed working set for a muscle in a progression step**;
+- reduce/hold volume when recovery/fatigue/deload signals argue against adding work;
+- never treat the app's heuristic “effective set” score as a biological percentage or as sufficient evidence by itself;
+- never count warm-ups as adaptive volume;
+- preserve the user's original/base program and store adaptive changes as explicit next-session/program overrides rather than silently rewriting history;
+- every automatic set-count change must be visible, explainable, and undoable before or during the affected workout;
+- insufficient evidence means **hold**, not guess;
+- tests must cover success, hold, fatigue/recovery block, deload/reduction, sparse history, duplicate-day evidence, goal gating, and undo/revert behavior.
+
+Presentation:
+- show the adjusted target next to the affected exercise using restrained copy such as `3 → 4 sets`;
+- expose a short “Why?” explanation using real inputs (recent completed exposures, effort, recovery/fatigue state), not motivational copy;
+- do not create a new top-level progression dashboard;
+- deeper progression history belongs under Progress/Explore or exercise history, while the active workout shows only the adjustment relevant to today's work.
+
 ## Muscle volume
 
 Muscle Volume lives under **Progress → Explore → Volume**. It is a training-log view, not a recovery, hypertrophy, or injury-prediction view.
