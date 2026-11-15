@@ -122,8 +122,8 @@ data class TrainingSession(
 /**
  * Represents a single set within a workout session.
  *
- * @param effectiveSetValue A 0.0-1.0 multiplier indicating the hypertrophy
- *   effectiveness of this set, derived from RPE via
+ * @param effectiveSetValue A 0.0-1.0 app-specific effort weighting derived
+ *   from RPE. It is a heuristic summary score, not a percentage of hypertrophy.
  *   ProgressionEngine.calculateEffectiveSetValue(rpe).
  *   Values: RPE 10→1.0, 9→0.90, 8→0.75, 7→0.50, else→0.0.
  *   Used in AlgorithmEngine.calcEffectiveSets for weekly volume calculations.
