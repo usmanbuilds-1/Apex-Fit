@@ -210,6 +210,7 @@ class WorkoutSessionManager(
                 todayExercises = exercises,
                 nutritionLog = nutritionLog,
                 targets = targets,
+                bodyWeightKg = latestWeight,
                 metadata = metadataMap
             )
         } catch (e: Exception) {
@@ -360,7 +361,7 @@ class WorkoutSessionManager(
                         setNumber = setNum,
                         weight = suggestedWeight,
                         reps = ex.repsMin,
-                        rpe = 7,               // Default — user must set this
+                        rpe = 0,               // Unrated until the user explicitly selects effort
                         isWarmup = false,
                         restTakenSeconds = 0,
                         completed = false,
@@ -409,7 +410,7 @@ class WorkoutSessionManager(
         val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
         if (setIndex !in exercise.sets.indices) return
 
-        val rpeVal = rpe.coerceIn(1, 10)
+        val rpeVal = rpe.coerceIn(0, 10)
         val updatedExercises = session.exercises.map { ex ->
             if (ex.exerciseId == exerciseId) {
                 val updatedSets = ex.sets.toMutableList()
@@ -444,7 +445,7 @@ class WorkoutSessionManager(
         val newSetNum = exercise.sets.size + 1
         val suggestedWeight = lastSet?.weight ?: 50.0
         val suggestedReps = lastSet?.reps ?: 10
-        val suggestedRpe = lastSet?.rpe ?: 7
+        val suggestedRpe = lastSet?.rpe?.takeIf { it in 1..10 } ?: 0
         val suggestedWeightUnit = lastSet?.weightUnit ?: "kg"
 
         // Structural sharing: only copy the affected exercise
@@ -582,7 +583,8 @@ class WorkoutSessionManager(
 
         val trainingSession = TrainingSession(
             id = sessionId,
-            date = com.apexfit.app.utils.DateTimeUtils.todayDateString(),
+            // Attribute a cross-midnight workout to the local calendar day it began.
+            date = com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(session.startTime),
             sessionType = session.sessionType,
             completed = completedSetsOnly && !isPartial,
             durationMinutes = durationMinutes,
