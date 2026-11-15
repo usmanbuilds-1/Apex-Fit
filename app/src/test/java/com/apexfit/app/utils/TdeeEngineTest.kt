@@ -217,6 +217,55 @@ class TdeeEngineTest {
     }
 
     @Test
+    fun adaptive_oldHistoryDoesNotUnlockSparseRecentWindow() {
+        val oldWeights = (20 until 27).map {
+            WeightEntry(date = getDateDaysAgo(it), weight = 80.0)
+        }
+        val recentWeights = listOf(
+            WeightEntry(date = getDateDaysAgo(1), weight = 80.0),
+            WeightEntry(date = getDateDaysAgo(0), weight = 80.0)
+        )
+        val oldNutrition = (20 until 27).map {
+            NutritionEntry(date = getDateDaysAgo(it), calories = 2500, protein = 150, carbs = 200, fat = 60)
+        }
+        val recentNutrition = nutritionLog(14, 2500)
+
+        val result = TdeeEngine.calcAdaptiveTDEE(
+            weightLog = oldWeights + recentWeights,
+            nutritionLog = oldNutrition + recentNutrition,
+            windowDays = 14,
+            heightCm = 175.0,
+            ageYears = 25,
+            biologicalSex = "male",
+            weeklyWorkouts = 4
+        )
+
+        assertTrue(
+            "Seven old weigh-in days must not unlock an adaptive estimate from only two recent weigh-in days",
+            result.confidence.contains("Mifflin", ignoreCase = true)
+        )
+    }
+
+    @Test
+    fun fallbackLatestWeightUsesLatestTimeOnSameDate() {
+        val today = getCurrentDate()
+        val result = TdeeEngine.calcAdaptiveTDEE(
+            weightLog = listOf(
+                WeightEntry(date = today, time = "07:00", weight = 70.0),
+                WeightEntry(date = today, time = "21:00", weight = 80.0)
+            ),
+            nutritionLog = emptyList(),
+            heightCm = 175.0,
+            ageYears = 25,
+            biologicalSex = "male",
+            weeklyWorkouts = 0
+        )
+
+        val expectedBmr = (10.0 * 80.0) + (6.25 * 175.0) - (5.0 * 25) + 5.0
+        assertEquals((expectedBmr * 1.2).roundToInt(), result.tdee)
+    }
+
+    @Test
     fun adaptive_duplicateWeightRowsDoNotCountAsSevenDaysOfEvidence() {
         val sameDayWeights = (1..7).map {
             WeightEntry(date = getDateDaysAgo(0), weight = 80.0 + it * 0.01)
