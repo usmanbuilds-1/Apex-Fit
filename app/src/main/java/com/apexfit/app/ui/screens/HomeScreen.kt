@@ -96,6 +96,10 @@ fun HomeScreen(
     val planSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val activeSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val todayDate          by homeViewModel.todayDate.collectAsStateWithLifecycle()
+    val estimatedWorkoutDuration by homeViewModel.estimatedWorkoutDuration.collectAsStateWithLifecycle()
+
+    var showReadinessExplanation by remember { mutableStateOf(false) }
+    var showDurationExplanation by remember { mutableStateOf(false) }
 
     val configuration = LocalConfiguration.current
     val isNarrowScreen = configuration.screenWidthDp < 600
@@ -159,6 +163,8 @@ fun HomeScreen(
                     sessionLabel    = todaySession?.label.orEmpty(),
                     sessionFocus    = todaySession?.focus.orEmpty(),
                     hasActiveSession = activeSession != null,
+                    estimatedDurationMin = estimatedWorkoutDuration,
+                    onDurationInfo = { showDurationExplanation = true },
 
                     onStartWorkout  = {
                         if (activeSession == null) todaySession?.let { workoutExecutionViewModel.startWorkoutSession(it) }
@@ -168,7 +174,12 @@ fun HomeScreen(
                 )
 
                 readiness?.let { state ->
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(role = Role.Button) { showReadinessExplanation = true }
+                            .padding(vertical = 8.dp)
+                    ) {
                         Text("Readiness · ${state.score} / 100 · ${state.label}", color = ElectricMint,
                             fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Text(state.recommendation, color = TextMuted, fontSize = 13.sp,
@@ -226,6 +237,20 @@ fun HomeScreen(
                 TrainingStreakSection(trainingStreak, onView = { onNavigateTo(3) })
             }
         }
+    }
+
+    if (showReadinessExplanation) {
+        TodayReadinessExplanationDialog(
+            readiness = readiness,
+            onDismiss = { showReadinessExplanation = false }
+        )
+    }
+
+    if (showDurationExplanation) {
+        WorkoutDurationExplanationDialog(
+            estimatedMinutes = estimatedWorkoutDuration,
+            onDismiss = { showDurationExplanation = false }
+        )
     }
 }
 
@@ -334,6 +359,8 @@ private fun TodayWorkoutCard(
     sessionLabel: String,
     sessionFocus: String,
     hasActiveSession: Boolean,
+    estimatedDurationMin: Int,
+    onDurationInfo: () -> Unit,
     onStartWorkout: () -> Unit
 ) {
     val hasSession = sessionLabel.isNotBlank()
@@ -345,6 +372,17 @@ private fun TodayWorkoutCard(
             color = Color.White, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
         Text(if (hasSession) sessionFocus else "Take a recovery day, or choose a workout from your plan.",
             color = TextMuted, fontSize = 14.sp, lineHeight = 21.sp)
+        if (hasSession && estimatedDurationMin > 0) {
+            Text(
+                text = "~$estimatedDurationMin min · estimated",
+                color = TextMuted,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button, onClick = onDurationInfo)
+                    .wrapContentHeight(Alignment.CenterVertically)
+            )
+        }
         Button(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ElectricMint, contentColor = CanvasVoid)) {
@@ -514,7 +552,7 @@ private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, un
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically) {
             Text("Weight trend", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            TextButton(onClick = onView) { Text("Check in", color = ElectricMint) }
+            TextButton(onClick = onView) { Text("Log weight", color = ElectricMint) }
         }
         if (history.isEmpty()) {
             Text("Add your first weigh-in", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -524,13 +562,23 @@ private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, un
                 color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             if (history.size > 1) {
                 val change = (history.last().weight - history.first().weight) * multiplier
-                Text(String.format(Locale.getDefault(), "%+.1f %s across these check-ins", change, unit),
+                Text(String.format(Locale.getDefault(), "%+.1f %s across these weigh-ins", change, unit),
                     color = TextMuted, fontSize = 13.sp)
-            } else Text("One check-in recorded. Keep logging to see a trend.", color = TextMuted, fontSize = 13.sp)
-            WeightSparklineSingleDot(history, Modifier.fillMaxWidth().height(54.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(history.first().date, color = TextMuted, fontSize = 11.sp)
-                if (history.size > 1) Text(history.last().date, color = TextMuted, fontSize = 11.sp)
+            } else Text("One weigh-in recorded.", color = TextMuted, fontSize = 13.sp)
+
+            val datedWeighIns = history.map { it.date }.distinct().size
+            if (datedWeighIns >= 3) {
+                WeightSparklineSingleDot(history, Modifier.fillMaxWidth().height(54.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(history.first().date, color = TextMuted, fontSize = 11.sp)
+                    Text(history.last().date, color = TextMuted, fontSize = 11.sp)
+                }
+            } else {
+                Text(
+                    "Your chart appears after three dated weigh-ins.",
+                    color = TextMuted,
+                    fontSize = 12.sp
+                )
             }
         }
     }
@@ -603,9 +651,9 @@ private fun WeightSparklineSingleDot(entries: List<UiWeightEntry>, modifier: Mod
 }
 
 // ─── Recent Sessions ──────────────────────────────────────────────────────────
-// Rule 13: "Completed" → mint check-circle 16px + label #8EA0AE.
-// Metadata: "45 min · 12 exercises · 1 PR" pattern. Never "3 sets" at session level.
-// Rule 14: "See all" → #8EA0AE, 44pt hit area.
+// Recent-session metadata must be derived from persisted session data only.
+// Never insert placeholder duration, exercise counts, or PR counts.
+// "See all" keeps a full-size touch target.
 
 @Composable
 private fun RecentSessionsSection(sessions: List<RichTrainingSession>, onSeeAll: () -> Unit) {
@@ -663,9 +711,13 @@ private fun RecentSessionsSection(sessions: List<RichTrainingSession>, onSeeAll:
 
 @Composable
 private fun SessionRow(session: RichTrainingSession) {
-    val duration = if (session.durationMinutes > 0) session.durationMinutes else 45
-    val exerciseCount = if (session.exercises.isNotEmpty()) session.exercises.size else 12
-    val prString = " · 1 PR"
+    val metadata = buildList {
+        if (session.durationMinutes > 0) add("${session.durationMinutes} min")
+        if (session.exercises.isNotEmpty()) {
+            val count = session.exercises.size
+            add("$count exercise${if (count == 1) "" else "s"}")
+        }
+    }
 
     Row(
         modifier = Modifier
@@ -685,7 +737,6 @@ private fun SessionRow(session: RichTrainingSession) {
                 color = Color.White
             )
 
-            // Rule 13: Mint check-circle 16px + label #8EA0AE + "45 min · 12 exercises · 1 PR" pattern
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -708,11 +759,13 @@ private fun SessionRow(session: RichTrainingSession) {
                         color = TextTertiary
                     )
                 }
-                Text(
-                    text = "$duration min · $exerciseCount exercises$prString",
-                    fontSize = 13.sp,
-                    color = TextMuted
-                )
+                if (metadata.isNotEmpty()) {
+                    Text(
+                        text = metadata.joinToString(" · "),
+                        fontSize = 13.sp,
+                        color = TextMuted
+                    )
+                }
             }
         }
 
@@ -733,6 +786,77 @@ private fun SessionRow(session: RichTrainingSession) {
             )
         }
     }
+}
+
+@Composable
+private fun TodayReadinessExplanationDialog(
+    readiness: UiSessionReadiness?,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Why this readiness?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (readiness == null) {
+                    Text("Log training and nutrition to build a readiness estimate.")
+                } else {
+                    Text(
+                        text = "${readiness.score}% · ${readiness.recommendation}",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    readiness.factors.forEach { factor ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(factor.name, modifier = Modifier.weight(1f))
+                            Spacer(Modifier.width(12.dp))
+                            Text(factor.value, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    if (readiness.prediction.isNotBlank()) {
+                        Text(readiness.prediction, color = TextMuted)
+                    }
+                    Text(
+                        "This is a rough estimate from logged training and nutrition, not a measurement of recovery. Consider sleep, stress, soreness and how you feel.",
+                        color = TextMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        }
+    )
+}
+
+@Composable
+private fun WorkoutDurationExplanationDialog(
+    estimatedMinutes: Int,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Estimated workout time") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (estimatedMinutes > 0) {
+                    Text("~$estimatedMinutes min", fontWeight = FontWeight.SemiBold)
+                }
+                Text("Estimated from your planned sets, rep targets and rest periods. Actual time can vary.")
+                Text(
+                    "This estimate does not include equipment waiting, walking between stations, plate-loading delays, interruptions or breaks.",
+                    color = TextMuted,
+                    fontSize = 12.sp
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        }
+    )
 }
 
 private fun formatSessionDate(dateStr: String): String = runCatching {
