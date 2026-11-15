@@ -4,7 +4,6 @@ import android.content.Context
 import org.json.JSONObject
 import java.net.URI
 import java.net.URLDecoder
-import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 data class ExerciseMedia(
@@ -21,9 +20,8 @@ data class ExerciseMedia(
 object ExerciseMediaCatalog {
     private const val MEDIA_ASSET = "exercise_media.json"
     private const val VIDEO_ASSET = "exercise_videos.json"
-    internal const val IMAGE_BASE_URL =
-        "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/"
-
+    // Free Exercise DB image provenance is not verified for production use.
+    // Keep source IDs/instructions, but do not construct or fetch upstream image URLs.
     @Volatile
     private var cachedCatalog: Map<String, ExerciseMedia>? = null
 
@@ -52,15 +50,10 @@ object ExerciseMediaCatalog {
             val mediaEntry = mediaRoot.optJSONObject(exerciseId)
             val sourceId = mediaEntry?.optString("source_id")?.takeIf { it.isNotBlank() }
 
-            val images = mediaEntry?.optJSONArray("images")
-            val imageUrls = buildList {
-                if (images != null) {
-                    for (index in 0 until images.length()) {
-                        val path = images.optString(index).takeIf { it.isNotBlank() } ?: continue
-                        add(buildImageUrl(path))
-                    }
-                }
-            }
+            // Image paths remain in the source asset for provenance/migration purposes,
+            // but production intentionally exposes no remote image URLs until each image
+            // source is independently verified for commercial use.
+            val imageUrls = emptyList<String>()
 
             val instructionArray = mediaEntry?.optJSONArray("instructions")
             val instructions = buildList {
@@ -117,16 +110,6 @@ object ExerciseMediaCatalog {
                 youtubeChannel = channel
             )
         }
-    }
-
-    internal fun buildImageUrl(path: String): String {
-        val encodedPath = path
-            .split('/')
-            .filter { it.isNotEmpty() }
-            .joinToString("/") { segment ->
-                URLEncoder.encode(segment, StandardCharsets.UTF_8.name()).replace("+", "%20")
-            }
-        return IMAGE_BASE_URL + encodedPath
     }
 
     internal fun normalizeYouTubeVideoId(rawValue: String?): String? {
