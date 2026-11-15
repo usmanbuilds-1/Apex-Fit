@@ -98,16 +98,43 @@ object PlateauEngine {
         precomputedFatigue: FatigueResult? = null
     ): DeloadResult {
         val fatigue = precomputedFatigue ?: FatigueEngine.calcFatigueToFitnessRatio(trainingLog)
-        val recent6 = trainingLog.filter { it.completed }.sortedByDescending { it.date }.take(6)
-        val avgFeel = recent6.map { it.sessionFeel }.average().takeIf { !it.isNaN() } ?: 3.0
-        var signals = 0
-        if ((fatigue.ratio ?: 0.0) >= 1.3) signals++
-        if (avgFeel <= 2.5) signals++
-        if (complianceScore < 60) signals++
-        if ((fatigue.ratio ?: 0.0) >= 1.5) signals += 2
+        val recentRatedSessions = trainingLog
+            .filter { it.completed && it.sessionFeel in 1..5 }
+            .sortedByDescending { it.date }
+            .take(6)
+        val avgFeel = recentRatedSessions.map { it.sessionFeel }
+            .average()
+            .takeIf { !it.isNaN() }
+
+        // Compliance is not a fatigue marker: training less than planned must not
+        // become evidence that the user needs to train even less.
+        @Suppress("UNUSED_VARIABLE")
+        val ignoredComplianceScore = complianceScore
+
+        val ratio = fatigue.ratio
+        val elevatedLoad = ratio != null && ratio >= 1.3
+        val veryElevatedLoad = ratio != null && ratio >= 1.5
+        val persistentPoorFeel = recentRatedSessions.size >= 3 && (avgFeel ?: 5.0) <= 2.5
+
+        // The load ratio is a contextual monitoring heuristic, not a stand-alone
+        // injury/deload predictor. Require corroborating recovery/performance feedback
+        // before prescribing a deload from it.
+        val signals = listOf(elevatedLoad, persistentPoorFeel).count { it }
         return when {
-            signals >= 3 || (fatigue.ratio ?: 0.0) >= 1.5 -> DeloadResult("deload_now", "immediate", signals, listOf("Keep same exercises", "Reduce sets by half", "Drop weight 20%", "No sets to failure"))
-            signals == 2 -> DeloadResult("deload_soon", "this_week", signals, listOf("Reduce to 2-3 sets per exercise", "Stay well within RIR"))
+            veryElevatedLoad && persistentPoorFeel ->
+                DeloadResult(
+                    "deload_now",
+                    "immediate",
+                    signals,
+                    listOf("Keep the same exercises", "Reduce sets by roughly half", "Use lighter loads", "Avoid sets to failure")
+                )
+            elevatedLoad && persistentPoorFeel ->
+                DeloadResult(
+                    "deload_soon",
+                    "this_week",
+                    signals,
+                    listOf("Reduce training volume this week", "Keep several reps in reserve")
+                )
             else -> DeloadResult("continue", "none", signals)
         }
     }
