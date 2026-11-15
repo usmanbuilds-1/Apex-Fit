@@ -37,7 +37,9 @@ object SessionMapper {
                 completed = sessionObj.completed,
                 sessionFeel = sessionObj.sessionFeel,
                 durationMinutes = sessionObj.durationMinutes,
-                exercises = exercises
+                exercises = exercises,
+                startedAt = sessionObj.startedAt,
+                completedAt = sessionObj.completedAt
             )
         }
     }
