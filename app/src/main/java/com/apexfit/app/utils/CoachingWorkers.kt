@@ -144,9 +144,10 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val userHeight = dataStore.heightFlow.first()
         val userSex    = dataStore.sexFlow.first()
         val userAge    = dataStore.ageFlow.first()
+        val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.first()
         val tdeeResult = TdeeEngine.calcAdaptiveTDEE(
             engineWeights, allNutrition, heightCm = userHeight, ageYears = userAge,
-            biologicalSex = userSex, weeklyWorkouts = dataStore.weeklyWorkoutsFlow.first(),
+            biologicalSex = userSex, weeklyWorkouts = weeklyWorkouts,
             fallbackWeightKg = latestWeightForCoaching
         )
         val suggestedCal = TdeeEngine.suggestCaloricTarget(
@@ -165,7 +166,8 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             bodyWeightKg  = latestWeightForCoaching,
             goal          = userGoal,
             heightCm      = userHeight,
-            sex           = userSex
+            sex           = userSex,
+            weeklyTrainingSessions = weeklyWorkouts
         )
 
         // Find today session
