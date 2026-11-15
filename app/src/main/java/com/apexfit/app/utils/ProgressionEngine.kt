@@ -271,25 +271,30 @@ data class ProgressionResult(
         }
     }
 
+    /**
+     * App-specific effort weighting used to summarize proximity-to-failure across
+     * sets. These coefficients are heuristic scores, not percentages of muscle
+     * growth, hypertrophy, or biological "effectiveness".
+     */
     fun calculateEffectiveSetValue(rpe: Int): Double {
         return when(rpe) {
             in 5..6 -> 0.25
-            7 -> 0.5            // 50% effective
-            8 -> 0.75           // 75% effective
-            9 -> 0.9            // 90% effective
-            10 -> 1.0           // 100% effective
+            7 -> 0.5
+            8 -> 0.75
+            9 -> 0.9
+            10 -> 1.0
             else -> 0.0
         }
     }
 
     fun getEffectivenessLabel(rpe: Int): String {
         return when(rpe) {
-            in 0..4 -> "Too light (technique work only)"
-            in 5..6 -> "Technique volume (25% effective)"
-            7 -> "Building zone (50% effective)"
-            8 -> "SWEET SPOT (75% effective)"
-            9 -> "High effort (90% effective)"
-            10 -> "Maximal (100% effective)"
+            in 0..4 -> "Very low effort"
+            in 5..6 -> "Low effort"
+            7 -> "Moderate effort"
+            8 -> "Hard set"
+            9 -> "Very hard set"
+            10 -> "Maximal effort"
             else -> "Unknown"
         }
     }
