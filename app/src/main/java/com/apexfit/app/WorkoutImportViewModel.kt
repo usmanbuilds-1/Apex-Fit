@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -37,6 +38,7 @@ data class WorkoutImportUiState(
     val isParsing: Boolean = false,
     val isSaving: Boolean = false,
     val draft: EditableImportedPlan? = null,
+    val goal: String = "",
     val parseWarnings: List<String> = emptyList(),
     val errorMessage: String? = null,
     val validationErrors: List<String> = emptyList(),
@@ -115,10 +117,16 @@ class WorkoutImportViewModel @Inject constructor(
                     return@launch
                 }
                 val libraryById = library.associateBy { it.id }
+                val currentGoal = repository.getGoalFlow()
+                    .firstOrNull()
+                    ?.trim()
+                    .orEmpty()
+                    .ifBlank { "General Fitness" }
                 _uiState.value = _uiState.value.copy(
                     stage = WorkoutImportStage.REVIEW,
                     isParsing = false,
                     draft = plan.toEditablePlan(libraryById),
+                    goal = currentGoal,
                     parseWarnings = plan.warnings.map { it.message }.distinct(),
                     errorMessage = null,
                     validationErrors = emptyList()
@@ -135,6 +143,14 @@ class WorkoutImportViewModel @Inject constructor(
     }
 
     fun updatePlanName(value: String) = updateDraft { it.copy(name = value.take(80)) }
+
+    fun updatePlanGoal(value: String) {
+        _uiState.value = _uiState.value.copy(
+            goal = value.take(80),
+            errorMessage = null,
+            validationErrors = emptyList()
+        )
+    }
 
     fun updateMakeActive(value: Boolean) = updateDraft { it.copy(makeActive = value) }
 
@@ -248,7 +264,11 @@ class WorkoutImportViewModel @Inject constructor(
         val draft = _uiState.value.draft ?: return
         if (_uiState.value.isSaving || _uiState.value.saveCompleted) return
 
-        val errors = draft.validationErrors()
+        val planGoal = _uiState.value.goal.trim()
+        val errors = buildList {
+            addAll(draft.validationErrors())
+            if (planGoal.isBlank()) add("Choose a goal for this plan.")
+        }.distinct()
         if (errors.isNotEmpty()) {
             _uiState.value = _uiState.value.copy(validationErrors = errors, errorMessage = errors.first())
             return
@@ -264,7 +284,7 @@ class WorkoutImportViewModel @Inject constructor(
                 val plan = WorkoutPlan(
                     id = 0,
                     name = draft.name.trim(),
-                    goal = "General Fitness",
+                    goal = planGoal,
                     isActive = draft.makeActive,
                     daysPerWeek = draft.days.size,
                     isTemplate = 0,
