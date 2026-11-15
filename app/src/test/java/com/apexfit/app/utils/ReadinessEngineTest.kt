@@ -46,6 +46,52 @@ class ReadinessEngineTest {
     }
 
     @Test
+    fun secondaryMusclesBuildTheirOwnCapacityHistory() {
+        val sessions = (0..2).map { daysAgo ->
+            com.apexfit.app.data.RichTrainingSession(
+                date = getDateDaysAgo(daysAgo),
+                sessionType = "Push",
+                completed = true,
+                exercises = listOf(
+                    com.apexfit.app.data.ExerciseLog(
+                        id = "bench",
+                        name = "Bench Press",
+                        muscleGroup = "Chest",
+                        secondaryMuscles = listOf("Triceps"),
+                        sets = listOf(
+                            com.apexfit.app.data.ExerciseSet(50.0, 10, 8, false, true)
+                        )
+                    )
+                )
+            )
+        }
+
+        val result = ReadinessFinal.buildReadinessInputs(
+            completedSessions = sessions,
+            todayExercises = listOf(
+                com.apexfit.app.data.PlanExercise(
+                    planSessionId = 1,
+                    exerciseId = "triceps-extension",
+                    name = "Triceps Extension",
+                    muscleGroup = "Triceps",
+                    sets = 3,
+                    repsMin = 8,
+                    repsMax = 12,
+                    weight = 10.0,
+                    restSeconds = 90,
+                    notes = ""
+                )
+            ),
+            nutritionLog = emptyList(),
+            targets = com.apexfit.app.data.NutritionTargets(2000, 120, 200, 60)
+        )
+
+        val triceps = result.muscleDetails.single()
+        assertEquals(3, triceps.dataPoints)
+        assertEquals("limited", triceps.confidence)
+    }
+
+    @Test
     fun testReadinessFinalCalculate_coldStart() {
         val res = ReadinessFinal.calculate(
             totalCompletedSessions = 2, // Cold start < 3
