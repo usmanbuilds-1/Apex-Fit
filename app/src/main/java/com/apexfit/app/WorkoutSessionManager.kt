@@ -171,6 +171,8 @@ class WorkoutSessionManager(
                         completed = rs.completed,
                         sessionFeel = rs.sessionFeel,
                         durationMinutes = rs.durationMinutes,
+                        startedAt = rs.startedAt,
+                        completedAt = rs.completedAt,
                         exercises = rs.exercises.map { exercise ->
                             com.apexfit.app.utils.ExerciseLog(
                                 id = exercise.id,
