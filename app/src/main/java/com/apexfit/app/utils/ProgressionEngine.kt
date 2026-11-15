@@ -10,6 +10,7 @@ object ProgressionEngine {
     fun getExerciseType(name: String, muscleGroup: String): String {
         val n = name.lowercase()
         val m = muscleGroup.lowercase()
+        val compactName = n.filter { it.isLetterOrDigit() }
         
         return when {
             // Cardio
@@ -18,15 +19,15 @@ object ProgressionEngine {
             m.contains("core") || n.contains("plank") || n.contains("crunch") -> "isolation"
 
             // Compound Lower
-            n.contains("goblet") || (n.contains("squat") && !n.contains("dumbbell") && !n.contains("db") && !n.contains("machine") && !n.contains("smith")) -> "compound_lower"
+            (n.contains("squat") && !n.contains("goblet") && !n.contains("dumbbell") && !n.contains("db") && !n.contains("machine") && !n.contains("smith")) -> "compound_lower"
             n.contains("deadlift") && !n.contains("dumbbell") && !n.contains("db") -> "compound_lower"
             n.contains("lunge") && !n.contains("dumbbell") && !n.contains("db") -> "compound_lower"
             n.contains("leg press") -> "compound_lower"
             
             // Compound Upper
             (n.contains("bench press") || n.contains("chest press") || n.contains("overhead press") || n.contains("military press") || n.contains("shoulder press")) && !n.contains("dumbbell") && !n.contains("db") && !n.contains("machine") && !n.contains("smith") -> "compound_upper"
-            (n.contains("row") || n.contains("pullup") || n.contains("chinup") || n.contains("lat pulldown")) && !n.contains("dumbbell") && !n.contains("db") && !n.contains("cable") && !n.contains("machine") -> "compound_upper"
-            n.contains("dips") -> "compound_upper"
+            (n.contains("row") || compactName.contains("pullup") || compactName.contains("chinup") || n.contains("lat pulldown")) && !n.contains("dumbbell") && !n.contains("db") && !n.contains("cable") && !n.contains("machine") -> "compound_upper"
+            (n.contains("dips") || compactName.endsWith("dip")) && !n.contains("machine") -> "compound_upper"
             
             // Dumbbell Upper
             (n.contains("dumbbell") || n.contains("db")) && (m.contains("chest") || m.contains("back") || m.contains("shoulder") || m.contains("delt") || n.contains("press") || n.contains("row")) -> "dumbbell_upper"
@@ -147,27 +148,37 @@ data class ProgressionResult(
         require(repsMin <= repsMax) {
             "repsMin ($repsMin) must be <= repsMax ($repsMax). Check plan configuration."
         }
-        
+        require(targetSets > 0) {
+            "targetSets must be > 0, got $targetSets"
+        }
+
         val workingSets = lastSessionSets.filter { !it.isWarmup && it.completed }
-        
         if (workingSets.isEmpty()) {
             return ProgressionResult(currentWeight, OutcomeType.STALLED, "No completed sets recorded.")
         }
 
-        // Unrated RPE handling: If any set is unrated (0), hold progression
-        if (workingSets.any { it.rpe == 0 }) {
+        // Judge the prescribed work, not optional bonus/burnout sets performed
+        // afterward. The caller provides historical sets in performed order.
+        val evaluatedSets = workingSets.take(targetSets)
+
+        // Unrated RPE on a prescribed set must hold progression. Unrated optional
+        // work after the prescription must not retroactively invalidate the target.
+        if (evaluatedSets.any { it.rpe == 0 }) {
             return ProgressionResult(currentWeight, OutcomeType.STALLED, "Sets have unrated RPE. Please rate your effort to progress.")
         }
 
+        val enoughSets = evaluatedSets.size >= targetSets
+
         // Outcome Determination
-        // 1. SUCCESS: All sets >= repsMax AND RPE <= 8
-        val allHitMax = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMax && it.rpe <= 8 }
-        
-        // 2. PROGRESSING: All sets within range [repsMin, repsMax] but not all hit success criteria
-        val allInRepsRange = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMin }
-        
-        // 3. PLATEAU: 2+ consecutive failed sessions (failed to hit repsMin or sets target)
-        val failedTarget = workingSets.size < targetSets || workingSets.any { it.reps < repsMin }
+        // 1. SUCCESS: all prescribed sets hit repsMax at RPE <= 8.
+        val allHitMax = enoughSets && evaluatedSets.all { it.reps >= repsMax && it.rpe <= 8 }
+
+        // 2. PROGRESSING: all prescribed sets are at least repsMin, but success
+        // criteria have not yet been met.
+        val allInRepsRange = enoughSets && evaluatedSets.all { it.reps >= repsMin }
+
+        // 3. PLATEAU: 2+ consecutive failed sessions.
+        val failedTarget = !enoughSets || evaluatedSets.any { it.reps < repsMin }
         
         val outcome = when {
             consecutiveStalledSessions >= 1 && failedTarget -> OutcomeType.PLATEAU // current failed + 1 previous = 2 consecutive
@@ -177,10 +188,11 @@ data class ProgressionResult(
         }
 
         // Weight Increment Logic
-        // NOTE: All weight values in this function are in LBS regardless of user preference.  
-        // WorkoutSessionManager converts to lbs before calling and converts back after.  
-        // baseIncrement values are lbs-calibrated (e.g. 5.0 = 5 lbs ≈ 2.3 kg for lower body).  
-        // Do NOT change these values without updating unit handling in WorkoutSessionManager.  
+        // All weight values in this function are LBS for compatibility with the
+        // existing session manager. Seed metadata is canonical KG and is converted
+        // exactly once here. Equipment/unit quantisation belongs at the session
+        // boundary; doing it here as well caused double-rounding (notably turning
+        // 1 kg metadata increments into larger metric jumps).
         val baseIncrement = if (incrementOverrideKg != null) {
             incrementOverrideKg * AppConstants.KG_TO_LBS
         } else {
@@ -194,29 +206,11 @@ data class ProgressionResult(
             }
         }
 
-        // Plate size determines valid increment grid for this exercise type.
-        val (isolationPlate, compoundPlate) = when (weightUnit) {
-            "kg"  -> Pair(1.25, 2.5)
-            else  -> Pair(1.25, 2.5)  // lbs — same increments
-        }
-        val plateSize = if (exerciseType == "isolation") isolationPlate else compoundPlate
-
-        // §6.3 fix: round the INCREMENT to the plate grid, not the final weight.
-        // This preserves recovery modulation — a 0.6× multiplier on a 2.5 lb
-        // increment gives 1.5 lb → rounds to 1.25 lb (isolation) or 2.5 lb (compound).
-        val rawIncrement = baseIncrement * recoveryMultiplier
-        val roundedIncrement = if (rawIncrement >= plateSize / 2.0) {
-            (Math.round(rawIncrement / plateSize) * plateSize).coerceAtLeast(plateSize)
-        } else {
-            0.0   // Too small to make a valid plate increment — hold
-        }
-
-        // §6.2 fix: for PLATEAU, use floor rounding (always round DOWN) to
-        // guarantee at least 10% deload regardless of plate grid.
+        val rawIncrement = (baseIncrement * recoveryMultiplier).coerceAtLeast(0.0)
         val newWeight = when(outcome) {
-            OutcomeType.SUCCESS  -> currentWeight + roundedIncrement
-            OutcomeType.PLATEAU  -> (Math.floor(currentWeight * 0.9 / plateSize) * plateSize)
-            else                 -> currentWeight
+            OutcomeType.SUCCESS -> currentWeight + rawIncrement
+            OutcomeType.PLATEAU -> currentWeight * 0.9
+            else -> currentWeight
         }
 
         val reason = when(outcome) {
@@ -278,25 +272,30 @@ data class ProgressionResult(
         }
     }
 
+    /**
+     * App-specific effort weighting used to summarize proximity-to-failure across
+     * sets. These coefficients are heuristic scores, not percentages of muscle
+     * growth, hypertrophy, or biological "effectiveness".
+     */
     fun calculateEffectiveSetValue(rpe: Int): Double {
         return when(rpe) {
             in 5..6 -> 0.25
-            7 -> 0.5            // 50% effective
-            8 -> 0.75           // 75% effective
-            9 -> 0.9            // 90% effective
-            10 -> 1.0           // 100% effective
+            7 -> 0.5
+            8 -> 0.75
+            9 -> 0.9
+            10 -> 1.0
             else -> 0.0
         }
     }
 
     fun getEffectivenessLabel(rpe: Int): String {
         return when(rpe) {
-            in 0..4 -> "Too light (technique work only)"
-            in 5..6 -> "Technique volume (25% effective)"
-            7 -> "Building zone (50% effective)"
-            8 -> "SWEET SPOT (75% effective)"
-            9 -> "High effort (90% effective)"
-            10 -> "Maximal (100% effective)"
+            in 0..4 -> "Very low effort"
+            in 5..6 -> "Low effort"
+            7 -> "Moderate effort"
+            8 -> "Hard set"
+            9 -> "Very hard set"
+            10 -> "Maximal effort"
             else -> "Unknown"
         }
     }

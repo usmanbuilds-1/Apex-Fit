@@ -5,6 +5,13 @@ import org.junit.Test
 
 class ReadinessEngineTest {
     @Test
+    fun p90CapacityUsesInterpolationInsteadOfFlooringSmallSamples() {
+        val values = listOf(100.0, 110.0, 120.0)
+        assertEquals(118.0, interpolatedPercentile(values, 0.90), 0.0001)
+        assertEquals(118.0, MuscleReadinessCalculator.userCapacity(values), 0.0001)
+    }
+
+    @Test
     fun workloadRatioDoesNotDetermineReadinessScore() {
         fun score(acute: Double) = ReadinessFinal.calculate(
             totalCompletedSessions = 5,
@@ -43,6 +50,52 @@ class ReadinessEngineTest {
 
         assertEquals(score("Back"), score("Lats"))
         assertTrue("Training history should reduce estimated readiness", score("Back") < 100)
+    }
+
+    @Test
+    fun secondaryMusclesBuildTheirOwnCapacityHistory() {
+        val sessions = (0..2).map { daysAgo ->
+            com.apexfit.app.data.RichTrainingSession(
+                date = getDateDaysAgo(daysAgo),
+                sessionType = "Push",
+                completed = true,
+                exercises = listOf(
+                    com.apexfit.app.data.ExerciseLog(
+                        id = "bench",
+                        name = "Bench Press",
+                        muscleGroup = "Chest",
+                        secondaryMuscles = listOf("Triceps"),
+                        sets = listOf(
+                            com.apexfit.app.data.ExerciseSet(50.0, 10, 8, false, true)
+                        )
+                    )
+                )
+            )
+        }
+
+        val result = ReadinessFinal.buildReadinessInputs(
+            completedSessions = sessions,
+            todayExercises = listOf(
+                com.apexfit.app.data.PlanExercise(
+                    planSessionId = 1,
+                    exerciseId = "triceps-extension",
+                    name = "Triceps Extension",
+                    muscleGroup = "Triceps",
+                    sets = 3,
+                    repsMin = 8,
+                    repsMax = 12,
+                    weight = 10.0,
+                    restSeconds = 90,
+                    notes = ""
+                )
+            ),
+            nutritionLog = emptyList(),
+            targets = com.apexfit.app.data.NutritionTargets(2000, 120, 200, 60)
+        )
+
+        val triceps = result.muscleDetails.single()
+        assertEquals(3, triceps.dataPoints)
+        assertEquals("limited", triceps.confidence)
     }
 
     @Test

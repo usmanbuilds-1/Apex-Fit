@@ -465,20 +465,16 @@ class WorkoutExecutionViewModel @Inject constructor(
     }
 
     private fun calculateWorkoutSessionHypertrophyQualityScore(sets: List<UiExerciseSet>): Double {
-        if (sets.isEmpty()) {
-            return 0.0
-        }
-        var scoreSum = 0.0
-        sets.forEach { set ->
-            val rpeMod = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(set.rpe)
-            val isCompound = set.exerciseName.lowercase().let { n ->
-                n.contains("squat") || n.contains("press") || n.contains("deadlift") || n.contains("row") || n.contains("pullup") || n.contains("dips")
-            }
-            val typeMod = if (isCompound) 1.2 else 1.05
-            scoreSum += (rpeMod * typeMod)
-        }
-        val pct = (scoreSum / sets.size) * 10.0
-        return Math.min(10.0, Math.max(0.0, pct))
+        val workingSets = sets.filter { it.completed && !it.isWarmup }
+        if (workingSets.isEmpty()) return 0.0
+
+        // This is a session effort/proximity score, not a prediction of hypertrophy.
+        // Keep it aligned with the app's effective-set RPE mapping and avoid arbitrary
+        // exercise-name bonuses that made "compound" strings score higher by default.
+        val averageEffectiveValue = workingSets
+            .map { com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(it.rpe) }
+            .average()
+        return (averageEffectiveValue * 10.0).coerceIn(0.0, 10.0)
     }
 
     fun dismissSessionComplete() {

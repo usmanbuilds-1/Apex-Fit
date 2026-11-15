@@ -112,7 +112,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         // Load logs
         // AUDIT FIX (BUG-V4-017): bound the nutrition read to 30 days —
         // coaching worker math is 14-day windowed; 30 gives headroom.
-        val cutoffNutrition = com.apexfit.app.utils.getDateDaysAgo(30)
+        val cutoffNutrition = com.apexfit.app.utils.getWindowStartDate(30)
         val dbNutrition = dao.getNutritionEntriesSince(cutoffNutrition)
         val allNutrition = dbNutrition.groupBy { it.date }.map { (date, list) ->
             NutritionEntry(
@@ -124,7 +124,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             )
         }.sortedBy { it.date }
         
-        val cutoff = com.apexfit.app.utils.getDateDaysAgo(90)
+        val cutoff = com.apexfit.app.utils.getWindowStartDate(90)
         val dbWeights = dao.getWeightEntriesSince(cutoff)
         val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
             WeightEntry(date, list.map { it.weight }.average())
@@ -140,13 +140,14 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val latestWeightForCoaching = engineWeights.lastOrNull()?.weight ?: dataStore.currentWeightFlow.first()
         val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
         
-        val goalWeight = dataStore.goalWeightFlow.first()
+        val goalWeight = dataStore.explicitGoalWeightFlow.first()
         val userHeight = dataStore.heightFlow.first()
         val userSex    = dataStore.sexFlow.first()
         val userAge    = dataStore.ageFlow.first()
+        val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.first()
         val tdeeResult = TdeeEngine.calcAdaptiveTDEE(
             engineWeights, allNutrition, heightCm = userHeight, ageYears = userAge,
-            biologicalSex = userSex, weeklyWorkouts = dataStore.weeklyWorkoutsFlow.first(),
+            biologicalSex = userSex, weeklyWorkouts = weeklyWorkouts,
             fallbackWeightKg = latestWeightForCoaching
         )
         val suggestedCal = TdeeEngine.suggestCaloricTarget(
@@ -165,7 +166,8 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             bodyWeightKg  = latestWeightForCoaching,
             goal          = userGoal,
             heightCm      = userHeight,
-            sex           = userSex
+            sex           = userSex,
+            weeklyTrainingSessions = weeklyWorkouts
         )
 
         // Find today session
@@ -187,7 +189,13 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         
         repository.scanAndSaveWeeklyPatterns()
 
-        val plateau = PlateauEngine.detectPlateau(engineWeights, allNutrition, completedSessions, windowDays = 14)
+        val plateau = PlateauEngine.detectPlateau(
+            weightLog = engineWeights,
+            nutritionLog = allNutrition,
+            trainingLog = completedSessions,
+            goal = userGoal,
+            windowDays = 14
+        )
         
         val allTriggers = mutableListOf<NotificationEngine.NotificationTrigger>()
         

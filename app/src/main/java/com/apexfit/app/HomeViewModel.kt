@@ -198,16 +198,9 @@ class HomeViewModel @Inject constructor(
                 _weightLogError.value = null
                 val timeStr = try { getCurrentLocalTimeString() } catch (e: Exception) { "12:00" }
                 dao.insertWeightEntry(WeightEntry(date = date, time = timeStr, weight = safeWeightKg, unit = "kg"))
-                val goal = try {
-                    kotlinx.coroutines.withTimeoutOrNull(500) { dataStore.goalWeightFlow.first() }
-                } catch (e: Exception) {
-                    null
-                }
-                if (goal != null) {
-                    try {
-                        dataStore.saveWeight(safeWeightKg, goal)
-                    } catch (e: Exception) { }
-                }
+                // Keep the profile weight aligned to the newest dated entry.
+                // A historical backfill must not overwrite a newer current weight.
+                syncCurrentWeightFromHistory()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -218,9 +211,18 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun deleteWeightById(id: Long) {
+    fun deleteWeightById(id: Long): kotlinx.coroutines.Job =
         viewModelScope.launch {
             dao.deleteWeightEntryById(id)
+            syncCurrentWeightFromHistory()
+        }
+
+    private suspend fun syncCurrentWeightFromHistory() {
+        val latest = dao.getWeightEntries(limit = 1).firstOrNull() ?: return
+        try {
+            dataStore.saveCurrentWeight(latest.weight)
+        } catch (e: Exception) {
+            android.util.Log.w("HomeViewModel", "Could not sync current profile weight", e)
         }
     }
 
@@ -237,8 +239,8 @@ class HomeViewModel @Inject constructor(
     fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {  
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {  
             try {  
-                val cutoff90 = java.time.LocalDate.now().minusDays(90).toString()
-                val cutoff365 = java.time.LocalDate.now().minusDays(365).toString()
+                val cutoff90 = com.apexfit.app.utils.getWindowStartDate(90)
+                val cutoff365 = com.apexfit.app.utils.getWindowStartDate(365)
                 val weights = dao.getWeightEntriesSince(cutoff90)  
                 val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
                 val sessions = dao.getAllTrainingSessions()  

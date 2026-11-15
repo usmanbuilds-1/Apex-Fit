@@ -11,6 +11,20 @@ class AlgorithmEngineTest {
     private fun d(daysAgo: Int): String = getDateDaysAgo(daysAgo)
 
     @Test
+    fun trendWeightAdvancesAcrossCalendarGaps() {
+        val log = listOf(
+            WeightEntry(date = d(5), weight = 80.0),
+            WeightEntry(date = d(0), weight = 82.0)
+        )
+        val trend = AlgorithmEngine.calcTrendWeight(log)
+        val dailyAlpha = 2.0 / 15.0
+        val effectiveAlpha = 1.0 - Math.pow(1.0 - dailyAlpha, 5.0)
+        val expected = Math.round((80.0 + effectiveAlpha * 2.0) * 100.0) / 100.0
+
+        assertEquals(expected, trend.last().trend, 0.0001)
+    }
+
+    @Test
     fun testCalcAdaptiveTDEE_normalInput() {
         val wLog = (0..14).map {
             WeightEntry(date = d(14 - it), weight = 80.0 - 0.1 * it)
@@ -20,13 +34,15 @@ class AlgorithmEngineTest {
         }
         val res = TdeeEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14)
 
-        val recentWeight = wLog.sortedBy { it.date }
-        val avgCalories = nLog.map { it.calories }.average()
-        val trendData = AlgorithmEngine.calcTrendWeight(recentWeight)
-        val weightChangeKg = trendData.last().trend - trendData.first().trend
+        val cutoff = getWindowStartDate(14)
+        val recentWeight = wLog.filter { it.date >= cutoff }.sortedBy { it.date }
+        val avgCalories = nLog.filter { it.date >= cutoff }.map { it.calories }.average()
+        val trendData = AlgorithmEngine.calcTrendWeight(wLog.sortedBy { it.date })
+        val trendAtCutoff = trendData.first { it.date >= recentWeight.first().date }.trend
+        val weightChangeKg = trendData.last().trend - trendAtCutoff
         val daysBetween = getDaysBetween(recentWeight.first().date, recentWeight.last().date).coerceAtLeast(1L)
         val expectedImbalance = (weightChangeKg * 7700.0) / daysBetween
-        val expectedTdee = (avgCalories - expectedImbalance).toInt()
+        val expectedTdee = kotlin.math.round(avgCalories - expectedImbalance).toInt()
 
         assertEquals(expectedTdee, res.tdee)
     }
@@ -93,7 +109,7 @@ class AlgorithmEngineTest {
         val recentSession = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog))
 
         // Case 1: maintained volume (1000 vs 1000) -> true plateau
-        val resPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), windowDays = 14)
+        val resPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), goal = "lose fat", windowDays = 14)
         assertTrue(resPlateau.isPlateaued)
         assertEquals(14, resPlateau.daysStalled)
 
@@ -102,14 +118,30 @@ class AlgorithmEngineTest {
         val exLogLow = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(exSetLow))
         val recentSessionLow = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLogLow))
 
-        val resNoPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), windowDays = 14)
+        val resNoPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), goal = "lose fat", windowDays = 14)
         assertFalse(resNoPlateau.isPlateaued)
     }
 
     @Test
     fun testDetectPlateau_edgeCase_empty() {
-        val res = PlateauEngine.detectPlateau(emptyList(), emptyList(), emptyList(), windowDays = 10)
+        val res = PlateauEngine.detectPlateau(emptyList(), emptyList(), emptyList(), goal = "lose fat", windowDays = 10)
         assertFalse(res.isPlateaued)
+    }
+
+
+    @Test
+    fun testDetectPlateau_stableWeightIsNotPlateauForMaintenance() {
+        val wLog = (0..14).map { WeightEntry(date = d(14 - it), weight = 80.0) }
+        val nLog = (0..14).map { NutritionEntry(date = d(14 - it), calories = 2400, protein = 150, carbs = 250, fat = 70) }
+        val set = ExerciseSet(weight = 100.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
+        val ex = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(set))
+        val sessions = listOf(
+            RichTrainingSession(date = d(20), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(ex)),
+            RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(ex))
+        )
+
+        val result = PlateauEngine.detectPlateau(wLog, nLog, sessions, goal = "maintain", windowDays = 14)
+        assertFalse("Stable weight is expected at maintenance and must not trigger a cut-calories plateau", result.isPlateaued)
     }
 
     @Test
@@ -151,12 +183,80 @@ class AlgorithmEngineTest {
     }
 
     @Test
-    fun testCalcDeloadRecommendation_boundary_signals() {
-        // We can mock low compliance and high fatigue, but we don't need to overcomplicate.
-        // Let's pass 50 compliance. It adds 1 signal.
+    fun testCalcDeloadRecommendation_lowComplianceIsNotFatigueSignal() {
         val res = PlateauEngine.calcDeloadRecommendation(emptyList(), 50)
-        // Signals = 1 (due to compliance < 60)
         assertEquals("none", res.urgency)
+        assertEquals(0, res.signals)
+    }
+
+    @Test
+    fun testCalcDeloadRecommendation_highLoadAloneDoesNotForceDeload() {
+        val fatigue = FatigueResult(
+            ratio = 1.7,
+            status = "high",
+            statusLabel = "Well Above Baseline",
+            recommendation = "",
+            acuteLoad = 170.0,
+            chronicLoad = 100.0
+        )
+        val sessions = (0 until 4).map {
+            RichTrainingSession(
+                date = d(it),
+                sessionType = "Upper",
+                completed = true,
+                sessionFeel = 4
+            )
+        }
+
+        val res = PlateauEngine.calcDeloadRecommendation(sessions, 100, fatigue)
+        assertEquals("none", res.urgency)
+    }
+
+    @Test
+    fun testCalcDeloadRecommendation_sameDayPoorSessionsAreOneRecoveryObservation() {
+        val fatigue = FatigueResult(
+            ratio = 1.7,
+            status = "high",
+            statusLabel = "Well Above Baseline",
+            recommendation = "",
+            acuteLoad = 170.0,
+            chronicLoad = 100.0
+        )
+        val sessions = (0 until 3).map {
+            RichTrainingSession(
+                date = d(0),
+                sessionType = "Session $it",
+                completed = true,
+                sessionFeel = 2
+            )
+        }
+
+        val res = PlateauEngine.calcDeloadRecommendation(sessions, 100, fatigue)
+        assertEquals("none", res.urgency)
+    }
+
+    @Test
+    fun testCalcDeloadRecommendation_highLoadAndPersistentPoorFeelCanDeload() {
+        val fatigue = FatigueResult(
+            ratio = 1.7,
+            status = "high",
+            statusLabel = "Well Above Baseline",
+            recommendation = "",
+            acuteLoad = 170.0,
+            chronicLoad = 100.0
+        )
+        val sessions = (0 until 4).map {
+            RichTrainingSession(
+                date = d(it),
+                sessionType = "Upper",
+                completed = true,
+                sessionFeel = 2
+            )
+        }
+
+        val res = PlateauEngine.calcDeloadRecommendation(sessions, 100, fatigue)
+        assertEquals("immediate", res.urgency)
+        assertEquals(2, res.signals)
     }
 
     @Test
@@ -202,6 +302,36 @@ class AlgorithmEngineTest {
     }
 
     @Test
+    fun goalTimeline_contradictoryGainTargetDoesNotInventGainSchedule() {
+        val timeline = GoalEngine.calcGoalTimeline(
+            currentWeightKg = 80.0,
+            goalWeightKg = 75.0,
+            resolvedGoal = "Gain Muscle",
+            heightCm = 180.0,
+            sex = "male"
+        )
+
+        assertEquals(0, timeline.weeksToGoal)
+        assertEquals(0.0, timeline.weeklyChangeKg, 0.001)
+        assertEquals(80.0, timeline.adjustedGoalWeightKg, 0.001)
+    }
+
+    @Test
+    fun goalTimeline_contradictoryLossTargetDoesNotInventCutSchedule() {
+        val timeline = GoalEngine.calcGoalTimeline(
+            currentWeightKg = 80.0,
+            goalWeightKg = 85.0,
+            resolvedGoal = "Lose Fat",
+            heightCm = 180.0,
+            sex = "male"
+        )
+
+        assertEquals(0, timeline.weeksToGoal)
+        assertEquals(0.0, timeline.weeklyChangeKg, 0.001)
+        assertEquals(80.0, timeline.adjustedGoalWeightKg, 0.001)
+    }
+
+    @Test
     fun testCalcGoalTimeline_realisticFatLoss() {
         val timeline = GoalEngine.calcGoalTimeline(
             currentWeightKg = 80.0,
@@ -210,11 +340,11 @@ class AlgorithmEngineTest {
             heightCm = 175.0,
             sex = "male"
         )
-        assertEquals(6, timeline.weeksToGoal)
+        assertEquals(7, timeline.weeksToGoal)
         assertEquals(0.64, timeline.weeklyChangeKg, 0.001)
         assertTrue(timeline.isRealistic)
         assertEquals(76.0, timeline.adjustedGoalWeightKg, 0.001)
-        assertTrue(timeline.summaryLine.contains("~6 weeks at 0.64 kg/week"))
+        assertTrue(timeline.summaryLine.contains("~7 weeks at 0.64 kg/week"))
     }
 
     @Test

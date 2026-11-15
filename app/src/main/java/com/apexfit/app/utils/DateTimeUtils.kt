@@ -88,6 +88,18 @@ fun getDateDaysAgo(days: Int): String {
     return LocalDate.now().minusDays(days.toLong()).toString()
 }
 
+/**
+ * Inclusive start date for a rolling window containing [days] calendar dates,
+ * including today. Example: a 7-day window starts 6 days ago.
+ *
+ * Prefer this helper for "last N days" product logic. getDateDaysAgo(N) means
+ * exactly N days before today and therefore spans N + 1 dates when used with >=.
+ */
+fun getWindowStartDate(days: Int): String {
+    val safeDays = days.coerceAtLeast(1)
+    return LocalDate.now().minusDays((safeDays - 1).toLong()).toString()
+}
+
 fun getWeekKey(dateStr: String): String {
     return try {
         LocalDate.parse(dateStr).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toString()

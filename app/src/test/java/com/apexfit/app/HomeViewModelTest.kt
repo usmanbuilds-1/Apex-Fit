@@ -10,6 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -37,10 +38,17 @@ class HomeViewModelTest {
             .build()
         testDb = db
         AppDatabase.setTestDatabase(db)
+        runBlocking {
+            DataStoreManager.getInstance(application).clearAllData()
+        }
     }
 
     @After
     fun tearDown() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        runBlocking {
+            DataStoreManager.getInstance(application).clearAllData()
+        }
         Dispatchers.resetMain()
         testDb?.close()
         testDb = null
@@ -69,4 +77,38 @@ class HomeViewModelTest {
 
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
+
+    @Test
+    fun backfilledAndDeletedWeightsKeepCurrentProfileOnNewestEntry() = runTest(testDispatcher) {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val db = testDb!!
+        val dao = db.fitnessDao()
+        val dataStore = DataStoreManager.getInstance(application)
+        dataStore.clearAllData()
+        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
+        val viewModel = HomeViewModel(application, repository, dataStore, dao)
+
+        viewModel.logWeight(80.0, date = com.apexfit.app.utils.getTodayDateString())?.join()
+        viewModel.logWeight(70.0, date = com.apexfit.app.utils.getDateDaysAgo(1))?.join()
+
+        assertEquals(
+            "Backfilling yesterday must not replace today's current weight",
+            80.0,
+            dataStore.currentWeightFlow.first(),
+            0.001
+        )
+
+        val newest = dao.getWeightEntries().first()
+        viewModel.deleteWeightById(newest.id).join()
+
+        assertEquals(
+            "Deleting the newest entry should fall back to the next newest logged weight",
+            70.0,
+            dataStore.currentWeightFlow.first(),
+            0.001
+        )
+
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
+    }
+
 }

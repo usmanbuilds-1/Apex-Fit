@@ -136,10 +136,18 @@ class AlgorithmViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val plateauResult: StateFlow<UiPlateauResult> = combine(
-        weightFlow, nutritionFlow, richSessionsFlow
-    ) { weights: List<com.apexfit.app.utils.WeightEntry>, nutrition: List<com.apexfit.app.utils.NutritionEntry>, sessions: List<com.apexfit.app.utils.TrainingSession> ->
+        weightFlow, nutritionFlow, richSessionsFlow, dataStore.goalFlow
+    ) { weights: List<com.apexfit.app.utils.WeightEntry>,
+        nutrition: List<com.apexfit.app.utils.NutritionEntry>,
+        sessions: List<com.apexfit.app.utils.TrainingSession>,
+        goal: String ->
         val res = withContext(Dispatchers.Default) {
-            com.apexfit.app.utils.PlateauEngine.detectPlateau(weights, nutrition, sessions)
+            com.apexfit.app.utils.PlateauEngine.detectPlateau(
+                weightLog = weights,
+                nutritionLog = nutrition,
+                trainingLog = sessions,
+                goal = goal
+            )
         }
         res.toUi()
     }.catch { e ->

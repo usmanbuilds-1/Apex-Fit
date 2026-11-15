@@ -215,4 +215,23 @@ class MacroEngineTest {
         assertTrue("Training protein ${result.trainingDayProtein} >= rest protein ${result.restDayProtein}",
             result.trainingDayProtein >= result.restDayProtein)
     }
+
+    @Test
+    fun calcMacroTargets_preservesUserTrainingFrequency() {
+        val result = MacroEngine.calcMacroTargets(
+            calorieTarget = 2400,
+            bodyWeightKg = 80.0,
+            goal = "lose fat",
+            heightCm = 180.0,
+            sex = "male",
+            weeklyTrainingSessions = 2
+        )
+
+        assertEquals(
+            "A fat-loss goal must not silently turn a two-day training plan into a five-day compliance target",
+            2,
+            result.weeklyTrainingSessions
+        )
+    }
+
 }

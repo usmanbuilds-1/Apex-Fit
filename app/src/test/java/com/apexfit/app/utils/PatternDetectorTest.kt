@@ -87,6 +87,34 @@ class PatternDetectorTest {
     }
 
     @Test
+    fun duplicateSessionsOnSameDatesDoNotInflateNutritionPerformanceEvidence() {
+        val sessionDays = listOf(1, 3, 5, 7)
+        val nutrition = sessionDays.map { day ->
+            val high = day == 1 || day == 5
+            NutritionEntry(
+                date = d(day + 1),
+                calories = 2500,
+                protein = if (high) 150 else 50,
+                carbs = 200,
+                fat = 60
+            )
+        }
+        val sessions = sessionDays.flatMap { day ->
+            val high = day == 1 || day == 5
+            listOf(
+                RichTrainingSession(date = d(day), sessionType = "A", completed = true, sessionFeel = if (high) 5 else 2),
+                RichTrainingSession(date = d(day), sessionType = "B", completed = true, sessionFeel = if (high) 5 else 2)
+            )
+        }
+
+        val res = invokeDetectNutritionPerformancePatterns(nutrition, sessions, 150.0)
+        assertTrue(
+            "Four unique training dates duplicated into eight sessions must not satisfy the eight-day evidence gate",
+            res.isEmpty()
+        )
+    }
+
+    @Test
     fun testDetectNutritionPerformancePatterns_edgeCase_empty() {
         val res = invokeDetectNutritionPerformancePatterns(emptyList(), emptyList(), 150.0)
         assertTrue(res.isEmpty())
@@ -149,6 +177,23 @@ class PatternDetectorTest {
         }
         val res = invokeDetectRecoveryPatterns(tLog)
         assertTrue(res.any { it.id == "optimal_recovery_window" })
+    }
+
+    @Test
+    fun duplicateSameDaySessionsDoNotInflateRecoveryEvidence() {
+        val sessions = (0 until 7).flatMap { index ->
+            val day = 12 - index * 2
+            listOf(
+                RichTrainingSession(date = d(day), sessionType = "A", completed = true, sessionFeel = 5),
+                RichTrainingSession(date = d(day), sessionType = "B", completed = true, sessionFeel = 5)
+            )
+        }
+
+        val res = invokeDetectRecoveryPatterns(sessions)
+        assertTrue(
+            "Seven unique training dates must remain seven observations even when each date has two sessions",
+            res.isEmpty()
+        )
     }
 
     @Test
