@@ -36,6 +36,15 @@ class ProgressionEngineTest {
     }
 
     @Test
+    fun punctuationVariantsOfPullupsAndDipsStayCompoundUpper() {
+        assertEquals("compound_upper", ProgressionEngine.getExerciseType("Weighted Pull-Up", "Back"))
+        assertEquals("compound_upper", ProgressionEngine.getExerciseType("Chin-Up", "Back"))
+        assertEquals("compound_upper", ProgressionEngine.getExerciseType("Parallel Bar Dip", "Triceps"))
+        assertEquals("machine", ProgressionEngine.getExerciseType("Dip Machine", "Triceps"))
+        assertEquals("compound_lower", ProgressionEngine.getExerciseType("Jerk Dip Squat", "Quads"))
+    }
+
+    @Test
     fun gobletSquatUsesDumbbellLowerClassification() {
         assertEquals(
             "dumbbell_lower",
