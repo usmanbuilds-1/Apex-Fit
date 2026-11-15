@@ -48,7 +48,9 @@ object AlgorithmEngine {
     fun getWeightDirection(log: List<WeightEntry>, days: Int = 14): String {
         val trend = calcTrendWeight(log)
         if (trend.size < 2) return "insufficient_data"
-        val recent = trend.takeLast(days)
+        val cutoff = getWindowStartDate(days)
+        val recent = trend.filter { it.date >= cutoff }
+        if (recent.size < 2) return "insufficient_data"
         val change = recent.last().trend - recent.first().trend
         return when {
             change > 0.3 -> "gaining"
@@ -80,7 +82,7 @@ object AlgorithmEngine {
 
     // ── HYPERTROPHY QUALITY SCORE ─────────────────────────────
     fun calcEffectiveSets(trainingLog: List<TrainingSession>, days: Int = 7): Map<String, Double> {
-        val cutoff = getDateDaysAgo(days)
+        val cutoff = getWindowStartDate(days)
         val recent = trainingLog.filter { it.completed && it.date >= cutoff }
         val effectiveSets = mutableMapOf<String, Double>()
         recent.forEach { session ->
@@ -96,7 +98,8 @@ object AlgorithmEngine {
         return effectiveSets
     }
 
-    // ── INJURY RISK SIGNALS ───────────────────────────────────
+    // ── LOAD / RECOVERY SIGNALS ───────────────────────────────
+    // These are training-load heuristics, not validated individual injury predictions.
     fun detectInjuryRiskSignals(
         trainingLog: List<TrainingSession>,
         precomputedFatigue: FatigueResult? = null
@@ -111,10 +114,10 @@ object AlgorithmEngine {
         if (highRPEDays >= 4) signals.add("High intensity clustering — heavy RPE sets performed on $highRPEDays distinct days recently")
 
         val fatigue = precomputedFatigue ?: FatigueEngine.calcFatigueToFitnessRatio(trainingLog)
-        if ((fatigue.ratio ?: 0.0) >= 1.5) signals.add("Volume load too high relative to baseline — back off this week")
+        if ((fatigue.ratio ?: 0.0) >= 1.5) signals.add("Recent training load is high relative to your 4-week baseline — consider an easier week")
 
         val muscleDays = mutableMapOf<String, MutableSet<String>>()
-        val cutoff = getDateDaysAgo(7)
+        val cutoff = getWindowStartDate(7)
         trainingLog.filter { it.completed && it.date >= cutoff }.forEach { session ->
             session.exercises.forEach { exercise ->
                 muscleDays.getOrPut(exercise.muscleGroup) { mutableSetOf() }.add(session.date)
