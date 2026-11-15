@@ -234,6 +234,36 @@ class AlgorithmEngineTest {
     }
 
     @Test
+    fun goalTimeline_contradictoryGainTargetDoesNotInventGainSchedule() {
+        val timeline = GoalEngine.calcGoalTimeline(
+            currentWeightKg = 80.0,
+            goalWeightKg = 75.0,
+            resolvedGoal = "Gain Muscle",
+            heightCm = 180.0,
+            sex = "male"
+        )
+
+        assertEquals(0, timeline.weeksToGoal)
+        assertEquals(0.0, timeline.weeklyChangeKg, 0.001)
+        assertEquals(80.0, timeline.adjustedGoalWeightKg, 0.001)
+    }
+
+    @Test
+    fun goalTimeline_contradictoryLossTargetDoesNotInventCutSchedule() {
+        val timeline = GoalEngine.calcGoalTimeline(
+            currentWeightKg = 80.0,
+            goalWeightKg = 85.0,
+            resolvedGoal = "Lose Fat",
+            heightCm = 180.0,
+            sex = "male"
+        )
+
+        assertEquals(0, timeline.weeksToGoal)
+        assertEquals(0.0, timeline.weeklyChangeKg, 0.001)
+        assertEquals(80.0, timeline.adjustedGoalWeightKg, 0.001)
+    }
+
+    @Test
     fun testCalcGoalTimeline_realisticFatLoss() {
         val timeline = GoalEngine.calcGoalTimeline(
             currentWeightKg = 80.0,
