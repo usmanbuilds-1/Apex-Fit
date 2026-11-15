@@ -100,7 +100,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val recent90DaySessionsFlow: StateFlow<List<TrainingSession>> by lazy {
-        dao.getRecentCompletedSessionsFlow(getDateDaysAgo(90))
+        dao.getRecentCompletedSessionsFlow(getWindowStartDate(90))
             .flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
@@ -110,7 +110,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val recent90DaySetsFlow: StateFlow<List<ExerciseSet>> by lazy {
-        dao.getRecentExerciseSetsFlow(getDateDaysAgo(90))
+        dao.getRecentExerciseSetsFlow(getWindowStartDate(90))
             .flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
@@ -134,7 +134,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val weightEntriesFlow: StateFlow<List<WeightEntry>> by lazy {
-        dao.getWeightEntriesSinceFlow(getDateDaysAgo(90))
+        dao.getWeightEntriesSinceFlow(getWindowStartDate(90))
             .flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
@@ -144,7 +144,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val nutritionEntriesFlow: StateFlow<List<NutritionEntry>> by lazy {
-        dao.getNutritionEntriesSinceFlow(getDateDaysAgo(90))
+        dao.getNutritionEntriesSinceFlow(getWindowStartDate(90))
             .flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
@@ -208,7 +208,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val sharedTargetsFlow: Flow<NutritionTargets> by lazy {
-        val weightFlow = dao.getWeightEntriesSinceFlow(getDateDaysAgo(90))
+        val weightFlow = dao.getWeightEntriesSinceFlow(getWindowStartDate(90))
             .flowOn(Dispatchers.IO)
         val completedTodayFlow: Flow<Int> = todayDateFlow
             .flatMapLatest { date -> dao.getCompletedSessionCountFlow(date) }
@@ -486,7 +486,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override fun getWeightHistory(): Flow<List<WeightEntry>> {
-        val cutoffDate = LocalDate.now().minusDays(90).toString()
+        val cutoffDate = LocalDate.now().minusDays(89).toString()
         return dao.getWeightEntriesFromFlow(cutoffDate)
     }
 
@@ -495,7 +495,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override fun getTrainingSessions(): Flow<List<TrainingSession>> {
-        val cutoffDate = LocalDate.now().minusDays(365).toString()
+        val cutoffDate = LocalDate.now().minusDays(364).toString()
         return dao.getRecentCompletedSessionsFlow(cutoffDate)
     }
 
