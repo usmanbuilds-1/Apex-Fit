@@ -18,7 +18,7 @@ object ProgressionEngine {
             m.contains("core") || n.contains("plank") || n.contains("crunch") -> "isolation"
 
             // Compound Lower
-            n.contains("goblet") || (n.contains("squat") && !n.contains("dumbbell") && !n.contains("db") && !n.contains("machine") && !n.contains("smith")) -> "compound_lower"
+            (n.contains("squat") && !n.contains("goblet") && !n.contains("dumbbell") && !n.contains("db") && !n.contains("machine") && !n.contains("smith")) -> "compound_lower"
             n.contains("deadlift") && !n.contains("dumbbell") && !n.contains("db") -> "compound_lower"
             n.contains("lunge") && !n.contains("dumbbell") && !n.contains("db") -> "compound_lower"
             n.contains("leg press") -> "compound_lower"
