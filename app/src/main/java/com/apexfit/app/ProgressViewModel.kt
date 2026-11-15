@@ -133,8 +133,8 @@ class ProgressViewModel @Inject constructor(
         sessions: List<com.apexfit.app.data.TrainingSession>,
         allSets: List<com.apexfit.app.data.ExerciseSet>
     ): List<MuscleRecoveryStatus> {
-        // Evidence-based tau (half-life hours) per muscle group.
-        // Source: per-muscle recovery half-life literature (Omnio/Arvo/Schoenfeld).
+        // Heuristic recovery time constants (hours) by muscle group.
+        // These are calibration values for the app's exponential model, not measured biological half-lives.
         fun tauForMuscle(muscle: String): Double = when {
             muscle.contains("core") || muscle.contains("abs") || muscle.contains("oblique") -> 16.0
             muscle.contains("calf") || muscle.contains("calves") || muscle.contains("forearm") -> 18.0
