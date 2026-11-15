@@ -80,7 +80,7 @@ class HomeViewModelTest {
         val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         val viewModel = HomeViewModel(application, repository, dataStore, dao)
 
-        viewModel.logWeight(80.0, date = getTodayDateString())?.join()
+        viewModel.logWeight(80.0, date = com.apexfit.app.utils.getTodayDateString())?.join()
         viewModel.logWeight(70.0, date = com.apexfit.app.utils.getDateDaysAgo(1))?.join()
 
         assertEquals(
