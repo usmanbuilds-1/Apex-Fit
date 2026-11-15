@@ -42,7 +42,7 @@ class AlgorithmEngineTest {
         val weightChangeKg = trendData.last().trend - trendAtCutoff
         val daysBetween = getDaysBetween(recentWeight.first().date, recentWeight.last().date).coerceAtLeast(1L)
         val expectedImbalance = (weightChangeKg * 7700.0) / daysBetween
-        val expectedTdee = (avgCalories - expectedImbalance).toInt()
+        val expectedTdee = kotlin.math.round(avgCalories - expectedImbalance).toInt()
 
         assertEquals(expectedTdee, res.tdee)
     }
