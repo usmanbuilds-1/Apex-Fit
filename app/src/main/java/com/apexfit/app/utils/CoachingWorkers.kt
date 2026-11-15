@@ -112,7 +112,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         // Load logs
         // AUDIT FIX (BUG-V4-017): bound the nutrition read to 30 days —
         // coaching worker math is 14-day windowed; 30 gives headroom.
-        val cutoffNutrition = com.apexfit.app.utils.getDateDaysAgo(30)
+        val cutoffNutrition = com.apexfit.app.utils.getWindowStartDate(30)
         val dbNutrition = dao.getNutritionEntriesSince(cutoffNutrition)
         val allNutrition = dbNutrition.groupBy { it.date }.map { (date, list) ->
             NutritionEntry(
