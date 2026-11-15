@@ -9,8 +9,10 @@ fun calcMacroTargets(
     bodyWeightKg: Double,
     goal: String,
     heightCm: Double = UserDefaults.HEIGHT_CM,
-    sex: String = "male"
-): com.apexfit.app.data.NutritionTargets = MacroEngine.calcMacroTargets(calorieTarget, bodyWeightKg, goal, heightCm, sex)
+    sex: String = "male",
+    weeklyTrainingSessions: Int = UserDefaults.WEEKLY_WORKOUTS
+): com.apexfit.app.data.NutritionTargets =
+    MacroEngine.calcMacroTargets(calorieTarget, bodyWeightKg, goal, heightCm, sex, weeklyTrainingSessions)
 
 object MacroEngine {
     fun calcMacroTargets(
@@ -18,7 +20,8 @@ object MacroEngine {
         bodyWeightKg: Double,
         goal: String,
         heightCm: Double = UserDefaults.HEIGHT_CM,
-        sex: String = "male"
+        sex: String = "male",
+        weeklyTrainingSessions: Int = UserDefaults.WEEKLY_WORKOUTS
     ): com.apexfit.app.data.NutritionTargets {
         val lbm = GoalEngine.estimateLBM(bodyWeightKg, heightCm, sex)
         val basisKg = minOf(lbm, bodyWeightKg)  // never exceed total weight
@@ -49,11 +52,7 @@ object MacroEngine {
         }
         val carbsG = ((budget - proteinG * 4 - fatG * 9) / 4.0).roundToInt()
 
-        val weeklySessions = when (goal.lowercase()) {
-            "gain muscle" -> 4
-            "lose fat"    -> 5
-            else          -> 4
-        }
+        val weeklySessions = weeklyTrainingSessions.coerceIn(0, 7)
         return com.apexfit.app.data.NutritionTargets(
             calories = budget,
             protein = proteinG,
