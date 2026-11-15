@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
@@ -195,7 +196,7 @@ class WorkoutSessionManager(
                     )
                 }
 
-            // Parallel reads: launch all three concurrently and await together
+            // Parallel reads: launch all independent profile/log reads concurrently and await together
             val nutritionLogDeferred = async { repository.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList() }
             val calorieTargetDeferred = async { repository.getCalorieTargetFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.CALORIES }
             val userGoalDeferred = async { repository.getGoalFlow().firstOrNull() ?: "Maintain Weight" }
