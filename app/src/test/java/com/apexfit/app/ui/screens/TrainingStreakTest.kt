@@ -1,17 +1,50 @@
 package com.apexfit.app.ui.screens
 
-import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDate
 
 class TrainingStreakTest {
-    private val today = LocalDate.of(2026, 11, 3)
+    private val today = LocalDate.of(2026, 11, 15) // Sunday
 
     @Test
-    fun streakIncludesTodayOrYesterdayAndStopsAtTheFirstGap() {
-        assertEquals(0, currentTrainingStreak(emptySet(), today))
-        assertEquals(0, currentTrainingStreak(setOf(today.minusDays(2)), today))
-        assertEquals(2, currentTrainingStreak(setOf(today, today.minusDays(1), today.minusDays(3)), today))
-        assertEquals(2, currentTrainingStreak(setOf(today.minusDays(1), today.minusDays(2)), today))
+    fun weeklyTrainingCountIgnoresGapsAndCountsOnlyCurrentWeek() {
+        assertEquals(0, currentWeekTrainingCount(emptySet(), today))
+
+        // Monday and Thursday both count even though rest days exist between them.
+        assertEquals(
+            2,
+            currentWeekTrainingCount(
+                setOf(
+                    LocalDate.of(2026, 11, 9),
+                    LocalDate.of(2026, 11, 12)
+                ),
+                today
+            )
+        )
+
+        // A session from the previous week does not inflate this week.
+        assertEquals(
+            1,
+            currentWeekTrainingCount(
+                setOf(
+                    LocalDate.of(2026, 11, 8),
+                    LocalDate.of(2026, 11, 10)
+                ),
+                today
+            )
+        )
+
+        // Future dates are ignored.
+        assertEquals(
+            1,
+            currentWeekTrainingCount(
+                setOf(
+                    LocalDate.of(2026, 11, 14),
+                    LocalDate.of(2026, 11, 16)
+                ),
+                today
+            )
+        )
     }
 }
