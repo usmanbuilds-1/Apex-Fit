@@ -473,17 +473,15 @@ class AuditRegressionTestV4 {
         assertEquals(100.0, updatedSet.weight, 0.01)
     }
 
-    // 7. canonicalizeExerciseSetWeightsIfNeeded_runsOnceAndRespectsUnits
-    // For an imperial user: calls canonicalization twice, asserts the DAO
-    // conversion ran exactly once (flag guards it).
-    // For a kg user: asserts conversion did NOT run.
+    // 7. Legacy canonicalization follows the unit persisted on each row, not
+    // the user's current display preference. This prevents a user who switched
+    // back to kg before upgrading from permanently skipping lb conversion.
     @Test
-    fun canonicalizeExerciseSetWeightsIfNeeded_runsOnceAndRespectsUnits() = runBlocking {
+    fun canonicalizeExerciseSetWeightsIfNeeded_usesStoredRowUnitAndRunsOnce() = runBlocking {
         val dataStore = DataStoreManager.getInstance(context)
         dataStore.clearAllData()
 
-        // 1. Kg user test: DAO conversion should NOT run
-        val kgSet = ExerciseSet(
+        val lbSet = ExerciseSet(
             id = 10L,
             sessionId = "session_kg",
             exerciseId = "squat",
@@ -496,24 +494,28 @@ class AuditRegressionTestV4 {
             completed = true,
             weightUnit = "lb"
         )
-        dao.insertExerciseSet(kgSet)
+        dao.insertExerciseSet(lbSet)
+        dao.insertPersonalRecord(
+            com.apexfit.app.data.PersonalRecord(
+                id = "squat_volume",
+                exerciseId = "squat",
+                type = "volume",
+                value = 2204.62,
+                date = "2024-01-01"
+            )
+        )
 
-        dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = false)
+        // Display preference says kg, but the stored row explicitly says lb.
+        dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = false, db = db)
+
         var currentSet = dao.getSetsForSession("session_kg").first { it.id == 10L }
-        // Should remain untouched for kg user
-        assertEquals(220.462, currentSet.weight, 0.001)
-        assertEquals("lb", currentSet.weightUnit)
-
-        // Clear dataStore flag to simulate fresh run for imperial user
-        dataStore.clearAllData()
-
-        // 2. Imperial user test: First invocation converts 220.462 -> 100.0
-        dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = true)
-        currentSet = dao.getSetsForSession("session_kg").first { it.id == 10L }
         assertEquals(100.0, currentSet.weight, 0.01)
         assertEquals("kg", currentSet.weightUnit)
+        val convertedVolume = dao.getPRsForExercise("squat").single { it.type == "volume" }
+        assertEquals(1000.0, convertedVolume.value, 0.05)
 
-        // Insert another lb row to test flag guarding
+        // Once marked canonical, newly inserted legacy-looking data must not be
+        // converted a second time.
         dao.insertTrainingSession(
             TrainingSession(
                 id = "session_imperial_2",
@@ -535,26 +537,25 @@ class AuditRegressionTestV4 {
                 )
             )
         )
-        val secondLbSet = ExerciseSet(
-            id = 20L,
-            sessionId = "session_imperial_2",
-            exerciseId = "deadlift",
-            exerciseName = "Deadlift",
-            muscleGroup = "Back",
-            weight = 220.462,
-            reps = 5,
-            rpe = 8,
-            isWarmup = false,
-            completed = true,
-            weightUnit = "lb"
+        dao.insertExerciseSet(
+            ExerciseSet(
+                id = 20L,
+                sessionId = "session_imperial_2",
+                exerciseId = "deadlift",
+                exerciseName = "Deadlift",
+                muscleGroup = "Back",
+                weight = 220.462,
+                reps = 5,
+                rpe = 8,
+                isWarmup = false,
+                completed = true,
+                weightUnit = "lb"
+            )
         )
-        dao.insertExerciseSet(secondLbSet)
 
-        // Second invocation: Should be a no-op because flag is already set
-        dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = true)
+        dataStore.canonicalizeExerciseSetWeightsIfNeeded(dao, isImperial = true, db = db)
         val postSecondRunSet = dao.getSetsForSession("session_imperial_2").first { it.id == 20L }
-        assertEquals("Subsequent canonicalize call must be guarded and not convert again",
-            220.462, postSecondRunSet.weight, 0.001)
+        assertEquals(220.462, postSecondRunSet.weight, 0.001)
         assertEquals("lb", postSecondRunSet.weightUnit)
     }
 
