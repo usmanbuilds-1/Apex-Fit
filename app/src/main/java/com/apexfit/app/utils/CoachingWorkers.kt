@@ -140,7 +140,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val latestWeightForCoaching = engineWeights.lastOrNull()?.weight ?: dataStore.currentWeightFlow.first()
         val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
         
-        val goalWeight = dataStore.goalWeightFlow.first()
+        val goalWeight = dataStore.explicitGoalWeightFlow.first()
         val userHeight = dataStore.heightFlow.first()
         val userSex    = dataStore.sexFlow.first()
         val userAge    = dataStore.ageFlow.first()
