@@ -355,11 +355,13 @@ class DataStoreManager(context: Context) {
             return
         }
 
-        if (isImperial) {
-            db.withTransaction {
-                dao.convertAllExerciseSetWeightsToKg()
-                dao.convertAllPersonalRecordValuesToKg()
-            }
+        // Convert based on the unit stored on each row, not the user's current
+        // display preference. A user can switch back to kg before upgrading.
+        db.withTransaction {
+            // PR conversion must happen before the set rows are relabelled to kg,
+            // because the query scopes PRs to exercises that still have lb rows.
+            dao.convertImperialPersonalRecordValuesToKg()
+            dao.convertAllExerciseSetWeightsToKg()
         }
         context.dataStore.edit { it[EXERCISE_SETS_CANONICALIZED_KEY] = true }
     }
@@ -378,10 +380,9 @@ class DataStoreManager(context: Context) {
             return
         }
 
-        if (isImperial) {
-            db.withTransaction {
-                dao.convertAllPlanExerciseWeightsToKg()
-            }
+        // The row's weight_unit is authoritative; display preference is not.
+        db.withTransaction {
+            dao.convertAllPlanExerciseWeightsToKg()
         }
         context.dataStore.edit { it[PLAN_EXERCISES_CANONICALIZED_KEY] = true }
     }
