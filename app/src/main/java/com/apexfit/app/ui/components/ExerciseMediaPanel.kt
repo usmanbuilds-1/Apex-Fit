@@ -8,8 +8,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -19,13 +17,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import coil.compose.AsyncImage
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.ExerciseMedia
 import com.apexfit.app.utils.ExerciseMediaCatalog
@@ -47,50 +43,13 @@ fun ExerciseMediaPanel(
     }
 
     val currentMedia = media ?: return
-    if (currentMedia.imageUrls.isEmpty() && currentMedia.youtubeVideoId == null) return
+    val videoId = currentMedia.youtubeVideoId ?: return
 
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        if (currentMedia.imageUrls.isNotEmpty()) {
-            Text(
-                text = "FORM REFERENCE",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = AmberAccent
-            )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                itemsIndexed(currentMedia.imageUrls, key = { index, url -> "$index:$url" }) { index, url ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        AsyncImage(
-                            model = url,
-                            contentDescription = "Exercise form reference ${index + 1}",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(180.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(DarkRaised)
-                        )
-                        Text(
-                            text = if (index == 0) "START" else "FINISH",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
-                            color = MutedText
-                        )
-                    }
-                }
-            }
-            Text(
-                text = "Images: Free Exercise DB · public domain",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
-                color = MutedText
-            )
-        }
-
-        currentMedia.youtubeVideoId?.let { videoId ->
+        videoId.let { videoId ->
             YouTubeTechniqueVideo(
                 videoId = videoId,
                 title = currentMedia.youtubeVideoTitle,
