@@ -91,10 +91,10 @@ object PatternDetector {
                 patterns.add(DetectedPattern(
                     id = "high_cal_$dayName",
                     type = "nutrition_day_pattern",
-                    title = "$dayName is your surplus day",
+                    title = "$dayName is a higher-calorie day",
                     description = "You log ${calDeviation.roundToInt()}% more calories on ${dayName}s — averaging ${dayAvgCal.roundToInt()} kcal versus your overall logged average.",
                     confidence = confidence,
-                    actionable = "Front-load protein earlier on ${dayName}s so surplus calories are less likely to come from low-quality sources.",
+                    actionable = "If this pattern is unintentional, compare meal timing and portions on ${dayName}s with your other logged days.",
                     detectedAt = getCurrentDate()
                 ))
             }
@@ -106,7 +106,7 @@ object PatternDetector {
                     title = "Protein consistently drops on ${dayName}s",
                     description = "Your protein averages ${dayAvgProtein.roundToInt()}g on ${dayName}s versus ${overallAvgProtein.roundToInt()}g across your logged days. This is a consistency pattern, not evidence that one low-protein day determines weekly progress.",
                     confidence = confidence,
-                    actionable = "Set a phone alarm for 12pm on ${dayName}s — eat 40g protein before the afternoon starts.",
+                    actionable = "If you want steadier protein intake, consider planning a protein-rich meal or snack earlier on ${dayName}s.",
                     detectedAt = getCurrentDate()
                 ))
             }
@@ -135,13 +135,20 @@ object PatternDetector {
                     fat      = entries.sumOf { it.fat }
                 )
             }
-        val pairs = mutableListOf<Pair<Double, Int>>()
+        val pairs = mutableListOf<Pair<Double, Double>>()
 
-        trainingLog.filter { it.completed && it.sessionFeel > 0 }.forEach { session ->
-            val prevDate = getPreviousDate(session.date) ?: return@forEach
+        // One observation per training date. Multiple sessions on the same day share
+        // the same previous-day nutrition exposure and are not independent evidence.
+        val dailySessionFeel = trainingLog
+            .filter { it.completed && it.sessionFeel > 0 }
+            .groupBy { it.date }
+            .mapValues { (_, sessions) -> sessions.map { it.sessionFeel }.average() }
+
+        dailySessionFeel.forEach { (date, feel) ->
+            val prevDate = getPreviousDate(date) ?: return@forEach
             val prevNutrition = nutritionMap[prevDate] ?: return@forEach
             val proteinPct = if (proteinTarget > 0.0) prevNutrition.protein.toDouble() / proteinTarget else 0.0
-            pairs.add(Pair(proteinPct, session.sessionFeel))
+            pairs.add(Pair(proteinPct, feel))
         }
 
         if (pairs.size < 8) return patterns
@@ -236,17 +243,21 @@ object PatternDetector {
     // intensity, sleep, and other confounders are not controlled.
     private fun detectRecoveryPatterns(trainingLog: List<TrainingSession>): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
-        val completedSessions = trainingLog.filter { it.completed && it.sessionFeel > 0 }.sortedBy { it.date }
-        if (completedSessions.size < 8) return patterns
+        val completedDays = trainingLog
+            .filter { it.completed && it.sessionFeel > 0 }
+            .groupBy { it.date }
+            .map { (date, sessions) -> date to sessions.map { it.sessionFeel }.average() }
+            .sortedBy { it.first }
+        if (completedDays.size < 8) return patterns
 
-        val recoveryPerformancePairs = mutableListOf<Pair<Int, Int>>()
+        val recoveryPerformancePairs = mutableListOf<Pair<Int, Double>>()
 
-        for (i in 1 until completedSessions.size) {
-            val prev = completedSessions[i - 1]
-            val current = completedSessions[i]
-            val daysBetween = getDaysBetween(prev.date, current.date).toInt()
+        for (i in 1 until completedDays.size) {
+            val prev = completedDays[i - 1]
+            val current = completedDays[i]
+            val daysBetween = getDaysBetween(prev.first, current.first).toInt()
             if (daysBetween in 1..5) {
-                recoveryPerformancePairs.add(Pair(daysBetween, current.sessionFeel))
+                recoveryPerformancePairs.add(Pair(daysBetween, current.second))
             }
         }
 
