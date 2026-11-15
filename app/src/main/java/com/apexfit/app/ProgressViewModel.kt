@@ -173,7 +173,7 @@ class ProgressViewModel @Inject constructor(
                 )
                 val tau = tauForMuscle(muscle.lowercase())
                 val remainingFatigue = Math.exp(-elapsedHours / tau).toFloat().coerceIn(0f, 1f)
-                val hoursRemaining = maxOf(0, (3.0 * tau - elapsedHours).toInt())
+                val hoursRemaining = maxOf(0, kotlin.math.ceil(3.0 * tau - elapsedHours).toInt())
                 MuscleRecoveryStatus(
                     muscleGroup = muscle,
                     hoursRemaining = hoursRemaining,

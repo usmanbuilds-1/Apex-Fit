@@ -198,6 +198,12 @@ class DataStoreManager(context: Context) {
         preferences[CURRENT_WEIGHT_KEY] ?: com.apexfit.app.UserDefaults.WEIGHT_KG
     }.distinctUntilChanged()
 
+    val explicitGoalWeightFlow: Flow<Double?> = context.dataStore.data.map { preferences ->
+        preferences[GOAL_WEIGHT_KEY]
+    }.distinctUntilChanged()
+
+    // Legacy/UI convenience flow. Calculation code that needs to distinguish
+    // "no target supplied" from an explicit target must use explicitGoalWeightFlow.
     val goalWeightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
         preferences[GOAL_WEIGHT_KEY] ?: com.apexfit.app.UserDefaults.WEIGHT_KG
     }.distinctUntilChanged()
@@ -298,6 +304,12 @@ class DataStoreManager(context: Context) {
     suspend fun saveGoal(goal: String) {
         context.dataStore.edit { preferences ->
             preferences[GOAL_KEY] = goal
+        }
+    }
+
+    suspend fun saveCurrentWeight(current: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[CURRENT_WEIGHT_KEY] = current
         }
     }
 

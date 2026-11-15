@@ -5,9 +5,10 @@ import kotlin.math.roundToInt
 
 object TdeeEngine {
     // ── ADAPTIVE TDEE ─────────────────────────────────────────
-    // Science: Hall (2012) - Adaptive metabolic model of energy homeostasis.
-    // Daily TDEE = Avg Intake - (Weight change rate * 7700 kcal/kg).
-    // Fallback: Mifflin-St Jeor BMR equation (Mifflin MD, et al. 1990) scaled by dynamic activity multiplier.
+    // Energy-balance estimate from logged intake and scale-weight trend.
+    // The 7,700 kcal/kg conversion is a practical approximation, not a dynamic
+    // metabolic model and should not be presented as one.
+    // Fallback: Mifflin-St Jeor BMR equation (Mifflin MD, et al. 1990) scaled by an activity multiplier.
     fun calcAdaptiveTDEE(
         weightLog: List<WeightEntry>,
         nutritionLog: List<NutritionEntry>,
@@ -18,7 +19,10 @@ object TdeeEngine {
         weeklyWorkouts: Int = 4,
         fallbackWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG
     ): TDEEResult {
-        val latestWeight = weightLog.maxByOrNull { it.date }?.weight ?: fallbackWeightKg
+        val latestWeight = weightLog
+            .maxWithOrNull(compareBy<WeightEntry> { it.date }.thenBy { it.time })
+            ?.weight
+            ?: fallbackWeightKg
         
         // Mifflin-St Jeor Equation (Mifflin MD, et al. 1990)
         // Males: REE = (10 * weight_kg) + (6.25 * height_cm) - (5 * age_years) + 5
@@ -39,18 +43,28 @@ object TdeeEngine {
         }
         val fallbackTdee = (bmrBaseline * activityMultiplier).roundToInt()
 
-        if (weightLog.size < 7 || nutritionLog.map { it.date }.distinct().size < 7) {
-            return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", 0, 0.0)
-        }
+        val cutoff = getWindowStartDate(windowDays)
+        val today = getCurrentDate()
+        val recentWeight = weightLog
+            .filter { it.date in cutoff..today }
+            .sortedWith(compareBy<WeightEntry> { it.date }.thenBy { it.time })
+        val recentNutrition = nutritionLog.filter { it.date in cutoff..today }
+        val recentWeightDays = recentWeight.map { it.date }.distinct().size
+        val recentNutritionDays = recentNutrition.map { it.date }.distinct().size
 
-        val cutoff = getDateDaysAgo(windowDays)
-        val recentWeight = weightLog.filter { it.date >= cutoff }.sortedBy { it.date }
-        val recentNutrition = nutritionLog.filter { it.date >= cutoff }
-
-        if (recentWeight.size < 2 || recentNutrition.size < 3) {
-            return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", recentNutrition.groupBy { it.date }
+        // Adaptive estimates need recent evidence, not merely enough historical
+        // rows somewhere in the database. Old data outside the active window must
+        // not unlock an "adaptive" calorie estimate from only a couple of current
+        // weigh-ins or nutrition days.
+        if (recentWeightDays < 7 || recentNutritionDays < 7) {
+            return TDEEResult(
+                fallbackTdee,
+                "low (Mifflin-St Jeor; insufficient recent data)",
+                recentNutrition.groupBy { it.date }
                 .map { (_, e) -> e.sumOf { it.calories } }
-                .average().takeIf { !it.isNaN() }?.roundToInt() ?: 0, 0.0)
+                .average().takeIf { !it.isNaN() }?.roundToInt() ?: 0,
+                0.0
+            )
         }
 
         // Adaptive energy-balance math only makes sense when intake coverage spans
@@ -90,7 +104,7 @@ object TdeeEngine {
         
         // Divisor is actual calendar days between the weight observations, not log count.
         
-        // Weight gain or loss translates to calorie imbalance per day (1kg = 7700 kcal energy density, Hall 2012)
+        // Approximate observed energy imbalance from scale-weight change using 7,700 kcal/kg.
         val calorieImbalancePerDay = (weightChangeKg * AppConstants.CALORIES_PER_KG_BODYFAT) / daysBetween
         val tdee = (avgCalories - calorieImbalancePerDay).roundToInt().coerceAtLeast(1200)
         
@@ -106,27 +120,37 @@ object TdeeEngine {
         tdee: Int,
         goal: String,
         currentWeightKg: Double,
-        goalWeightKg: Double,
+        goalWeightKg: Double?,
         heightCm: Double = 170.0,
         ageYears: Int = 35,
         sex: String = "male"
     ): Int {
-        val distanceKg = Math.abs(goalWeightKg - currentWeightKg)
+        val normalizedGoal = goal.trim().lowercase()
+        val targetAlreadyReachedOrContradictory = when {
+            goalWeightKg == null -> false
+            normalizedGoal == "gain muscle" -> goalWeightKg <= currentWeightKg
+            normalizedGoal == "lose fat" -> goalWeightKg >= currentWeightKg
+            else -> false
+        }
 
-        val rateKgPerWeek = when (goal.lowercase()) {
-            "gain muscle" -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
-            "lose fat"    -> (currentWeightKg * 0.008).coerceIn(0.3, 0.7)
-            "recomposition" -> 0.0
-            else          -> 0.0
+        val rateKgPerWeek = if (targetAlreadyReachedOrContradictory) {
+            0.0
+        } else {
+            when (normalizedGoal) {
+                "gain muscle" -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
+                "lose fat"    -> (currentWeightKg * 0.008).coerceIn(0.3, 0.7)
+                "recomposition" -> 0.0
+                else          -> 0.0
+            }
         }
 
         val dailyAdjustment = ((rateKgPerWeek * 7700.0) / 7.0).roundToInt()
 
-        val rawTarget = when (goal.lowercase()) {
-            "gain muscle"   -> tdee + dailyAdjustment
-            "lose fat"      -> tdee - dailyAdjustment
-            "recomposition" -> tdee
-            else            -> tdee
+        val rawTarget = when {
+            targetAlreadyReachedOrContradictory -> tdee
+            normalizedGoal == "gain muscle" -> tdee + dailyAdjustment
+            normalizedGoal == "lose fat" -> tdee - dailyAdjustment
+            else -> tdee
         }
 
         val sexOffset = if (sex.equals("female", ignoreCase = true)) -161.0 else 5.0

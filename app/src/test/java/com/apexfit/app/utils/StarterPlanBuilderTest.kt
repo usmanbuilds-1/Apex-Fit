@@ -16,7 +16,7 @@ import org.robolectric.annotation.Config
 class StarterPlanBuilderTest {
     @Test
     fun selectedFrequencyProducesThatManyDistinctTrainingDays() {
-        (3..6).forEach { days ->
+        (2..6).forEach { days ->
             val sessions = StarterPlanBuilder.templates(days)
             assertEquals(days, sessions.size)
             assertEquals(days, sessions.map { it.day }.distinct().size)
@@ -30,7 +30,7 @@ class StarterPlanBuilderTest {
         val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         try {
             val dao = db.fitnessDao()
-            val names = (3..6).flatMap { StarterPlanBuilder.templates(it) }.flatMap { it.exercises }.distinct()
+            val names = (2..6).flatMap { StarterPlanBuilder.templates(it) }.flatMap { it.exercises }.distinct()
             dao.insertExercises(names.mapIndexed { index, name -> Exercise(id = "exercise-$index", name = name,
                 category = "Strength", primaryMuscle = "Chest", equipmentRequired = "Dumbbell") })
             val original = dao.insertWorkoutPlan(WorkoutPlan(name = "My saved plan", goal = "Maintain", isActive = true))

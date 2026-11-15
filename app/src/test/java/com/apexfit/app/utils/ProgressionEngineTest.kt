@@ -36,6 +36,23 @@ class ProgressionEngineTest {
     }
 
     @Test
+    fun punctuationVariantsOfPullupsAndDipsStayCompoundUpper() {
+        assertEquals("compound_upper", ProgressionEngine.getExerciseType("Weighted Pull-Up", "Back"))
+        assertEquals("compound_upper", ProgressionEngine.getExerciseType("Chin-Up", "Back"))
+        assertEquals("compound_upper", ProgressionEngine.getExerciseType("Parallel Bar Dip", "Triceps"))
+        assertEquals("machine", ProgressionEngine.getExerciseType("Dip Machine", "Triceps"))
+        assertEquals("compound_lower", ProgressionEngine.getExerciseType("Jerk Dip Squat", "Quads"))
+    }
+
+    @Test
+    fun gobletSquatUsesDumbbellLowerClassification() {
+        assertEquals(
+            "dumbbell_lower",
+            ProgressionEngine.getExerciseType("Goblet Squat", "Quadriceps")
+        )
+    }
+
+    @Test
     fun testCalculateBeginnerStartingWeight_normal() {
         val res = ProgressionEngine.calculateBeginnerStartingWeight("compound_upper", 68.027, 175.0)
         // base = 0.35. 68.027 kg * 2.205 lb/kg = 150.0 lb. 150 * 0.35 = 52.5
@@ -133,6 +150,71 @@ class ProgressionEngineTest {
         assertEquals(100.0, res.newWeight, 0.01)
         assertEquals(ProgressionEngine.OutcomeType.STALLED, res.outcome)
         assertTrue(res.reason.contains("unrated RPE"))
+    }
+
+    @Test
+    fun optionalExtraSetDoesNotInvalidateSuccessfulPrescription() {
+        val sets = listOf(
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 4, rpe = 10, completed = true)
+        )
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "bench",
+            lastSessionSets = sets,
+            repsMin = 8,
+            repsMax = 12,
+            targetSets = 3,
+            recoveryMultiplier = 1.0,
+            currentWeight = 100.0,
+            exerciseType = "compound_upper"
+        )
+
+        assertEquals(ProgressionEngine.OutcomeType.SUCCESS, result.outcome)
+    }
+
+    @Test
+    fun failingPrescribedSetCannotBeRescuedByOptionalExtraSet() {
+        val sets = listOf(
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 6, rpe = 9, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true)
+        )
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "bench",
+            lastSessionSets = sets,
+            repsMin = 8,
+            repsMax = 12,
+            targetSets = 3,
+            recoveryMultiplier = 1.0,
+            currentWeight = 100.0,
+            exerciseType = "compound_upper"
+        )
+
+        assertEquals(ProgressionEngine.OutcomeType.STALLED, result.outcome)
+    }
+
+    @Test
+    fun metadataIncrement_isNotPreRoundedToGenericPoundGrid() {
+        val sets = listOf(
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true)
+        )
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "lateral-raise",
+            lastSessionSets = sets,
+            repsMin = 8,
+            repsMax = 12,
+            targetSets = 1,
+            recoveryMultiplier = 1.0,
+            currentWeight = 100.0,
+            exerciseType = "isolation",
+            incrementOverrideKg = 1.0
+        )
+
+        assertEquals(100.0 + AppConstants.KG_TO_LBS, result.newWeight, 0.0001)
+        assertEquals(ProgressionEngine.OutcomeType.SUCCESS, result.outcome)
     }
 
     @Test

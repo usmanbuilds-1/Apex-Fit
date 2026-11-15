@@ -34,7 +34,8 @@ object NotificationEngine {
     ): List<NotificationTrigger> {
         val triggers = mutableListOf<NotificationTrigger>()
         val today = getCurrentDate()
-        val todayNutrition = nutritionLog.find { it.date == today }
+        val todayNutrition = nutritionLog.filter { it.date == today }
+        val todayProtein = todayNutrition.sumOf { it.protein }.toDouble()
 
         // TRIGGER 1 — Morning readiness (7am)
         if (currentHour in 6..9 && todaySessionType != null) {
@@ -49,7 +50,7 @@ object NotificationEngine {
 
         // TRIGGER 2 — Midday protein progress (12pm)
         if (currentHour in 11..13 && targets.protein > 0) {
-            val morningProtein = (todayNutrition?.protein ?: 0).toDouble()
+            val morningProtein = todayProtein
             val proteinTarget = targets.protein.toDouble()
             if (morningProtein < proteinTarget * 0.3) {
                 triggers.add(NotificationTrigger(
@@ -63,7 +64,7 @@ object NotificationEngine {
         }
 
         // TRIGGER 3 — Optional evening log reminder (no streak pressure / fake urgency)
-        if (currentHour in 19..21 && todayNutrition == null) {
+        if (currentHour in 19..21 && todayNutrition.isEmpty()) {
             triggers.add(NotificationTrigger(
                 id = "evening_nutrition_reminder",
                 title = "No nutrition logged today",
