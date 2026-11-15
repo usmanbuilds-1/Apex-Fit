@@ -2,6 +2,7 @@ package com.apexfit.app.utils
 
 import com.apexfit.app.data.*
 import kotlin.math.roundToInt
+import kotlin.math.ceil
 
 data class GoalTimeline(
     val weeksToGoal: Int,
@@ -53,8 +54,10 @@ object GoalEngine {
             else            -> 0.0
         }
         val distanceKg  = Math.abs(goalWeightKg - currentWeightKg)
-        val weeksRaw    = if (weeklyRate > 0.0) 
-            (distanceKg / weeklyRate).roundToInt() else 0
+        // Round up so the timeline never promises reaching the target sooner
+        // than the selected weekly rate can mathematically achieve.
+        val weeksRaw    = if (weeklyRate > 0.0)
+            ceil(distanceKg / weeklyRate).toInt() else 0
         val isRealistic = weeksRaw <= 104
 
         val direction = if (goalWeightKg >= currentWeightKg) 1.0 else -1.0
@@ -64,12 +67,12 @@ object GoalEngine {
 
         val summaryLine = when {
             isRecomposition ->
-                "Body recomposition: eat at maintenance, lift heavy. " +
-                "Expect visual changes in 3–6 months."
+                "Body recomposition: stay near maintenance and use progressive resistance training. " +
+                "Judge progress from multi-week trends rather than a fixed visual-change deadline."
             isMaintain ->
                 "Maintain your current weight range while tracking trend, nutrition, and training consistency."
             !isRealistic ->
-                "At a safe rate that would take over 2 years. " +
+                "At the current target rate this would take over 2 years. " +
                 "First milestone: ${Math.round(adjustedGoal * 10.0) / 10.0} kg."
             weeksRaw <= 12 ->
                 "~$weeksRaw weeks at ${Math.round(weeklyRate * 100.0) / 100.0} kg/week."
