@@ -552,12 +552,12 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getAllWeightEntries(): List<WeightEntry> {
-        val cutoffDate = LocalDate.now().minusDays(90).toString()
+        val cutoffDate = getWindowStartDate(90)
         return dao.getWeightEntriesSince(cutoffDate)
     }
 
     override fun getAllNutritionEntriesFlow(): Flow<List<NutritionEntry>> {
-        val cutoffDate = LocalDate.now().minusDays(90).toString()
+        val cutoffDate = getWindowStartDate(90)
         return dao.getNutritionEntriesFromFlow(cutoffDate)
     }
 
@@ -570,7 +570,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getAllExerciseSets(): List<ExerciseSet> {
-        val cutoffDate = LocalDate.now().minusDays(365).toString()
+        val cutoffDate = getWindowStartDate(365)
         return dao.getRecentExerciseSets(cutoffDate)
     }
 
@@ -595,7 +595,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override suspend fun scanAndSaveWeeklyPatterns() {
-        val cutoffDate = LocalDate.now().minusDays(90).toString()
+        val cutoffDate = getWindowStartDate(90)
 
         val dbWeights = dao.getWeightEntriesSince(cutoffDate)
         val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
