@@ -226,9 +226,7 @@ fun NutritionScreen(
         }
         // Date picker swiping bar
         item {
-            val todayDateString = remember {
-                java.time.LocalDate.now().toString()
-            }
+            val todayDateString = todayDateStr
             val isToday = remember(selectedDate, todayDateString) {
                 selectedDate == todayDateString
             }
