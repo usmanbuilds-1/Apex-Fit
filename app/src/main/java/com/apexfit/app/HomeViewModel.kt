@@ -211,12 +211,11 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun deleteWeightById(id: Long) {
+    fun deleteWeightById(id: Long): kotlinx.coroutines.Job =
         viewModelScope.launch {
             dao.deleteWeightEntryById(id)
             syncCurrentWeightFromHistory()
         }
-    }
 
     private suspend fun syncCurrentWeightFromHistory() {
         val latest = dao.getWeightEntries(limit = 1).firstOrNull() ?: return
