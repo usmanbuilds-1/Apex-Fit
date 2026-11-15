@@ -198,13 +198,9 @@ class HomeViewModel @Inject constructor(
                 _weightLogError.value = null
                 val timeStr = try { getCurrentLocalTimeString() } catch (e: Exception) { "12:00" }
                 dao.insertWeightEntry(WeightEntry(date = date, time = timeStr, weight = safeWeightKg, unit = "kg"))
-                // Keep the latest profile weight in sync without materialising
-                // an arbitrary goal weight when onboarding did not collect one.
-                try {
-                    dataStore.saveCurrentWeight(safeWeightKg)
-                } catch (e: Exception) {
-                    android.util.Log.w("HomeViewModel", "Could not sync current profile weight", e)
-                }
+                // Keep the profile weight aligned to the newest dated entry.
+                // A historical backfill must not overwrite a newer current weight.
+                syncCurrentWeightFromHistory()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -218,6 +214,16 @@ class HomeViewModel @Inject constructor(
     fun deleteWeightById(id: Long) {
         viewModelScope.launch {
             dao.deleteWeightEntryById(id)
+            syncCurrentWeightFromHistory()
+        }
+    }
+
+    private suspend fun syncCurrentWeightFromHistory() {
+        val latest = dao.getWeightEntries(limit = 1).firstOrNull() ?: return
+        try {
+            dataStore.saveCurrentWeight(latest.weight)
+        } catch (e: Exception) {
+            android.util.Log.w("HomeViewModel", "Could not sync current profile weight", e)
         }
     }
 
