@@ -298,6 +298,22 @@ class WorkoutSessionManager(
                     ?: 1.0  
                   
                 val stalledCount = stalledCounts[exerciseSlug] ?: 0
+                val isImperial = exerciseUnit.lowercase() in listOf("lb", "lbs")
+                val metadataIncrementKg = metadataMap[exerciseSlug]
+                    ?.defaultProgressionIncrementKg
+                    ?.takeIf { it > 0.0 }
+                val fallbackStep = if (exType == "isolation") 1.25 else 2.5
+
+                // The engine's canonical input is kg metadata converted internally
+                // to pounds. Custom exercises have no seed metadata, so derive a
+                // canonical override from the user's actual increment grid instead
+                // of mixing a pound fallback with a kilogram boundary.
+                val progressionIncrementKg = metadataIncrementKg ?: if (isImperial) {
+                    fallbackStep / com.apexfit.app.utils.AppConstants.KG_TO_LBS
+                } else {
+                    fallbackStep
+                }
+
                 val progressionResult = com.apexfit.app.utils.ProgressionEngine.calculateProgressiveWeight(  
                     exerciseId = exerciseSlug,  
                     lastSessionSets = allLastSets.ifEmpty {  
@@ -316,21 +332,16 @@ class WorkoutSessionManager(
                     currentWeight = lastWeightLbs,  
                     exerciseType = exType,
                     consecutiveStalledSessions = stalledCount,
-                    incrementOverrideKg = metadataMap[exerciseSlug]?.defaultProgressionIncrementKg
+                    incrementOverrideKg = progressionIncrementKg
                 )
                 lastProgressionResults[exerciseSlug] = progressionResult
 
                 val suggestedLbs = progressionResult.newWeight
-                val isImperial = exerciseUnit.lowercase() in listOf("lb", "lbs")
-                val metadataIncrementKg = metadataMap[exerciseSlug]
-                    ?.defaultProgressionIncrementKg
-                    ?.takeIf { it > 0.0 }
 
                 // Quantise once, at the user-facing unit boundary. Metric seed
                 // metadata already describes the intended increment (1 kg, 1.25 kg,
                 // 2 kg, 2.5 kg, 5 kg). For imperial display, map that equivalent to
                 // a practical 1.25/2.5 lb grid rather than quantising in both units.
-                val fallbackStep = if (exType == "isolation") 1.25 else 2.5
                 val preferredStep = if (metadataIncrementKg != null) {
                     if (isImperial) {
                         val hardwareGrid = fallbackStep
@@ -364,7 +375,18 @@ class WorkoutSessionManager(
                         } else {
                             0.0
                         }
-                        Math.round((lastPreferred + quantizedDelta) * 100.0) / 100.0
+                        val candidate = lastPreferred + quantizedDelta
+                        val finalPreferred = if (isImperial && quantizedDelta > 0.0) {
+                            // Stored history is canonical kg, so converting it to lb
+                            // can produce values such as 100.09. On a successful
+                            // progression, snap the *displayed target* to the imperial
+                            // hardware grid without changing hold semantics.
+                            val snapped = Math.round(candidate / preferredStep) * preferredStep
+                            if (snapped <= lastPreferred) lastPreferred + preferredStep else snapped
+                        } else {
+                            candidate
+                        }
+                        Math.round(finalPreferred * 100.0) / 100.0
                     }
                     OutcomeType.PLATEAU -> {
                         val rawTarget = lastPreferred * 0.9
