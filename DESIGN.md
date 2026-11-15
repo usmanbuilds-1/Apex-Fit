@@ -149,6 +149,35 @@ The current model may use recent completed training dose, exercise/muscle histor
 
 Where possible, future calibration should compare the estimate with the user's subsequent workout performance and logged effort so recommendations become more individualized without pretending the model is clinically validated.
 
+## Starting load and rep prescription
+
+Apex Fit must not present a bodyweight/height-derived resistance-training load as scientifically individualized. Body mass and height alone do not determine the correct external load for a specific exercise.
+
+### First exposure to an exercise
+
+For an exercise with no trustworthy user history:
+- do not silently prescribe a precise starting load from bodyweight × exercise-type multipliers;
+- treat the first exposure as a **calibration session**;
+- use the plan's rep range plus an effort target, with a conservative default such as approximately **2–3 RIR** for ordinary working sets unless the program explicitly requires otherwise;
+- let the user enter/select a comfortable first load, then use the logged reps + RIR/RPE to establish the exercise-specific baseline;
+- if a practical suggestion is shown, label it clearly as a starting estimate, make it easy to change, and do not imply it is scientifically determined;
+- bodyweight exercises default to bodyweight with added load recorded separately.
+
+After the first completed exposure, the existing progression system should prefer the user's own exercise-specific performance history over population/body-size guesses.
+
+### Rep ranges
+
+Rep ranges are a programming variable, not a universal 8–12 rule.
+
+- Hypertrophy-oriented work may use a broad practical range when sets are performed with sufficient effort; exercise selection, comfort, fatigue cost, and loadability should determine the exact range.
+- Strength-emphasis compound work should generally use lower rep ranges than small isolation work.
+- Isolation/accessory exercises may use moderate-to-higher rep ranges when that improves joint comfort and load granularity.
+- The starter plan should assign rep ranges by exercise role/type rather than forcing every exercise to 8–12.
+- The UI must show the prescribed range and effort target together; reps without effort context are incomplete.
+- Automatic progression should preserve the existing double-progression concept: add load only after the prescribed work reaches the top of the range at the required effort threshold; otherwise hold or build reps first.
+
+Do not claim that a specific rep range uniquely causes hypertrophy or that a percentage of 1RM maps perfectly to a fixed RIR for every user.
+
 ## Adaptive progression
 
 Apex Fit has two distinct progression concepts and the UI must not blur them:
