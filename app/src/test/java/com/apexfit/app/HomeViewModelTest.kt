@@ -99,8 +99,7 @@ class HomeViewModelTest {
         )
 
         val newest = dao.getWeightEntries().first()
-        viewModel.deleteWeightById(newest.id)
-        advanceUntilIdle()
+        viewModel.deleteWeightById(newest.id).join()
 
         assertEquals(
             "Deleting the newest entry should fall back to the next newest logged weight",
