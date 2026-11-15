@@ -61,14 +61,11 @@ private val TextTertiary   get() = ApexColors.TextTertiary
 private val BrandText      = Color(0xFFC6D2DB)
 private val BorderMuted    = Color(0xFF242F3A)
 
-internal fun currentTrainingStreak(dates: Set<LocalDate>, today: LocalDate): Int {
-    var date = if (today in dates) today else today.minusDays(1)
-    var streak = 0
-    while (date in dates) {
-        streak++
-        date = date.minusDays(1)
-    }
-    return streak
+internal fun currentWeekTrainingCount(dates: Set<LocalDate>, today: LocalDate): Int {
+    val weekStart = today.with(
+        java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)
+    )
+    return dates.count { date -> !date.isBefore(weekStart) && !date.isAfter(today) }
 }
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
@@ -133,7 +130,7 @@ fun HomeScreen(
         completedSessions.filter { it.completed }
             .mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()
     }
-    val trainingStreak = currentTrainingStreak(trainingDates, LocalDate.parse(todayDate))
+    val trainingStreak = currentWeekTrainingCount(trainingDates, LocalDate.parse(todayDate))
 
     LazyColumn(
         modifier = Modifier
@@ -346,11 +343,15 @@ private fun TrainingStreakSection(days: Int, onView: () -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
         .background(SurfaceNight1).clickable(role = Role.Button, onClick = onView).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Training streak", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text(if (days == 1) "1 day" else "$days days", color = ElectricMint,
+        Text("Training this week", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(if (days == 1) "1 session" else "$days sessions", color = ElectricMint,
             fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text(if (days == 0) "Complete a workout to start your streak."
-            else "Consecutive days with a completed workout.", color = TextMuted, fontSize = 13.sp)
+        Text(
+            if (days == 0) "Completed sessions will appear here. Planned rest days do not count against you."
+            else "Completed sessions since Monday. Planned rest days do not break this count.",
+            color = TextMuted,
+            fontSize = 13.sp
+        )
     }
 }
 
