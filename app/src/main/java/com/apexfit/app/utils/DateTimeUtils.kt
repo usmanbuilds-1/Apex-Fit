@@ -11,6 +11,12 @@ import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.isActive
 
 object DateTimeUtils {
     fun formatDate(date: Date): String =
@@ -24,6 +30,24 @@ object DateTimeUtils {
     }
 
     fun todayDateString(): String = LocalDate.now().toString()
+
+    fun dateStringForEpochMillis(epochMillis: Long): String =
+        Instant.ofEpochMilli(epochMillis)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+            .toString()
+
+    /**
+     * Emits the device-local calendar date and re-checks periodically so long-lived
+     * app processes roll over cleanly at midnight and after timezone/date changes.
+     */
+    fun todayDateFlow(pollIntervalMillis: Long = 60_000L): Flow<String> =
+        flow {
+            while (currentCoroutineContext().isActive) {
+                emit(todayDateString())
+                delay(pollIntervalMillis.coerceAtLeast(1_000L))
+            }
+        }.distinctUntilChanged()
 
     fun formatDateForDisplay(localDate: LocalDate): String =
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()).format(localDate)
