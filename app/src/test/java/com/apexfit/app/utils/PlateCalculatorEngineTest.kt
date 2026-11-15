@@ -23,13 +23,13 @@ class PlateCalculatorEngineTest {
     @Test
     fun closestReachableLoadNeverOvershootsTarget() {
         val result = PlateCalculatorEngine.calculatePlatesPerSide(
-            targetWeight = 31.0,
+            targetWeight = 30.0,
             barWeight = 20.0,
             availablePlates = listOf(4.0, 3.0)
         )
 
         assertFalse(result.isExact)
-        assertTrue(result.achievedWeight <= 31.0)
+        assertTrue(result.achievedWeight <= 30.0)
         assertEquals(2.0, result.remainingDifference, 0.0001)
     }
 
