@@ -114,6 +114,19 @@ class AuditRegressionTestV6 {
     }
 
     @Test
+    fun duplicateSessionsDoNotUnlockWorkloadBaselineWithoutSevenTrainingDays() {
+        val history = listOf(
+            session(0), session(0), session(0),
+            session(8), session(8), session(8),
+            session(15)
+        )
+
+        val result = FatigueEngine.calcFatigueToFitnessRatio(history)
+        assertEquals(null, result.ratio)
+        assertEquals("No Data", result.statusLabel)
+    }
+
+    @Test
     fun workloadCopyDoesNotPresentRatioThresholdAsOptimalOrInjuryPrediction() {
         val history = listOf(
             session(1), session(3), session(5),
