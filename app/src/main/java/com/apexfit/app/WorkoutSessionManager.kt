@@ -318,24 +318,55 @@ class WorkoutSessionManager(
                 lastProgressionResults[exerciseSlug] = progressionResult
 
                 val suggestedLbs = progressionResult.newWeight
-                
-                val suggestedPreferred = if (progressionResult.outcome == OutcomeType.STALLED ||
-                    progressionResult.outcome == OutcomeType.PROGRESSING) {
-                    // Holding a load must preserve the actual logged weight, even if it is
-                    // not on the arbitrary increment grid (for example 6 kg dumbbells).
-                    if (exerciseUnit.lowercase() in listOf("lb", "lbs"))
-                        lastSet.weight.toDisplayWeight(exerciseUnit) else lastSet.weight
-                } else if (exerciseUnit.lowercase() in listOf("lb", "lbs")) {
-                    val stepLbs = if (exType == "isolation") 1.25 else 2.5
-                    (Math.round(suggestedLbs / stepLbs) * stepLbs * 100.0) / 100.0
-                } else {
-                    val stepKg = if (exType == "isolation") 1.25 else 2.5
-                    val converted = suggestedLbs / com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                    val rounded = converted.roundToNearestKg(stepKg)
-                    if (progressionResult.outcome == OutcomeType.SUCCESS && rounded <= lastSet.weight) {
-                        lastSet.weight + stepKg
+                val isImperial = exerciseUnit.lowercase() in listOf("lb", "lbs")
+                val metadataIncrementKg = metadataMap[exerciseSlug]
+                    ?.defaultProgressionIncrementKg
+                    ?.takeIf { it > 0.0 }
+
+                // Quantise once, at the user-facing unit boundary. Metric seed
+                // metadata already describes the intended increment (1 kg, 1.25 kg,
+                // 2 kg, 2.5 kg, 5 kg). For imperial display, map that equivalent to
+                // a practical 1.25/2.5 lb grid rather than quantising in both units.
+                val fallbackStep = if (exType == "isolation") 1.25 else 2.5
+                val preferredStep = if (metadataIncrementKg != null) {
+                    if (isImperial) {
+                        val hardwareGrid = fallbackStep
+                        val equivalentLbs = metadataIncrementKg * com.apexfit.app.utils.AppConstants.KG_TO_LBS
+                        (Math.round(equivalentLbs / hardwareGrid) * hardwareGrid)
+                            .coerceAtLeast(hardwareGrid)
                     } else {
-                        rounded
+                        metadataIncrementKg
+                    }
+                } else {
+                    fallbackStep
+                }
+
+                val lastPreferred = if (isImperial) {
+                    lastSet.weight.toDisplayWeight(exerciseUnit)
+                } else {
+                    lastSet.weight
+                }
+
+                val suggestedPreferred = when (progressionResult.outcome) {
+                    OutcomeType.STALLED, OutcomeType.PROGRESSING -> lastPreferred
+                    OutcomeType.SUCCESS -> {
+                        val rawDeltaPreferred = if (isImperial) {
+                            suggestedLbs - lastWeightLbs
+                        } else {
+                            (suggestedLbs - lastWeightLbs) / com.apexfit.app.utils.AppConstants.KG_TO_LBS
+                        }
+                        val quantizedDelta = if (rawDeltaPreferred >= preferredStep / 2.0) {
+                            (Math.round(rawDeltaPreferred / preferredStep) * preferredStep)
+                                .coerceAtLeast(preferredStep)
+                        } else {
+                            0.0
+                        }
+                        Math.round((lastPreferred + quantizedDelta) * 100.0) / 100.0
+                    }
+                    OutcomeType.PLATEAU -> {
+                        val rawTarget = lastPreferred * 0.9
+                        val quantizedTarget = Math.floor(rawTarget / preferredStep) * preferredStep
+                        Math.round(quantizedTarget.coerceAtLeast(0.0) * 100.0) / 100.0
                     }
                 }
 
