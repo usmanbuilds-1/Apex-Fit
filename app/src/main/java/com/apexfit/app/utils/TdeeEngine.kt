@@ -119,24 +119,25 @@ object TdeeEngine {
             "lose fat" -> goalWeightKg >= currentWeightKg
             else -> false
         }
-        if (targetAlreadyReachedOrContradictory) {
-            return tdee.coerceAtLeast(1200)
-        }
 
-        val rateKgPerWeek = when (normalizedGoal) {
-            "gain muscle" -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
-            "lose fat"    -> (currentWeightKg * 0.008).coerceIn(0.3, 0.7)
-            "recomposition" -> 0.0
-            else          -> 0.0
+        val rateKgPerWeek = if (targetAlreadyReachedOrContradictory) {
+            0.0
+        } else {
+            when (normalizedGoal) {
+                "gain muscle" -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
+                "lose fat"    -> (currentWeightKg * 0.008).coerceIn(0.3, 0.7)
+                "recomposition" -> 0.0
+                else          -> 0.0
+            }
         }
 
         val dailyAdjustment = ((rateKgPerWeek * 7700.0) / 7.0).roundToInt()
 
-        val rawTarget = when (normalizedGoal) {
-            "gain muscle"   -> tdee + dailyAdjustment
-            "lose fat"      -> tdee - dailyAdjustment
-            "recomposition" -> tdee
-            else            -> tdee
+        val rawTarget = when {
+            targetAlreadyReachedOrContradictory -> tdee
+            normalizedGoal == "gain muscle" -> tdee + dailyAdjustment
+            normalizedGoal == "lose fat" -> tdee - dailyAdjustment
+            else -> tdee
         }
 
         val sexOffset = if (sex.equals("female", ignoreCase = true)) -161.0 else 5.0
