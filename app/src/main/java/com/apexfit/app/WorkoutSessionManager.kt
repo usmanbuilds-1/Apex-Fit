@@ -275,7 +275,10 @@ class WorkoutSessionManager(
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
                 val readinessPercent = muscleReadinessDetail?.readinessPercent
 
-                val allLastSets = exerciseHistory.map { previous ->
+                // The DAO returns the latest set first so lastSet above stays the
+                // most recent load for context. Progression, however, must evaluate
+                // the prescribed sets in the order they were performed.
+                val allLastSets = exerciseHistory.sortedBy { it.id }.map { previous ->
                     com.apexfit.app.ui.models.UiExerciseSet(
                         id = previous.id,
                         weight = previous.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,
