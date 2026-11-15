@@ -118,6 +118,37 @@ Do not introduce:
 
 Do not solve empty space with decoration. Do not create a new screen, card, or tab simply because a new capability exists.
 
+## Training prescription science boundaries
+
+### Initial training volume
+
+BMR/TDEE are **energy-expenditure tools** and must never determine resistance-training set volume. They may inform calorie targets only.
+
+Starter training volume must be prescribed from training variables: goal, training experience, selected weekly frequency, exercise selection, and recoverability. The implementation should reason in **weekly completed working sets per primary muscle**, not apply the same set count blindly to every exercise.
+
+Rules:
+- start conservatively enough that the user can establish technique and a performance baseline;
+- distribute weekly volume across the selected training days rather than forcing a per-exercise constant;
+- do not claim one universal weekly set target is optimal for every user or muscle;
+- use adaptive progression to increase/hold/reduce volume from observed performance/recovery rather than starting near an assumed maximum;
+- indirect/secondary work may inform programming decisions, but user-facing direct-set totals remain separate and must not be presented as precise biological equivalents;
+- BMR, calorie target, body fat estimates, or body weight alone must not raise/lower prescribed set counts.
+
+### Readiness
+
+The readiness feature is an **app-specific training-readiness estimate**, not a validated physiological measurement, medical assessment, CNS score, or injury predictor.
+
+The current model may use recent completed training dose, exercise/muscle history, individualized historical capacity, and nutrition adherence as signals, but:
+- decay constants, component weights, and thresholds are model assumptions unless individually calibrated;
+- no single 0–100 value should imply laboratory precision;
+- insufficient history must show a baseline-building state rather than a score;
+- readiness must not override symptoms, pain, illness, or the user's own perceived condition;
+- workload ratios must not be used as injury-risk or readiness predictors;
+- when the UI shows a score, it must expose confidence and the factors that drove it;
+- recommendations should be conservative choices (train as planned / consider reducing effort / consider recovery), not deterministic medical instructions.
+
+Where possible, future calibration should compare the estimate with the user's subsequent workout performance and logged effort so recommendations become more individualized without pretending the model is clinically validated.
+
 ## Adaptive progression
 
 Apex Fit has two distinct progression concepts and the UI must not blur them:
