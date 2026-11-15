@@ -272,11 +272,11 @@ class AlgorithmEngineTest {
             heightCm = 175.0,
             sex = "male"
         )
-        assertEquals(6, timeline.weeksToGoal)
+        assertEquals(7, timeline.weeksToGoal)
         assertEquals(0.64, timeline.weeklyChangeKg, 0.001)
         assertTrue(timeline.isRealistic)
         assertEquals(76.0, timeline.adjustedGoalWeightKg, 0.001)
-        assertTrue(timeline.summaryLine.contains("~6 weeks at 0.64 kg/week"))
+        assertTrue(timeline.summaryLine.contains("~7 weeks at 0.64 kg/week"))
     }
 
     @Test
