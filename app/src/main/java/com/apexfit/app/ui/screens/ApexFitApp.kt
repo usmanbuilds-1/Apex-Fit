@@ -172,6 +172,7 @@ fun ApexFitApp(
     var currentRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
     var returnRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
     var selectedPlanId by rememberSaveable { mutableLongStateOf(0L) }
+    var startPlanBuilderInImportMode by rememberSaveable { mutableStateOf(false) }
     val tabStateHolder = rememberSaveableStateHolder()
     val activeTab = TopLevelDestination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
@@ -187,6 +188,13 @@ fun ApexFitApp(
     val openPlanBuilder: (Long) -> Unit = { planId ->
         returnRoute = ApexScreenRoutes.safeReturn(currentRoute)
         selectedPlanId = planId
+        startPlanBuilderInImportMode = false
+        currentRoute = ApexScreenRoutes.PLAN_BUILDER
+    }
+    val openWorkoutImport: () -> Unit = {
+        returnRoute = ApexScreenRoutes.safeReturn(currentRoute)
+        selectedPlanId = 0L
+        startPlanBuilderInImportMode = true
         currentRoute = ApexScreenRoutes.PLAN_BUILDER
     }
     val navigateBack: () -> Unit = {
@@ -422,7 +430,8 @@ fun ApexFitApp(
                             planBuilderViewModel = planBuilderViewModel,
                             workoutExecutionViewModel = workoutExecutionViewModel,
                             restTimerViewModel = restTimerViewModel,
-                            onNavigateToPlanBuilder = openPlanBuilder
+                            onNavigateToPlanBuilder = openPlanBuilder,
+                            onNavigateToWorkoutImport = openWorkoutImport
                         )
                     }
                     TopLevelDestination.NUTRITION.route -> {
@@ -445,7 +454,8 @@ fun ApexFitApp(
                     ApexScreenRoutes.PLAN_BUILDER -> PlanBuilderScreen(
                         planBuilderViewModel = planBuilderViewModel,
                         planId = selectedPlanId,
-                        onNavigateBack = navigateBack
+                        onNavigateBack = navigateBack,
+                        startInImportMode = startPlanBuilderInImportMode
                     )
                     ApexScreenRoutes.SETTINGS -> SettingsScreen(
                         viewModel = fitnessViewModel,
