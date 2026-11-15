@@ -8,6 +8,19 @@ import kotlin.math.roundToInt
 
 enum class MuscleSize { SMALL, MEDIUM, LARGE }
 
+internal fun interpolatedPercentile(values: List<Double>, percentile: Double): Double {
+    require(values.isNotEmpty()) { "Percentile requires at least one value" }
+    val sorted = values.sorted()
+    if (sorted.size == 1) return sorted.first()
+    val p = percentile.coerceIn(0.0, 1.0)
+    val position = (sorted.size - 1) * p
+    val lowerIndex = kotlin.math.floor(position).toInt()
+    val upperIndex = kotlin.math.ceil(position).toInt()
+    if (lowerIndex == upperIndex) return sorted[lowerIndex]
+    val fraction = position - lowerIndex
+    return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * fraction
+}
+
 object MuscleRecoveryData {
     private val sizeMap = MuscleGroups.ALL.associateWith { muscle ->
         when (muscle.lowercase()) {
@@ -150,13 +163,7 @@ object MuscleReadinessCalculator {
 
     fun userCapacity(pastSessionDoses: List<Double>, fallbackDefault: Double = 400.0): Double {
         if (pastSessionDoses.size < 3) return fallbackDefault
-        val sorted = pastSessionDoses.sorted()
-        val p90 = if (sorted.size < 3) {
-            sorted.average()
-        } else {
-            sorted[((sorted.size - 1) * 0.9).toInt().coerceIn(0, sorted.size - 1)]
-        }
-        return p90.coerceAtLeast(1.0)
+        return interpolatedPercentile(pastSessionDoses, 0.90).coerceAtLeast(1.0)
     }
 
     fun readinessPercent(
@@ -352,14 +359,10 @@ object ReadinessFinal {
             }
             systemicPastSessionDoses.add(sessionSystemicDose)
         }
-        val systemicCapacity = if (systemicPastSessionDoses.size < 3) 1500.0 else {
-            val sorted = systemicPastSessionDoses.sorted()
-            val p90 = if (sorted.size < 3) {
-                sorted.average()
-            } else {
-                sorted[((sorted.size - 1) * 0.9).toInt().coerceIn(0, sorted.size - 1)]
-            }
-            p90.coerceAtLeast(1.0)
+        val systemicCapacity = if (systemicPastSessionDoses.size < 3) {
+            1500.0
+        } else {
+            interpolatedPercentile(systemicPastSessionDoses, 0.90).coerceAtLeast(1.0)
         }
 
         // e) todaysMuscleGroups
