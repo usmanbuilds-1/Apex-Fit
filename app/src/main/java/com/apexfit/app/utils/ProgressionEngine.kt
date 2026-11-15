@@ -147,27 +147,37 @@ data class ProgressionResult(
         require(repsMin <= repsMax) {
             "repsMin ($repsMin) must be <= repsMax ($repsMax). Check plan configuration."
         }
-        
+        require(targetSets > 0) {
+            "targetSets must be > 0, got $targetSets"
+        }
+
         val workingSets = lastSessionSets.filter { !it.isWarmup && it.completed }
-        
         if (workingSets.isEmpty()) {
             return ProgressionResult(currentWeight, OutcomeType.STALLED, "No completed sets recorded.")
         }
 
-        // Unrated RPE handling: If any set is unrated (0), hold progression
-        if (workingSets.any { it.rpe == 0 }) {
+        // Judge the prescribed work, not optional bonus/burnout sets performed
+        // afterward. The caller provides historical sets in performed order.
+        val evaluatedSets = workingSets.take(targetSets)
+
+        // Unrated RPE on a prescribed set must hold progression. Unrated optional
+        // work after the prescription must not retroactively invalidate the target.
+        if (evaluatedSets.any { it.rpe == 0 }) {
             return ProgressionResult(currentWeight, OutcomeType.STALLED, "Sets have unrated RPE. Please rate your effort to progress.")
         }
 
+        val enoughSets = evaluatedSets.size >= targetSets
+
         // Outcome Determination
-        // 1. SUCCESS: All sets >= repsMax AND RPE <= 8
-        val allHitMax = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMax && it.rpe <= 8 }
-        
-        // 2. PROGRESSING: All sets within range [repsMin, repsMax] but not all hit success criteria
-        val allInRepsRange = workingSets.size >= targetSets && workingSets.all { it.reps >= repsMin }
-        
-        // 3. PLATEAU: 2+ consecutive failed sessions (failed to hit repsMin or sets target)
-        val failedTarget = workingSets.size < targetSets || workingSets.any { it.reps < repsMin }
+        // 1. SUCCESS: all prescribed sets hit repsMax at RPE <= 8.
+        val allHitMax = enoughSets && evaluatedSets.all { it.reps >= repsMax && it.rpe <= 8 }
+
+        // 2. PROGRESSING: all prescribed sets are at least repsMin, but success
+        // criteria have not yet been met.
+        val allInRepsRange = enoughSets && evaluatedSets.all { it.reps >= repsMin }
+
+        // 3. PLATEAU: 2+ consecutive failed sessions.
+        val failedTarget = !enoughSets || evaluatedSets.any { it.reps < repsMin }
         
         val outcome = when {
             consecutiveStalledSessions >= 1 && failedTarget -> OutcomeType.PLATEAU // current failed + 1 previous = 2 consecutive
