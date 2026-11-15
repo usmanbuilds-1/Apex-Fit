@@ -49,7 +49,8 @@ fun TrainTab(
     planBuilderViewModel: PlanBuilderViewModel,
     workoutExecutionViewModel: WorkoutExecutionViewModel,
     restTimerViewModel: RestTimerViewModel,
-    onNavigateToPlanBuilder: (Long) -> Unit
+    onNavigateToPlanBuilder: (Long) -> Unit,
+    onNavigateToWorkoutImport: () -> Unit
 ) {
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -76,7 +77,13 @@ fun TrainTab(
             when (subTab) {
                 0 -> ProgramSubTab(fitnessViewModel, planBuilderViewModel, workoutExecutionViewModel)
                 1 -> WorkoutExecutionSubTab(fitnessViewModel, workoutExecutionViewModel, restTimerViewModel, snackbarHostState)
-                2 -> NewPlansSubTab(fitnessViewModel, planBuilderViewModel, onNavigateToPlanBuilder, snackbarHostState)
+                2 -> NewPlansSubTab(
+                    fitnessViewModel = fitnessViewModel,
+                    planBuilderViewModel = planBuilderViewModel,
+                    onNavigateToPlanBuilder = onNavigateToPlanBuilder,
+                    onNavigateToWorkoutImport = onNavigateToWorkoutImport,
+                    snackbarHostState = snackbarHostState
+                )
             }
         }
     }
@@ -888,6 +895,7 @@ fun NewPlansSubTab(
     fitnessViewModel: FitnessViewModel,
     planBuilderViewModel: PlanBuilderViewModel,
     onNavigateToPlanBuilder: (Long) -> Unit,
+    onNavigateToWorkoutImport: () -> Unit,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
     val plans by planBuilderViewModel.workoutPlans.collectAsStateWithLifecycle()
@@ -935,6 +943,23 @@ fun NewPlansSubTab(
                         color = ApexColors.OnGlow
                     )
                 }
+            }
+        }
+
+        item {
+            OutlinedButton(
+                onClick = onNavigateToWorkoutImport,
+                border = BorderStroke(1.dp, BorderSubtle),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
+                Text(
+                    "Import from text",
+                    fontFamily = InterFamily,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PrimaryText
+                )
             }
         }
 
