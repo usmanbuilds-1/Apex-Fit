@@ -50,6 +50,7 @@ fun PlanBuilderScreen(
     planBuilderViewModel: PlanBuilderViewModel,
     planId: Long,
     onNavigateBack: () -> Unit,
+    startInImportMode: Boolean = false,
     workoutImportViewModel: WorkoutImportViewModel = hiltViewModel()
 ) {
     DisposableEffect(Unit) {
@@ -77,7 +78,7 @@ fun PlanBuilderScreen(
     var sessionToDelete by rememberSaveable { mutableStateOf<PlanSession?>(null) }
     var exerciseToDelete by rememberSaveable { mutableStateOf<PlanExercise?>(null) }
     var isSaving by remember { mutableStateOf(false) }
-    var showWorkoutImporter by rememberSaveable { mutableStateOf(false) }
+    var showWorkoutImporter by rememberSaveable(planId, startInImportMode) { mutableStateOf(startInImportMode) }
 
     LaunchedEffect(planId) {
         try {
