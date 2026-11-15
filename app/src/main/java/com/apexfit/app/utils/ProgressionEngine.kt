@@ -177,10 +177,11 @@ data class ProgressionResult(
         }
 
         // Weight Increment Logic
-        // NOTE: All weight values in this function are in LBS regardless of user preference.  
-        // WorkoutSessionManager converts to lbs before calling and converts back after.  
-        // baseIncrement values are lbs-calibrated (e.g. 5.0 = 5 lbs ≈ 2.3 kg for lower body).  
-        // Do NOT change these values without updating unit handling in WorkoutSessionManager.  
+        // All weight values in this function are LBS for compatibility with the
+        // existing session manager. Seed metadata is canonical KG and is converted
+        // exactly once here. Equipment/unit quantisation belongs at the session
+        // boundary; doing it here as well caused double-rounding (notably turning
+        // 1 kg metadata increments into larger metric jumps).
         val baseIncrement = if (incrementOverrideKg != null) {
             incrementOverrideKg * AppConstants.KG_TO_LBS
         } else {
@@ -194,29 +195,11 @@ data class ProgressionResult(
             }
         }
 
-        // Plate size determines valid increment grid for this exercise type.
-        val (isolationPlate, compoundPlate) = when (weightUnit) {
-            "kg"  -> Pair(1.25, 2.5)
-            else  -> Pair(1.25, 2.5)  // lbs — same increments
-        }
-        val plateSize = if (exerciseType == "isolation") isolationPlate else compoundPlate
-
-        // §6.3 fix: round the INCREMENT to the plate grid, not the final weight.
-        // This preserves recovery modulation — a 0.6× multiplier on a 2.5 lb
-        // increment gives 1.5 lb → rounds to 1.25 lb (isolation) or 2.5 lb (compound).
-        val rawIncrement = baseIncrement * recoveryMultiplier
-        val roundedIncrement = if (rawIncrement >= plateSize / 2.0) {
-            (Math.round(rawIncrement / plateSize) * plateSize).coerceAtLeast(plateSize)
-        } else {
-            0.0   // Too small to make a valid plate increment — hold
-        }
-
-        // §6.2 fix: for PLATEAU, use floor rounding (always round DOWN) to
-        // guarantee at least 10% deload regardless of plate grid.
+        val rawIncrement = (baseIncrement * recoveryMultiplier).coerceAtLeast(0.0)
         val newWeight = when(outcome) {
-            OutcomeType.SUCCESS  -> currentWeight + roundedIncrement
-            OutcomeType.PLATEAU  -> (Math.floor(currentWeight * 0.9 / plateSize) * plateSize)
-            else                 -> currentWeight
+            OutcomeType.SUCCESS -> currentWeight + rawIncrement
+            OutcomeType.PLATEAU -> currentWeight * 0.9
+            else -> currentWeight
         }
 
         val reason = when(outcome) {
