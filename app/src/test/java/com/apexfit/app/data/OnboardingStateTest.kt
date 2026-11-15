@@ -8,6 +8,7 @@ import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -87,6 +88,10 @@ class OnboardingStateTest {
         assertEquals("Sam", preferences.usernameFlow.first())
         assertEquals(180.0, preferences.heightFlow.first(), 0.001)
         assertEquals(80.0, preferences.currentWeightFlow.first(), 0.001)
+        assertNull("Profile-only onboarding must not invent a target weight", preferences.explicitGoalWeightFlow.first())
+        preferences.saveCurrentWeight(81.0)
+        assertEquals(81.0, preferences.currentWeightFlow.first(), 0.001)
+        assertNull("Updating current weight must not materialise a target weight", preferences.explicitGoalWeightFlow.first())
         assertEquals(28, preferences.ageFlow.first())
         assertEquals("female", preferences.sexFlow.first())
         assertTrue(preferences.weightsNormalizedFlow.first())
