@@ -213,6 +213,29 @@ class AlgorithmEngineTest {
     }
 
     @Test
+    fun testCalcDeloadRecommendation_sameDayPoorSessionsAreOneRecoveryObservation() {
+        val fatigue = FatigueResult(
+            ratio = 1.7,
+            status = "high",
+            statusLabel = "Well Above Baseline",
+            recommendation = "",
+            acuteLoad = 170.0,
+            chronicLoad = 100.0
+        )
+        val sessions = (0 until 3).map {
+            RichTrainingSession(
+                date = d(0),
+                sessionType = "Session $it",
+                completed = true,
+                sessionFeel = 2
+            )
+        }
+
+        val res = PlateauEngine.calcDeloadRecommendation(sessions, 100, fatigue)
+        assertEquals("none", res.urgency)
+    }
+
+    @Test
     fun testCalcDeloadRecommendation_highLoadAndPersistentPoorFeelCanDeload() {
         val fatigue = FatigueResult(
             ratio = 1.7,
