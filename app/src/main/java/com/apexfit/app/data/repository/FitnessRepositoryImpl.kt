@@ -59,7 +59,7 @@ class FitnessRepositoryImpl @Inject constructor(
         com.apexfit.app.utils.DateTimeUtils.todayDateFlow()
             .stateIn(
                 scope = appScope,
-                started = SharingStarted.Eagerly,
+                started = SharingStarted.WhileSubscribed(5_000),
                 initialValue = com.apexfit.app.utils.DateTimeUtils.todayDateString()
             )
     }
