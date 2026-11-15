@@ -124,7 +124,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             )
         }.sortedBy { it.date }
         
-        val cutoff = com.apexfit.app.utils.getDateDaysAgo(90)
+        val cutoff = com.apexfit.app.utils.getWindowStartDate(90)
         val dbWeights = dao.getWeightEntriesSince(cutoff)
         val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
             WeightEntry(date, list.map { it.weight }.average())
@@ -187,7 +187,13 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         
         repository.scanAndSaveWeeklyPatterns()
 
-        val plateau = PlateauEngine.detectPlateau(engineWeights, allNutrition, completedSessions, windowDays = 14)
+        val plateau = PlateauEngine.detectPlateau(
+            weightLog = engineWeights,
+            nutritionLog = allNutrition,
+            trainingLog = completedSessions,
+            goal = userGoal,
+            windowDays = 14
+        )
         
         val allTriggers = mutableListOf<NotificationEngine.NotificationTrigger>()
         
