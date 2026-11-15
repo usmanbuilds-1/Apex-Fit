@@ -62,17 +62,31 @@ class WorkoutExerciseMatcher(entries: List<ExerciseLibraryEntry>) {
         )
     }
 
-    private val exactOwners: Map<String, List<ExerciseLibraryEntry>> = buildMap {
+    /*
+     * Keep real catalog names separate from aliases. A single combined bucket lets
+     * aliases shadow real exercises once names are normalized (for example the
+     * production catalog contains both "Pullup" and "Pullups"). Matching precedence:
+     * literal catalog name -> normalized catalog name -> alias -> fuzzy.
+     */
+    private val literalNameOwners: Map<String, List<ExerciseLibraryEntry>> = buildMap {
         entries.forEach { entry ->
-            val names = buildList {
-                add(entry.name)
-                addAll(entry.aliases)
-            }
-            names.forEach { raw ->
-                val key = normalize(raw)
-                if (key.isNotBlank()) {
-                    put(key, get(key).orEmpty() + entry)
-                }
+            val key = literalKey(entry.name)
+            if (key.isNotBlank()) put(key, get(key).orEmpty() + entry)
+        }
+    }
+
+    private val normalizedNameOwners: Map<String, List<ExerciseLibraryEntry>> = buildMap {
+        entries.forEach { entry ->
+            val key = normalize(entry.name)
+            if (key.isNotBlank()) put(key, get(key).orEmpty() + entry)
+        }
+    }
+
+    private val aliasOwners: Map<String, List<ExerciseLibraryEntry>> = buildMap {
+        entries.forEach { entry ->
+            entry.aliases.forEach { alias ->
+                val key = normalize(alias)
+                if (key.isNotBlank()) put(key, get(key).orEmpty() + entry)
             }
         }
     }
@@ -83,15 +97,9 @@ class WorkoutExerciseMatcher(entries: List<ExerciseLibraryEntry>) {
             return Match(null, MatchConfidence.UNRESOLVED, true, 0, emptyList())
         }
 
-        exactOwners[normalized]?.distinctBy { it.id }?.let { owners ->
-            if (owners.size == 1) {
-                return Match(owners.first(), MatchConfidence.EXACT, false, 100, emptyList())
-            }
-            val candidates = owners.take(5).map {
-                ExerciseCandidate(it, MatchConfidence.MEDIUM, 100, true)
-            }
-            return Match(null, MatchConfidence.MEDIUM, true, 100, candidates)
-        }
+        exactOrAmbiguous(literalNameOwners[literalKey(rawName)])?.let { return it }
+        exactOrAmbiguous(normalizedNameOwners[normalized])?.let { return it }
+        exactOrAmbiguous(aliasOwners[normalized])?.let { return it }
 
         val queryTokens = tokens(rawName)
         if (queryTokens.isEmpty()) {
@@ -193,6 +201,23 @@ class WorkoutExerciseMatcher(entries: List<ExerciseLibraryEntry>) {
         return Match(selected, confidence, flagged, best.second, candidates)
     }
 
+    private fun exactOrAmbiguous(owners: List<ExerciseLibraryEntry>?): Match? {
+        val distinctOwners = owners?.distinctBy { it.id }.orEmpty()
+        if (distinctOwners.isEmpty()) return null
+        if (distinctOwners.size == 1) {
+            return Match(distinctOwners.first(), MatchConfidence.EXACT, false, 100, emptyList())
+        }
+        return Match(
+            entry = null,
+            confidence = MatchConfidence.MEDIUM,
+            flagged = true,
+            score = 100,
+            candidates = distinctOwners.take(5).map {
+                ExerciseCandidate(it, MatchConfidence.MEDIUM, 100, true)
+            }
+        )
+    }
+
     companion object {
         private val SYNONYMS = mapOf(
             "db" to listOf("dumbbell"),
@@ -260,6 +285,9 @@ class WorkoutExerciseMatcher(entries: List<ExerciseLibraryEntry>) {
         )
 
         fun normalize(raw: String): String = tokens(raw).joinToString(" ")
+
+        private fun literalKey(raw: String): String =
+            raw.trim().lowercase().replace(Regex("""\\s+"""), " ")
 
         fun tokens(raw: String): List<String> {
             val cleaned = raw
