@@ -71,8 +71,7 @@ class WorkoutSessionManager(
     private val _currentRestSeconds = MutableStateFlow(0)
     val currentRestSeconds: StateFlow<Int> = _currentRestSeconds.asStateFlow()
 
-    init {
-        scope.launch {
+    private val restoreJob: Job = scope.launch {
             val json = dataStore.activeSessionJsonFlow.firstOrNull()
             if (!json.isNullOrEmpty()) {
                 try {
@@ -94,8 +93,8 @@ class WorkoutSessionManager(
                     }
                 }
             }
-        }
     }
+
 
 
     fun incrementRestSeconds() {
@@ -149,6 +148,9 @@ class WorkoutSessionManager(
         userHeight: Double,
         preferredUnits: String
     ) = withContext(Dispatchers.IO) {
+        // Startup restore and a new workout must never race each other. Await the
+        // persisted-session read before deciding whether a session is already active.
+        restoreJob.join()
         if (!_isStartingSession.compareAndSet(false, true)) return@withContext
         val slugByExercise = exercises.associate { it.name to it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
         val ids = exercises.mapNotNull { slugByExercise[it.name] }
