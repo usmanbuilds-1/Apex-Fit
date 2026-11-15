@@ -20,10 +20,12 @@ class AlgorithmEngineTest {
         }
         val res = TdeeEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14)
 
-        val recentWeight = wLog.sortedBy { it.date }
-        val avgCalories = nLog.map { it.calories }.average()
-        val trendData = AlgorithmEngine.calcTrendWeight(recentWeight)
-        val weightChangeKg = trendData.last().trend - trendData.first().trend
+        val cutoff = getWindowStartDate(14)
+        val recentWeight = wLog.filter { it.date >= cutoff }.sortedBy { it.date }
+        val avgCalories = nLog.filter { it.date >= cutoff }.map { it.calories }.average()
+        val trendData = AlgorithmEngine.calcTrendWeight(wLog.sortedBy { it.date })
+        val trendAtCutoff = trendData.first { it.date >= recentWeight.first().date }.trend
+        val weightChangeKg = trendData.last().trend - trendAtCutoff
         val daysBetween = getDaysBetween(recentWeight.first().date, recentWeight.last().date).coerceAtLeast(1L)
         val expectedImbalance = (weightChangeKg * 7700.0) / daysBetween
         val expectedTdee = (avgCalories - expectedImbalance).toInt()
@@ -93,7 +95,7 @@ class AlgorithmEngineTest {
         val recentSession = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog))
 
         // Case 1: maintained volume (1000 vs 1000) -> true plateau
-        val resPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), windowDays = 14)
+        val resPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSession), goal = "lose fat", windowDays = 14)
         assertTrue(resPlateau.isPlateaued)
         assertEquals(14, resPlateau.daysStalled)
 
@@ -102,14 +104,30 @@ class AlgorithmEngineTest {
         val exLogLow = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(exSetLow))
         val recentSessionLow = RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLogLow))
 
-        val resNoPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), windowDays = 14)
+        val resNoPlateau = PlateauEngine.detectPlateau(wLog, nLog, listOf(earlierSession, recentSessionLow), goal = "lose fat", windowDays = 14)
         assertFalse(resNoPlateau.isPlateaued)
     }
 
     @Test
     fun testDetectPlateau_edgeCase_empty() {
-        val res = PlateauEngine.detectPlateau(emptyList(), emptyList(), emptyList(), windowDays = 10)
+        val res = PlateauEngine.detectPlateau(emptyList(), emptyList(), emptyList(), goal = "lose fat", windowDays = 10)
         assertFalse(res.isPlateaued)
+    }
+
+
+    @Test
+    fun testDetectPlateau_stableWeightIsNotPlateauForMaintenance() {
+        val wLog = (0..14).map { WeightEntry(date = d(14 - it), weight = 80.0) }
+        val nLog = (0..14).map { NutritionEntry(date = d(14 - it), calories = 2400, protein = 150, carbs = 250, fat = 70) }
+        val set = ExerciseSet(weight = 100.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
+        val ex = ExerciseLog(id = "bench", name = "Bench", muscleGroup = "chest", sets = listOf(set))
+        val sessions = listOf(
+            RichTrainingSession(date = d(20), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(ex)),
+            RichTrainingSession(date = d(2), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(ex))
+        )
+
+        val result = PlateauEngine.detectPlateau(wLog, nLog, sessions, goal = "maintain", windowDays = 14)
+        assertFalse("Stable weight is expected at maintenance and must not trigger a cut-calories plateau", result.isPlateaued)
     }
 
     @Test
