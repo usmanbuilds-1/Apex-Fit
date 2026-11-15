@@ -5,7 +5,12 @@ import kotlin.math.roundToInt
 
 object ComplianceEngine {
     // ── COMPLIANCE SCORES ────────────────────────────────────
-    fun calcComplianceScores(nutritionLog: List<NutritionEntry>, trainingLog: List<TrainingSession>, targets: NutritionTargets, days: Int = 14): ComplianceResult {
+    fun calcComplianceScores(
+        nutritionLog: List<NutritionEntry>,
+        trainingLog: List<TrainingSession>,
+        targets: NutritionTargets,
+        days: Int = 14
+    ): ComplianceResult {
         if (targets.calories <= 0 || targets.protein <= 0) {
             return ComplianceResult(
                 calories = 0,
@@ -15,28 +20,58 @@ object ComplianceEngine {
                 weakestDay = null
             )
         }
-        val cutoff = getDateDaysAgo(days)
-        val recentNutrition = nutritionLog.filter { it.date >= cutoff }
+
+        val safeDays = days.coerceAtLeast(1)
+        val today = java.time.LocalDate.parse(getCurrentDate())
+        val windowStart = today.minusDays((safeDays - 1).toLong())
+        val observedDates = buildList {
+            nutritionLog.mapTo(this) { it.date }
+            trainingLog.mapTo(this) { it.date }
+        }.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            .filter { !it.isBefore(windowStart) && !it.isAfter(today) }
+
+        if (observedDates.isEmpty()) {
+            return ComplianceResult(0, 0, 0, 0, null)
+        }
+
+        // Start at the first day the user has any tracked data inside the window.
+        // Missing days after tracking begins are real misses rather than disappearing
+        // from the denominator.
+        val evaluationStart = maxOf(windowStart, observedDates.minOrNull()!!)
+        val evaluatedDays = (java.time.temporal.ChronoUnit.DAYS.between(evaluationStart, today) + 1L)
+            .toInt()
+            .coerceAtLeast(1)
+        val cutoff = evaluationStart.toString()
+
+        val recentNutrition = nutritionLog.filter { it.date >= cutoff && it.date <= today.toString() }
         val dailyNutrition = recentNutrition
             .groupBy { it.date }
-            .map { (_, e) -> Pair(e.sumOf { it.calories }, e.sumOf { it.protein }) }
-        val recentTraining = trainingLog.filter { it.date >= cutoff && it.completed }
-
-        val calHits = dailyNutrition.count { (cal, _) -> 
-            Math.abs(cal - targets.calories).toDouble() / targets.calories <= 0.10 
+            .mapValues { (_, e) -> Pair(e.sumOf { it.calories }, e.sumOf { it.protein }) }
+        val recentTraining = trainingLog.filter {
+            it.date >= cutoff && it.date <= today.toString() && it.completed
         }
-        val proteinHits = dailyNutrition.count { (_, protein) -> protein >= targets.protein }
-        val expectedSessions = ((days / 7.0) * targets.weeklyTrainingSessions).roundToInt()
-        val trainingScore = if (expectedSessions > 0) minOf(100, ((recentTraining.size.toDouble() * 100) / expectedSessions).roundToInt()) else 0
-        val calScore = if (dailyNutrition.isNotEmpty()) (calHits * 100) / dailyNutrition.size else 0
-        val proteinScore = if (dailyNutrition.isNotEmpty()) (proteinHits * 100) / dailyNutrition.size else 0
+
+        val calHits = dailyNutrition.values.count { (cal, _) ->
+            Math.abs(cal - targets.calories).toDouble() / targets.calories <= 0.10
+        }
+        val proteinHits = dailyNutrition.values.count { (_, protein) -> protein >= targets.protein }
+
+        val expectedSessions = ((evaluatedDays / 7.0) * targets.weeklyTrainingSessions)
+            .roundToInt()
+            .coerceAtLeast(if (targets.weeklyTrainingSessions > 0) 1 else 0)
+        val trainingScore = if (expectedSessions > 0) {
+            minOf(100, ((recentTraining.size.toDouble() * 100) / expectedSessions).roundToInt())
+        } else {
+            0
+        }
+        val calScore = ((calHits.toDouble() * 100) / evaluatedDays).roundToInt()
+        val proteinScore = ((proteinHits.toDouble() * 100) / evaluatedDays).roundToInt()
         val overall = ((proteinScore * 0.4) + (calScore * 0.35) + (trainingScore * 0.25)).roundToInt()
 
         val dayNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
         val dayScores = mutableMapOf<String, Pair<Int,Int>>()
         val groupedByDate = recentNutrition.groupBy { it.date }
 
-        // Cache LocalDate.parse() once per unique date string (Fix V-M9)
         val dateParseCache = mutableMapOf<String, java.time.LocalDate>()
         groupedByDate.keys.forEach { dateStr ->
             try {
@@ -69,6 +104,9 @@ object ComplianceEngine {
         trainingLog: List<TrainingSession>,
         targets: NutritionTargets
     ): StreakResult {
+        if (targets.calories <= 0 || targets.protein <= 0) {
+            return StreakResult(StreakInfo(0), StreakInfo(0))
+        }
         var currentStreak = 0
         val todayStr = getCurrentDate()
         val yesterdayStr = try {

@@ -43,14 +43,20 @@ object CoachingWorkers {
 
 class DelayedNotificationWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val title = inputData.getString("title") ?: "Apex Fit Update"
-        val body = inputData.getString("body") ?: "Open your coach file to view updates."
+        var title = inputData.getString("title") ?: "Apex Fit Update"
+        var body = inputData.getString("body") ?: "Open your coach file to view updates."
         val id = inputData.getString("id") ?: "apex_notification"
         val today = com.apexfit.app.utils.getTodayDateString()
         if (id == "midday_protein") {
             val dao = buildDao(applicationContext)
             val todayProtein = dao.getNutritionForDate(today).sumOf { it.protein }
-            if (todayProtein >= 75.0) return Result.success()
+            val proteinTarget = inputData.getInt("protein_target", 0)
+            if (proteinTarget > 0) {
+                if (todayProtein >= proteinTarget * 0.30) return Result.success()
+                val remaining = (proteinTarget - todayProtein).coerceAtLeast(0.0)
+                title = "Only ${todayProtein.toInt()}g protein by noon"
+                body = "You need ${remaining.toInt()}g more today. Front-load some protein now."
+            }
         }
         if (id == "streak_at_risk") {
             val dao = buildDao(applicationContext)
@@ -222,7 +228,8 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
             val inputData = workDataOf(
                 "id" to trigger.id,
                 "title" to trigger.title,
-                "body" to trigger.body
+                "body" to trigger.body,
+                "protein_target" to targets.protein
             )
             val delayedRequest = OneTimeWorkRequestBuilder<DelayedNotificationWorker>()
                 .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)

@@ -29,6 +29,7 @@ object GoalEngine {
         sex: String
     ): GoalTimeline {
         val isRecomposition = resolvedGoal.equals("Recomposition", ignoreCase = true)
+        val isMaintain = resolvedGoal.lowercase().contains("maintain")
         val weeklyRate = when (resolvedGoal.lowercase()) {
             "gain muscle"   -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
             "lose fat"      -> (currentWeightKg * 0.008).coerceIn(0.30, 0.70)
@@ -49,6 +50,8 @@ object GoalEngine {
             isRecomposition ->
                 "Body recomposition: eat at maintenance, lift heavy. " +
                 "Expect visual changes in 3–6 months."
+            isMaintain ->
+                "Maintain your current weight range while tracking trend, nutrition, and training consistency."
             !isRealistic ->
                 "At a safe rate that would take over 2 years. " +
                 "First milestone: ${Math.round(adjustedGoal * 10.0) / 10.0} kg."
@@ -59,8 +62,8 @@ object GoalEngine {
                 "${Math.round(weeklyRate * 100.0) / 100.0} kg/week."
         }
         return GoalTimeline(
-            weeksToGoal           = if (isRecomposition) 0 else weeksRaw.coerceAtMost(104),
-            weeklyChangeKg        = if (isRecomposition) 0.0 else weeklyRate,
+            weeksToGoal           = if (isRecomposition || isMaintain) 0 else weeksRaw.coerceAtMost(104),
+            weeklyChangeKg        = if (isRecomposition || isMaintain) 0.0 else weeklyRate,
             isRealistic           = isRealistic,
             adjustedGoalWeightKg  = adjustedGoal,
             summaryLine           = summaryLine

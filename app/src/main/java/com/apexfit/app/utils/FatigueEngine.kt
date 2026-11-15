@@ -71,21 +71,24 @@ object FatigueEngine {
     fun calcMuscleHeatmap(trainingLog: List<TrainingSession>, days: Int = 7): Map<String, HeatmapEntry> {
         val cutoff = getDateDaysAgo(days)
         val recent = trainingLog.filter { it.completed && it.date >= cutoff }
-        val muscleVolume = mutableMapOf<String, Double>()
+        // The UI and accessibility layer describe this value as working sets.
+        // Counting completed sets also keeps bodyweight work visible instead of
+        // treating zero added load as zero training volume.
+        val muscleVolume = mutableMapOf<String, Int>()
         recent.forEach { session ->
             session.exercises.forEach { exercise ->
                 val canonicalMuscle = com.apexfit.app.utils.MuscleAliases.getCanonical(exercise.muscleGroup)
-                val volume = exercise.sets.filter { !it.isWarmup }.sumOf { it.weight * it.reps }
-                muscleVolume[canonicalMuscle] = (muscleVolume[canonicalMuscle] ?: 0.0) + volume
+                val volume = exercise.sets.count { !it.isWarmup && it.completed }
+                muscleVolume[canonicalMuscle] = (muscleVolume[canonicalMuscle] ?: 0) + volume
             }
         }
-        val maxVolume = muscleVolume.values.maxOrNull() ?: 1.0
+        val maxVolume = muscleVolume.values.maxOrNull()?.coerceAtLeast(1) ?: 1
         val allMuscles = MuscleGroups.ALL.map { com.apexfit.app.utils.MuscleAliases.getCanonical(it) }
         return allMuscles.associateWith { muscle ->
-            val vol = muscleVolume[muscle] ?: 0.0
-            val intensity = ((vol / maxVolume) * 100).roundToInt()
+            val vol = muscleVolume[muscle] ?: 0
+            val intensity = ((vol.toDouble() / maxVolume) * 100).roundToInt()
             HeatmapEntry(
-                volume = vol.roundToInt(),
+                volume = vol,
                 intensity = intensity,
                 level = when { intensity >= 80 -> "high"; intensity >= 40 -> "medium"; intensity >= 10 -> "low"; else -> "untrained" },
                 colorHex = when { intensity >= 80 -> "#E84040"; intensity >= 40 -> "#E8A020"; intensity >= 10 -> "#2EC46A"; else -> "#252535" }

@@ -332,7 +332,7 @@ data class ActiveSet(
     val setNumber: Int,
     val weight: Double,
     val reps: Int,
-    val rpe: Int = 7,
+    val rpe: Int = 0,
     val isWarmup: Boolean = false,
     val restTakenSeconds: Int = 0,
     val completedAt: Long = 0L,
@@ -472,7 +472,9 @@ data class RichTrainingSession(
     val completed: Boolean,
     val sessionFeel: Int = 3,
     val durationMinutes: Int = 0,
-    val exercises: List<ExerciseLog> = emptyList()
+    val exercises: List<ExerciseLog> = emptyList(),
+    val startedAt: Long? = null,
+    val completedAt: Long? = null
 )
 
 @Entity(

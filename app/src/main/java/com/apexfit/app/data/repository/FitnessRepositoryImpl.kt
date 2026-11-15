@@ -55,6 +55,15 @@ class FitnessRepositoryImpl @Inject constructor(
 
     private val DAY_OF_WEEK_FORMAT = java.time.format.DateTimeFormatter.ofPattern("EEEE", java.util.Locale.US)
 
+    private val todayDateFlow: StateFlow<String> by lazy {
+        com.apexfit.app.utils.DateTimeUtils.todayDateFlow()
+            .stateIn(
+                scope = appScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = com.apexfit.app.utils.DateTimeUtils.todayDateString()
+            )
+    }
+
     private data class BioProfile(
         val heightCm: Double,
         val ageYears: Int,
@@ -145,12 +154,21 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val sessionReadinessFlow: StateFlow<UiSessionReadiness?> by lazy {
+        val todayContextFlow = todayExercisesFlow.mapLatest { exercises ->
+            val ids = exercises.map { it.exerciseId }.filter { it.isNotBlank() }.distinct()
+            val metadata = if (ids.isEmpty()) emptyMap() else {
+                dao.getMetadataForExercises(ids).associateBy { it.exerciseId }
+            }
+            exercises to metadata
+        }
+
         combine(
             richSessionsFlow,
-            dataStore.calorieTargetValueFlow,
-            dataStore.currentWeightFlow,
-            nutritionEntriesFlow
-        ) { sessions, calorieTarget, weight, nutritionList ->
+            nutritionEntriesFlow,
+            todayContextFlow,
+            sharedTargetsFlow,
+            dataStore.currentWeightFlow
+        ) { sessions, nutritionList, todayContext, targets, weight ->
             try {
                 if (sessions.isEmpty()) {
                     null
@@ -164,13 +182,15 @@ class FitnessRepositoryImpl @Inject constructor(
                             fat = it.fat.roundToInt()
                         )
                     }
+                    val (todayExercises, metadata) = todayContext
                     val scoreResult = com.apexfit.app.utils.ReadinessFinal.buildReadinessInputs(
-                        sessions = sessions,
+                        completedSessions = sessions,
+                        todayExercises = todayExercises,
                         nutritionLog = mappedNutrition,
+                        targets = targets,
                         bodyWeightKg = weight,
-                        calorieTarget = calorieTarget
+                        metadata = metadata
                     )
-                    // A cold-start estimate has no valid score yet; do not show its raw fallback as a measurement.
                     scoreResult.finalScore?.let { scoreResult.toUi() }
                 }
             } catch (e: Exception) {
@@ -190,8 +210,8 @@ class FitnessRepositoryImpl @Inject constructor(
     override val sharedTargetsFlow: Flow<NutritionTargets> by lazy {
         val weightFlow = dao.getWeightEntriesSinceFlow(getDateDaysAgo(90))
             .flowOn(Dispatchers.IO)
-        val completedTodayFlow: Flow<Int> = dao
-            .getCompletedSessionCountFlow(com.apexfit.app.utils.DateTimeUtils.todayDateString())
+        val completedTodayFlow: Flow<Int> = todayDateFlow
+            .flatMapLatest { date -> dao.getCompletedSessionCountFlow(date) }
             .distinctUntilChanged()
 
         val activePlanFlow: Flow<WorkoutPlan?> = dao.getActivePlanFlow()
@@ -211,7 +231,8 @@ class FitnessRepositoryImpl @Inject constructor(
             completedTodayFlow,
             activePlanSessionsFlow,
             bioProfileFlow,
-            nutritionEntriesFlow
+            nutritionEntriesFlow,
+            todayDateFlow
         ) { values ->
             val isManual            = values[0] as Boolean
             val manualCals          = values[1] as Int
@@ -224,6 +245,7 @@ class FitnessRepositoryImpl @Inject constructor(
             val bio                 = values[6] as BioProfile
             @Suppress("UNCHECKED_CAST")
             val nutrition           = values[7] as List<NutritionEntry>
+            val todayDate           = values[8] as String
 
             val latestWeight = weights.maxByOrNull { it.date }?.weight
                 ?: bio.currentWeightKg
@@ -259,7 +281,7 @@ class FitnessRepositoryImpl @Inject constructor(
                 sex                    = bio.biologicalSex
             )
 
-            val todayDayString = java.time.LocalDate.now().format(DAY_OF_WEEK_FORMAT)
+            val todayDayString = java.time.LocalDate.parse(todayDate).format(DAY_OF_WEEK_FORMAT)
             val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
             val isPlannedTraining = todayPlanned != null &&
                 !todayPlanned.label.contains("Rest", ignoreCase = true) &&
@@ -287,9 +309,11 @@ class FitnessRepositoryImpl @Inject constructor(
         getActivePlan().flatMapLatest { plan ->
             val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
             sessions.flatMapLatest { sessionList ->
-                val todayDayString = java.time.LocalDate.now().format(DAY_OF_WEEK_FORMAT)
-                val todaySession = sessionList.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-                if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
+                todayDateFlow.flatMapLatest { todayDate ->
+                    val todayDayString = java.time.LocalDate.parse(todayDate).format(DAY_OF_WEEK_FORMAT)
+                    val todaySession = sessionList.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+                    if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
+                }
             }
         }
         .flowOn(Dispatchers.IO)

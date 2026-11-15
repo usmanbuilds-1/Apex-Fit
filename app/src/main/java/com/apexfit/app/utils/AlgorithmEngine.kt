@@ -65,7 +65,9 @@ object AlgorithmEngine {
             val muscleVolume = mutableMapOf<String, Double>()
             sessions.forEach { session ->
                 session.exercises.forEach { exercise ->
-                    val volume = exercise.sets.filter { !it.isWarmup }.sumOf { it.weight * it.reps }
+                    val volume = exercise.sets
+                        .filter { !it.isWarmup && it.completed }
+                        .sumOf { it.weight * it.reps }
                     muscleVolume[exercise.muscleGroup] = (muscleVolume[exercise.muscleGroup] ?: 0.0) + volume
                 }
             }
@@ -103,7 +105,7 @@ object AlgorithmEngine {
         val recent = trainingLog.filter { it.completed }.sortedByDescending { it.date }.take(6)
 
         val highRPEDays = recent.filter { session ->
-            session.exercises.flatMap { it.sets }.any { it.rpe >= 9 }
+            session.exercises.flatMap { it.sets }.any { it.completed && !it.isWarmup && it.rpe >= 9 }
         }.map { it.date }.distinct().count()
         
         if (highRPEDays >= 4) signals.add("High intensity clustering — heavy RPE sets performed on $highRPEDays distinct days recently")
@@ -144,6 +146,9 @@ object AlgorithmEngine {
 
     fun estimateSetDurationMinutes(ex: com.apexfit.app.data.PlanExercise, units: String = "kg"): Int {
         val setMinutes = estimateSetDurationMinutes(ex.repsMin, ex.repsMax)
-        return (ex.sets * (setMinutes + ex.restSeconds / 60.0)).roundToInt()
+        val workingSets = ex.sets.coerceAtLeast(0)
+        val restIntervals = (workingSets - 1).coerceAtLeast(0)
+        val totalMinutes = workingSets * setMinutes + restIntervals * (ex.restSeconds.coerceAtLeast(0) / 60.0)
+        return totalMinutes.roundToInt()
     }
 }

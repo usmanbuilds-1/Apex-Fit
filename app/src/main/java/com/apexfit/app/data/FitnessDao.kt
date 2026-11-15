@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import com.apexfit.app.utils.AppConstants
 import kotlinx.coroutines.flow.Flow
 
@@ -95,8 +96,24 @@ interface FitnessDao {
     @Query("""
         SELECT es.* FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
-        WHERE es.exerciseId = :exerciseId AND es.completed = 1
-        ORDER BY ts.date DESC, es.id ASC
+        WHERE es.exerciseId = :exerciseId
+          AND es.completed = 1
+          AND es.isWarmup = 0
+          AND ts.completed = 1
+          AND es.sessionId = (
+              SELECT recent.sessionId
+              FROM exercise_sets recent
+              INNER JOIN workout_sessions recentSession ON recentSession.id = recent.sessionId
+              WHERE recent.exerciseId = :exerciseId
+                AND recent.completed = 1
+                AND recent.isWarmup = 0
+                AND recentSession.completed = 1
+              ORDER BY COALESCE(recentSession.completed_at, recentSession.started_at, 0) DESC,
+                       recentSession.date DESC,
+                       recent.id DESC
+              LIMIT 1
+          )
+        ORDER BY es.id ASC
     """)
     suspend fun getLastSetsForExercise(exerciseId: String): List<ExerciseSet>
 
@@ -344,15 +361,24 @@ interface FitnessDao {
     @Query("UPDATE exercise_sets SET weight = weight / ${AppConstants.KG_TO_LBS}, weight_unit = 'kg' WHERE weight_unit IN ('lb', 'lbs')")
     suspend fun convertAllExerciseSetWeightsToKg()
 
-    @Query("UPDATE personal_records SET value = value / ${AppConstants.KG_TO_LBS} WHERE type IN ('max_weight', 'estimated_1rm')")
-    suspend fun convertAllPersonalRecordValuesToKg()
+    @Query("""
+        UPDATE personal_records
+        SET value = value / ${AppConstants.KG_TO_LBS}
+        WHERE type IN ('max_weight', 'estimated_1rm', 'volume')
+          AND exerciseId IN (
+              SELECT DISTINCT exerciseId
+              FROM exercise_sets
+              WHERE weight_unit IN ('lb', 'lbs')
+          )
+    """)
+    suspend fun convertImperialPersonalRecordValuesToKg()
 
 
 
-    @Insert
+    @Upsert
     suspend fun insertPersonalRecord(record: PersonalRecord)
 
-    @Insert
+    @Upsert
     suspend fun insertPersonalRecords(records: List<PersonalRecord>)
 
     // Body Measurements
@@ -389,9 +415,17 @@ interface FitnessDao {
     suspend fun getExerciseSetsByExerciseId(exerciseId: String, limit: Int = 1000): List<ExerciseSet>
 
     @Query("""
-        SELECT weight FROM exercise_sets 
-        WHERE exerciseId = :exerciseId AND isWarmup = 0 AND completed = 1
-        ORDER BY id DESC LIMIT 1
+        SELECT es.weight
+        FROM exercise_sets es
+        INNER JOIN workout_sessions ws ON ws.id = es.sessionId
+        WHERE es.exerciseId = :exerciseId
+          AND es.isWarmup = 0
+          AND es.completed = 1
+          AND ws.completed = 1
+        ORDER BY COALESCE(ws.completed_at, ws.started_at, 0) DESC,
+                 ws.date DESC,
+                 es.id DESC
+        LIMIT 1
     """)
     suspend fun getLastWeightForExercise(exerciseId: String): Double?
 
@@ -409,7 +443,9 @@ interface FitnessDao {
               INNER JOIN workout_sessions recentSession ON recentSession.id = recent.sessionId
               WHERE recent.exerciseId = es.exerciseId AND recent.completed = 1
                 AND recent.isWarmup = 0 AND recentSession.completed = 1
-              ORDER BY recent.id DESC LIMIT 1
+              ORDER BY COALESCE(recentSession.completed_at, recentSession.started_at, 0) DESC,
+                       recentSession.date DESC,
+                       recent.id DESC LIMIT 1
           )
         ORDER BY es.id DESC
     """)
@@ -424,8 +460,14 @@ interface FitnessDao {
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
-        WHERE es.exerciseId = :exerciseId AND es.completed = 1
-        ORDER BY es.id DESC LIMIT 1
+        WHERE es.exerciseId = :exerciseId
+          AND es.completed = 1
+          AND es.isWarmup = 0
+          AND ts.completed = 1
+        ORDER BY COALESCE(ts.completed_at, ts.started_at, 0) DESC,
+                 ts.date DESC,
+                 es.id DESC
+        LIMIT 1
     """)
     suspend fun getLastSetForExercise(exerciseId: String): LastSetWithDate?
 

@@ -92,13 +92,46 @@ object FatigueDoseCalculator {
         return compounds.any { exerciseName.lowercase().contains(it) }
     }
 
-    fun doseForSet(set: ExerciseSet): Double {
+    private fun bodyweightLoadFraction(exerciseName: String): Double? {
+        val name = exerciseName.lowercase()
+        return when {
+            name.contains("pull-up") || name.contains("pullup") ||
+                name.contains("chin-up") || name.contains("chinup") ||
+                name.contains("dip") -> 1.0
+            name.contains("handstand push") -> 1.0
+            name.contains("push-up") || name.contains("pushup") ||
+                name.contains("pike push") -> 0.65
+            name.contains("plank") || name.contains("crunch") ||
+                name.contains("sit-up") || name.contains("situp") -> 0.35
+            else -> null
+        }
+    }
+
+    fun effectiveLoadKg(
+        set: ExerciseSet,
+        exerciseName: String,
+        bodyWeightKg: Double
+    ): Double {
+        val externalLoad = set.weight.coerceAtLeast(0.0)
+        val fraction = bodyweightLoadFraction(exerciseName)
+        return if (fraction != null && bodyWeightKg > 0.0) {
+            bodyWeightKg * fraction + externalLoad
+        } else {
+            externalLoad
+        }
+    }
+
+    fun doseForSet(
+        set: ExerciseSet,
+        exerciseName: String = "",
+        bodyWeightKg: Double = 0.0
+    ): Double {
         if (set.isWarmup || !set.completed) return 0.0
         val rpe = set.rpe.coerceIn(1, 10)
         val reps = set.reps.coerceAtLeast(0)
-        val weight = set.weight.coerceAtLeast(0.0)
-        if (weight == 0.0 || reps == 0) return 0.0
-        return weight * reps * fatigueMultiplier(rpe)
+        val effectiveLoad = effectiveLoadKg(set, exerciseName, bodyWeightKg)
+        if (effectiveLoad == 0.0 || reps == 0) return 0.0
+        return effectiveLoad * reps * fatigueMultiplier(rpe)
     }
 }
 
@@ -148,10 +181,12 @@ object SystemicFatigueCalculator {
     fun doseForSet(
         set: ExerciseSet,
         exerciseName: String,
-        systemicMultiplierOverride: Double? = null
+        systemicMultiplierOverride: Double? = null,
+        bodyWeightKg: Double = 0.0
     ): Double {
         if (set.isWarmup || !set.completed) return 0.0
-        val volumeLoad = set.weight.coerceAtLeast(0.0) * set.reps.coerceAtLeast(0)
+        val effectiveLoad = FatigueDoseCalculator.effectiveLoadKg(set, exerciseName, bodyWeightKg)
+        val volumeLoad = effectiveLoad * set.reps.coerceAtLeast(0)
         val mult = FatigueDoseCalculator.fatigueMultiplier(set.rpe.coerceIn(1, 10))
         val systemicMult = systemicMultiplierOverride ?: if (FatigueDoseCalculator.isCompound(exerciseName)) 1.4 else 0.7
         return volumeLoad * mult * systemicMult
@@ -187,6 +222,17 @@ data class MuscleReadinessDetail(
     val confidence: String
 )
 
+internal fun trainingSessionAgeDays(
+    session: com.apexfit.app.utils.TrainingSession,
+    nowMs: Long = System.currentTimeMillis()
+): Double {
+    val eventMs = session.completedAt
+        ?: session.startedAt
+        ?: DateTimeUtils.parseDate(session.date)?.time
+        ?: nowMs
+    return ((nowMs - eventMs).coerceAtLeast(0L)).toDouble() / 86_400_000.0
+}
+
 data class ReadinessScore(
     val overallPercent: Int,
     val label: String,
@@ -215,6 +261,7 @@ object ReadinessFinal {
             todayExercises = emptyList(),
             nutritionLog = nutritionLog,
             targets = targets,
+            bodyWeightKg = bodyWeightKg,
             metadata = metadata
         )
     }
@@ -224,12 +271,12 @@ object ReadinessFinal {
         todayExercises: List<com.apexfit.app.data.PlanExercise>,
         nutritionLog: List<com.apexfit.app.utils.NutritionEntry>,
         targets: com.apexfit.app.utils.NutritionTargets,
+        bodyWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG,
         metadata: Map<String, ExerciseMetadata> = emptyMap()
     ): ReadinessScore {
-        val currentDate = getCurrentDate()
+        val nowMs = System.currentTimeMillis()
         val completedLast30 = completedSessions.filter { session ->
-            val days = getDaysBetween(session.date, currentDate)
-            session.completed && days in 0..30
+            session.completed && trainingSessionAgeDays(session, nowMs) <= 30.0
         }
 
         // Consolidated single pass over completedLast30 (Fix V-M8)
@@ -240,7 +287,7 @@ object ReadinessFinal {
         val systemicPastSessionDoses = ArrayList<Double>(completedLast30.size)
 
         for (session in completedLast30) {
-            val daysAgo = getDaysBetween(session.date, currentDate).toDouble()
+            val daysAgo = trainingSessionAgeDays(session, nowMs)
             val sessionDosesByMuscle = mutableMapOf<String, Double>()
             var sessionSystemicDose = 0.0
 
@@ -257,7 +304,11 @@ object ReadinessFinal {
                     if (set.isWarmup || !set.completed) continue
 
                     // 1) Muscle fatigue dose & secondary muscle distributions
-                    val dose = FatigueDoseCalculator.doseForSet(set)
+                    val dose = FatigueDoseCalculator.doseForSet(
+                        set = set,
+                        exerciseName = exercise.name,
+                        bodyWeightKg = bodyWeightKg
+                    )
                     val primaryDose = dose * (1.0 - secondaryTotalPct.coerceAtMost(1.0))
                     val primaryList = muscleFatigueHistory.getOrPut(canonicalExerciseMuscle) { mutableListOf() }
                     primaryList.add(MuscleFatigueSnapshot(canonicalExerciseMuscle, daysAgo, primaryDose))
@@ -276,7 +327,8 @@ object ReadinessFinal {
                     val systemicDose = SystemicFatigueCalculator.doseForSet(
                         set = set,
                         exerciseName = exercise.name,
-                        systemicMultiplierOverride = systemicMultiplier
+                        systemicMultiplierOverride = systemicMultiplier,
+                        bodyWeightKg = bodyWeightKg
                     )
                     systemicHistory.add(SystemicFatigueCalculator.SystemicSnapshot(daysAgo, systemicDose))
                     sessionSystemicDose += systemicDose

@@ -163,12 +163,13 @@ fun HomeTodayWorkoutCard(
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
     val activeWorkoutSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val readiness by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
+    val todayDate by homeViewModel.todayDate.collectAsStateWithLifecycle()
 
     val todayExercises = (todayExercisesState as? UiState.Success)?.data ?: emptyList()
     val activePlanSessions = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
 
-    val todayDayString = remember {
-        java.time.LocalDate.now().dayOfWeek
+    val todayDayString = remember(todayDate) {
+        java.time.LocalDate.parse(todayDate).dayOfWeek
             .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)
     }
     val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
@@ -181,17 +182,16 @@ fun HomeTodayWorkoutCard(
     var showCalculationExplanation by rememberSaveable { mutableStateOf(false) }
     val onShowCalculationExplanation = remember { { showCalculationExplanation = true } }
 
-    val isTodayWorkoutCompleted by remember(completedSessions) {
+    val isTodayWorkoutCompleted by remember(completedSessions, todayDate) {
         derivedStateOf {
-            val todayDateStr = DateTimeUtils.todayDateString()
-            completedSessions.any { it.date == todayDateStr }
+            completedSessions.any { it.date == todayDate }
         }
     }
 
     val lastTrainedDates by homeViewModel.lastTrainedDateMap.collectAsStateWithLifecycle()
 
-    val recoveryHeatmap = remember(lastTrainedDates, todaySession) {
-        val todayDateStr = DateTimeUtils.todayDateString()
+    val recoveryHeatmap = remember(lastTrainedDates, todaySession, todayDate) {
+        val todayDateStr = todayDate
         val focusText = todaySession?.focus ?: "Chest • Back • Arms"
         val canvasMuscles = listOf(
             "chest", "back", "front_delt", "side_delt", "rear_delt",

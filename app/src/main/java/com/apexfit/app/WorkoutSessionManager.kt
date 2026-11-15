@@ -71,8 +71,7 @@ class WorkoutSessionManager(
     private val _currentRestSeconds = MutableStateFlow(0)
     val currentRestSeconds: StateFlow<Int> = _currentRestSeconds.asStateFlow()
 
-    init {
-        scope.launch {
+    private val restoreJob: Job = scope.launch {
             val json = dataStore.activeSessionJsonFlow.firstOrNull()
             if (!json.isNullOrEmpty()) {
                 try {
@@ -94,8 +93,8 @@ class WorkoutSessionManager(
                     }
                 }
             }
-        }
     }
+
 
 
     fun incrementRestSeconds() {
@@ -149,6 +148,9 @@ class WorkoutSessionManager(
         userHeight: Double,
         preferredUnits: String
     ) = withContext(Dispatchers.IO) {
+        // Startup restore and a new workout must never race each other. Await the
+        // persisted-session read before deciding whether a session is already active.
+        restoreJob.join()
         if (!_isStartingSession.compareAndSet(false, true)) return@withContext
         val slugByExercise = exercises.associate { it.name to it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
         val ids = exercises.mapNotNull { slugByExercise[it.name] }
@@ -171,6 +173,8 @@ class WorkoutSessionManager(
                         completed = rs.completed,
                         sessionFeel = rs.sessionFeel,
                         durationMinutes = rs.durationMinutes,
+                        startedAt = rs.startedAt,
+                        completedAt = rs.completedAt,
                         exercises = rs.exercises.map { exercise ->
                             com.apexfit.app.utils.ExerciseLog(
                                 id = exercise.id,
@@ -210,6 +214,7 @@ class WorkoutSessionManager(
                 todayExercises = exercises,
                 nutritionLog = nutritionLog,
                 targets = targets,
+                bodyWeightKg = latestWeight,
                 metadata = metadataMap
             )
         } catch (e: Exception) {
@@ -360,7 +365,7 @@ class WorkoutSessionManager(
                         setNumber = setNum,
                         weight = suggestedWeight,
                         reps = ex.repsMin,
-                        rpe = 7,               // Default — user must set this
+                        rpe = 0,               // Unrated until the user explicitly selects effort
                         isWarmup = false,
                         restTakenSeconds = 0,
                         completed = false,
@@ -409,7 +414,7 @@ class WorkoutSessionManager(
         val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
         if (setIndex !in exercise.sets.indices) return
 
-        val rpeVal = rpe.coerceIn(1, 10)
+        val rpeVal = rpe.coerceIn(0, 10)
         val updatedExercises = session.exercises.map { ex ->
             if (ex.exerciseId == exerciseId) {
                 val updatedSets = ex.sets.toMutableList()
@@ -444,7 +449,7 @@ class WorkoutSessionManager(
         val newSetNum = exercise.sets.size + 1
         val suggestedWeight = lastSet?.weight ?: 50.0
         val suggestedReps = lastSet?.reps ?: 10
-        val suggestedRpe = lastSet?.rpe ?: 7
+        val suggestedRpe = lastSet?.rpe?.takeIf { it in 1..10 } ?: 0
         val suggestedWeightUnit = lastSet?.weightUnit ?: "kg"
 
         // Structural sharing: only copy the affected exercise
@@ -582,7 +587,8 @@ class WorkoutSessionManager(
 
         val trainingSession = TrainingSession(
             id = sessionId,
-            date = com.apexfit.app.utils.DateTimeUtils.todayDateString(),
+            // Attribute a cross-midnight workout to the local calendar day it began.
+            date = com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(session.startTime),
             sessionType = session.sessionType,
             completed = completedSetsOnly && !isPartial,
             durationMinutes = durationMinutes,
