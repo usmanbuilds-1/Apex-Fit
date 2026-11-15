@@ -2,6 +2,19 @@
 
 This file is the authoritative design target for the native Kotlin / Jetpack Compose app. Older mint / Neo-Pulse guidance is obsolete and must not be treated as current UI direction.
 
+## Applicability
+
+These rules apply to **every shipping screen, component, state, and new feature**, not only the screens included in the current redesign. A new capability does not get a separate visual language.
+
+When adding or changing a feature:
+- start from the product hierarchy and navigation rules in this file;
+- reuse the Night Ledger tokens, typography, spacing, icon, motion, accessibility, truthful-state, and performance rules;
+- preserve real domain behavior rather than designing around mock data;
+- do not create a new top-level destination when the feature belongs under an existing route;
+- render and verify the real Android implementation before considering the feature complete.
+
+If a feature-specific spec conflicts with this file, **this file wins unless the conflict is explicitly resolved in a later committed design decision**.
+
 ## Product flow
 
 Bottom navigation stays exactly:
@@ -104,6 +117,29 @@ Do not introduce:
 - AI-generated exercise-form anatomy
 
 Do not solve empty space with decoration. Do not create a new screen, card, or tab simply because a new capability exists.
+
+## Muscle volume
+
+Muscle Volume lives under **Progress → Explore → Volume**. It is a training-log view, not a recovery, hypertrophy, or injury-prediction view.
+
+The primary metric is **completed direct working sets**:
+- count only completed, non-warm-up sets;
+- attribute a direct set to the exercise's canonical primary muscle;
+- do not convert secondary-muscle involvement into arbitrary fractional “effective sets”;
+- secondary-muscle involvement may be shown separately as **secondary exposure**, but it must not be added to the direct-set total unless a future validated model explicitly defines that behavior;
+- bodyweight work counts even when external load is zero.
+
+Presentation:
+- offer **Week / Month** time ranges using exact calendar windows;
+- default to a calm front/back anatomy view using the original APEX anatomy asset;
+- anatomy intensity represents **direct set count only**;
+- use a small number of discrete Night Ledger intensity steps, not neon/thermal rainbow gradients;
+- always provide an accessible ranked-list alternative with exact numbers;
+- tapping a muscle opens a drill-down showing direct sets, secondary exposure, contributing exercises, and their set counts;
+- when useful, show change versus the previous equivalent calendar period, but do not imply causality or “optimal” volume;
+- empty states must say there is insufficient/no logged training data rather than painting inactive muscles as meaningful zero-performance signals.
+
+Do **not** label the anatomy as recovery, growth, activation, soreness, or muscle quality. Recovery remains a separate Progress destination and must use its own explanation and data.
 
 ## Truthful states
 
