@@ -41,7 +41,7 @@ data class OnboardingProfile(
         sex !in listOf("male", "female") -> "Choose the sex used for calorie estimates."
         units !in listOf("kg", "lb") -> "Choose metric or imperial units."
         experience !in EXPERIENCE_LEVELS -> "Choose your training experience."
-        daysPerWeek !in 3..6 -> "Choose 3 to 6 training days."
+        daysPerWeek !in 2..5 -> "Choose 2 to 5 training days."
         else -> null
     }
 
