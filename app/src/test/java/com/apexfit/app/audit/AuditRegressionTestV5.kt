@@ -48,21 +48,23 @@ class AuditRegressionTestV5 {
     private lateinit var dao: FitnessDao
 
     @Before
-    fun setUp() = runBlocking {
-        context = ApplicationProvider.getApplicationContext()
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        dao = db.fitnessDao()
-        dao.insertExercise(
-            Exercise(
-                id = "bench",
-                name = "Bench Press",
-                category = "Barbell",
-                primaryMuscle = "Chest",
-                equipmentRequired = "Barbell"
+    fun setUp() {
+        runBlocking {
+            context = ApplicationProvider.getApplicationContext()
+            db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
+            dao = db.fitnessDao()
+            dao.insertExercise(
+                Exercise(
+                    id = "bench",
+                    name = "Bench Press",
+                    category = "Barbell",
+                    primaryMuscle = "Chest",
+                    equipmentRequired = "Barbell"
+                )
             )
-        )
+        }
     }
 
     @After
