@@ -53,27 +53,50 @@ object TdeeEngine {
                 .average().takeIf { !it.isNaN() }?.roundToInt() ?: 0, 0.0)
         }
 
-        val dailyCalories = recentNutrition
+        // Adaptive energy-balance math only makes sense when intake coverage spans
+        // the same calendar interval as the weight change. Do not silently average
+        // a handful of selectively logged days and treat them as the whole interval.
+        val oldestEntry = recentWeight.first()
+        val newestEntry = recentWeight.last()
+        val daysBetween = getDaysBetween(oldestEntry.date, newestEntry.date).coerceAtLeast(1L)
+        val calendarDays = (daysBetween + 1L).toInt()
+        val nutritionInWeightWindow = recentNutrition.filter {
+            it.date >= oldestEntry.date && it.date <= newestEntry.date
+        }
+        val loggedNutritionDays = nutritionInWeightWindow.map { it.date }.distinct().size
+        val nutritionCoverage = loggedNutritionDays.toDouble() / calendarDays.coerceAtLeast(1)
+
+        if (nutritionCoverage < 0.80) {
+            val loggedDailyCalories = nutritionInWeightWindow
+                .groupBy { it.date }
+                .map { (_, e) -> e.sumOf { it.calories } }
+            val loggedAverage = loggedDailyCalories.average().takeIf { !it.isNaN() }?.roundToInt() ?: 0
+            return TDEEResult(
+                fallbackTdee,
+                "low (Mifflin-St Jeor; sparse nutrition coverage)",
+                loggedAverage,
+                0.0
+            )
+        }
+
+        val dailyCalories = nutritionInWeightWindow
             .groupBy { it.date }
             .map { (_, e) -> e.sumOf { it.calories } }
         val avgCalories = if (dailyCalories.isEmpty()) 0.0 else dailyCalories.average()
         val fullTrendData = AlgorithmEngine.calcTrendWeight(weightLog.sortedBy { it.date })
-        val trendAtCutoff = fullTrendData.firstOrNull { it.date >= cutoff }?.trend
+        val trendAtCutoff = fullTrendData.firstOrNull { it.date >= oldestEntry.date }?.trend
             ?: fullTrendData.first().trend
         val weightChangeKg = fullTrendData.last().trend - trendAtCutoff
         
-        // CRITICAL SCIENTIFIC FIX: Divisor must be actual calendar days between weights, not the number of logs
-        val oldestEntry = recentWeight.first()
-        val newestEntry = recentWeight.last()
-        val daysBetween = getDaysBetween(oldestEntry.date, newestEntry.date).coerceAtLeast(1L)
+        // Divisor is actual calendar days between the weight observations, not log count.
         
         // Weight gain or loss translates to calorie imbalance per day (1kg = 7700 kcal energy density, Hall 2012)
         val calorieImbalancePerDay = (weightChangeKg * AppConstants.CALORIES_PER_KG_BODYFAT) / daysBetween
         val tdee = (avgCalories - calorieImbalancePerDay).roundToInt().coerceAtLeast(1200)
         
         val confidence = when {
-            recentNutrition.map { it.date }.distinct().size >= 10 && recentWeight.map { it.date }.distinct().size >= 8 -> "high"
-            recentNutrition.map { it.date }.distinct().size >= 7  && recentWeight.map { it.date }.distinct().size >= 5 -> "medium"
+            loggedNutritionDays >= 10 && recentWeight.map { it.date }.distinct().size >= 8 -> "high"
+            loggedNutritionDays >= 7  && recentWeight.map { it.date }.distinct().size >= 5 -> "medium"
             else -> "low"
         }
         return TDEEResult(tdee, confidence, avgCalories.roundToInt(), Math.round(weightChangeKg * 100.0) / 100.0)
