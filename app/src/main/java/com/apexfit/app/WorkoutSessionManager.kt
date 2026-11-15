@@ -199,12 +199,19 @@ class WorkoutSessionManager(
             val nutritionLogDeferred = async { repository.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList() }
             val calorieTargetDeferred = async { repository.getCalorieTargetFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.CALORIES }
             val userGoalDeferred = async { repository.getGoalFlow().firstOrNull() ?: "Maintain Weight" }
+            val weeklyWorkoutsDeferred = async { dataStore.weeklyWorkoutsFlow.first() }
 
             val nutritionLog = nutritionLogDeferred.await()
             val calorieTarget = calorieTargetDeferred.await()
             val userGoal = userGoalDeferred.await()
+            val weeklyWorkouts = weeklyWorkoutsDeferred.await()
             val latestWeight = repository.getCurrentWeightFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-            val targets = com.apexfit.app.utils.MacroEngine.calcMacroTargets(calorieTarget, latestWeight, userGoal)
+            val targets = com.apexfit.app.utils.MacroEngine.calcMacroTargets(
+                calorieTarget = calorieTarget,
+                bodyWeightKg = latestWeight,
+                goal = userGoal,
+                weeklyTrainingSessions = weeklyWorkouts
+            )
 
             metadataMap = dao.getMetadataForExercises(ids)
                 .associateBy { it.exerciseId }
