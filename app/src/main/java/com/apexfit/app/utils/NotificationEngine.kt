@@ -47,37 +47,30 @@ object NotificationEngine {
             ))
         }
 
-        // TRIGGER 2 — Midday protein check (12pm)
-        if (currentHour in 11..13) {
+        // TRIGGER 2 — Midday protein progress (12pm)
+        if (currentHour in 11..13 && targets.protein > 0) {
             val morningProtein = (todayNutrition?.protein ?: 0).toDouble()
             val proteinTarget = targets.protein.toDouble()
             if (morningProtein < proteinTarget * 0.3) {
-                val remaining = proteinTarget - morningProtein
                 triggers.add(NotificationTrigger(
                     id = "midday_protein",
-                    title = "Only ${morningProtein.roundToInt()}g protein by noon",
-                    body = "You need ${remaining.roundToInt()}g more today. Front-loading protein prevents evening scrambling. Eat 40g now.",
+                    title = "Protein progress",
+                    body = "You've logged ${morningProtein.roundToInt()}g of ${proteinTarget.roundToInt()}g today. If useful, plan a protein-rich meal later.",
                     triggerHour = 12,
-                    priority = "high"
+                    priority = "default"
                 ))
             }
         }
 
-        // TRIGGER 3 — Streak at risk (8pm)
-        if (currentHour in 19..21) {
-            val todayLogged = todayNutrition != null
-            if (!todayLogged) {
-                val streaks = ComplianceEngine.calcStreaks(nutritionLog, trainingLog, targets)
-                if (streaks.nutrition.current >= 3) {
-                    triggers.add(NotificationTrigger(
-                        id = "streak_at_risk",
-                        title = "Your ${streaks.nutrition.current}-day streak ends at midnight",
-                        body = "You have not logged nutrition today. 2 minutes of logging preserves your streak.",
-                        triggerHour = 20,
-                        priority = "high"
-                    ))
-                }
-            }
+        // TRIGGER 3 — Optional evening log reminder (no streak pressure / fake urgency)
+        if (currentHour in 19..21 && todayNutrition == null) {
+            triggers.add(NotificationTrigger(
+                id = "evening_nutrition_reminder",
+                title = "No nutrition logged today",
+                body = "Log meals if you want today's nutrition totals included in your trends.",
+                triggerHour = 20,
+                priority = "default"
+            ))
         }
 
         // TRIGGER 4 — Sunday weekly report (9am)
@@ -85,8 +78,8 @@ object NotificationEngine {
         if (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY && currentHour in 8..10) {
             triggers.add(NotificationTrigger(
                 id = "weekly_report",
-                title = "Your weekly coaching report is ready",
-                body = "Your coach has analysed your week. See what to adjust for maximum progress.",
+                title = "Your weekly training summary is ready",
+                body = "Review this week's training, nutrition and progress trends.",
                 triggerHour = 9,
                 priority = "default"
             ))
