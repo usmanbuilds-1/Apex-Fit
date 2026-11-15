@@ -8,6 +8,7 @@ import androidx.room.withTransaction
 import com.apexfit.app.data.*
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.ui.models.UiState
+import com.apexfit.app.utils.ExerciseCatalogFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -219,19 +220,24 @@ class PlanBuilderViewModel @Inject constructor(
         val muscleGroup = pattern
         val exerciseName = currentEx
         val exercises = (exerciseLibrary.value as? UiState.Success)?.data ?: return emptyList()
-        val equipment = equipmentAvailable.value.split(",").map { it.trim().lowercase() }
-        return exercises
-            .filter { ex ->
-                ex.primaryMuscle.equals(muscleGroup, ignoreCase = true) &&
-                ex.name != exerciseName &&
-                (equipment.isEmpty() || equipment.any { e ->
-                    ex.equipmentRequired.lowercase().contains(e) ||
-                    ex.category.lowercase().contains(e)
-                })
-            }
-            .sortedBy { it.name }
+        val equipment = equipmentAvailable.value
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+
+        return ExerciseCatalogFilter.filter(
+            exercises = exercises,
+            equipment = equipment,
+            muscle = muscleGroup,
+            includeSecondaryMuscleMatches = false
+        )
+            .asSequence()
+            .map { it.exercise }
+            .filterNot { it.name == exerciseName }
             .take(5)
             .map { it.name to "Alternative targeting ${it.primaryMuscle} (${it.equipmentRequired})." }
+            .toList()
     }
 
     suspend fun loadPlanForEditing(id: Long): Triple<WorkoutPlan, List<PlanSession>, List<PlanExercise>> {
