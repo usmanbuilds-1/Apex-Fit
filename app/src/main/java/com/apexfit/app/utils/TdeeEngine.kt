@@ -108,15 +108,16 @@ object TdeeEngine {
         tdee: Int,
         goal: String,
         currentWeightKg: Double,
-        goalWeightKg: Double,
+        goalWeightKg: Double?,
         heightCm: Double = 170.0,
         ageYears: Int = 35,
         sex: String = "male"
     ): Int {
         val normalizedGoal = goal.trim().lowercase()
-        val targetAlreadyReachedOrContradictory = when (normalizedGoal) {
-            "gain muscle" -> goalWeightKg <= currentWeightKg
-            "lose fat" -> goalWeightKg >= currentWeightKg
+        val targetAlreadyReachedOrContradictory = when {
+            goalWeightKg == null -> false
+            normalizedGoal == "gain muscle" -> goalWeightKg <= currentWeightKg
+            normalizedGoal == "lose fat" -> goalWeightKg >= currentWeightKg
             else -> false
         }
 
