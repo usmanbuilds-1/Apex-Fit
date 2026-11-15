@@ -36,6 +36,14 @@ class ProgressionEngineTest {
     }
 
     @Test
+    fun gobletSquatUsesDumbbellLowerClassification() {
+        assertEquals(
+            "dumbbell_lower",
+            ProgressionEngine.getExerciseType("Goblet Squat", "Quadriceps")
+        )
+    }
+
+    @Test
     fun testCalculateBeginnerStartingWeight_normal() {
         val res = ProgressionEngine.calculateBeginnerStartingWeight("compound_upper", 68.027, 175.0)
         // base = 0.35. 68.027 kg * 2.205 lb/kg = 150.0 lb. 150 * 0.35 = 52.5
