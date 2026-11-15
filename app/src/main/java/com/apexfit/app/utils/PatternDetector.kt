@@ -82,7 +82,7 @@ object PatternDetector {
                     title = "$dayName is your low calorie day",
                     description = "You consistently eat ${Math.abs(calDeviation.roundToInt())}% fewer calories on ${dayName}s — averaging ${dayAvgCal.roundToInt()} kcal vs your usual ${overallAvgCalories.roundToInt()} kcal.",
                     confidence = confidence,
-                    actionable = "Prep a high protein meal in advance for ${dayName}s — your pattern suggests you default to convenience food on this day.",
+                    actionable = "Consider planning a protein-rich meal or snack in advance for ${dayName}s if you want this day closer to your usual intake.",
                     detectedAt = getCurrentDate()
                 ))
             }
@@ -92,7 +92,7 @@ object PatternDetector {
                     id = "high_cal_$dayName",
                     type = "nutrition_day_pattern",
                     title = "$dayName is your surplus day",
-                    description = "You eat ${calDeviation.roundToInt()}% more on ${dayName}s — averaging ${dayAvgCal.roundToInt()} kcal. This is likely a social eating pattern.",
+                    description = "You log ${calDeviation.roundToInt()}% more calories on ${dayName}s — averaging ${dayAvgCal.roundToInt()} kcal versus your overall logged average.",
                     confidence = confidence,
                     actionable = "Front-load protein earlier on ${dayName}s so surplus calories are less likely to come from low-quality sources.",
                     detectedAt = getCurrentDate()
@@ -104,7 +104,7 @@ object PatternDetector {
                     id = "low_protein_$dayName",
                     type = "nutrition_day_pattern",
                     title = "Protein consistently drops on ${dayName}s",
-                    description = "Your protein averages ${dayAvgProtein.roundToInt()}g on ${dayName}s versus ${overallAvgProtein.roundToInt()}g on other days. Science: Areta et al 2013 showed that even one day of low protein intake reduces weekly muscle protein synthesis measurably.",
+                    description = "Your protein averages ${dayAvgProtein.roundToInt()}g on ${dayName}s versus ${overallAvgProtein.roundToInt()}g across your logged days. This is a consistency pattern, not evidence that one low-protein day determines weekly progress.",
                     confidence = confidence,
                     actionable = "Set a phone alarm for 12pm on ${dayName}s — eat 40g protein before the afternoon starts.",
                     detectedAt = getCurrentDate()
@@ -117,8 +117,8 @@ object PatternDetector {
     // ── PATTERN 2 — NUTRITION TO PERFORMANCE CORRELATION ──────
     // Detects whether eating well the day before predicts
     // better session feel scores
-    // Science: Ivy & Portman 2004 — pre-exercise nutrition
-    // directly impacts training capacity and RPE
+    // Observational only: this compares the user's own logs and must not be
+    // phrased as proof that the previous day's protein caused session quality.
     private fun detectNutritionPerformancePatterns(
         nutritionLog: List<NutritionEntry>,
         trainingLog: List<TrainingSession>,
@@ -160,10 +160,10 @@ object PatternDetector {
                 patterns.add(DetectedPattern(
                     id = "protein_performance_correlation",
                     type = "nutrition_performance",
-                    title = "Your training is better after high protein days",
-                    description = "When you hit protein targets the day before, your session feel averages ${String.format(java.util.Locale.US, "%.1f", highAvgFeel)}/5 vs ${String.format(java.util.Locale.US, "%.1f", lowAvgFeel)}/5 after low protein days. That is a ${pctDiff}% performance difference.",
+                    title = "Session feel has been higher after higher-protein days",
+                    description = "In your log, session feel averages ${String.format(java.util.Locale.US, "%.1f", highAvgFeel)}/5 after higher-protein days versus ${String.format(java.util.Locale.US, "%.1f", lowAvgFeel)}/5 after lower-protein days (${pctDiff}% difference). This is an association and does not show that protein caused the difference.",
                     confidence = minOf(1.0f, pairs.size / 20.0f),
-                    actionable = "Prioritise hitting protein the day before your hardest training sessions.",
+                    actionable = "Keeping protein consistent may be useful, but also consider total calories, carbohydrate intake, sleep, and workout difficulty when interpreting this pattern.",
                     detectedAt = getCurrentDate()
                 ))
             }
@@ -180,7 +180,7 @@ object PatternDetector {
         nutritionLog: List<NutritionEntry>
     ): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
-        if (weightLog.size < 10 || nutritionLog.size < 10) return patterns
+        if (weightLog.map { it.date }.distinct().size < 10 || nutritionLog.map { it.date }.distinct().size < 10) return patterns
 
         val nutritionMap = nutritionLog
             .groupBy { it.date }
@@ -219,10 +219,10 @@ object PatternDetector {
                 patterns.add(DetectedPattern(
                     id = "carb_water_retention",
                     type = "weight_nutrition",
-                    title = "High carb days add ${String.format(java.util.Locale.US, "%.1f", highCarbWeightImpact)}kg to your scale weight",
-                    description = "Your scale weight rises ${String.format(java.util.Locale.US, "%.2f", highCarbWeightImpact)}kg two days after high carb days (350g+) versus ${String.format(java.util.Locale.US, "%.2f", lowCarbWeightImpact)}kg after low carb days. This is glycogen-bound water — not fat. Science: Olsson and Saltin 1970 showed each gram of stored glycogen binds 3-4g of water.",
+                    title = "Higher-carb days have coincided with higher scale weight",
+                    description = "In your log, trend weight changes by ${String.format(java.util.Locale.US, "%.2f", highCarbWeightImpact)} kg over the next two days after higher-carb days (350g+) versus ${String.format(java.util.Locale.US, "%.2f", lowCarbWeightImpact)} kg after lower-carb days. Glycogen and associated water can contribute to short-term scale changes, but this observational pattern does not prove the cause.",
                     confidence = 0.85f,
-                    actionable = "Do not panic when the scale rises after high carb training days. Your trend weight is the truth — not the daily number.",
+                    actionable = "Use multi-day weight trends rather than treating a short-term scale change after a higher-carb day as body-fat change.",
                     detectedAt = getCurrentDate()
                 ))
             }
@@ -231,10 +231,9 @@ object PatternDetector {
     }
 
     // ── PATTERN 4 — RECOVERY PATTERNS ─────────────────────────
-    // Detects optimal spacing between sessions based on
-    // performance data across different recovery windows
-    // Science: Bishop et al 2008 — inter-session recovery
-    // directly impacts subsequent session quality
+    // Looks for an association between workout spacing and session feel.
+    // It cannot establish an "optimal" recovery interval because workout type,
+    // intensity, sleep, and other confounders are not controlled.
     private fun detectRecoveryPatterns(trainingLog: List<TrainingSession>): List<DetectedPattern> {
         val patterns = mutableListOf<DetectedPattern>()
         val completedSessions = trainingLog.filter { it.completed && it.sessionFeel > 0 }.sortedBy { it.date }
@@ -262,10 +261,10 @@ object PatternDetector {
                 patterns.add(DetectedPattern(
                     id = "optimal_recovery_window",
                     type = "recovery",
-                    title = "You perform best with $days day${if (days > 1) "s" else ""} between sessions",
-                    description = "Your session feel score averages ${String.format(java.util.Locale.US, "%.1f", avgFeel)}/5 when you have $days day${if (days > 1) "s" else ""} of rest before training. This is your personal optimal recovery window.",
+                    title = "Session feel has been highest after $days day${if (days > 1) "s" else ""} between workouts",
+                    description = "Your logged session feel averages ${String.format(java.util.Locale.US, "%.1f", avgFeel)}/5 when there are $days day${if (days > 1) "s" else ""} between workouts. This may reflect recovery, but workout type and difficulty can also explain the association.",
                     confidence = minOf(1.0f, sessions.size / 8.0f),
-                    actionable = "Try to schedule your hardest sessions with at least $days rest day${if (days > 1) "s" else ""} before them.",
+                    actionable = "If this pattern keeps repeating, compare similar workouts before changing your schedule around it.",
                     detectedAt = getCurrentDate()
                 ))
             }
