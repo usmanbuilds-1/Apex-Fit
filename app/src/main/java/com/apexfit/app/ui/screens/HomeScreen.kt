@@ -95,13 +95,14 @@ fun HomeScreen(
     val athleteName by fitnessViewModel.username.collectAsStateWithLifecycle()
     val planSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val activeSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
+    val todayDate          by homeViewModel.todayDate.collectAsStateWithLifecycle()
 
     val configuration = LocalConfiguration.current
     val isNarrowScreen = configuration.screenWidthDp < 600
 
     // Derive today's session from active plan
-    val todayDayName = remember {
-        LocalDate.now().dayOfWeek.getDisplayName(JavaTextStyle.FULL, Locale.ENGLISH)
+    val todayDayName = remember(todayDate) {
+        LocalDate.parse(todayDate).dayOfWeek.getDisplayName(JavaTextStyle.FULL, Locale.ENGLISH)
     }
     val todaySession = remember(planSessionsState, todayDayName) {
         when (val s = planSessionsState) {
@@ -128,7 +129,7 @@ fun HomeScreen(
         completedSessions.filter { it.completed }
             .mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()
     }
-    val trainingStreak = currentTrainingStreak(trainingDates, LocalDate.now())
+    val trainingStreak = currentTrainingStreak(trainingDates, LocalDate.parse(todayDate))
 
     LazyColumn(
         modifier = Modifier
