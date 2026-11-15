@@ -10,6 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -37,10 +38,17 @@ class HomeViewModelTest {
             .build()
         testDb = db
         AppDatabase.setTestDatabase(db)
+        runBlocking {
+            DataStoreManager.getInstance(application).clearAllData()
+        }
     }
 
     @After
     fun tearDown() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        runBlocking {
+            DataStoreManager.getInstance(application).clearAllData()
+        }
         Dispatchers.resetMain()
         testDb?.close()
         testDb = null
