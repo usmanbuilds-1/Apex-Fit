@@ -82,7 +82,7 @@ object PlateCalculatorEngine {
             return x
         }
 
-        val unitGrams = plateGrams.reduce(::gcd).coerceAtLeast(1L)
+        val unitGrams = plateGrams.reduce { a, b -> gcd(a, b) }.coerceAtLeast(1L)
         val capacityUnitsLong = sideLoadGramsNeeded / unitGrams
         require(capacityUnitsLong <= 1_000_000L) {
             "Target/plate granularity is too large to calculate safely"
