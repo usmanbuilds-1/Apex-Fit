@@ -1,6 +1,5 @@
 package com.apexfit.app.utils
 
-import com.apexfit.app.data.NutritionEntry
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -45,7 +44,7 @@ class NotificationEngineTest {
                     fat = 8.0
                 )
             ),
-            trainingLog = emptyList<RichTrainingSession>(),
+            trainingLog = emptyList<TrainingSession>(),
             targets = targets,
             todaySessionType = null,
             currentHour = 12
