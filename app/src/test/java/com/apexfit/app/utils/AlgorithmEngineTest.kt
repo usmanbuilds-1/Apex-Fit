@@ -11,6 +11,20 @@ class AlgorithmEngineTest {
     private fun d(daysAgo: Int): String = getDateDaysAgo(daysAgo)
 
     @Test
+    fun trendWeightAdvancesAcrossCalendarGaps() {
+        val log = listOf(
+            WeightEntry(date = d(5), weight = 80.0),
+            WeightEntry(date = d(0), weight = 82.0)
+        )
+        val trend = AlgorithmEngine.calcTrendWeight(log)
+        val dailyAlpha = 2.0 / 15.0
+        val effectiveAlpha = 1.0 - Math.pow(1.0 - dailyAlpha, 5.0)
+        val expected = Math.round((80.0 + effectiveAlpha * 2.0) * 100.0) / 100.0
+
+        assertEquals(expected, trend.last().trend, 0.0001)
+    }
+
+    @Test
     fun testCalcAdaptiveTDEE_normalInput() {
         val wLog = (0..14).map {
             WeightEntry(date = d(14 - it), weight = 80.0 - 0.1 * it)
