@@ -4,33 +4,67 @@ import com.apexfit.app.data.*
 
 object PlateauEngine {
     // ── PLATEAU DETECTION ─────────────────────────────────────
-    fun detectPlateau(weightLog: List<WeightEntry>, nutritionLog: List<NutritionEntry>, trainingLog: List<TrainingSession>, windowDays: Int = 10): PlateauResult {
+    fun detectPlateau(
+        weightLog: List<WeightEntry>,
+        nutritionLog: List<NutritionEntry>,
+        trainingLog: List<TrainingSession>,
+        goal: String,
+        windowDays: Int = 10
+    ): PlateauResult {
+        // This detector only models a weight-loss plateau. Stable scale weight is
+        // expected for maintenance/recomposition, and muscle-gain stalls need a
+        // different model than "reduce calories".
+        val normalizedGoal = goal.trim().lowercase()
+        val expectsWeightLoss = normalizedGoal.contains("lose") ||
+            normalizedGoal.contains("fat loss") ||
+            normalizedGoal.contains("cut")
+        if (!expectsWeightLoss) return PlateauResult(false)
+
+        val safeWindowDays = windowDays.coerceAtLeast(2)
+        val cutoff = getWindowStartDate(safeWindowDays)
+        val today = getCurrentDate()
         val trend = AlgorithmEngine.calcTrendWeight(weightLog)
-        if (trend.size < windowDays) return PlateauResult(false)
-        val recent = trend.takeLast(windowDays)
+        val recent = trend.filter { it.date in cutoff..today }
+        if (recent.size < 2) return PlateauResult(false)
+
+        // Require the weight observations to span the requested calendar window.
+        // Two weigh-ins a couple of days apart must not become a "14-day plateau"
+        // just because older observations exist elsewhere in the log.
+        val observedSpanDays = getDaysBetween(recent.first().date, recent.last().date)
+        if (observedSpanDays < safeWindowDays - 1L) return PlateauResult(false)
+
         val change = Math.abs(recent.last().trend - recent.first().trend)
-        val cutoff = getDateDaysAgo(windowDays)
-        val recentLogs = nutritionLog.filter { it.date >= cutoff }
-        val loggingConsistency = recentLogs.map { it.date }.distinct().size.toDouble() / windowDays
+        val recentLogs = nutritionLog.filter { it.date in cutoff..today }
+        val loggingConsistency = recentLogs.map { it.date }.distinct().size.toDouble() / safeWindowDays
         if (change >= 0.3) return PlateauResult(false)
         if (loggingConsistency < 0.7) return PlateauResult(false)
 
-        val volumeRecent = trainingLog.filter { it.completed && it.date >= cutoff }
+        val recentSets = trainingLog.filter { it.completed && it.date in cutoff..today }
             .flatMap { it.exercises }
             .flatMap { it.sets }
             .filter { !it.isWarmup && it.completed }
-            .sumOf { it.weight * it.reps }
 
-        val earlierCutoff = getDateDaysAgo(windowDays * 2)
-        val volumeEarlier = trainingLog
+        // The preceding window is the same number of calendar days and does not
+        // overlap the recent window.
+        val earlierCutoff = getWindowStartDate(safeWindowDays * 2)
+        val earlierSets = trainingLog
             .filter { it.completed && it.date >= earlierCutoff && it.date < cutoff }
             .flatMap { it.exercises }
             .flatMap { it.sets }
             .filter { !it.isWarmup && it.completed }
-            .sumOf { it.weight * it.reps }
 
-        if (volumeEarlier == 0.0) return PlateauResult(false)
-        if (volumeRecent < volumeEarlier * 0.95) return PlateauResult(false)
+        val volumeRecent = recentSets.sumOf { it.weight.coerceAtLeast(0.0) * it.reps.coerceAtLeast(0) }
+        val volumeEarlier = earlierSets.sumOf { it.weight.coerceAtLeast(0.0) * it.reps.coerceAtLeast(0) }
+
+        // Prefer load-volume when it exists. For bodyweight-only histories where
+        // external load is zero, fall back to completed working-set counts rather
+        // than pretending the user did no training.
+        val maintainedTraining = if (volumeEarlier > 0.0) {
+            volumeRecent >= volumeEarlier * 0.95
+        } else {
+            earlierSets.isNotEmpty() && recentSets.size >= kotlin.math.ceil(earlierSets.size * 0.95).toInt()
+        }
+        if (!maintainedTraining) return PlateauResult(false)
 
         var daysStalled = 0
         if (trend.isNotEmpty()) {
@@ -45,13 +79,13 @@ object PlateauEngine {
 
         val intervention = when {
             daysStalled <= 7  -> "Weigh food for 3 days to recheck portions"
-            daysStalled <= 14 -> "Reduce calories by 100-150 kcal/day for 1 week"
-            daysStalled <= 21 -> "Try a 1-day refeed at maintenance calories"
-            else              -> "Add one Zone 2 cardio session (NEAT increase)"
+            daysStalled <= 14 -> "If intake has been accurate, consider reducing the target by 100-150 kcal/day for 1 week"
+            daysStalled <= 21 -> "Keep the deficit consistent and review activity, portions, and recovery before cutting further"
+            else              -> "Review your calorie target and daily activity before making a larger adjustment"
         }
         return PlateauResult(
             isPlateaued = true,
-            severity = if (windowDays >= 14) "confirmed" else "early",
+            severity = if (safeWindowDays >= 14) "confirmed" else "early",
             interventions = listOf(intervention),
             daysStalled = daysStalled
         )
