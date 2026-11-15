@@ -366,8 +366,13 @@ fun SetLoggingRow(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Text(stringResource(R.string.train_rpe, selectedRpe), fontFamily = InterFamily,
-                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SecondaryText)
+            Text(
+                text = if (selectedRpe in 1..10) stringResource(R.string.train_rpe, selectedRpe) else "RPE — select effort",
+                fontFamily = InterFamily,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = SecondaryText
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf(1..5, 6..10).forEach { range ->
