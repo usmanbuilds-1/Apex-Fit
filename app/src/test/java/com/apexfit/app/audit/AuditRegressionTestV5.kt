@@ -26,6 +26,7 @@ import com.apexfit.app.ProgressDataAggregation
 import com.apexfit.app.utils.SystemicFatigueCalculator
 import com.apexfit.app.utils.TdeeEngine
 import com.apexfit.app.utils.getDateDaysAgo
+import com.apexfit.app.utils.trainingSessionAgeDays
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -332,6 +333,18 @@ class AuditRegressionTestV5 {
         ) { group, muscle -> group.equals(muscle, ignoreCase = true) }
 
         assertEquals(completion, moments["Chest"]?.timestampMs)
+    }
+
+    @Test
+    fun readinessSessionAgeUsesCompletionTimestamp() {
+        val session = RichTrainingSession(
+            date = "2026-11-01",
+            sessionType = "Upper",
+            completed = true,
+            completedAt = 1_000_000L
+        )
+        val age = trainingSessionAgeDays(session, nowMs = 1_000_000L + 43_200_000L)
+        assertEquals(0.5, age, 0.0001)
     }
 
     @Test
