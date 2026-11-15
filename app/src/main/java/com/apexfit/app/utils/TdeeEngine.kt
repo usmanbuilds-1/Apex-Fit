@@ -5,9 +5,10 @@ import kotlin.math.roundToInt
 
 object TdeeEngine {
     // ── ADAPTIVE TDEE ─────────────────────────────────────────
-    // Science: Hall (2012) - Adaptive metabolic model of energy homeostasis.
-    // Daily TDEE = Avg Intake - (Weight change rate * 7700 kcal/kg).
-    // Fallback: Mifflin-St Jeor BMR equation (Mifflin MD, et al. 1990) scaled by dynamic activity multiplier.
+    // Energy-balance estimate from logged intake and scale-weight trend.
+    // The 7,700 kcal/kg conversion is a practical approximation, not a dynamic
+    // metabolic model and should not be presented as one.
+    // Fallback: Mifflin-St Jeor BMR equation (Mifflin MD, et al. 1990) scaled by an activity multiplier.
     fun calcAdaptiveTDEE(
         weightLog: List<WeightEntry>,
         nutritionLog: List<NutritionEntry>,
@@ -39,13 +40,14 @@ object TdeeEngine {
         }
         val fallbackTdee = (bmrBaseline * activityMultiplier).roundToInt()
 
-        if (weightLog.size < 7 || nutritionLog.map { it.date }.distinct().size < 7) {
+        if (weightLog.map { it.date }.distinct().size < 7 || nutritionLog.map { it.date }.distinct().size < 7) {
             return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", 0, 0.0)
         }
 
-        val cutoff = getDateDaysAgo(windowDays)
-        val recentWeight = weightLog.filter { it.date >= cutoff }.sortedBy { it.date }
-        val recentNutrition = nutritionLog.filter { it.date >= cutoff }
+        val cutoff = getWindowStartDate(windowDays)
+        val today = getCurrentDate()
+        val recentWeight = weightLog.filter { it.date in cutoff..today }.sortedBy { it.date }
+        val recentNutrition = nutritionLog.filter { it.date in cutoff..today }
 
         if (recentWeight.size < 2 || recentNutrition.size < 3) {
             return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", recentNutrition.groupBy { it.date }
@@ -90,7 +92,7 @@ object TdeeEngine {
         
         // Divisor is actual calendar days between the weight observations, not log count.
         
-        // Weight gain or loss translates to calorie imbalance per day (1kg = 7700 kcal energy density, Hall 2012)
+        // Approximate observed energy imbalance from scale-weight change using 7,700 kcal/kg.
         val calorieImbalancePerDay = (weightChangeKg * AppConstants.CALORIES_PER_KG_BODYFAT) / daysBetween
         val tdee = (avgCalories - calorieImbalancePerDay).roundToInt().coerceAtLeast(1200)
         
