@@ -34,7 +34,8 @@ object NotificationEngine {
     ): List<NotificationTrigger> {
         val triggers = mutableListOf<NotificationTrigger>()
         val today = getCurrentDate()
-        val todayNutrition = nutritionLog.find { it.date == today }
+        val todayNutrition = nutritionLog.filter { it.date == today }
+        val todayProtein = todayNutrition.sumOf { it.protein }.toDouble()
 
         // TRIGGER 1 — Morning readiness (7am)
         if (currentHour in 6..9 && todaySessionType != null) {
@@ -49,14 +50,14 @@ object NotificationEngine {
 
         // TRIGGER 2 — Midday protein check (12pm)
         if (currentHour in 11..13) {
-            val morningProtein = (todayNutrition?.protein ?: 0).toDouble()
+            val morningProtein = todayProtein
             val proteinTarget = targets.protein.toDouble()
-            if (morningProtein < proteinTarget * 0.3) {
-                val remaining = proteinTarget - morningProtein
+            if (proteinTarget > 0.0 && morningProtein < proteinTarget * 0.3) {
+                val remaining = (proteinTarget - morningProtein).coerceAtLeast(0.0)
                 triggers.add(NotificationTrigger(
                     id = "midday_protein",
                     title = "Only ${morningProtein.roundToInt()}g protein by noon",
-                    body = "You need ${remaining.roundToInt()}g more today. Front-loading protein prevents evening scrambling. Eat 40g now.",
+                    body = "You have about ${remaining.roundToInt()}g left for today's target. Consider adding a protein-rich meal or snack.",
                     triggerHour = 12,
                     priority = "high"
                 ))
@@ -65,7 +66,7 @@ object NotificationEngine {
 
         // TRIGGER 3 — Streak at risk (8pm)
         if (currentHour in 19..21) {
-            val todayLogged = todayNutrition != null
+            val todayLogged = todayNutrition.isNotEmpty()
             if (!todayLogged) {
                 val streaks = ComplianceEngine.calcStreaks(nutritionLog, trainingLog, targets)
                 if (streaks.nutrition.current >= 3) {
