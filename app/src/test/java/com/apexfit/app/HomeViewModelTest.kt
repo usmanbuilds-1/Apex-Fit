@@ -69,4 +69,39 @@ class HomeViewModelTest {
 
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
+
+    @Test
+    fun backfilledAndDeletedWeightsKeepCurrentProfileOnNewestEntry() = runTest(testDispatcher) {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val db = testDb!!
+        val dao = db.fitnessDao()
+        val dataStore = DataStoreManager.getInstance(application)
+        dataStore.clearAllData()
+        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
+        val viewModel = HomeViewModel(application, repository, dataStore, dao)
+
+        viewModel.logWeight(80.0, date = getTodayDateString())?.join()
+        viewModel.logWeight(70.0, date = com.apexfit.app.utils.getDateDaysAgo(1))?.join()
+
+        assertEquals(
+            "Backfilling yesterday must not replace today's current weight",
+            80.0,
+            dataStore.currentWeightFlow.first(),
+            0.001
+        )
+
+        val newest = dao.getWeightEntries().first()
+        viewModel.deleteWeightById(newest.id)
+        advanceUntilIdle()
+
+        assertEquals(
+            "Deleting the newest entry should fall back to the next newest logged weight",
+            70.0,
+            dataStore.currentWeightFlow.first(),
+            0.001
+        )
+
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
+    }
+
 }
