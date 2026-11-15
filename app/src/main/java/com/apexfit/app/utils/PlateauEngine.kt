@@ -18,7 +18,7 @@ object PlateauEngine {
         val volumeRecent = trainingLog.filter { it.completed && it.date >= cutoff }
             .flatMap { it.exercises }
             .flatMap { it.sets }
-            .filter { !it.isWarmup }
+            .filter { !it.isWarmup && it.completed }
             .sumOf { it.weight * it.reps }
 
         val earlierCutoff = getDateDaysAgo(windowDays * 2)
@@ -26,7 +26,7 @@ object PlateauEngine {
             .filter { it.completed && it.date >= earlierCutoff && it.date < cutoff }
             .flatMap { it.exercises }
             .flatMap { it.sets }
-            .filter { !it.isWarmup }
+            .filter { !it.isWarmup && it.completed }
             .sumOf { it.weight * it.reps }
 
         if (volumeEarlier == 0.0) return PlateauResult(false)
