@@ -10,7 +10,7 @@ object AlgorithmEngine {
     // ── TREND WEIGHT ──────────────────────────────────────────
     // Science: Helms et al. (The Muscle and Strength Pyramid)
     // Filters daily water and glycogen fluctuations using a 14-day Exponential Moving Average (EMA).
-    // Smoothing coefficient α = 2 / (N + 1) where N = 14 days, giving α ≈ 0.133.
+    // Daily smoothing coefficient α = 2 / (N + 1) where N = 14; gaps are advanced with the equivalent calendar-time decay.
     @Synchronized
     fun calcTrendWeight(log: List<WeightEntry>): List<TrendPoint> {
         if (log == cachedTrendInput) {
@@ -26,14 +26,26 @@ object AlgorithmEngine {
             .sortedBy { it.date }
 
         val result = mutableListOf<TrendPoint>()
+        val dailyAlpha = 2.0 / 15.0
+        var rawTrend = dailyAveraged.first().weight
         dailyAveraged.forEachIndexed { index, entry ->
             if (index == 0) {
-                result.add(TrendPoint(entry.date, entry.weight, entry.weight))
+                result.add(TrendPoint(entry.date, entry.weight, rawTrend))
             } else {
-                val prev = result[index - 1].trend
-                val trend = prev + 0.133 * (entry.weight - prev)
-                result.add(TrendPoint(entry.date, entry.weight,
-                    Math.round(trend * 100.0) / 100.0))
+                val previousDate = dailyAveraged[index - 1].date
+                val gapDays = getDaysBetween(previousDate, entry.date).coerceAtLeast(1L)
+                // Advance the daily EMA across the actual calendar gap. This keeps
+                // "14-day EMA" semantics when weigh-ins are sparse instead of treating
+                // five calendar days without a weigh-in as a single day.
+                val effectiveAlpha = 1.0 - Math.pow(1.0 - dailyAlpha, gapDays.toDouble())
+                rawTrend += effectiveAlpha * (entry.weight - rawTrend)
+                result.add(
+                    TrendPoint(
+                        entry.date,
+                        entry.weight,
+                        Math.round(rawTrend * 100.0) / 100.0
+                    )
+                )
             }
         }
         cachedTrendInput = log
