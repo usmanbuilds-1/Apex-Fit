@@ -12,6 +12,8 @@ Status legend:
 
 The original 0–50 acceptance criteria remain authoritative. This file prevents duplicated work.
 
+All new screens/features are governed by `DESIGN.md`, including features added after this ledger was written. The Night Ledger design, truthfulness, accessibility, performance, navigation, motion, and validation rules are not optional per-feature styling suggestions.
+
 ## Pointer ledger
 
 | # | Status | What is done / what remains |
@@ -36,7 +38,7 @@ The original 0–50 acceptance criteria remain authoritative. This file prevents
 | 17 | PARTIAL | `ExerciseCatalogFilter` supports shared search/equipment/muscle behavior. **Codex:** build ONE reusable Exercise Picker used by Library, Plan Builder Add, Swap/Substitution. |
 | 18 | PARTIAL | Primary/secondary muscle filtering + ranking is implemented and tested; secondary matching is opt-in. **Codex:** expose this honestly in the picker UI. |
 | 19 | CODEX | Create original APEX front/back anatomy with accessible hit regions. Do not copy Lyfta or use Free Exercise DB imagery. |
-| 20 | CODEX | Keep Muscle Explorer functional/minimal: tap muscle → exercise list. No glow, cards, heatmap gradients, floating labels, radar. |
+| 20 | CODEX | Keep Muscle Explorer functional/minimal: tap muscle → exercise list. No glow, cards, heatmap gradients, floating labels, radar. This rule applies to discovery; the separate Progress Muscle Volume view may use restrained discrete set-count intensity on the shared anatomy per `DESIGN.md`. |
 | 21 | PARTIAL | Repo already has five onboarding stages; preference storage remains because other app code uses it. **Codex:** migrate visible onboarding order/design to Goal → Personal Details → Experience → Frequency → Ready. No mandatory Nutrition Preferences stage. |
 | 22 | CODEX | Ready to Start must show real generated first week + starting calories/protein + CTA; no photo/confetti/marketing graphic. |
 | 23 | CODEX | Replace current trophy/card/stat-grid Session Complete UI with approved flat training-receipt hierarchy using real values only. |
@@ -46,7 +48,7 @@ The original 0–50 acceptance criteria remain authoritative. This file prevents
 | 27 | CODEX/VERIFY | Preserve real PR data/history; redesign presentation without badge wall or fake praise. |
 | 28 | CODEX/VERIFY | Preserve real workout history/detail including duration, state, sets, weight/reps/RPE. Use drill-down. |
 | 29 | CODEX/VERIFY | Preserve measurements/history; only show trends with enough real data. |
-| 30 | CODEX/VERIFY | Preserve existing monthly volume calculations; replace radar/spider UI with flat ranked bars/list. |
+| 30 | CODEX/VERIFY | Replace the radar/spider volume UI with **Progress → Explore → Volume** using the `DESIGN.md` Muscle Volume contract: Week/Month, original APEX front/back anatomy with restrained discrete intensity based on completed direct working-set counts, accessible ranked list, muscle drill-down with contributing exercises/set counts, and secondary exposure shown separately rather than invented fractional-set math. Keep recovery/growth semantics separate. Preserve existing trustworthy volume data and add/adjust aggregation tests as needed. |
 | 31 | CODEX/VERIFY | Preserve recovery calculations; use readable rows, optionally reuse the same approved anatomy component. |
 | 32 | CODEX/VERIFY | Preserve fatigue/deload engines/protocol; remove cockpit/gauge UI and present clear status + action. |
 | 33 | PARTIAL | Active Today now withholds weight chart until 3 distinct dated weigh-ins. **Codex:** implement the same truthful state and real longitudinal chart on Progress with goal-aware interpretation. |
