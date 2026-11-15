@@ -19,7 +19,7 @@ import com.apexfit.app.utils.MacroEngine
 import com.apexfit.app.utils.TdeeEngine
 import com.apexfit.app.utils.SessionMapper
 import com.apexfit.app.utils.StreakResult
-import com.apexfit.app.utils.getDateDaysAgo
+import com.apexfit.app.utils.getWindowStartDate
 import kotlin.math.roundToInt
 
 /**
