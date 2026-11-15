@@ -93,6 +93,23 @@ class AuditRegressionTestV6 {
     }
 
     @Test
+    fun multipleSessionsOnOneDayDoNotInflateTrainingAdherence() {
+        val nutrition = listOf(
+            NutritionEntry(date = getCurrentDate(), calories = 2000, protein = 120, carbs = 200, fat = 60)
+        )
+        val duplicateDaySessions = listOf(session(daysAgo = 0), session(daysAgo = 0))
+
+        val result = ComplianceEngine.calcComplianceScores(
+            nutritionLog = nutrition,
+            trainingLog = duplicateDaySessions,
+            targets = NutritionTargets(2000, 120, 200, 60, weeklyTrainingSessions = 7),
+            days = 1
+        )
+
+        assertEquals(100, result.training)
+    }
+
+    @Test
     fun workloadCopyDoesNotPresentRatioThresholdAsOptimalOrInjuryPrediction() {
         val history = listOf(
             session(1), session(3), session(5),
