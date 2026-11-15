@@ -237,8 +237,8 @@ class HomeViewModel @Inject constructor(
     fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {  
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {  
             try {  
-                val cutoff90 = java.time.LocalDate.now().minusDays(90).toString()
-                val cutoff365 = java.time.LocalDate.now().minusDays(365).toString()
+                val cutoff90 = com.apexfit.app.utils.getWindowStartDate(90)
+                val cutoff365 = com.apexfit.app.utils.getWindowStartDate(365)
                 val weights = dao.getWeightEntriesSince(cutoff90)  
                 val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
                 val sessions = dao.getAllTrainingSessions()  
