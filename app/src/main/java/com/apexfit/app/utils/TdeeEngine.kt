@@ -113,9 +113,17 @@ object TdeeEngine {
         ageYears: Int = 35,
         sex: String = "male"
     ): Int {
-        val distanceKg = Math.abs(goalWeightKg - currentWeightKg)
+        val normalizedGoal = goal.trim().lowercase()
+        val targetAlreadyReachedOrContradictory = when (normalizedGoal) {
+            "gain muscle" -> goalWeightKg <= currentWeightKg
+            "lose fat" -> goalWeightKg >= currentWeightKg
+            else -> false
+        }
+        if (targetAlreadyReachedOrContradictory) {
+            return tdee.coerceAtLeast(1200)
+        }
 
-        val rateKgPerWeek = when (goal.lowercase()) {
+        val rateKgPerWeek = when (normalizedGoal) {
             "gain muscle" -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
             "lose fat"    -> (currentWeightKg * 0.008).coerceIn(0.3, 0.7)
             "recomposition" -> 0.0
@@ -124,7 +132,7 @@ object TdeeEngine {
 
         val dailyAdjustment = ((rateKgPerWeek * 7700.0) / 7.0).roundToInt()
 
-        val rawTarget = when (goal.lowercase()) {
+        val rawTarget = when (normalizedGoal) {
             "gain muscle"   -> tdee + dailyAdjustment
             "lose fat"      -> tdee - dailyAdjustment
             "recomposition" -> tdee
