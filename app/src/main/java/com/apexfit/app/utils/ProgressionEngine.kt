@@ -10,6 +10,7 @@ object ProgressionEngine {
     fun getExerciseType(name: String, muscleGroup: String): String {
         val n = name.lowercase()
         val m = muscleGroup.lowercase()
+        val compactName = n.filter { it.isLetterOrDigit() }
         
         return when {
             // Cardio
@@ -25,8 +26,8 @@ object ProgressionEngine {
             
             // Compound Upper
             (n.contains("bench press") || n.contains("chest press") || n.contains("overhead press") || n.contains("military press") || n.contains("shoulder press")) && !n.contains("dumbbell") && !n.contains("db") && !n.contains("machine") && !n.contains("smith") -> "compound_upper"
-            (n.contains("row") || n.contains("pullup") || n.contains("chinup") || n.contains("lat pulldown")) && !n.contains("dumbbell") && !n.contains("db") && !n.contains("cable") && !n.contains("machine") -> "compound_upper"
-            n.contains("dips") -> "compound_upper"
+            (n.contains("row") || compactName.contains("pullup") || compactName.contains("chinup") || n.contains("lat pulldown")) && !n.contains("dumbbell") && !n.contains("db") && !n.contains("cable") && !n.contains("machine") -> "compound_upper"
+            (n.contains("dips") || compactName.endsWith("dip")) && !n.contains("machine") -> "compound_upper"
             
             // Dumbbell Upper
             (n.contains("dumbbell") || n.contains("db")) && (m.contains("chest") || m.contains("back") || m.contains("shoulder") || m.contains("delt") || n.contains("press") || n.contains("row")) -> "dumbbell_upper"
