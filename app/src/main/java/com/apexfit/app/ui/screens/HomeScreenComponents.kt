@@ -54,6 +54,7 @@ import com.apexfit.app.WorkoutExecutionViewModel
 import com.apexfit.app.ui.components.SingleFrontHeatmapCanvas
 import com.apexfit.app.data.HeatmapEntry
 import com.apexfit.app.ui.models.UiState
+import com.apexfit.app.ui.models.UiSessionReadiness
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.DateTimeUtils
 import com.apexfit.app.utils.toDisplayWeight
@@ -448,7 +449,7 @@ fun HomeTodayWorkoutCard(
     }
 
     if (showCalculationExplanation) {
-        ReadinessExplanationDialog(onDismiss = { showCalculationExplanation = false })
+        ReadinessExplanationDialog(readiness = readiness, onDismiss = { showCalculationExplanation = false })
     }
 }
 
@@ -1167,13 +1168,16 @@ private fun LogWeightDialog(
 }
 
 @Composable
-private fun ReadinessExplanationDialog(onDismiss: () -> Unit) {
+private fun ReadinessExplanationDialog(
+    readiness: UiSessionReadiness?,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkCardSurface,
         title = {
             Text(
-                text = "HOW READINESS IS CALCULATED",
+                text = "Why this readiness?",
                 fontFamily = SyneFamily,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 16.sp,
@@ -1181,55 +1185,55 @@ private fun ReadinessExplanationDialog(onDismiss: () -> Unit) {
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (readiness == null) {
+                Text(
+                    text = "Log training and nutrition to build a readiness estimate.",
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 12.sp,
+                    color = SecondaryText,
+                    lineHeight = 16.sp
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Daily Recovery Score",
+                        text = "${readiness.score}% · ${readiness.recommendation}",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = AmberAccent
+                        fontSize = 14.sp,
+                        color = PrimaryText
                     )
-                    Text(
-                        text = "Readiness is estimated from your training load and nutrition compliance.",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 12.sp,
-                        color = SecondaryText,
-                        lineHeight = 15.sp
-                    )
-                }
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Muscle Readiness",
-                        fontFamily = SyneFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = AmberAccent
-                    )
-                    Text(
-                        text = "Muscle readiness reflects recovery time needed per muscle group based on training intensity.",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 12.sp,
-                        color = SecondaryText,
-                        lineHeight = 15.sp
-                    )
-                }
+                    readiness.factors.forEach { factor ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(
+                                text = factor.name,
+                                modifier = Modifier.weight(1f),
+                                fontFamily = InterFamily,
+                                fontSize = 12.sp,
+                                color = SecondaryText
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = factor.value,
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryText,
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Systemic Readiness",
-                        fontFamily = SyneFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = AmberAccent
-                    )
-                    Text(
-                        text = "Systemic readiness reflects your overall training load and recovery.",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 12.sp,
-                        color = SecondaryText,
-                        lineHeight = 15.sp
+                        text = readiness.prediction,
+                        fontFamily = InterFamily,
+                        fontSize = 11.sp,
+                        color = MutedText,
+                        lineHeight = 16.sp
                     )
                 }
             }
@@ -1240,7 +1244,7 @@ private fun ReadinessExplanationDialog(onDismiss: () -> Unit) {
                     text = "OK",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
-                    color = AmberAccent
+                    color = ApexColors.Primary
                 )
             }
         }
