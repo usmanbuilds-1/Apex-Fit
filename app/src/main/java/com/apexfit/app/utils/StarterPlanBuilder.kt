@@ -14,11 +14,15 @@ object StarterPlanBuilder {
     private val full = listOf(lower[0], upper[0], upper[1], lower[2], upper[2])
 
     fun templates(days: Int): List<SessionTemplate> = when (days) {
+        2 -> listOf(
+            SessionTemplate("Full Body A", "Monday", full),
+            SessionTemplate("Full Body B", "Thursday", listOf(lower[1], pull[0], push[1], lower[3], upper[3]))
+        )
         3 -> listOf(SessionTemplate("Full Body A", "Monday", full), SessionTemplate("Full Body B", "Wednesday", listOf(lower[1], pull[0], push[1], lower[3], upper[3])), SessionTemplate("Full Body C", "Friday", full))
         4 -> listOf(SessionTemplate("Upper A", "Monday", upper), SessionTemplate("Lower A", "Tuesday", lower), SessionTemplate("Upper B", "Thursday", push.take(2) + pull.take(2)), SessionTemplate("Lower B", "Friday", lower))
         5 -> listOf(SessionTemplate("Upper", "Monday", upper), SessionTemplate("Lower", "Tuesday", lower), SessionTemplate("Push", "Thursday", push), SessionTemplate("Pull", "Friday", pull), SessionTemplate("Legs", "Saturday", lower))
         6 -> listOf(SessionTemplate("Push A", "Monday", push), SessionTemplate("Pull A", "Tuesday", pull), SessionTemplate("Legs A", "Wednesday", lower), SessionTemplate("Push B", "Thursday", push), SessionTemplate("Pull B", "Friday", pull), SessionTemplate("Legs B", "Saturday", lower))
-        else -> error("Training frequency must be 3–6 days")
+        else -> error("Training frequency must be 2–6 days")
     }
 
     fun setsFor(experience: String): Int = when (experience) {
