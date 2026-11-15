@@ -22,7 +22,7 @@ import com.apexfit.app.utils.DateTimeUtils
 import com.apexfit.app.utils.FatigueDoseCalculator
 import com.apexfit.app.utils.FatigueEngine
 import com.apexfit.app.utils.GoalEngine
-import com.apexfit.app.utils.ProgressDataAggregation
+import com.apexfit.app.ProgressDataAggregation
 import com.apexfit.app.utils.SystemicFatigueCalculator
 import com.apexfit.app.utils.TdeeEngine
 import com.apexfit.app.utils.getDateDaysAgo
