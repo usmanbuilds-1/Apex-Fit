@@ -183,12 +183,57 @@ class AlgorithmEngineTest {
     }
 
     @Test
-    fun testCalcDeloadRecommendation_boundary_signals() {
-        // We can mock low compliance and high fatigue, but we don't need to overcomplicate.
-        // Let's pass 50 compliance. It adds 1 signal.
+    fun testCalcDeloadRecommendation_lowComplianceIsNotFatigueSignal() {
         val res = PlateauEngine.calcDeloadRecommendation(emptyList(), 50)
-        // Signals = 1 (due to compliance < 60)
         assertEquals("none", res.urgency)
+        assertEquals(0, res.signals)
+    }
+
+    @Test
+    fun testCalcDeloadRecommendation_highLoadAloneDoesNotForceDeload() {
+        val fatigue = FatigueResult(
+            ratio = 1.7,
+            status = "high",
+            statusLabel = "Well Above Baseline",
+            recommendation = "",
+            acuteLoad = 170.0,
+            chronicLoad = 100.0
+        )
+        val sessions = (0 until 4).map {
+            RichTrainingSession(
+                date = d(it),
+                sessionType = "Upper",
+                completed = true,
+                sessionFeel = 4
+            )
+        }
+
+        val res = PlateauEngine.calcDeloadRecommendation(sessions, 100, fatigue)
+        assertEquals("none", res.urgency)
+    }
+
+    @Test
+    fun testCalcDeloadRecommendation_highLoadAndPersistentPoorFeelCanDeload() {
+        val fatigue = FatigueResult(
+            ratio = 1.7,
+            status = "high",
+            statusLabel = "Well Above Baseline",
+            recommendation = "",
+            acuteLoad = 170.0,
+            chronicLoad = 100.0
+        )
+        val sessions = (0 until 4).map {
+            RichTrainingSession(
+                date = d(it),
+                sessionType = "Upper",
+                completed = true,
+                sessionFeel = 2
+            )
+        }
+
+        val res = PlateauEngine.calcDeloadRecommendation(sessions, 100, fatigue)
+        assertEquals("immediate", res.urgency)
+        assertEquals(2, res.signals)
     }
 
     @Test
