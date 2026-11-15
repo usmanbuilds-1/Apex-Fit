@@ -69,6 +69,7 @@ All new screens/features are governed by `DESIGN.md`, including features added a
 | 48 | CODEX | Run final anti-AI visual audit against each changed screen and approved Stitch references. |
 | 49 | SHARED | Final correctness gate: PR #33 covers safe/domain items; Codex must verify the full UI/device checklist and report unknown items as unresolved. |
 | 50 | CODEX | Final report must include branch/PR, screens/flows/components, media, hero resolver, import/picker/videos/readiness/duration/Progress/onboarding states, performance, accessibility, tests, render comparisons, build, limitations. |
+| 51 | CODEX/DOMAIN | Add **adaptive set-volume progression** as a separate layer from existing load/rep progression and from the Muscle Volume heatmap. Preserve the current `ProgressionEngine` load/rep rules. Set-volume changes require repeated distinct-session evidence, goal gating, fatigue/recovery/deload checks, one-variable-at-a-time progression, max +1 prescribed set per muscle per progression step, explicit visible/undoable overrides, and hold on insufficient evidence. Add domain tests plus Night Ledger active-workout treatment (`3 → 4 sets` + Why) and progression history/drill-down without a new top-level tab. Follow `DESIGN.md` Adaptive progression contract. |
 
 ## Important existing code Codex must reuse
 
