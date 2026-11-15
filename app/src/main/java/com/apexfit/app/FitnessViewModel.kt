@@ -30,12 +30,16 @@ class FitnessViewModel @Inject constructor(
         val weight: Double, val goalWeight: Double, val units: String
     )
 
-    suspend fun loadSettingsSnapshot() = SettingsSnapshot(
-        dataStore.usernameFlow.first(), dataStore.goalFlow.first(),
-        dataStore.calorieTargetValueFlow.first(), dataStore.calorieTargetManualFlow.first(),
-        dataStore.heightFlow.first(), dataStore.ageFlow.first(), dataStore.sexFlow.first(),
-        dataStore.currentWeightFlow.first(), dataStore.goalWeightFlow.first(), dataStore.unitsFlow.first()
-    )
+    suspend fun loadSettingsSnapshot(): SettingsSnapshot {
+        val current = dataStore.currentWeightFlow.first()
+        val explicitGoal = dataStore.explicitGoalWeightFlow.first()
+        return SettingsSnapshot(
+            dataStore.usernameFlow.first(), dataStore.goalFlow.first(),
+            dataStore.calorieTargetValueFlow.first(), dataStore.calorieTargetManualFlow.first(),
+            dataStore.heightFlow.first(), dataStore.ageFlow.first(), dataStore.sexFlow.first(),
+            current, explicitGoal ?: current, dataStore.unitsFlow.first()
+        )
+    }
 
     private val db: AppDatabase get() = AppDatabase.getDatabase(getApplication())
 
@@ -45,7 +49,9 @@ class FitnessViewModel @Inject constructor(
     val username = dataStore.usernameFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val goal = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Gain Muscle")
     val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
-    val goalWeight = dataStore.goalWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
+    val goalWeight = combine(dataStore.explicitGoalWeightFlow, currentWeight) { explicit, current ->
+        explicit ?: current
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
     val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "kg")
     
     val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.HEIGHT_CM)
