@@ -198,15 +198,12 @@ class HomeViewModel @Inject constructor(
                 _weightLogError.value = null
                 val timeStr = try { getCurrentLocalTimeString() } catch (e: Exception) { "12:00" }
                 dao.insertWeightEntry(WeightEntry(date = date, time = timeStr, weight = safeWeightKg, unit = "kg"))
-                val goal = try {
-                    kotlinx.coroutines.withTimeoutOrNull(500) { dataStore.goalWeightFlow.first() }
+                // Keep the latest profile weight in sync without materialising
+                // an arbitrary goal weight when onboarding did not collect one.
+                try {
+                    dataStore.saveCurrentWeight(safeWeightKg)
                 } catch (e: Exception) {
-                    null
-                }
-                if (goal != null) {
-                    try {
-                        dataStore.saveWeight(safeWeightKg, goal)
-                    } catch (e: Exception) { }
+                    android.util.Log.w("HomeViewModel", "Could not sync current profile weight", e)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
