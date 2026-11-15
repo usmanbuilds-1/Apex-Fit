@@ -19,7 +19,10 @@ object TdeeEngine {
         weeklyWorkouts: Int = 4,
         fallbackWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG
     ): TDEEResult {
-        val latestWeight = weightLog.maxByOrNull { it.date }?.weight ?: fallbackWeightKg
+        val latestWeight = weightLog
+            .maxWithOrNull(compareBy<WeightEntry> { it.date }.thenBy { it.time })
+            ?.weight
+            ?: fallbackWeightKg
         
         // Mifflin-St Jeor Equation (Mifflin MD, et al. 1990)
         // Males: REE = (10 * weight_kg) + (6.25 * height_cm) - (5 * age_years) + 5
@@ -40,19 +43,28 @@ object TdeeEngine {
         }
         val fallbackTdee = (bmrBaseline * activityMultiplier).roundToInt()
 
-        if (weightLog.map { it.date }.distinct().size < 7 || nutritionLog.map { it.date }.distinct().size < 7) {
-            return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", 0, 0.0)
-        }
-
         val cutoff = getWindowStartDate(windowDays)
         val today = getCurrentDate()
-        val recentWeight = weightLog.filter { it.date in cutoff..today }.sortedBy { it.date }
+        val recentWeight = weightLog
+            .filter { it.date in cutoff..today }
+            .sortedWith(compareBy<WeightEntry> { it.date }.thenBy { it.time })
         val recentNutrition = nutritionLog.filter { it.date in cutoff..today }
+        val recentWeightDays = recentWeight.map { it.date }.distinct().size
+        val recentNutritionDays = recentNutrition.map { it.date }.distinct().size
 
-        if (recentWeight.size < 2 || recentNutrition.size < 3) {
-            return TDEEResult(fallbackTdee, "low (Mifflin-St Jeor)", recentNutrition.groupBy { it.date }
+        // Adaptive estimates need recent evidence, not merely enough historical
+        // rows somewhere in the database. Old data outside the active window must
+        // not unlock an "adaptive" calorie estimate from only a couple of current
+        // weigh-ins or nutrition days.
+        if (recentWeightDays < 7 || recentNutritionDays < 7) {
+            return TDEEResult(
+                fallbackTdee,
+                "low (Mifflin-St Jeor; insufficient recent data)",
+                recentNutrition.groupBy { it.date }
                 .map { (_, e) -> e.sumOf { it.calories } }
-                .average().takeIf { !it.isNaN() }?.roundToInt() ?: 0, 0.0)
+                .average().takeIf { !it.isNaN() }?.roundToInt() ?: 0,
+                0.0
+            )
         }
 
         // Adaptive energy-balance math only makes sense when intake coverage spans
