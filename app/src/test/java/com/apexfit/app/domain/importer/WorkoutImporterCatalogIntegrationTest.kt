@@ -51,11 +51,11 @@ class WorkoutImporterCatalogIntegrationTest {
         assertEquals("dumbbell-lateral-raise", matcher.match("Lateral Raises").entry?.id)
         assertEquals("barbell-back-squat", matcher.match("Back Squat").entry?.id)
         assertEquals("romanian-deadlift", matcher.match("RDL").entry?.id)
-        assertEquals("hammer-bicep-curl", matcher.match("Hammer Curl").entry?.id)
+        assertEquals("hammer-curls", matcher.match("Hammer Curl").entry?.id)
         assertEquals("pullups", matcher.match("Pullups").entry?.id)
         assertEquals("triceps-pushdown", matcher.match("Triceps Pushdown").entry?.id)
         assertEquals("leg-curl", matcher.match("Hamstring Curl").entry?.id)
-        assertEquals("leg-extension", matcher.match("Leg Extensions").entry?.id)
+        assertEquals("leg-extensions", matcher.match("Leg Extensions").entry?.id)
     }
 
     @Test
