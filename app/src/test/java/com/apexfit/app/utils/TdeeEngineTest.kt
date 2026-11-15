@@ -217,6 +217,44 @@ class TdeeEngineTest {
     }
 
     @Test
+    fun adaptive_duplicateWeightRowsDoNotCountAsSevenDaysOfEvidence() {
+        val sameDayWeights = (1..7).map {
+            WeightEntry(date = getDateDaysAgo(0), weight = 80.0 + it * 0.01)
+        }
+        val result = TdeeEngine.calcAdaptiveTDEE(
+            weightLog = sameDayWeights,
+            nutritionLog = nutritionLog(14, 2500),
+            heightCm = 175.0, ageYears = 25,
+            biologicalSex = "male", weeklyWorkouts = 4
+        )
+
+        assertTrue(
+            "Seven rows from one date must not unlock adaptive TDEE",
+            result.confidence.contains("Mifflin", ignoreCase = true)
+        )
+    }
+
+    @Test
+    fun suggestTarget_contradictoryGainTargetFallsBackToMaintenance() {
+        val target = TdeeEngine.suggestCaloricTarget(
+            tdee = 2500, goal = "gain muscle",
+            currentWeightKg = 80.0, goalWeightKg = 75.0,
+            heightCm = 175.0, ageYears = 25, sex = "male"
+        )
+        assertEquals(2500, target)
+    }
+
+    @Test
+    fun suggestTarget_contradictoryLossTargetFallsBackToMaintenance() {
+        val target = TdeeEngine.suggestCaloricTarget(
+            tdee = 2500, goal = "lose fat",
+            currentWeightKg = 80.0, goalWeightKg = 85.0,
+            heightCm = 175.0, ageYears = 25, sex = "male"
+        )
+        assertEquals(2500, target)
+    }
+
+    @Test
     fun suggestTarget_neverBelowBmrFloor() {
         // Extreme deficit: very low TDEE — must not go below max(1200, BMR)
         val target = TdeeEngine.suggestCaloricTarget(
