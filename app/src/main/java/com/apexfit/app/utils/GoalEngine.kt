@@ -28,9 +28,25 @@ object GoalEngine {
         heightCm: Double,
         sex: String
     ): GoalTimeline {
-        val isRecomposition = resolvedGoal.equals("Recomposition", ignoreCase = true)
-        val isMaintain = resolvedGoal.lowercase().contains("maintain")
-        val weeklyRate = when (resolvedGoal.lowercase()) {
+        val normalizedGoal = resolvedGoal.trim().lowercase()
+        val isRecomposition = normalizedGoal == "recomposition"
+        val isMaintain = normalizedGoal.contains("maintain")
+        val contradictoryOrReached = when (normalizedGoal) {
+            "gain muscle" -> goalWeightKg <= currentWeightKg
+            "lose fat" -> goalWeightKg >= currentWeightKg
+            else -> false
+        }
+        if (contradictoryOrReached) {
+            return GoalTimeline(
+                weeksToGoal = 0,
+                weeklyChangeKg = 0.0,
+                isRealistic = true,
+                adjustedGoalWeightKg = currentWeightKg,
+                summaryLine = "Your target weight is already reached or conflicts with the selected goal. Update the target before using a gain/loss timeline."
+            )
+        }
+
+        val weeklyRate = when (normalizedGoal) {
             "gain muscle"   -> (currentWeightKg * 0.004).coerceIn(0.15, 0.35)
             "lose fat"      -> (currentWeightKg * 0.008).coerceIn(0.30, 0.70)
             "recomposition" -> 0.0
