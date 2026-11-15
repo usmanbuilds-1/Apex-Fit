@@ -69,7 +69,7 @@ class FitnessRepositoryImpl @Inject constructor(
         val ageYears: Int,
         val biologicalSex: String,
         val weeklyWorkouts: Int,
-        val goalWeightKg: Double,
+        val goalWeightKg: Double?,
         val currentWeightKg: Double
     ) {
         companion object {
@@ -78,7 +78,7 @@ class FitnessRepositoryImpl @Inject constructor(
                 ageYears = com.apexfit.app.UserDefaults.AGE_YEARS,
                 biologicalSex = "male",
                 weeklyWorkouts = com.apexfit.app.UserDefaults.WEEKLY_WORKOUTS,
-                goalWeightKg = com.apexfit.app.UserDefaults.WEIGHT_KG,
+                goalWeightKg = null,
                 currentWeightKg = com.apexfit.app.UserDefaults.WEIGHT_KG
             )
         }
@@ -90,7 +90,7 @@ class FitnessRepositoryImpl @Inject constructor(
             dataStore.ageFlow,
             dataStore.sexFlow,
             dataStore.weeklyWorkoutsFlow,
-            dataStore.goalWeightFlow
+            dataStore.explicitGoalWeightFlow
         ) { height, age, sex, weekly, goalWeight ->
             BioProfile(height, age, sex, weekly, goalWeight, com.apexfit.app.UserDefaults.WEIGHT_KG)
         }
