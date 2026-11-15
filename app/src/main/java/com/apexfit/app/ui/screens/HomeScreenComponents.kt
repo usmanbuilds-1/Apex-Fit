@@ -121,7 +121,6 @@ fun HomeHeaderSection(
     val username by fitnessViewModel.username.collectAsStateWithLifecycle()
     val activeWorkoutSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val readiness by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
-    val todayDate by homeViewModel.todayDate.collectAsStateWithLifecycle()
     val streakResult by algorithmViewModel.streakResult.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -164,6 +163,7 @@ fun HomeTodayWorkoutCard(
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
     val activeWorkoutSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val readiness by homeViewModel.sessionReadiness.collectAsStateWithLifecycle()
+    val todayDate by homeViewModel.todayDate.collectAsStateWithLifecycle()
 
     val todayExercises = (todayExercisesState as? UiState.Success)?.data ?: emptyList()
     val activePlanSessions = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
