@@ -222,6 +222,17 @@ data class MuscleReadinessDetail(
     val confidence: String
 )
 
+internal fun trainingSessionAgeDays(
+    session: com.apexfit.app.utils.TrainingSession,
+    nowMs: Long = System.currentTimeMillis()
+): Double {
+    val eventMs = session.completedAt
+        ?: session.startedAt
+        ?: DateTimeUtils.parseDate(session.date)?.time
+        ?: nowMs
+    return ((nowMs - eventMs).coerceAtLeast(0L)).toDouble() / 86_400_000.0
+}
+
 data class ReadinessScore(
     val overallPercent: Int,
     val label: String,
@@ -263,17 +274,9 @@ object ReadinessFinal {
         bodyWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG,
         metadata: Map<String, ExerciseMetadata> = emptyMap()
     ): ReadinessScore {
-        val currentDate = getCurrentDate()
         val nowMs = System.currentTimeMillis()
-        fun ageDays(session: com.apexfit.app.utils.TrainingSession): Double {
-            val eventMs = session.completedAt
-                ?: session.startedAt
-                ?: DateTimeUtils.parseDate(session.date)?.time
-                ?: nowMs
-            return ((nowMs - eventMs).coerceAtLeast(0L)).toDouble() / 86_400_000.0
-        }
         val completedLast30 = completedSessions.filter { session ->
-            session.completed && ageDays(session) <= 30.0
+            session.completed && trainingSessionAgeDays(session, nowMs) <= 30.0
         }
 
         // Consolidated single pass over completedLast30 (Fix V-M8)
@@ -284,7 +287,7 @@ object ReadinessFinal {
         val systemicPastSessionDoses = ArrayList<Double>(completedLast30.size)
 
         for (session in completedLast30) {
-            val daysAgo = ageDays(session)
+            val daysAgo = trainingSessionAgeDays(session, nowMs)
             val sessionDosesByMuscle = mutableMapOf<String, Double>()
             var sessionSystemicDose = 0.0
 
