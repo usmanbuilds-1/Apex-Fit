@@ -126,7 +126,7 @@ object AlgorithmEngine {
         if (highRPEDays >= 4) signals.add("High intensity clustering — heavy RPE sets performed on $highRPEDays distinct days recently")
 
         val fatigue = precomputedFatigue ?: FatigueEngine.calcFatigueToFitnessRatio(trainingLog)
-        if ((fatigue.ratio ?: 0.0) >= 1.5) signals.add("Recent training load is high relative to your 4-week baseline — consider an easier week")
+        if ((fatigue.ratio ?: 0.0) >= 1.5) signals.add("Recent training load is high relative to your previous 3-week baseline — consider an easier week")
 
         val muscleDays = mutableMapOf<String, MutableSet<String>>()
         val cutoff = getWindowStartDate(7)
