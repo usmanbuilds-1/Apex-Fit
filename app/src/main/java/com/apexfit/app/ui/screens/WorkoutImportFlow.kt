@@ -279,6 +279,17 @@ private fun WorkoutImportReviewScreen(
                 )
             }
             item {
+                OutlinedTextField(
+                    value = state.goal,
+                    onValueChange = viewModel::updatePlanGoal,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Plan goal") },
+                    supportingText = { Text("Defaults to your current APEX goal.") },
+                    singleLine = true,
+                    colors = importFieldColors()
+                )
+            }
+            item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
