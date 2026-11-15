@@ -123,11 +123,11 @@ class ProgressViewModel @Inject constructor(
 
     /**
      * Per-muscle exponential recovery model.
-     * recovery(t) = 1 - e^(-t/tau), where tau is the muscle-group half-life.
-     * hoursRemaining = max(0, 3*tau - elapsedHours)  (time to ~95% recovery).
-     * recoveryFraction = e^(-elapsedHours/tau) mapped to [0, 1] fresh scale.
-     * Half-lives sourced from peer-reviewed recovery literature, matching the
-     * same per-muscle tau approach already used by ReadinessEngine.
+     * recovery(t) = 1 - e^(-t/tau), where tau is an exponential time constant.
+     * hoursRemaining = max(0, 3*tau - elapsedHours), approximately the time to
+     * 95% recovery under this heuristic model.
+     * Values are heuristic recovery time constants and must not be described as
+     * biological half-lives (a true half-life would be tau * ln(2)).
      */
     private fun calculateMuscleRecovery(
         sessions: List<com.apexfit.app.data.TrainingSession>,
@@ -151,15 +151,15 @@ class ProgressViewModel @Inject constructor(
 
         val muscles = com.apexfit.app.utils.MuscleGroups.ALL
         val nowMs = System.currentTimeMillis()
-        // Scan workout sets only once and reuse each muscle-group match. Previously this
-        // filtered and sorted up to 90 days of sets separately for every muscle.
-        val latestDates = ProgressDataAggregation.latestSessionDates(
+        // Use the actual completion timestamp when available. Falling back to the
+        // date's local midnight is only for legacy sessions that predate timestamps.
+        val latestMoments = ProgressDataAggregation.latestSessionMoments(
             sessions, allSets, muscles, ::isMuscleMatch
         )
 
         return muscles.map { muscle ->
-            val lastDateStr = latestDates[muscle]
-            if (lastDateStr == null) {
+            val lastMoment = latestMoments[muscle]
+            if (lastMoment == null) {
                 MuscleRecoveryStatus(
                     muscleGroup = muscle,
                     hoursRemaining = 0,
@@ -167,17 +167,18 @@ class ProgressViewModel @Inject constructor(
                     lastTrainedDate = ""
                 )
             } else {
-                val lastDateMs = com.apexfit.app.utils.DateTimeUtils.parseDate(lastDateStr)?.time
-                    ?: nowMs
-                val elapsedHours = maxOf(0.0, (nowMs - lastDateMs).toDouble() / (1000.0 * 60 * 60))
+                val elapsedHours = maxOf(
+                    0.0,
+                    (nowMs - lastMoment.timestampMs).toDouble() / (1000.0 * 60 * 60)
+                )
                 val tau = tauForMuscle(muscle.lowercase())
-                val freshness = Math.exp(-elapsedHours / tau).toFloat().coerceIn(0f, 1f)
+                val remainingFatigue = Math.exp(-elapsedHours / tau).toFloat().coerceIn(0f, 1f)
                 val hoursRemaining = maxOf(0, (3.0 * tau - elapsedHours).toInt())
                 MuscleRecoveryStatus(
                     muscleGroup = muscle,
                     hoursRemaining = hoursRemaining,
-                    recoveryFraction = 1.0f - freshness,
-                    lastTrainedDate = lastDateStr
+                    recoveryFraction = 1.0f - remainingFatigue,
+                    lastTrainedDate = lastMoment.date
                 )
             }
         }
@@ -192,6 +193,38 @@ class ProgressViewModel @Inject constructor(
 // Pure aggregations are shared by the reactive Progress flow and regression tests.
 // These functions do not touch Room or the UI thread.
 internal object ProgressDataAggregation {
+    data class RecoveryMoment(val date: String, val timestampMs: Long)
+
+    fun latestSessionMoments(
+        sessions: List<com.apexfit.app.data.TrainingSession>,
+        sets: List<com.apexfit.app.data.ExerciseSet>,
+        muscles: List<String>,
+        muscleMatches: (String, String) -> Boolean
+    ): Map<String, RecoveryMoment> {
+        val sessionsById = sessions.associateBy { it.id }
+        val musclesByGroup = HashMap<String, List<String>>()
+        val latest = HashMap<String, RecoveryMoment>()
+
+        for (set in sets) {
+            if (!set.completed || set.isWarmup) continue
+            val session = sessionsById[set.sessionId] ?: continue
+            val timestamp = session.completedAt
+                ?: session.startedAt
+                ?: com.apexfit.app.utils.DateTimeUtils.parseDate(session.date)?.time
+                ?: continue
+            val matchingMuscles = musclesByGroup.getOrPut(set.muscleGroup) {
+                muscles.filter { muscleMatches(set.muscleGroup, it) }
+            }
+            for (muscle in matchingMuscles) {
+                val previous = latest[muscle]
+                if (previous == null || timestamp > previous.timestampMs) {
+                    latest[muscle] = RecoveryMoment(session.date, timestamp)
+                }
+            }
+        }
+        return latest
+    }
+
     fun monthlyWorkingSets(
         sessions: List<com.apexfit.app.data.TrainingSession>,
         sets: List<com.apexfit.app.data.ExerciseSet>,
