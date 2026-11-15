@@ -136,6 +136,50 @@ class ProgressionEngineTest {
     }
 
     @Test
+    fun optionalExtraSetDoesNotInvalidateSuccessfulPrescription() {
+        val sets = listOf(
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 4, rpe = 10, completed = true)
+        )
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "bench",
+            lastSessionSets = sets,
+            repsMin = 8,
+            repsMax = 12,
+            targetSets = 3,
+            recoveryMultiplier = 1.0,
+            currentWeight = 100.0,
+            exerciseType = "compound_upper"
+        )
+
+        assertEquals(ProgressionEngine.OutcomeType.SUCCESS, result.outcome)
+    }
+
+    @Test
+    fun failingPrescribedSetCannotBeRescuedByOptionalExtraSet() {
+        val sets = listOf(
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 6, rpe = 9, completed = true),
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true)
+        )
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "bench",
+            lastSessionSets = sets,
+            repsMin = 8,
+            repsMax = 12,
+            targetSets = 3,
+            recoveryMultiplier = 1.0,
+            currentWeight = 100.0,
+            exerciseType = "compound_upper"
+        )
+
+        assertEquals(ProgressionEngine.OutcomeType.STALLED, result.outcome)
+    }
+
+    @Test
     fun metadataIncrement_isNotPreRoundedToGenericPoundGrid() {
         val sets = listOf(
             com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true)
