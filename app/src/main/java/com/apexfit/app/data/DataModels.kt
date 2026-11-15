@@ -472,7 +472,9 @@ data class RichTrainingSession(
     val completed: Boolean,
     val sessionFeel: Int = 3,
     val durationMinutes: Int = 0,
-    val exercises: List<ExerciseLog> = emptyList()
+    val exercises: List<ExerciseLog> = emptyList(),
+    val startedAt: Long? = null,
+    val completedAt: Long? = null
 )
 
 @Entity(
