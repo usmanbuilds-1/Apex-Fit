@@ -235,6 +235,23 @@ class TdeeEngineTest {
     }
 
     @Test
+    fun suggestTarget_missingGoalWeightStillUsesSelectedGoal() {
+        val gain = TdeeEngine.suggestCaloricTarget(
+            tdee = 2500, goal = "gain muscle",
+            currentWeightKg = 80.0, goalWeightKg = null,
+            heightCm = 175.0, ageYears = 25, sex = "male"
+        )
+        val loss = TdeeEngine.suggestCaloricTarget(
+            tdee = 2500, goal = "lose fat",
+            currentWeightKg = 80.0, goalWeightKg = null,
+            heightCm = 175.0, ageYears = 25, sex = "male"
+        )
+
+        assertTrue(gain > 2500)
+        assertTrue(loss < 2500)
+    }
+
+    @Test
     fun suggestTarget_contradictoryGainTargetFallsBackToMaintenance() {
         val target = TdeeEngine.suggestCaloricTarget(
             tdee = 2500, goal = "gain muscle",
