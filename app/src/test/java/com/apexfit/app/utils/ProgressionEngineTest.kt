@@ -136,6 +136,27 @@ class ProgressionEngineTest {
     }
 
     @Test
+    fun metadataIncrement_isNotPreRoundedToGenericPoundGrid() {
+        val sets = listOf(
+            com.apexfit.app.ui.models.UiExerciseSet(weight = 100.0, reps = 12, rpe = 8, completed = true)
+        )
+        val result = ProgressionEngine.calculateProgressiveWeight(
+            exerciseId = "lateral-raise",
+            lastSessionSets = sets,
+            repsMin = 8,
+            repsMax = 12,
+            targetSets = 1,
+            recoveryMultiplier = 1.0,
+            currentWeight = 100.0,
+            exerciseType = "isolation",
+            incrementOverrideKg = 1.0
+        )
+
+        assertEquals(100.0 + AppConstants.KG_TO_LBS, result.newWeight, 0.0001)
+        assertEquals(ProgressionEngine.OutcomeType.SUCCESS, result.outcome)
+    }
+
+    @Test
     fun testCalculateProgressiveWeight_maxRpe_stallsOnSingleHighSet() {
         // 3 sets: two easy, one grinder (RPE 10)
         val sets = listOf(
