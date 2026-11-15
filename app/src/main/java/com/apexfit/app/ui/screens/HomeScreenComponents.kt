@@ -483,14 +483,14 @@ fun HomeStreakSection(
     ) {
         when {
             streakResult.training.current >= 7 -> {
-                Text("🔥 Perfect week — all sessions done!", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
+                Text("7+ sessions logged this week", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
             }
             streakResult.training.current > 0 -> {
                 val n = streakResult.training.current
-                Text("🔥 $n session${if (n == 1) "" else "s"} this week", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
+                Text("$n session${if (n == 1) "" else "s"} this week", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
             }
             isTodayWorkoutCompleted -> {
-                Text("🔥 First session logged this week!", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OrangeAccent)
+                Text("First session logged this week", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OrangeAccent)
             }
             else -> {
                 Text("Log a workout to track your weekly sessions", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color.Gray)
