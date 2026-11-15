@@ -98,11 +98,13 @@ object PlateauEngine {
         precomputedFatigue: FatigueResult? = null
     ): DeloadResult {
         val fatigue = precomputedFatigue ?: FatigueEngine.calcFatigueToFitnessRatio(trainingLog)
-        val recentRatedSessions = trainingLog
+        val recentRatedDays = trainingLog
             .filter { it.completed && it.sessionFeel in 1..5 }
-            .sortedByDescending { it.date }
+            .groupBy { it.date }
+            .map { (date, sessions) -> date to sessions.map { it.sessionFeel }.average() }
+            .sortedByDescending { it.first }
             .take(6)
-        val avgFeel = recentRatedSessions.map { it.sessionFeel }
+        val avgFeel = recentRatedDays.map { it.second }
             .average()
             .takeIf { !it.isNaN() }
 
@@ -114,7 +116,7 @@ object PlateauEngine {
         val ratio = fatigue.ratio
         val elevatedLoad = ratio != null && ratio >= 1.3
         val veryElevatedLoad = ratio != null && ratio >= 1.5
-        val persistentPoorFeel = recentRatedSessions.size >= 3 && (avgFeel ?: 5.0) <= 2.5
+        val persistentPoorFeel = recentRatedDays.size >= 3 && (avgFeel ?: 5.0) <= 2.5
 
         // The load ratio is a contextual monitoring heuristic, not a stand-alone
         // injury/deload predictor. Require corroborating recovery/performance feedback
