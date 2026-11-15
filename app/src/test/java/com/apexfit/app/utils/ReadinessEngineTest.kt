@@ -5,6 +5,13 @@ import org.junit.Test
 
 class ReadinessEngineTest {
     @Test
+    fun p90CapacityUsesInterpolationInsteadOfFlooringSmallSamples() {
+        val values = listOf(100.0, 110.0, 120.0)
+        assertEquals(118.0, interpolatedPercentile(values, 0.90), 0.0001)
+        assertEquals(118.0, MuscleReadinessCalculator.userCapacity(values), 0.0001)
+    }
+
+    @Test
     fun workloadRatioDoesNotDetermineReadinessScore() {
         fun score(acute: Double) = ReadinessFinal.calculate(
             totalCompletedSessions = 5,
