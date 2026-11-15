@@ -163,7 +163,7 @@ object PatternDetector {
                     title = "Your training is better after high protein days",
                     description = "When you hit protein targets the day before, your session feel averages ${String.format(java.util.Locale.US, "%.1f", highAvgFeel)}/5 vs ${String.format(java.util.Locale.US, "%.1f", lowAvgFeel)}/5 after low protein days. That is a ${pctDiff}% performance difference.",
                     confidence = minOf(1.0f, pairs.size / 20.0f),
-                    actionable = "Prioritise hitting protein the day before your heaviest sessions — Upper A and Lower B specifically.",
+                    actionable = "Prioritise hitting protein the day before your hardest training sessions.",
                     detectedAt = getCurrentDate()
                 ))
             }
