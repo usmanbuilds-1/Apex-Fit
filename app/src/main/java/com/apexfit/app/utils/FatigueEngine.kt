@@ -18,7 +18,8 @@ object FatigueEngine {
         val acuteCutoff = getDateDaysAgo(6)
         val hasPreAcuteWorkouts = completed.any { it.date < acuteCutoff }
 
-        val isSparse = completed.size < 7 || daysOfHistory < 7 || !hasPreAcuteWorkouts
+        val completedTrainingDays = completed.map { it.date }.distinct().size
+        val isSparse = completedTrainingDays < 7 || daysOfHistory < 7 || !hasPreAcuteWorkouts
 
         if (isSparse) {
             return FatigueResult(
