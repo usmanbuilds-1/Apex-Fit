@@ -332,7 +332,7 @@ data class ActiveSet(
     val setNumber: Int,
     val weight: Double,
     val reps: Int,
-    val rpe: Int = 7,
+    val rpe: Int = 0,
     val isWarmup: Boolean = false,
     val restTakenSeconds: Int = 0,
     val completedAt: Long = 0L,
