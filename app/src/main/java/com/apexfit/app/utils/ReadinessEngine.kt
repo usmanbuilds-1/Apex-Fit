@@ -63,9 +63,9 @@ object MuscleRecoveryData {
             .map { it.key to it.value.maxOf { p -> p.second } }
     }
 
-    // Bi-exponential: fast component = inflammation/glycogen, slow component = structural repair.
-    // This shape is real - DOMS has a fast and slow recovery phase. The exact split (65/35)
-    // and the 3x multiplier on tau are engineering choices, not measured from your users.
+    // Bi-exponential recovery heuristic. The 65/35 split and 3x slow component are
+    // product-model assumptions, not a validated measurement of an individual user's
+    // inflammation, glycogen restoration, DOMS, or tissue repair.
     fun recoveredFraction(daysAgo: Double, tau: Double): Double {
         val fast = 0.65 * exp(-daysAgo / tau)
         val slow = 0.35 * exp(-daysAgo / (tau * 3))
@@ -172,8 +172,8 @@ object MuscleReadinessCalculator {
 }
 
 object SystemicFatigueCalculator {
-    // Single decay - CNS fatigue is one process (motor unit recruitment), not two phases.
-    // Recovers faster than muscle tissue but responds harder to compound lifts.
+    // Single-decay systemic-fatigue heuristic. TAU_DAYS and compound multipliers are
+    // engineering assumptions and are not direct measurements of "CNS recovery".
     private const val TAU_DAYS = 1.3
 
     data class SystemicSnapshot(val daysAgo: Double, val doseAmount: Double)
@@ -313,15 +313,26 @@ object ReadinessFinal {
                     val primaryList = muscleFatigueHistory.getOrPut(canonicalExerciseMuscle) { mutableListOf() }
                     primaryList.add(MuscleFatigueSnapshot(canonicalExerciseMuscle, daysAgo, primaryDose))
 
+                    // Capacity history must use the same dose partition as fatigue
+                    // history. Previously the primary got the full dose here while its
+                    // fatigue snapshot got only primaryDose, and secondaries got no
+                    // capacity history at all.
+                    sessionDosesByMuscle[canonicalExerciseMuscle] =
+                        (sessionDosesByMuscle[canonicalExerciseMuscle] ?: 0.0) + primaryDose
+
                     for ((secMuscle, pct) in secondaries) {
-                        if (com.apexfit.app.utils.MuscleAliases.getCanonical(secMuscle) != canonicalExerciseMuscle) {
-                            val secList = muscleFatigueHistory.getOrPut(secMuscle) { mutableListOf() }
-                            secList.add(MuscleFatigueSnapshot(secMuscle, daysAgo, dose * pct))
+                        val canonicalSecondary = com.apexfit.app.utils.MuscleAliases.getCanonical(secMuscle)
+                        if (canonicalSecondary != canonicalExerciseMuscle) {
+                            val secondaryDose = dose * pct
+                            val secList = muscleFatigueHistory.getOrPut(canonicalSecondary) { mutableListOf() }
+                            secList.add(MuscleFatigueSnapshot(canonicalSecondary, daysAgo, secondaryDose))
+                            sessionDosesByMuscle[canonicalSecondary] =
+                                (sessionDosesByMuscle[canonicalSecondary] ?: 0.0) + secondaryDose
                         }
                     }
 
-                    // 2) Muscle session total dose accumulation
-                    sessionDosesByMuscle[canonicalExerciseMuscle] = (sessionDosesByMuscle[canonicalExerciseMuscle] ?: 0.0) + dose
+                    // 2) Muscle session total dose accumulation is performed above
+                    // using the same primary/secondary partition as fatigue history.
 
                     // 3) Systemic dose accumulation
                     val systemicDose = SystemicFatigueCalculator.doseForSet(
@@ -371,9 +382,12 @@ object ReadinessFinal {
             val exerciseId = exercise.exerciseId
             val tau = metadata[exerciseId]?.recoveryTauDays
             if (tau != null) {
-                tauOverrides[exercise.muscleGroup] = tau
-                tauOverrides[exercise.muscleGroup.lowercase()] = tau
-                tauOverrides[MuscleAliases.getCanonical(exercise.muscleGroup)] = tau
+                val canonicalMuscle = MuscleAliases.getCanonical(exercise.muscleGroup)
+                val existing = tauOverrides[canonicalMuscle]
+                val chosenTau = if (existing == null) tau else maxOf(existing, tau)
+                tauOverrides[exercise.muscleGroup] = chosenTau
+                tauOverrides[exercise.muscleGroup.lowercase()] = chosenTau
+                tauOverrides[canonicalMuscle] = chosenTau
             }
         }
 
