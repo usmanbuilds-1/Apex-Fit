@@ -9,8 +9,6 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -18,9 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.ExerciseMedia
@@ -101,53 +97,38 @@ private fun YouTubeTechniqueVideo(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = if (matchType == "exact") "TECHNIQUE VIDEO" else "RELATED TECHNIQUE",
-            fontFamily = JetBrainsMonoFamily,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = AmberAccent
+            text = if (matchType == "exact") "Verified technique guide" else "Related technique guide",
+            style = MaterialTheme.typography.labelLarge,
+            color = ApexColors.TextSecondary
         )
 
         title?.let {
             Text(
                 text = it,
-                fontFamily = InterFamily,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = PrimaryText,
-                lineHeight = 18.sp
+                style = MaterialTheme.typography.titleMedium,
+                color = ApexColors.TextPrimary
             )
         }
 
         if (!channel.isNullOrBlank()) {
             Text(
-                text = if (matchType == "exact") channel else "$channel · related movement guide",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
-                color = MutedText
+                text = if (matchType == "exact") channel else "$channel · related movement",
+                style = MaterialTheme.typography.bodySmall,
+                color = ApexColors.TextTertiary
             )
         }
 
         if (!showPlayer) {
             OutlinedButton(
                 onClick = { showPlayer = true },
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.heightIn(min = 48.dp)
+                border = androidx.compose.foundation.BorderStroke(1.dp, ApexColors.BorderStrong),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    tint = ApexColors.Primary,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Play technique video",
-                    fontFamily = InterFamily,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = PrimaryText
+                    style = MaterialTheme.typography.labelLarge,
+                    color = ApexColors.TextPrimary
                 )
             }
         } else {
@@ -156,7 +137,7 @@ private fun YouTubeTechniqueVideo(
                     .widthIn(max = 260.dp)
                     .fillMaxWidth()
                     .aspectRatio(9f / 16f)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .align(Alignment.CenterHorizontally),
                 factory = { context ->
                     WebView(context).apply {
@@ -197,9 +178,8 @@ private fun YouTubeTechniqueVideo(
             )
             Text(
                 text = "Streamed by YouTube. Apex Fit does not download or rehost the video.",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
-                color = MutedText
+                style = MaterialTheme.typography.bodySmall,
+                color = ApexColors.TextTertiary
             )
         }
     }
