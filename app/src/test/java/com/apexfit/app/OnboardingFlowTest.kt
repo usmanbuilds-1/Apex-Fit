@@ -69,7 +69,7 @@ class OnboardingFlowTest {
     fun personalDetailsRequireAdultAge() {
         compose.setContent { OnboardingScreen(onComplete = {}) }
         compose.onNodeWithTag("onboarding_welcome_next").performScrollTo().performClick()
-        compose.onNodeWithText("Gain Muscle").performScrollTo().performClick()
+        compose.onNodeWithText("Build muscle").performScrollTo().performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
 
         compose.onNodeWithTag("onboarding_name").performScrollTo().performTextInput("Alex")
