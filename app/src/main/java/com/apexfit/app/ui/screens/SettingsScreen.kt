@@ -219,7 +219,7 @@ fun SettingsScreen(
                         fontFamily = InterFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isSelected) ApexColors.OnGlow else PrimaryText
+                        color = if (isSelected) ApexColors.Primary else PrimaryText
                     )
                 }
             }
@@ -314,7 +314,7 @@ fun SettingsScreen(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = DarkRaised,
                     unfocusedContainerColor = DarkRaised,
-                    focusedIndicatorColor = AmberAccent,
+                    focusedIndicatorColor = ApexColors.Primary,
                     unfocusedIndicatorColor = BorderSubtle
                 )
             )
@@ -347,7 +347,7 @@ fun SettingsScreen(
 
         // Biological Sex Select
         Text(
-            text = "BIOLOGICAL SEX (BMR METABOLIC FORMULA OFFSET)",
+            text = "Sex used for calorie estimates",
             fontFamily = SyneFamily,
             fontSize = 11.sp,
             color = SecondaryText,
@@ -363,9 +363,9 @@ fun SettingsScreen(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (isSelected) AmberAccent else DarkRaised)
+                        .background(if (isSelected) ApexColors.PrimaryMist else DarkRaised)
                         .border(
-                            border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
+                            border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
                             shape = RoundedCornerShape(10.dp)
                         )
                         .semantics { selected = isSelected }
@@ -380,7 +380,7 @@ fun SettingsScreen(
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) ApexColors.OnGlow else PrimaryText
+                        color = if (isSelected) ApexColors.Primary else PrimaryText
                     )
                 }
             }
@@ -407,10 +407,10 @@ fun SettingsScreen(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (selected) AmberAccent else DarkRaised)
+                        .background(if (selected) ApexColors.PrimaryMist else DarkRaised)
                         .border(
                             1.dp,
-                            if (selected) AmberAccent else BorderSubtle,
+                            if (selected) ApexColors.Primary else BorderSubtle,
                             RoundedCornerShape(8.dp)
                         )
                         .semantics { this.selected = selected }
@@ -425,7 +425,7 @@ fun SettingsScreen(
                         fontFamily = SyneFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (selected) ApexColors.OnGlow else SecondaryText
+                        color = if (selected) ApexColors.Primary else SecondaryText
                     )
                 }
             }
@@ -450,9 +450,9 @@ fun SettingsScreen(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (isSelected) AmberAccent else DarkRaised)
+                        .background(if (isSelected) ApexColors.PrimaryMist else DarkRaised)
                         .border(
-                            border = BorderStroke(1.dp, if (isSelected) AmberAccent else BorderSubtle),
+                            border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
                             shape = RoundedCornerShape(10.dp)
                         )
                         .semantics { selected = isSelected }
@@ -467,7 +467,7 @@ fun SettingsScreen(
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) ApexColors.OnGlow else PrimaryText
+                        color = if (isSelected) ApexColors.Primary else PrimaryText
                     )
                 }
             }
