@@ -391,6 +391,7 @@ private fun TodayWorkoutCard(
                     } else {
                         Text(readiness.label, color = PrimaryText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Text(readiness.recommendation, color = TextMuted, fontSize = 12.sp)
+                        Text("Readiness estimate", color = TextMuted, fontSize = 11.sp)
                     }
                 }
             }
@@ -678,7 +679,7 @@ private fun SessionRow(session: RichTrainingSession) {
 }
 
 @Composable
-private fun TodayReadinessExplanationDialog(
+internal fun TodayReadinessExplanationDialog(
     readiness: UiSessionReadiness?,
     onDismiss: () -> Unit
 ) {
@@ -694,7 +695,7 @@ private fun TodayReadinessExplanationDialog(
                         text = readiness.recommendation,
                         fontWeight = FontWeight.SemiBold
                     )
-                    readiness.confidence?.let { Text("Confidence: $it", color = TextMuted) }
+                    readiness.confidence?.let { Text("Training history: $it", color = TextMuted) }
                     Text("The app combines recent muscle training, overall training load, and logged nutrition. Its weights and recovery timing are model assumptions.", color = TextMuted)
                     readiness.factors.forEach { factor ->
                         Row(

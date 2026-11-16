@@ -35,26 +35,51 @@ fun ExerciseMediaPanel(
 ) {
     val context = LocalContext.current
     var media by remember(exerciseId) { mutableStateOf<ExerciseMedia?>(null) }
+    var isLoaded by remember(exerciseId) { mutableStateOf(false) }
+    var loadFailed by remember(exerciseId) { mutableStateOf(false) }
+    var videoUnavailable by remember(exerciseId) { mutableStateOf(false) }
 
     LaunchedEffect(exerciseId) {
-        media = withContext(Dispatchers.IO) {
-            ExerciseMediaCatalog.get(context, exerciseId)
+        try {
+            media = withContext(Dispatchers.IO) {
+                ExerciseMediaCatalog.get(context, exerciseId)
+            }
+        } catch (_: Exception) {
+            loadFailed = true
+        } finally {
+            isLoaded = true
         }
     }
+    ExerciseMediaPanelContent(media, isLoaded, loadFailed, videoUnavailable, modifier) { videoUnavailable = true }
+}
 
-    val currentMedia = media ?: return
-    val videoId = currentMedia.youtubeVideoId ?: return
-
+@Composable
+internal fun ExerciseMediaPanelContent(
+    media: ExerciseMedia?,
+    isLoaded: Boolean,
+    loadFailed: Boolean,
+    videoUnavailable: Boolean = false,
+    modifier: Modifier = Modifier,
+    onVideoUnavailable: () -> Unit = {}
+) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        videoId.let { videoId ->
-            YouTubeTechniqueVideo(
-                videoId = videoId,
-                title = currentMedia.youtubeVideoTitle,
-                matchType = currentMedia.youtubeMatchType,
-                channel = currentMedia.youtubeChannel
+        Text("Technique video", style = MaterialTheme.typography.titleMedium)
+        when {
+            !isLoaded -> Text("Checking for an available technique video.", color = ApexColors.TextSecondary)
+            loadFailed -> Text("Video information could not be loaded.", color = ApexColors.Alert)
+            media?.youtubeVideoId == null ->
+                Text("No verified technique video is available for this exercise.", color = ApexColors.TextSecondary)
+            videoUnavailable ->
+                Text("This video is unavailable. Check your connection and try again.", color = ApexColors.TextSecondary)
+            else -> YouTubeTechniqueVideo(
+                videoId = media.youtubeVideoId,
+                title = media.youtubeVideoTitle,
+                matchType = media.youtubeMatchType,
+                channel = media.youtubeChannel,
+                onUnavailable = onVideoUnavailable
             )
         }
     }
@@ -65,7 +90,8 @@ private fun YouTubeTechniqueVideo(
     videoId: String,
     title: String?,
     matchType: String?,
-    channel: String?
+    channel: String?,
+    onUnavailable: () -> Unit
 ) {
     var showPlayer by rememberSaveable(videoId) { mutableStateOf(false) }
     var webView by remember(videoId) { mutableStateOf<WebView?>(null) }
@@ -145,6 +171,14 @@ private fun YouTubeTechniqueVideo(
                         settings.setSupportMultipleWindows(false)
                         webChromeClient = WebChromeClient()
                         webViewClient = object : WebViewClient() {
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                error: android.webkit.WebResourceError?
+                            ) {
+                                if (request?.isForMainFrame == true) onUnavailable()
+                            }
+
                             override fun shouldOverrideUrlLoading(
                                 view: WebView?,
                                 request: WebResourceRequest?

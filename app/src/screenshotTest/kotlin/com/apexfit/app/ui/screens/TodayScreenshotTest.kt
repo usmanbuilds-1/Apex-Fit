@@ -10,9 +10,11 @@ import com.android.tools.screenshot.PreviewTest
 import com.apexfit.app.data.NutritionTargets
 import com.apexfit.app.data.RichTrainingSession
 import com.apexfit.app.ui.models.UiSessionReadiness
+import com.apexfit.app.ui.models.UiReadinessFactor
 import com.apexfit.app.ui.models.UiWeightEntry
 import com.apexfit.app.ui.theme.ApexFitTheme
 import com.apexfit.app.utils.SessionHeroCategory
+import kotlinx.collections.immutable.persistentListOf
 
 @PreviewTest
 @Preview(widthDp = 390, heightDp = 1086, locale = "en-US")
@@ -42,6 +44,31 @@ fun TodayScheduledLower() {
     RenderToday(SessionHeroCategory.LOWER_QUAD, "Lower Body A")
 }
 
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US", fontScale = 1.3f)
+@Composable
+fun TodayReadinessExplanation() {
+    ApexFitTheme {
+        Box(Modifier.fillMaxSize()) {
+            TodayReadinessExplanationDialog(
+                UiSessionReadiness(
+                    score = 82,
+                    label = "Estimated readiness",
+                    colorHex = "#7192D3",
+                    prediction = "This estimate uses recent training and nutrition logs.",
+                    recommendation = "Consider your energy, sleep, and soreness when choosing today’s effort.",
+                    factors = persistentListOf(
+                        UiReadinessFactor("Systemic training load", "neutral", "Higher estimate"),
+                        UiReadinessFactor("Logged nutrition", "neutral", "Moderate estimate"),
+                        UiReadinessFactor("Chest recovery", "positive", "4 logged exposures")
+                    ),
+                    confidence = "Recent muscle history is available"
+                )
+            ) {}
+        }
+    }
+}
+
 @Composable
 private fun RenderToday(
     category: SessionHeroCategory,
@@ -66,8 +93,9 @@ private fun RenderToday(
                     hasActiveSession = inProgress,
                     estimatedWorkoutDuration = if (hasSchedule) 54 else 0,
                     readiness = if (hasSchedule) UiSessionReadiness(
-                        score = 82, label = "Ready", colorHex = "#7192D3",
-                        prediction = "", recommendation = "Normal session"
+                        score = 82, label = "Estimated readiness", colorHex = "#7192D3",
+                        prediction = "The estimate uses logged training and nutrition, with recent history for your trained muscles.",
+                        recommendation = "Consider your energy, sleep, and soreness when choosing today’s effort."
                     ) else null,
                     loggedCalories = if (hasSchedule) 2140 else 0,
                     loggedProtein = if (hasSchedule) 142 else 0,

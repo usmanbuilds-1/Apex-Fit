@@ -43,6 +43,7 @@ internal fun ExercisePicker(
     title: String,
     initialMuscle: String? = null,
     excludeId: String? = null,
+    initialQuery: String = "",
     onBack: () -> Unit,
     onSelect: (Exercise) -> Unit
 ) {
@@ -52,7 +53,7 @@ internal fun ExercisePicker(
     var mode by rememberSaveable { mutableIntStateOf(if (initialMuscle == null) 0 else 1) }
     var showBack by rememberSaveable { mutableStateOf(false) }
     var selectedMuscle by rememberSaveable { mutableStateOf(initialMuscle?.let(MuscleAliases::getCanonical)) }
-    var query by rememberSaveable { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf(initialQuery) }
     var equipment by rememberSaveable { mutableStateOf<String?>(null) }
     var includeSecondary by rememberSaveable { mutableStateOf(false) }
     var equipmentExpanded by remember { mutableStateOf(false) }
