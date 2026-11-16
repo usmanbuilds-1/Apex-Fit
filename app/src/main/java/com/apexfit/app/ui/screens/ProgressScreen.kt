@@ -349,7 +349,7 @@ fun ProgressMainTabContent(
 
                 PremiumCard(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
                     Text(
-                        text = "Weight Log",
+                        text = "Log weight",
                         fontFamily = SyneFamily,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -376,7 +376,7 @@ fun ProgressMainTabContent(
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = DarkRaised,
                                 unfocusedContainerColor = DarkRaised,
-                                focusedIndicatorColor = if (weightError != null) RedAccent else AmberAccent,
+                                focusedIndicatorColor = if (weightError != null) RedAccent else ApexColors.Primary,
                                 unfocusedIndicatorColor = if (weightError != null) RedAccent else BorderSubtle
                             )
                         )
@@ -413,7 +413,7 @@ fun ProgressMainTabContent(
                 item {
                     PremiumCard(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "WEIGHT REGISTRY LOGS",
+                            text = "Weight history",
                             fontFamily = SyneFamily,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -421,7 +421,7 @@ fun ProgressMainTabContent(
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
                         Text(
-                            text = "Entries use your local date.",
+                            text = "Your recent weigh-ins.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = MutedText,
@@ -449,7 +449,7 @@ fun ProgressMainTabContent(
                                             color = PrimaryText
                                         )
                                             Text(
-                                                text = "Logged: ${entry.date}${if (entry.time.isNotEmpty()) " • ${com.apexfit.app.utils.formatTimeForDisplay(LocalContext.current, entry.time)}" else ""}",
+                                                text = "${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(entry.date)}${if (entry.time.isNotEmpty()) " • ${com.apexfit.app.utils.formatTimeForDisplay(LocalContext.current, entry.time)}" else ""}",
                                                 fontFamily = JetBrainsMonoFamily,
                                                 fontSize = 11.sp,
                                                 color = SecondaryText
