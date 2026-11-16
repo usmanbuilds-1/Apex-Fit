@@ -18,3 +18,32 @@ fun WorkoutReceiptWithAnEarnedRecord() {
         exerciseId = "press", exerciseName = "Dumbbell Chest Press"))
     ApexFitTheme { SessionCompleteSheet(receipt, sets, "kg", onDismiss = {}) }
 }
+
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
+@Composable
+fun WorkoutReceiptWithoutRecord() {
+    val receipt = SessionCommitResult(
+        "no-pr", 46, 4.2, 14, emptyList(), "Lower Body A"
+    )
+    val sets = listOf(
+        UiExerciseSet(weight = 60.0, reps = 8, rpe = 8,
+            exerciseId = "leg-press", exerciseName = "Leg Press")
+    )
+    ApexFitTheme { SessionCompleteSheet(receipt, sets, "kg", onDismiss = {}) }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
+@Composable
+fun PartialWorkoutReceipt() {
+    val receipt = SessionCommitResult(
+        "partial", 24, 1.85, 7, emptyList(), "Upper Body A", isPartial = true
+    )
+    val sets = listOf(
+        UiExerciseSet(weight = 14.0, reps = 10, rpe = 8,
+            exerciseId = "press", exerciseName = "Dumbbell Chest Press")
+    )
+    ApexFitTheme { SessionCompleteSheet(receipt, sets, "kg", onDismiss = {}) }
+}
