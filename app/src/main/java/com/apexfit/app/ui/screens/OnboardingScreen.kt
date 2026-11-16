@@ -67,17 +67,35 @@ fun OnboardingScreen(
     onExplore: () -> Unit = {},
     onComplete: (OnboardingProfile) -> Unit
 ) {
+    OnboardingContent(preferredUnits, isSaving, saveError, onExplore, onComplete)
+}
+
+@Composable
+internal fun OnboardingContent(
+    preferredUnits: String,
+    isSaving: Boolean,
+    saveError: String?,
+    onExplore: () -> Unit,
+    onComplete: (OnboardingProfile) -> Unit,
+    initialStep: Int = 0,
+    initialProfile: OnboardingProfile? = null
+) {
     val keyboard = LocalSoftwareKeyboardController.current
-    var step by rememberSaveable { mutableIntStateOf(0) }
-    var goal by rememberSaveable { mutableStateOf<String?>(null) }
-    var experience by rememberSaveable { mutableStateOf<String?>(null) }
-    var days by rememberSaveable { mutableIntStateOf(3) }
-    var name by rememberSaveable { mutableStateOf("") }
-    var height by rememberSaveable { mutableStateOf("") }
-    var weight by rememberSaveable { mutableStateOf("") }
-    var age by rememberSaveable { mutableStateOf("") }
-    var sex by rememberSaveable { mutableStateOf("") }
-    var imperial by rememberSaveable { mutableStateOf(preferredUnits in listOf("lb", "lbs")) }
+    var step by rememberSaveable { mutableIntStateOf(initialStep) }
+    var goal by rememberSaveable { mutableStateOf(initialProfile?.goal) }
+    var experience by rememberSaveable { mutableStateOf(initialProfile?.experience) }
+    var days by rememberSaveable { mutableIntStateOf(initialProfile?.daysPerWeek ?: 3) }
+    var name by rememberSaveable { mutableStateOf(initialProfile?.name.orEmpty()) }
+    val initialImperial = preferredUnits in listOf("lb", "lbs")
+    var height by rememberSaveable {
+        mutableStateOf(initialProfile?.heightCm?.let { if (initialImperial) it / 2.54 else it }?.toString().orEmpty())
+    }
+    var weight by rememberSaveable {
+        mutableStateOf(initialProfile?.weightKg?.let { if (initialImperial) it * 2.20462 else it }?.toString().orEmpty())
+    }
+    var age by rememberSaveable { mutableStateOf(initialProfile?.age?.toString().orEmpty()) }
+    var sex by rememberSaveable { mutableStateOf(initialProfile?.sex.orEmpty()) }
+    var imperial by rememberSaveable { mutableStateOf(initialImperial) }
     var showDetailsErrors by rememberSaveable { mutableStateOf(false) }
     val heightCm = height.replace(',', '.').toDoubleOrNull()?.let { if (imperial) kotlin.math.round(it * 2.54 * 1000) / 1000 else it }
     val weightKg = weight.replace(',', '.').toDoubleOrNull()?.let { if (imperial) kotlin.math.round(it / 2.20462 * 1000) / 1000 else it }
