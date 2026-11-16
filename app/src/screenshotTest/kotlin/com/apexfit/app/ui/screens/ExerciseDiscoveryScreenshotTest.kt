@@ -131,3 +131,33 @@ fun ExerciseVideoOffline() {
         )
     }
 }
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun ExerciseGuideWithoutWrittenInstructions() {
+    val content = FormGuideBuilder.buildFormGuide(lateralRaise, null, emptyList())
+    ApexFitTheme { FormGuideSheet(lateralRaise, content, onDismiss = {}) }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun ExerciseMediaAvailable() {
+    RenderMediaState {
+        ExerciseMediaPanelContent(
+            ExerciseMedia(
+                sourceId = null,
+                imageUrls = emptyList(),
+                instructions = emptyList(),
+                youtubeVideoId = "qpAvhLiy50Y",
+                youtubeVideoTitle = "Dumbbell lateral raise technique",
+                youtubeMatchType = "exact",
+                youtubeMatchScore = 100,
+                youtubeChannel = "DEMIC"
+            ),
+            isLoaded = true,
+            loadFailed = false
+        )
+    }
+}
