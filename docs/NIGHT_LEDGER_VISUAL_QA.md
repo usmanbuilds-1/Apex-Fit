@@ -1,152 +1,131 @@
 # APEX FIT Night Ledger — Visual QA Gate
 
-Audit target: PR #33, Android head `6cc59d981487eb3790e1b044f7fea44a07162242`.
+Current continuation target: PR #33 on `chatgpt/functional-integration-safe-20261115`.
 
-Evidence reviewed:
-- Android CI run `43780405932` — PASS.
-- Palette regression run `43780405966` — PASS.
-- Compose render artifact `14187459130`.
-- All 18 rendered preview states in that artifact.
-- Reachable Compose implementations changed by the Night Ledger migration.
-- `DESIGN.md`, the Night Ledger work ledger, and the bundled Impeccable Android/craft-floor guidance.
+This file is the current merge gate. Older findings are retained only when they remain open.
 
-## Verdict
+## Status
 
-**BLOCKED — keep PR #33 draft.**
+**KEEP PR #33 DRAFT — do not merge to main yet.**
 
-The new direction is materially better and several surfaces are already strong, but the product is not yet consistently at the Night Ledger quality bar. The current screenshot workflow proves that selected Compose previews render; it does **not** prove full-screen visual fidelity to the approved Stitch references, complete state coverage, or real-device correctness.
+Automated Android CI, lint, unit tests, palette checks and Compose preview rendering are necessary but do not close this gate by themselves. Final completion still requires the preserved local Codex work, real Android validation where available, and Stitch comparison for the approved references.
 
-Do not merge PR #33 until the Must Fix items below are closed and the final device/emulator pass is complete.
+## Closed since the first visual audit
 
-## Strong / preserve
+- Adult-only launch boundary is now enforced at 18–100 in onboarding/profile/settings validation with tests.
+- Onboarding Frequency uses the Night Ledger mineral-blue selected treatment.
+- Ready now identifies truncated exercise previews with `+N more` instead of silently presenting partial sessions as complete.
+- Muscle Volume now opens on the anatomy side containing the dominant direct-set work when appropriate.
+- Form Guide no longer invents generic biomechanics when vetted written instructions are absent.
+- User-facing recovery/history dates were moved toward localized display instead of raw ISO where migrated.
+- Workout Complete labels aggregate load as total load.
+- Readiness confidence/copy was tightened and the baseline-building suppression remains.
+- Nutrition has populated/no-target visual coverage.
+- Progress has insufficient-data and populated dated-weight-trend visual coverage.
+- Measurements summary was flattened and has empty/populated visual coverage.
+- Exercise Picker now has loading, error, empty and no-match render coverage.
+- Exercise-media loading/no-video/offline states are covered; their fixtures now render on the Night Ledger canvas rather than a transparent white preview.
+- The technique-video surface no longer uses the old amber technical label or a mixed Material play icon.
+- Workout Complete now has earned-PR, no-PR and partial-receipt render coverage.
+- Settings selection/focus treatment is being normalized away from generic amber; technical BMR-offset wording was removed.
+- Progress weight logging copy now uses consumer-facing `Log weight` / `Weight history` wording and localized dates.
 
-- Welcome: full-bleed licensed photography, clear hierarchy, restrained CTA treatment.
-- Onboarding Goal and Experience: flat hierarchy, low clutter, coherent selection treatment.
-- Onboarding Details: clear fields and inline validation structure.
-- Today recovery/no-history, resume/no-photo, lower and pull states: contextual hero/fallback behavior is honest and the primary action is clear.
-- Progress insufficient-data state: truthful, no fake chart/data, flat Explore hierarchy.
-- Workout receipt: flat receipt structure, no trophy/stat-wall treatment; earned PR reveal is restrained.
-- Workout History structure: real sessions and set drill-down, honest empty/loading behavior.
-- Photography provenance is documented in `docs/PHOTOGRAPHY.md`.
+## Still blocking merge
 
-Preserve these qualities while fixing the remaining surfaces.
+### 1. Preserve and integrate local Codex work
 
-## Must Fix before merge
+Local branch `codex/night-ledger-pr33` contains commit `6423946`, which is not present on GitHub. Do not reset, overwrite or discard it. Before broad remote UI rewrites, sync the remote PR into that local branch semantically and preserve the local work.
 
-1. **Finish the Night Ledger migration on reachable legacy surfaces.**
-   - Train Program still uses `PremiumCard`, legacy amber/technical styling and older hierarchy.
-   - Plan Builder still relies on repeated rounded Cards, legacy aliases, and mixed Material icons.
-   - Body Measurements detail/list still uses card-heavy legacy styling.
-   - Deload presentation still uses the old rounded amber callout.
-   - Audit Nutrition and Settings explicitly; they are not covered by the current render artifact.
-   - A new overview is not enough if a tap leads into the old visual language.
+### 2. Finish the reachable Night Ledger migration
 
-2. **One icon family, everywhere.**
-   - Bottom navigation currently mixes a custom outline Today calendar with filled legacy dumbbell/cutlery/trending vectors.
-   - Settings, onboarding/back, Progress detail, Personal Records and Plan Builder still use Material icon sets.
-   - Replace with one approved family and implement a coherent inactive/selected treatment. Labels remain visible. No icon pods.
+The remaining high-risk legacy surfaces require the local/visual pass:
+- Train Program / active Workout / Plans
+- Plan Builder and its edit dialogs
+- Settings final polish
+- Progress weight/body-metrics subroutes
+- Personal Records / Workout History detail
+- rest timer / RPE sheets / import review where reachable
 
-3. **Muscle Volume: make the first frame useful.**
-   - The current training fixture contains only Back direct work while the screen opens on the Front anatomy, so no active muscle is visible.
-   - Default to the side containing the dominant active/selected muscle or otherwise make the active region obvious immediately.
-   - Keep the ranked list and direct-set semantics.
-   - The current polygon anatomy is functionally original and accessible, but visually too schematic for the final consumer-quality bar. Refine the original APEX anatomy without copying Lyfta or introducing glow/thermal styling.
-   - Add selected-muscle drill-down, back view, Month, loading/error and empty renders.
+A polished overview does not count if a tap drops into an older visual language.
 
-4. **Ready screen must show the real first week.**
-   - `SetupReady` truncates each session to `take(3)` exercises with no indication that more exercises exist.
-   - Show the complete planned session or an honest compact summary such as the first three plus “+2 more”.
-   - Do not describe a partial preview as the full first week.
+### 3. One icon family
 
-5. **Exercise Detail / Form Guide content is not finished.**
-   - The current no-image render is too thin and leaves large unused space.
-   - The generic fallback copy in `FormGuideBuilder` (“Drive the movement motion deliberately…”) reads generated and is not useful coaching.
-   - Structure usable guidance around setup / starting position / execution / breathing-bracing where appropriate / common mistakes, preferring vetted source instructions.
-   - Do not invent biomechanics when source guidance is unavailable.
-   - Render verified-video, no-video, offline/error and written-fallback states.
+The app still mixes Material icons and legacy/custom vector assets on reachable screens. Finalize one approved family (Phosphor, HugeIcons, Radix or Tabler per the product direction), keep bottom-nav labels visible, and use a coherent selected/inactive treatment. Do not hand-roll replacement glyphs.
 
-6. **Humanize developer-looking data presentation.**
-   - Muscle Recovery, Personal Records and Workout History expose raw ISO dates in user-facing rows.
-   - Localize dates consistently.
-   - Workout receipt summary currently renders aggregate load as e.g. `6,840 kg` without naming the metric; label it as load/training volume so it cannot be mistaken for body weight.
-   - Review copy such as “system local time auto picked” and other registry/debug-style language.
+### 4. Muscle anatomy quality
 
-7. **Readiness UI must remain explicitly heuristic.**
-   - Fix the confidence mapping in `UiModels.kt`: `dataConfidence == "full"` currently becomes “More logged history”, which is not a confidence label.
-   - Avoid presenting internal model percentages as if physiologically measured.
-   - Preserve the baseline-building suppression and the explanation that the weights/decay timing are assumptions.
-   - The real runtime recommendation text is longer than the screenshot fixture’s “Normal session”; render with realistic copy and large font to verify hierarchy.
+Muscle Volume behavior is improved, but the original APEX anatomy still needs final visual refinement against the Night Ledger quality bar. Keep it original, accessible, restrained and set-count-only; do not copy Lyfta or turn it into a neon/thermal recovery map.
 
-8. **Use tabular numerals consistently where the design contract requires them.**
-   - `ApexTextStyles` correctly defines `tnum`, but not all weights/reps/timers/calories use it.
-   - Apply data styles intentionally rather than hand-picking numeric font sizes screen by screen.
+### 5. Exercise Detail final polish
 
-9. **Unify onboarding selected states.**
-   - Goal/Experience use mineral-blue selection.
-   - Frequency currently switches the selected day to near-white/black, which reads like a different product.
-   - Bring it into the same Night Ledger interaction language while retaining strong contrast and non-color selection cues.
+Preserve vetted source instructions and honest no-instruction fallback. Final pass still needs to verify:
+- long real instruction sets
+- available-video state before playback
+- no-video state
+- offline/unavailable video state
+- large-font behavior
+- active-workout Form Guide entry point
 
-10. **Motion must match the Night Ledger duration contract.**
-    - Earned PR reveal at 180 ms is correct.
-    - Audit/remove any remaining 420 ms `ApexMotion.momentCoach()` usage unless a documented exception is justified.
-    - Honor Android animation reduction/disable settings in the final device pass.
+Do not invent coaching or biomechanics merely to fill empty space.
 
-11. **Final screenshot/state coverage is incomplete.**
-    Current render coverage is useful but not sufficient. Add visual coverage for:
-    - Train Program / active Workout / Plans.
-    - Plan Builder.
-    - Nutrition.
-    - Settings.
-    - Personal Records populated/empty.
-    - Workout History list/detail.
-    - Measurements list/detail.
-    - Fatigue & Deload.
-    - Progress populated state with a real longitudinal weight trend.
-    - Exercise Picker loading/error/no-results/filter states.
-    - Muscle Volume selected/back/month/loading/error states.
-    - Workout Complete no-PR, partial, and expanded-details states.
-    - Form Guide video/no-video/offline states.
-    - Meaningful validation/error/loading/empty states for onboarding and other changed forms.
+### 6. Visual-state coverage still missing
 
-12. **Compose Preview renders are not the final Android validation.**
-    - The CI task runs `:app:updateDebugScreenshotTest`; it generates preview renders but does not compare them against approved Stitch references.
-    - Complete a real emulator/device pass with system bars, predictive/system Back, keyboard/IME, 1.3x font scale, 48dp targets and compact-phone layouts.
-    - Compare the real Android renders against the approved Stitch references. Report any reference that is unavailable instead of silently substituting taste.
-    - Do not call the redesign complete based only on screenshot-test generation.
+Add/verify real renders for:
+- Train Program
+- active Workout logger
+- Plans
+- Plan Builder
+- Settings
+- Personal Records populated/empty
+- Workout History list/detail
+- body measurement detail
+- Fatigue & Deload
+- Muscle Volume selected drill-down / Month / loading or failure path as applicable
+- Workout Complete expanded details
+- importer review/error states
+- rest timer and RPE/RIR sheet
 
-## Additional release correctness blocker
+### 7. Real Android validation
 
-Onboarding still accepts age 13–17 while the app uses adult energy-estimation logic. Resolve the existing product decision (18+ launch vs a deliberately supported adolescent path) before release. This is not primarily a visual defect, but it remains a launch blocker.
+Compose screenshot tests are preview renders. They are useful regression evidence but are **not** a substitute for:
+- Android system bars/insets
+- predictive/system Back
+- IME/keyboard
+- 1.3x font scale
+- compact phone layout
+- 48dp touch targets
+- reduced/disabled animation behavior
+- hardware/emulator interaction and performance
 
-## Render inventory reviewed
+Use a real emulator/device when available. If the local Windows environment continues to fail, report that as a blocker instead of claiming completion.
 
-- Welcome
-- Goal
-- Personal Details
-- Experience
-- Frequency
-- Ready
-- Today: scheduled pull
-- Today: scheduled lower
-- Today: recovery/no history
-- Today: resume/no matching photo
-- Exercise Picker: search
-- Exercise Picker: muscle filter
-- Exercise Guide: no verified images
-- Muscle Volume: training
-- Muscle Volume: no training
-- Muscle Recovery: training
-- Progress: insufficient weigh-ins
-- Workout Receipt: earned PR
+### 8. Stitch fidelity
+
+Stitch project: `14369859982852578965`.
+
+The local Codex environment has a configured direct Stitch endpoint and has already retrieved/compared the approved Today reference. Do not expose or request the key. Continue comparisons for the approved references that are actually available. The connected Stitch tool authentication failure does not invalidate the working local direct endpoint.
+
+### 9. Eight end-to-end flows
+
+Run and report, where the environment permits, the eight flows defined in `docs/NIGHT_LEDGER_CODEX_REMAINDER.md`. Automated compilation alone is not an E2E pass. If hardware/emulator limitations block a flow, name the exact blocked step.
+
+## Current automated evidence
+
+- Exact PR head must have Android CI/APK + palette success before any final report.
+- Previous confirmed green head: `a47677fbf53246e26d5e418857cb263bb17343b2`.
+- That head produced the expanded Compose render artifact including onboarding, Today, Nutrition, Progress, Measurements, Exercise Picker/media, Muscle Volume, Recovery and Workout Receipt states.
+- Subsequent isolated remote-safe UI/test commits must be reverified on their exact final head.
+- A transient Maven Central HTTP 429 on an intermediate run is infrastructure noise, not evidence of a source-code failure.
 
 ## Exit criteria
 
-This QA gate is closed only when:
-- every reachable migrated surface uses the same Night Ledger visual system;
-- the Must Fix items above are addressed or explicitly documented as an accepted exception;
-- relevant populated, empty, loading, error/offline and insufficient-data states are rendered;
-- one icon family is used consistently;
-- the final real Android render/device pass succeeds;
-- the approved Stitch references are compared where available;
-- build, unit tests, lint, palette checks and screenshot checks are green;
-- PR #33 remains draft until that evidence exists.
+Close this gate only when:
+- local `6423946` work is preserved/integrated;
+- every reachable migrated surface uses the Night Ledger system;
+- one icon family is consistent;
+- relevant populated/empty/loading/error/offline states are rendered;
+- the eight flows are run or exact environmental blockers are documented;
+- real Android validation is completed wherever the environment permits;
+- approved Stitch comparisons are completed where references exist;
+- Android build, unit tests, lint, palette and screenshot rendering are green on the exact final PR head;
+- PR #33 remains draft until all of the above evidence exists.
