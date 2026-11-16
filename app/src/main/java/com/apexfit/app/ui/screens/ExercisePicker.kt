@@ -43,9 +43,9 @@ internal fun ExercisePicker(
     title: String,
     initialMuscle: String? = null,
     excludeId: String? = null,
-    initialQuery: String = "",
     onBack: () -> Unit,
-    onSelect: (Exercise) -> Unit
+    onSelect: (Exercise) -> Unit,
+    initialQuery: String = ""
 ) {
     val exercises = remember(state, excludeId) {
         (state as? UiState.Success)?.data.orEmpty().filter { it.id != excludeId && it.isDeleted == 0 }
