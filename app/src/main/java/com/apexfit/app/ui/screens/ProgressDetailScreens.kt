@@ -139,7 +139,7 @@ fun BodyMeasurementDetailScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = PrimaryText)
             }
             Text(
-                text = bodyPart.uppercase(),
+                text = bodyPart.replaceFirstChar { it.titlecase() },
                 style = MaterialTheme.typography.titleLarge,
                 color = PrimaryText,
                 fontWeight = FontWeight.Bold,
@@ -151,14 +151,10 @@ fun BodyMeasurementDetailScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Input new measurement
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+        Column(Modifier.fillMaxWidth()) {
+            Column {
                 Text(
-                    text = "LOG NEW MEASUREMENT",
+                    text = "Log a measurement",
                     color = SecondaryText,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
@@ -208,7 +204,7 @@ fun BodyMeasurementDetailScreen(
 
         // History list
         Text(
-            text = "HISTORY",
+            text = "History",
             color = SecondaryText,
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp
@@ -227,18 +223,15 @@ fun BodyMeasurementDetailScreen(
             ) {
                 items(measurements.size, key = { measurements[it].id }) { idx ->
                     val m = measurements[idx]
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
-                    ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        HorizontalDivider(color = ApexColors.BorderSubtle)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(m.date, color = SecondaryText, fontSize = 13.sp)
+                            Text(com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(m.date), color = SecondaryText, fontSize = 13.sp)
                             Text(
                                 text = stringResource(
                                     R.string.progress_detail_fmt_str,

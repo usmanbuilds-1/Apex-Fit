@@ -665,12 +665,12 @@ fun SettingsScreen(
         shape = RoundedCornerShape(10.dp),
         enabled = !isResetting
     ) {
-        Text(if (isResetting) "RESETTING..." else "RESET TOTAL ATHLETE DIRECTORY DATA", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+        Text(if (isResetting) "Resetting…" else "Reset app data", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
     }
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "LEGAL",
+            text = "Data and legal",
             fontFamily = SyneFamily,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
@@ -678,7 +678,7 @@ fun SettingsScreen(
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
         )
 
-        PremiumCard(
+        SettingsActionRow(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             onClick = {
                 context.startActivity(
@@ -700,7 +700,7 @@ fun SettingsScreen(
             }
         }
 
-        PremiumCard(
+        SettingsActionRow(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             onClick = {
                 homeViewModel.exportUserData(context) { uri ->
@@ -719,7 +719,7 @@ fun SettingsScreen(
                 fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
         }
 
-        PremiumCard(
+        SettingsActionRow(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
                 context.startActivity(
@@ -741,5 +741,17 @@ fun SettingsScreen(
             }
         }
     }
+    }
+}
+
+@Composable
+private fun SettingsActionRow(modifier: Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
+    HorizontalDivider(color = ApexColors.BorderSubtle)
+    Box(
+        modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        content()
     }
 }

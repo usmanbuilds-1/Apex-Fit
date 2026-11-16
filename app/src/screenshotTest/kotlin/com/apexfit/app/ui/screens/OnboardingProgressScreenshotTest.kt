@@ -86,3 +86,51 @@ fun ProgressWithInsufficientWeighIns() {
         }
     }
 }
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
+@Composable
+fun NutritionWithLoggedMacros() {
+    ApexFitTheme {
+        Column(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(20.dp)) {
+            NutritionDailySummary(
+                calories = 2140,
+                target = 2450,
+                trainingDay = true,
+                macros = listOf("Protein" to "142 / 180 g", "Carbs" to "195 / 250 g", "Fat" to "52 / 70 g")
+            )
+        }
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
+@Composable
+fun NutritionWithNoTarget() {
+    ApexFitTheme {
+        Column(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(20.dp)) {
+            NutritionDailySummary(0, null, false, listOf("Protein" to "0 g", "Carbs" to "0 g", "Fat" to "0 g"))
+        }
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 1100, locale = "en-US")
+@Composable
+fun ProgressWithDatedWeightTrend() {
+    ApexFitTheme {
+        Column(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(20.dp)) {
+            ProgressOverviewContent(
+                UiState.Success(listOf(
+                    UiWeightEntry(weight = 79.0, date = "2026-11-02"),
+                    UiWeightEntry(weight = 78.6, date = "2026-11-09"),
+                    UiWeightEntry(weight = 78.4, date = "2026-11-16")
+                )),
+                emptyList(), LocalDate.parse("2026-11-16"), "Lose Fat", "kg", 0,
+                "Recovery estimates need more training history.",
+                onLogWeight = {}, onOpenRecords = {}, onOpenHistory = {}, onOpenMeasurements = {},
+                onOpenVolume = {}, onOpenRecovery = {}, onOpenFatigue = {}
+            )
+        }
+    }
+}
