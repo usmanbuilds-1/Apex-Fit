@@ -52,6 +52,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
@@ -151,112 +152,53 @@ fun BodyMeasurementsTrackerPanel(
     lengthUnit: String,
     onPartClick: (String) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkCardSurface)
-            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(16.dp))
-            .padding(16.dp)
-    ) {
-        Column {
-            Text(
-                text = "Body Measurements",
-                fontFamily = SyneFamily,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryText
-            )
-            Text(
-                text = "Tap a measurement to log or view trends",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 11.sp,
-                color = SecondaryText,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+    Column(Modifier.fillMaxWidth()) {
+        Text("Measurements", style = MaterialTheme.typography.titleLarge, color = PrimaryText)
+        Text(
+            "Log a body area to see its measurement history.",
+            color = SecondaryText,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+        )
 
-            val standardParts = listOf("Chest", "Biceps", "Waist", "Thighs", "Calves", "Shoulders")
-            val latestMeasurements = remember(measurements) { buildLatestMeasurementsMap(measurements) }
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                standardParts.forEach { part ->
-                    val latest = latestMeasurements[part.lowercase()]
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DarkRaised)
-                            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-                            .clickable { onPartClick(part) }
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(AccentSecondary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                val iconRes = when (part) {
-                                    "Chest" -> R.drawable.ic_accessibility
-                                    "Biceps" -> R.drawable.ic_fitness_center
-                                    "Waist" -> R.drawable.ic_line_weight
-                                    "Thighs" -> R.drawable.ic_directions_run
-                                    "Calves" -> R.drawable.ic_directions_walk
-                                    else -> R.drawable.ic_accessibility_new
-                                }
-                                Icon(
-                                    painter = painterResource(iconRes),
-                                    contentDescription = part,
-                                    tint = AccentSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = part.uppercase(),
-                                    fontFamily = SyneFamily,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryText
-                                )
-                                Text(
-                                    text = if (latest != null) "Last logged: ${latest.date}" else "No custom log recorded",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 11.sp,
-                                    color = MutedText
-                                )
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val displayValue = if (latest != null) {
-                                if (lengthUnit == "in") latest.value / 2.54 else latest.value
-                            } else 0.0
-                            val formattedValue = String.format(java.util.Locale.US, "%.1f", displayValue)
-                            Text(
-                                text = if (latest != null) "$formattedValue $lengthUnit" else "-- --",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (latest != null) AmberAccent else MutedText
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                painter = painterResource(R.drawable.ic_chevron_right),
-                                contentDescription = "Detail",
-                                tint = MutedText,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+        val standardParts = listOf("Chest", "Biceps", "Waist", "Thighs", "Calves", "Shoulders")
+        val latestMeasurements = remember(measurements) { buildLatestMeasurementsMap(measurements) }
+        standardParts.forEachIndexed { index, part ->
+            val latest = latestMeasurements[part.lowercase()]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .clickable(role = Role.Button, onClickLabel = "Log or view $part measurements") {
+                        onPartClick(part)
                     }
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(part, color = PrimaryText, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = latest?.let {
+                            "Last logged ${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(it.date)}"
+                        } ?: "No measurement logged",
+                        color = MutedText,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                val displayValue = latest?.let {
+                    if (lengthUnit == "in") it.value / 2.54 else it.value
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = displayValue?.let { String.format(java.util.Locale.US, "%.1f %s", it, lengthUnit) } ?: "Log",
+                        color = if (displayValue != null) PrimaryText else SecondaryText,
+                        style = if (displayValue != null) ApexTextStyles.dataMedium else MaterialTheme.typography.bodyMedium
+                    )
+                    Text("›", color = SecondaryText, style = MaterialTheme.typography.titleLarge)
                 }
             }
+            if (index < standardParts.lastIndex) HorizontalDivider(color = ApexColors.BorderSubtle)
         }
     }
 }
