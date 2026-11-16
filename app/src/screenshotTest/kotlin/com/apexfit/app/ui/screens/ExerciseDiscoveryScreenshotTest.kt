@@ -1,14 +1,32 @@
 package com.apexfit.app.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.android.tools.screenshot.PreviewTest
 import com.apexfit.app.data.Exercise
 import com.apexfit.app.ui.components.ExerciseMediaPanelContent
 import com.apexfit.app.utils.ExerciseMedia
 import com.apexfit.app.ui.models.UiState
+import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.ui.theme.ApexFitTheme
 import com.apexfit.app.utils.FormGuideBuilder
+
+@Composable
+private fun RenderMediaState(content: @Composable () -> Unit) {
+    ApexFitTheme {
+        Box(
+            Modifier.fillMaxSize().background(ApexColors.Canvas).padding(20.dp)
+        ) {
+            content()
+        }
+    }
+}
 
 private val lateralRaise = Exercise(
     id = "dumbbell-lateral-raise", name = "Dumbbell Lateral Raise", category = "Dumbbell",
@@ -81,21 +99,21 @@ fun ExercisePickerNoMatches() {
 @Preview(widthDp = 390, heightDp = 844, locale = "en-US")
 @Composable
 fun ExerciseMediaLoading() {
-    ApexFitTheme { ExerciseMediaPanelContent(null, isLoaded = false, loadFailed = false) }
+    RenderMediaState { ExerciseMediaPanelContent(null, isLoaded = false, loadFailed = false) }
 }
 
 @PreviewTest
 @Preview(widthDp = 390, heightDp = 844, locale = "en-US")
 @Composable
 fun ExerciseMediaWithoutVideo() {
-    ApexFitTheme { ExerciseMediaPanelContent(null, isLoaded = true, loadFailed = false) }
+    RenderMediaState { ExerciseMediaPanelContent(null, isLoaded = true, loadFailed = false) }
 }
 
 @PreviewTest
 @Preview(widthDp = 390, heightDp = 844, locale = "en-US")
 @Composable
 fun ExerciseVideoOffline() {
-    ApexFitTheme {
+    RenderMediaState {
         ExerciseMediaPanelContent(
             ExerciseMedia(
                 sourceId = null,
