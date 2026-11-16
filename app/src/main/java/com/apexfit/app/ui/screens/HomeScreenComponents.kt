@@ -1057,7 +1057,7 @@ fun HomeAnalyticsSection(
 }
 
 @Composable
-private fun LogWeightDialog(
+internal fun LogWeightDialog(
     initialInput: String,
     units: String,
     onDismiss: () -> Unit,
@@ -1079,7 +1079,7 @@ private fun LogWeightDialog(
         containerColor = DarkCardSurface,
         title = {
             Text(
-                text = "LOG BODY WEIGHT",
+                text = "Log weight",
                 fontFamily = SyneFamily,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 16.sp,
@@ -1089,7 +1089,7 @@ private fun LogWeightDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Enter your current weight in $units. This updates your dynamic readiness fatigue filters and chronic load baselines.",
+                    text = "Enter your current weight in $units.",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 12.sp,
                     color = SecondaryText,

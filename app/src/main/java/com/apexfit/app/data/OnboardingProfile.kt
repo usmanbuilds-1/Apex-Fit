@@ -16,7 +16,7 @@ data class OnboardingProfile(
     val age: Int = 26,
     val heightCm: Double = 175.0,
     val weightKg: Double = 70.0,
-    val targetWeightKg: Double = 70.0,
+    val targetWeightKg: Double? = null,
     val sex: String = "male",
     val units: String = "kg",
     val experience: String = "Beginner",
@@ -37,7 +37,7 @@ data class OnboardingProfile(
         age !in AppConstants.MIN_AGE..AppConstants.MAX_AGE -> "Enter an age from 13 to 100."
         !heightCm.isFinite() || heightCm !in AppConstants.MIN_HEIGHT_CM..AppConstants.MAX_HEIGHT_CM -> "Enter a height from 100 to 250 cm."
         !weightKg.isFinite() || weightKg !in AppConstants.MIN_WEIGHT_KG..AppConstants.MAX_WEIGHT_KG -> "Enter a weight from 20 to 300 kg."
-        !targetWeightKg.isFinite() || targetWeightKg !in AppConstants.MIN_WEIGHT_KG..AppConstants.MAX_WEIGHT_KG -> "Enter a target weight from 20 to 300 kg."
+        targetWeightKg != null && (!targetWeightKg.isFinite() || targetWeightKg !in AppConstants.MIN_WEIGHT_KG..AppConstants.MAX_WEIGHT_KG) -> "Enter a target weight from 20 to 300 kg."
         sex !in listOf("male", "female") -> "Choose the sex used for calorie estimates."
         units !in listOf("kg", "lb") -> "Choose metric or imperial units."
         experience !in EXPERIENCE_LEVELS -> "Choose your training experience."

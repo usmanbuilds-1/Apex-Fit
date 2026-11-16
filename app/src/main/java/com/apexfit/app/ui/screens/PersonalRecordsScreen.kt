@@ -42,8 +42,9 @@ fun PersonalRecordsScreen(progressViewModel: ProgressViewModel, onBack: () -> Un
                         else -> record.type.replace('_', ' ')
                     }
                     val suffix = if (record.type == "volume") "$units × reps" else units
-                    Card(colors = CardDefaults.cardColors(containerColor = DarkCardSurface)) {
-                        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Column {
+                        HorizontalDivider(color = ApexColors.BorderSubtle)
+                        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
                             Text(entry.displayName ?: record.exerciseId, color = PrimaryText, fontWeight = FontWeight.Bold)
                             Text("$label · ${record.value.toDisplayWeight(units)} $suffix", color = SecondaryText)
                             Text(record.date, color = SecondaryText)

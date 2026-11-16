@@ -326,7 +326,8 @@ data class UiSessionReadiness(
     val colorHex: String,
     val prediction: String,
     val recommendation: String,
-    val factors: ImmutableList<UiReadinessFactor> = persistentListOf()
+    val factors: ImmutableList<UiReadinessFactor> = persistentListOf(),
+    val confidence: String? = null
 )
 
 fun com.apexfit.app.utils.ComplianceResult.toUi(): UiComplianceResult = UiComplianceResult(
@@ -416,7 +417,7 @@ fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
         factorList.add(UiReadinessFactor(
             name = "${md.muscleGroup.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }} Recovery",
             impact = if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
-            value = "${md.readinessPercent}% (${md.confidence})"
+            value = if (md.confidence == "none") "Needs more training history" else "${md.dataPoints} logged exposures"
         ))
     }
 
@@ -426,7 +427,8 @@ fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
         colorHex = this.colorHex,
         prediction = predictionText,
         recommendation = this.recommendation,
-        factors = factorList.toPersistentList()
+        factors = factorList.toPersistentList(),
+        confidence = if (this.dataConfidence == "full") "More logged history" else "Limited logged history"
     )
 }
 

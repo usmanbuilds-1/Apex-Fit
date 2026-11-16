@@ -135,6 +135,23 @@ class ReadinessEngineTest {
     }
 
     @Test
+    fun readinessDoesNotProduceAnEstimateForUntrainedScheduledMuscles() {
+        val result = ReadinessFinal.calculate(
+            totalCompletedSessions = 10,
+            todaysMuscleGroups = listOf("chest"),
+            muscleFatigueHistory = emptyMap(),
+            muscleSessionHistory = emptyMap(),
+            systemicHistory = emptyList(),
+            systemicCapacity = 1500.0,
+            nutritionScore = 100,
+            acuteLoad = 0.0,
+            chronicLoad = 0.0
+        )
+        assertEquals("Building Baseline", result.label)
+        assertNull(result.finalScore)
+    }
+
+    @Test
     fun testReadinessFinalCalculate_boundary_noFatigue() {
         val res = ReadinessFinal.calculate(
             totalCompletedSessions = 10,

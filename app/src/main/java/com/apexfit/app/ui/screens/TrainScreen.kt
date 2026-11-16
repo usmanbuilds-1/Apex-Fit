@@ -37,7 +37,6 @@ import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -54,6 +53,36 @@ fun TrainTab(
 ) {
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showLibrary by rememberSaveable { mutableStateOf(false) }
+    val libraryContext = LocalContext.current
+    val libraryScope = rememberCoroutineScope()
+    var libraryDetail by remember { mutableStateOf<Pair<com.apexfit.app.data.Exercise, FormGuideContent>?>(null) }
+    var libraryError by remember { mutableStateOf(false) }
+
+    if (showLibrary) {
+        val library by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
+        BackHandler {
+            if (libraryDetail != null) libraryDetail = null else showLibrary = false
+        }
+        val detail = libraryDetail
+        if (detail != null) {
+            FormGuideSheet(detail.first, detail.second, onDismiss = { libraryDetail = null })
+        } else {
+            ExercisePicker(library, "Exercise library", onBack = { showLibrary = false }, onSelect = { exercise ->
+                libraryScope.launch {
+                    libraryDetail = runCatching { loadFormGuideData(libraryContext, exercise.name) }.getOrNull()
+                    libraryError = libraryDetail == null
+                }
+            })
+        }
+        if (libraryError) {
+            AlertDialog(onDismissRequest = { libraryError = false },
+                title = { Text("Exercise details unavailable") },
+                confirmButton = { TextButton(onClick = { libraryError = false }) { Text("Close") } })
+        }
+        return
+    }
+
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -67,6 +96,7 @@ fun TrainTab(
         ) {
             Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+            TextButton(onClick = { showLibrary = true }) { Text("Exercise library") }
             ApexSegmentedControl(
                 labels = listOf("Program", "Workout", "Plans"),
                 selectedIndex = subTab,
@@ -109,9 +139,10 @@ fun ProgramSubTab(
     val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
     val scope = rememberCoroutineScope()
-    var substJob: Job? by remember { mutableStateOf(null) }
-    val substitutionList by planBuilderViewModel.substitutionList.collectAsStateWithLifecycle()
-    val activeSubstIndex by planBuilderViewModel.activeSubstIndex.collectAsStateWithLifecycle()
+    var swapExercise by remember { mutableStateOf<com.apexfit.app.data.PlanExercise?>(null) }
+    var pendingSwap by remember { mutableStateOf<com.apexfit.app.data.PlanExercise?>(null) }
+    var replacement by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
+    var swapMessage by remember { mutableStateOf<String?>(null) }
 
     var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var formGuideContent by remember { mutableStateOf<FormGuideContent?>(null) }
@@ -127,15 +158,43 @@ fun ProgramSubTab(
         }
     }
 
-    val onSelectSubstitution: (Int, String, String) -> Unit = remember(scope, planBuilderViewModel) {
-        { index, muscleGroup, exerciseName ->
-            planBuilderViewModel.selectSubstIndex(index)
-            substJob?.cancel()
-            substJob = scope.launch {
-                val suggestions = planBuilderViewModel.getSubstitutionSuggestions(muscleGroup, exerciseName)
-                planBuilderViewModel.setSubstitutionList(suggestions)
+    val swap = swapExercise
+    if (swap != null) {
+        val library by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
+        ExercisePickerDialog(
+            state = library, title = "Substitute exercise",
+            initialMuscle = swap.muscleGroup, excludeId = swap.exerciseId,
+            onDismiss = { swapExercise = null },
+            onSelect = {
+                replacement = it
+                swapExercise = null
+                pendingSwap = swap
             }
-        }
+        )
+    }
+    val selectedReplacement = replacement
+    val original = pendingSwap
+    if (selectedReplacement != null && original != null) {
+        AlertDialog(
+            onDismissRequest = { replacement = null },
+            title = { Text("Substitute exercise?") },
+            text = { Text("Replace ${original.name} with ${selectedReplacement.name}. The new exercise starts with load calibration.") },
+            dismissButton = { TextButton(onClick = { replacement = null }) { Text("Cancel") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    replacement = null
+                    scope.launch {
+                        val updated = planBuilderViewModel.substituteScheduledExercise(original, selectedReplacement)
+                        swapMessage = if (updated) "Exercise updated" else "The exercise could not be updated."
+                    }
+                }) { Text("Replace") }
+            }
+        )
+    }
+    swapMessage?.let { message ->
+        AlertDialog(onDismissRequest = { swapMessage = null },
+            title = { Text(message) },
+            confirmButton = { TextButton(onClick = { swapMessage = null }) { Text("Close") } })
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -350,7 +409,7 @@ fun ProgramSubTab(
 
                                         // Replace Exercise button suggestion
                                         Button(
-                                            onClick = { onSelectSubstitution(index, ex.muscleGroup, ex.name) },
+                                            onClick = { swapExercise = ex },
                                             colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
                                             shape = RoundedCornerShape(8.dp),
                                             modifier = Modifier.weight(1f)
@@ -359,45 +418,6 @@ fun ProgramSubTab(
                                         }
                                     }
 
-                                    // If substitution recommendations loaded for this particular index
-                                    if (activeSubstIndex == index && substitutionList.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(DarkRaised)
-                                                .padding(10.dp),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                text = "Suggested Substitutions",
-                                                fontFamily = SyneFamily,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = AmberAccent
-                                            )
-
-                                            substitutionList.forEach { p ->
-                                                Column {
-                                                    Text(
-                                                        text = "• ${p.first}",
-                                                        fontFamily = SyneFamily,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = PrimaryText
-                                                    )
-                                                    Text(
-                                                        text = p.second,
-                                                        fontFamily = JetBrainsMonoFamily,
-                                                        fontSize = 11.sp,
-                                                        color = SecondaryText,
-                                                        lineHeight = 14.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -439,6 +459,12 @@ fun WorkoutExecutionSubTab(
     val warmupComp by workoutExecutionViewModel.warmupCompleted.collectAsStateWithLifecycle()
     val lastWeights by workoutExecutionViewModel.lastWeights.collectAsStateWithLifecycle()
     val weightContextLines by workoutExecutionViewModel.weightContextLines.collectAsStateWithLifecycle()
+    val liveSession by workoutExecutionViewModel.sessionManager.activeSession.collectAsStateWithLifecycle()
+    val volumeAdjustments = remember(liveSession) {
+        liveSession?.exercises.orEmpty().mapNotNull { exercise ->
+            exercise.volumeAdjustment?.let { exercise.exerciseId to it }
+        }.toMap()
+    }
     val preferredUnits by workoutExecutionViewModel.units.collectAsStateWithLifecycle()
     val saveError by workoutExecutionViewModel.saveError.collectAsStateWithLifecycle()
     val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
@@ -814,6 +840,8 @@ fun WorkoutExecutionSubTab(
                     warmupComp = warmupComp,
                     lastWeights = lastWeights,
                     weightContextLines = weightContextLines,
+                    volumeAdjustments = volumeAdjustments,
+                    onUndoVolumeAdjustment = workoutExecutionViewModel.sessionManager::undoSetVolumeAdjustment,
                     preferredUnits = preferredUnits,
                     showRirOverlay = showRirOverlay,
                     onOpenFormGuide = onOpenFormGuide,

@@ -19,6 +19,7 @@ import com.apexfit.app.data.DetectedPattern
 import com.apexfit.app.utils.PatternDetector
 import com.apexfit.app.utils.exerciseNameToSlug
 import com.apexfit.app.utils.getDaysBetweenClamped
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -47,6 +48,8 @@ class AuditRegressionTestV4 {
     private lateinit var db: AppDatabase
     private lateinit var dao: FitnessDao
     private lateinit var context: Context
+    private val sessionJob = kotlinx.coroutines.SupervisorJob()
+    private val sessionScope = kotlinx.coroutines.CoroutineScope(sessionJob + kotlinx.coroutines.Dispatchers.Unconfined)
 
     @Before
     fun createDb() {
@@ -102,8 +105,9 @@ class AuditRegressionTestV4 {
     @After
     @Throws(IOException::class)
     fun closeDb() {
-        db.close()
         runBlocking {
+            sessionJob.cancelAndJoin()
+            db.close()
             DataStoreManager.getInstance(context).saveActiveSessionJson(null)
         }
     }
@@ -154,7 +158,7 @@ class AuditRegressionTestV4 {
             primaryMuscle = "Back", equipmentRequired = "None")))
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
         val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+            sessionScope, dao, context)
         val exercise = PlanExercise(planSessionId = 1, exerciseId = "custom-id-123", name = "Unique Custom Row",
             muscleGroup = "Back", sets = 1, repsMin = 8, repsMax = 12, weight = 10.0,
             weightUnit = "kg", restSeconds = 90, notes = "")
@@ -164,6 +168,7 @@ class AuditRegressionTestV4 {
         assertEquals("custom-id-123", active.exerciseId)
         assertEquals("lb", active.sets.single().weightUnit)
         assertEquals(22.05, active.sets.single().weight, 0.1)
+        assertTrue(active.loadContext.orEmpty().contains("8–12 reps · about 2–3 RIR"))
         manager.discardAndExit()
     }
 
@@ -173,7 +178,7 @@ class AuditRegressionTestV4 {
             primaryMuscle = "Chest", equipmentRequired = "None")))
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
         val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+            sessionScope, dao, context)
         val exercise = PlanExercise(planSessionId = 1, exerciseId = "push-up", name = "Push Up", muscleGroup = "Chest",
             sets = 2, repsMin = 8, repsMax = 12, weight = 0.0, restSeconds = 90, notes = "")
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
@@ -193,7 +198,7 @@ class AuditRegressionTestV4 {
             val store = DataStoreManager.getInstance(context)
             val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
             val manager = com.apexfit.app.WorkoutSessionManager(repo, store,
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+                sessionScope, dao, context)
             val bench = PlanExercise(planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
                 muscleGroup = "Chest", sets = 1, repsMin = 8, repsMax = 12, weight = 20.0, restSeconds = 90, notes = "")
             val squat = bench.copy(id = 2, exerciseId = "squat", name = "Squat", muscleGroup = "Legs")
@@ -222,7 +227,7 @@ class AuditRegressionTestV4 {
         }
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
         val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+            sessionScope, dao, context)
         val exercise = PlanExercise(planSessionId = 1, exerciseId = "db-press-six", name = "Dumbbell Six Press",
             muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 6.25, restSeconds = 150, notes = "")
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
@@ -240,7 +245,7 @@ class AuditRegressionTestV4 {
         }
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
         val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+            sessionScope, dao, context)
         val exercise = PlanExercise(planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
             muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 100.0, restSeconds = 180, notes = "")
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
@@ -253,7 +258,7 @@ class AuditRegressionTestV4 {
     fun planRestOverridesGenericMetadata() = runBlocking {
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
         val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined), dao, context)
+            sessionScope, dao, context)
         val exercise = PlanExercise(planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
             muscleGroup = "Chest", sets = 2, repsMin = 8, repsMax = 12, weight = 20.0,
             restSeconds = 150, notes = "")
@@ -603,7 +608,7 @@ class AuditRegressionTestV4 {
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
             repository = repo,
             dataStore = dataStore,
-            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            scope = sessionScope,
             dao = dao,
             appContext = context
         )
@@ -695,7 +700,7 @@ class AuditRegressionTestV4 {
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
             repository = repo,
             dataStore = dataStore,
-            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            scope = sessionScope,
             dao = dao,
             appContext = context
         )
@@ -782,7 +787,7 @@ class AuditRegressionTestV4 {
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
             repository = repo,
             dataStore = dataStore,
-            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            scope = sessionScope,
             dao = dao,
             appContext = context
         )
@@ -870,7 +875,7 @@ class AuditRegressionTestV4 {
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
             repository = repo,
             dataStore = dataStore,
-            scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+            scope = sessionScope,
             dao = dao,
             appContext = context
         )

@@ -3,9 +3,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.devtools.ksp)
     alias(libs.plugins.hilt)
+    id("com.android.compose.screenshot") version "0.0.1-alpha16"
 }
 
 android {
+    experimentalProperties["android.experimental.enableScreenshotTest"] = true
     val gitCommitCount = providers.exec {
         commandLine("git", "rev-list", "--count", "HEAD")
         isIgnoreExitValue = true
@@ -103,6 +105,9 @@ ksp {
 }
 
 dependencies {
+    "screenshotTestImplementation"(platform(libs.androidx.compose.bom))
+    "screenshotTestImplementation"(libs.androidx.compose.ui.tooling)
+    "screenshotTestImplementation"("com.android.tools.screenshot:screenshot-validation-api:0.0.1-alpha16")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

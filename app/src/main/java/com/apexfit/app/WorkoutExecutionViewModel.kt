@@ -1,6 +1,8 @@
 @file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 package com.apexfit.app
 
+import com.apexfit.app.utils.fromDisplayWeightToKg
+
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -66,8 +68,8 @@ class WorkoutExecutionViewModel @Inject constructor(
                 name = entry.exerciseName,
                 muscleGroup = entry.muscleGroup,
                 sets = entry.sets.size,
-                repsMin = entry.sets.firstOrNull()?.reps ?: 6,
-                repsMax = entry.sets.firstOrNull()?.reps ?: 12,
+                repsMin = entry.targetRepsMin ?: entry.sets.firstOrNull()?.reps ?: 6,
+                repsMax = entry.targetRepsMax ?: entry.sets.firstOrNull()?.reps ?: 12,
                 weight = entry.sets.firstOrNull()?.weight ?: 0.0,
                 restSeconds = 90,
                 notes = ""
@@ -153,13 +155,9 @@ class WorkoutExecutionViewModel @Inject constructor(
     private val _showSessionCompleteScreen = MutableStateFlow(false)
     val showSessionCompleteScreen: StateFlow<Boolean> = _showSessionCompleteScreen.asStateFlow()
 
-    private val _completedStats = MutableStateFlow<Pair<Int, Double>>(0 to 0.0) // Pair of (DurationMinutes, TotalVolumeWeight)
-    val completedStats: StateFlow<Pair<Int, Double>> = _completedStats.asStateFlow()
+    private val _completedReceipt = MutableStateFlow<SessionCommitResult?>(null)
+    val completedReceipt: StateFlow<SessionCommitResult?> = _completedReceipt.asStateFlow()
 
-    private val _completedPRsBroken = MutableStateFlow<List<String>>(emptyList())
-    val completedPRsBroken: StateFlow<List<String>> = _completedPRsBroken.asStateFlow()
-
-    // RIR Selector Overlay State
     data class RirOverlayState(
         val isVisible: Boolean = false,
         val exerciseId: String = "",
@@ -411,7 +409,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                                 exerciseId = ex.exerciseId,
                                 exerciseName = ex.exerciseName,
                                 muscleGroup = ex.muscleGroup,
-                                weight = setObj.weight,
+                                weight = setObj.weight.fromDisplayWeightToKg(setObj.weightUnit),
                                 reps = setObj.reps,
                                 rpe = setObj.rpe,
                                 isWarmup = setObj.isWarmup,
@@ -429,12 +427,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                 _lastCompletedSessionSets.value = completedSets
                 val result = sessionManager.commitToDatabase(sessionFeel)
                 sessionManager.clearPersistedSession()
-                _completedStats.value = result.durationMinutes to (result.totalVolumeTonnes * 1000.0)
-
-                _completedPRsBroken.value = result.confirmedPRs.map { exerciseId ->
-                    val exerciseName = session?.exercises?.find { it.exerciseId == exerciseId }?.exerciseName ?: "Exercise"
-                    "$exerciseName PR Conquered!"
-                }
+                _completedReceipt.value = result
 
                 val score = withContext(Dispatchers.Default) {
                     calculateWorkoutSessionHypertrophyQualityScore(completedSets)
@@ -509,7 +502,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                                 exerciseId = ex.exerciseId,
                                 exerciseName = ex.exerciseName,
                                 muscleGroup = ex.muscleGroup,
-                                weight = setObj.weight,
+                                weight = setObj.weight.fromDisplayWeightToKg(setObj.weightUnit),
                                 reps = setObj.reps,
                                 rpe = setObj.rpe,
                                 isWarmup = setObj.isWarmup,
@@ -527,12 +520,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                 _lastCompletedSessionSets.value = completedSets
                 val result = sessionManager.savePartialAndExit(sessionFeel)
                 sessionManager.clearPersistedSession()
-                _completedStats.value = result.durationMinutes to (result.totalVolumeTonnes * 1000.0)
-                
-                _completedPRsBroken.value = result.confirmedPRs.map { exerciseId ->
-                    val exerciseName = session?.exercises?.find { it.exerciseId == exerciseId }?.exerciseName ?: "Exercise"
-                    "$exerciseName PR Conquered!"
-                }
+                _completedReceipt.value = result
 
                 val score = withContext(Dispatchers.Default) {
                     calculateWorkoutSessionHypertrophyQualityScore(completedSets)

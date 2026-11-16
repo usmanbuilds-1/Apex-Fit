@@ -45,6 +45,8 @@ fun ExerciseListSection(
     warmupComp: Map<String, Boolean>,
     lastWeights: Map<String, Double>,
     weightContextLines: Map<String, String>,
+    volumeAdjustments: Map<String, com.apexfit.app.utils.SetVolumeAdjustment>,
+    onUndoVolumeAdjustment: (String) -> Boolean,
     preferredUnits: String,
     showRirOverlay: Boolean,
     onOpenFormGuide: (String) -> Unit,
@@ -160,6 +162,32 @@ fun ExerciseListSection(
                         fontWeight = FontWeight.ExtraBold,
                         color = PrimaryText
                     )
+                    val adjustment = volumeAdjustments[ex.exerciseId]
+                    if (adjustment != null) {
+                        var showVolumeReason by rememberSaveable(ex.exerciseId) { mutableStateOf(false) }
+                        Text("${adjustment.baseSets} → ${adjustment.adjustedSets} sets",
+                            color = ApexColors.Primary, style = MaterialTheme.typography.titleMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { showVolumeReason = true }) { Text("Why?") }
+                            TextButton(
+                                enabled = loggedSets[ex.exerciseId].orEmpty().let { sets ->
+                                    sets.size == adjustment.adjustedSets && sets.none { it.completed || it.isWarmup }
+                                },
+                                onClick = { onUndoVolumeAdjustment(ex.exerciseId) }
+                            ) { Text("Undo") }
+                        }
+                        if (showVolumeReason) {
+                            AlertDialog(
+                                onDismissRequest = { showVolumeReason = false },
+                                title = { Text("Today's set target") },
+                                text = { Text(adjustment.reason) },
+                                confirmButton = {
+                                    TextButton(onClick = { showVolumeReason = false }) { Text("Done") }
+                                }
+                            )
+                        }
+                    }
+
                     val contextLine = weightContextLines[ex.exerciseId] ?: ""
                     if (contextLine.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(6.dp))

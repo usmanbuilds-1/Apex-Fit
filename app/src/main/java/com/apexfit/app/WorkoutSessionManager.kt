@@ -84,6 +84,9 @@ class WorkoutSessionManager(
                             )
                         }
                         _restoredFromDisk.value = true
+                        _weightContextLines.value = restored.exercises.mapNotNull { exercise ->
+                            exercise.loadContext?.let { exercise.exerciseId to it }
+                        }.toMap()
                         _activeSession.value = restored
                     }
                 } catch (e: Exception) {
@@ -140,8 +143,9 @@ class WorkoutSessionManager(
 
     /**
      * Called when user taps a plan day to begin.
-     * Calculates the starting or progressive overload suggested weights per scientific calculations.
+     * Initializes first-exposure calibration or uses the latest completed working sets.
      */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun startSession(
         planSession: PlanSession,
         exercises: List<PlanExercise>,
@@ -251,37 +255,28 @@ class WorkoutSessionManager(
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
-            if (isBodyweight && ex.weight <= 0.0 && (lastSet == null || lastSet.weight <= 0.0)) {
+            if (lastSet == null) {
+                val prescribedLoad = ex.weight.takeIf { it.isFinite() && it > 0.0 }
+                val calibrationLoad = prescribedLoad ?: 0.0
+                suggestionsMap[exerciseSlug] = calibrationLoad.toDisplayWeight(exerciseUnit)
+                lastWeightMap[exerciseSlug] = calibrationLoad
+                val effort = "Target: ${ex.repsMin}–${ex.repsMax} reps · about 2–3 RIR."
+                contextLinesMap[exerciseSlug] = when {
+                    isBodyweight -> "Calibration · bodyweight. Record any added load separately. $effort"
+                    prescribedLoad != null -> "Calibration · adjust the plan load as needed. $effort"
+                    else -> "Calibration · enter a comfortable starting load. $effort"
+                }
+            } else if (isBodyweight && ex.weight <= 0.0 && lastSet.weight <= 0.0) {
                 suggestionsMap[exerciseSlug] = 0.0
                 lastWeightMap[exerciseSlug] = 0.0
-                contextLinesMap[exerciseSlug] = "Bodyweight: log added load only if you use it."
-            } else if (lastSet == null) {
-                // First-time or beginner starting weight
-                suggestedPreferred = if (ex.weight > 0.0) {
-                    ex.weight.toDisplayWeight(exerciseUnit)
-                } else {
-                    com.apexfit.app.utils.ProgressionEngine.calculateBeginnerStartingWeight(
-                        exerciseType = exType,
-                        userBodyWeightKg = userWeight,
-                        userHeightCm = userHeight,
-                        preferredUnits = exerciseUnit
-                    )
-                }
-
-                suggestionsMap[exerciseSlug] = suggestedPreferred
-                lastWeightMap[exerciseSlug] = suggestedPreferred.fromDisplayWeightToKg(exerciseUnit)
-                contextLinesMap[exerciseSlug] = if (ex.weight > 0.0) {
-                    "Plan starting weight: $suggestedPreferred $exerciseUnit"
-                } else {
-                    "First session suggestion (Beginner Base): $suggestedPreferred $exerciseUnit"
-                }
+                contextLinesMap[exerciseSlug] = "Bodyweight · record added load only if you use it."
             } else {
                 val daysSince = com.apexfit.app.utils.getDaysBetweenClamped(lastSet.date, today)
 
                 val lastWeightLbs = lastSet.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS
 
                 val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
-                val readinessPercent = muscleReadinessDetail?.readinessPercent
+                val readinessPercent = muscleReadinessDetail?.readinessPercent.takeIf { readinessScore?.finalScore != null }
 
                 // The DAO returns the latest set first so lastSet above stays the
                 // most recent load for context. Progression, however, must evaluate
@@ -414,17 +409,45 @@ class WorkoutSessionManager(
         _lastWeights.value = lastWeightMap
         _weightContextLines.value = contextLinesMap
 
+        val proposedGoal = dao.getAllPlans().firstOrNull { it.id == planSession.planId }?.goal.orEmpty()
+        val recentSessions = repository.richSessionsFlow.value
+        val readinessByMuscle = readinessScore?.takeIf { it.finalScore != null }
+            ?.muscleDetails.orEmpty().filter { it.confidence != "none" }
+            .associateBy { com.apexfit.app.utils.MuscleAliases.getCanonical(it.muscleGroup) }
+        val adjustedMuscles = mutableSetOf<String>()
         // Build the in-memory session with pre-filled sets
         val activeExercises = exercises.map { ex ->
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
             val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
             val suggestedWeight = suggestionsMap[exerciseSlug] ?: ex.weight.toDisplayWeight(exerciseUnit)
+            val muscle = com.apexfit.app.utils.MuscleAliases.getCanonical(ex.muscleGroup)
+            val lastLoggedWeight = lastSets[exerciseSlug]?.firstOrNull()?.weight
+            val readinessForVolume = readinessByMuscle[muscle]?.readinessPercent?.let { local ->
+                minOf(local, readinessScore?.systemicReadiness ?: local)
+            }
+            val adjustment = if (muscle !in adjustedMuscles && lastLoggedWeight != null) {
+                com.apexfit.app.utils.AdaptiveSetVolume.adjustment(
+                    goal = proposedGoal,
+                    exerciseId = exerciseSlug,
+                    baseSets = ex.sets,
+                    repsMin = ex.repsMin,
+                    sessions = recentSessions,
+                    today = java.time.LocalDate.parse(today),
+                    readiness = readinessForVolume,
+                    loadChanged = kotlin.math.abs(suggestedWeight.fromDisplayWeightToKg(exerciseUnit) - lastLoggedWeight) > 0.05
+                )
+            } else null
+            if (adjustment != null) adjustedMuscles.add(muscle)
             ActiveExercise(
                 exerciseId = exerciseSlug,
                 exerciseName = ex.name,
                 muscleGroup = ex.muscleGroup,
                 restSeconds = ex.restSeconds.takeIf { it > 0 },
-                sets = (1..ex.sets).map { setNum ->
+                targetRepsMin = ex.repsMin,
+                targetRepsMax = ex.repsMax,
+                loadContext = contextLinesMap[exerciseSlug],
+                volumeAdjustment = adjustment,
+                sets = (1..(adjustment?.adjustedSets ?: ex.sets)).map { setNum ->
                     ActiveSet(
                         setNumber = setNum,
                         weight = suggestedWeight,
@@ -443,6 +466,7 @@ class WorkoutSessionManager(
             planSessionId = planSession.id.toString(),
             sessionType = planSession.label,
             startTime = System.currentTimeMillis(),
+            readinessScore = readinessScore?.finalScore,
             exercises = activeExercises
         )
         persistSession()
@@ -542,6 +566,19 @@ class WorkoutSessionManager(
         persistSession()
     }
 
+
+    fun undoSetVolumeAdjustment(exerciseId: String): Boolean {
+        val session = _activeSession.value ?: return false
+        val exercise = session.exercises.firstOrNull { it.exerciseId == exerciseId } ?: return false
+        val sets = exercise.volumeAdjustment?.revert(exercise.sets) ?: return false
+        val restored = exercise.copy(sets = sets.toMutableList(), volumeAdjustment = null)
+        val updated = session.copy(exercises = session.exercises.map {
+            if (it === exercise) restored else it
+        }.toMutableList())
+        if (!_activeSession.compareAndSet(session, updated)) return false
+        persistSession()
+        return true
+    }
 
     private fun persistSession() {
         persistJob?.cancel()
@@ -649,6 +686,14 @@ class WorkoutSessionManager(
                 }
         }
 
+        val volumeNotes = session.exercises.mapNotNull { exercise ->
+            exercise.volumeAdjustment?.takeIf { exercise.sets.any { it.completed && !it.isWarmup } }?.let {
+                "${exercise.exerciseName}: ${it.baseSets} → ${it.adjustedSets} planned sets. ${it.reason}"
+            }
+        }
+        val sessionNotes = (listOfNotNull(session.notes?.takeIf(String::isNotBlank)) + volumeNotes)
+            .joinToString("\n").takeIf(String::isNotBlank)
+
         val trainingSession = TrainingSession(
             id = sessionId,
             // Attribute a cross-midnight workout to the local calendar day it began.
@@ -660,7 +705,7 @@ class WorkoutSessionManager(
             planSessionId = session.planSessionId.toLongOrNull(),
             status = if (isPartial) "partial" else "completed",
             readinessScoreAtStart = session.readinessScore,
-            notes = session.notes,
+            notes = sessionNotes,
             startedAt = session.startTime,
             completedAt = completedAt
         )
@@ -712,7 +757,9 @@ class WorkoutSessionManager(
             totalVolumeTonnes = totalVolume / 1000.0,
             setsCompleted = allSets.count { it.completed && !it.isWarmup },
             confirmedPRs = confirmedPRs,
-            sessionType = session.sessionType
+            sessionType = session.sessionType,
+            records = prs,
+            isPartial = isPartial
         )
     }
 
@@ -794,7 +841,9 @@ data class SessionCommitResult(
     val totalVolumeTonnes: Double,  // in tonnes (kg / 1000)
     val setsCompleted: Int,
     val confirmedPRs: List<String>, // list of exerciseIds with new PRs
-    val sessionType: String
+    val sessionType: String,
+    val records: List<com.apexfit.app.data.PersonalRecord> = emptyList(),
+    val isPartial: Boolean = false
 ) {
     companion object {
         fun empty() = SessionCommitResult("", 0, 0.0, 0, emptyList(), "")

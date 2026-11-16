@@ -341,7 +341,7 @@ fun ApexFitApp(
             isSaving = onboardingSaving,
             saveError = onboardingError,
             onExplore = { fitnessViewModel.completeTrainingSetup() },
-            onComplete = { profile -> fitnessViewModel.completeTrainingSetup(profile) }
+            onComplete = { profile -> fitnessViewModel.completeOnboarding(profile) }
         )
         } // end false branch
         true -> {

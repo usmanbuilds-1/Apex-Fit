@@ -144,6 +144,37 @@ class PlanBuilderViewModel @Inject constructor(
         planBuilderExercises.value = planBuilderExercises.value.map { if (it.id == exercise.id) exercise else it }
     }
 
+    suspend fun substituteScheduledExercise(original: PlanExercise, replacement: Exercise): Boolean =
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                db.withTransaction {
+                    val current = dao.getExercisesForSession(original.planSessionId)
+                        .firstOrNull { it.id == original.id && it.exerciseId == original.exerciseId }
+                        ?: return@withTransaction false
+                    val target = dao.getExerciseById(replacement.id)?.takeIf { it.isDeleted == 0 }
+                        ?: return@withTransaction false
+                    val rest = dao.getMetadataForExercise(target.id)?.defaultRestSeconds
+                        ?.takeIf { it > 0 } ?: current.restSeconds
+                    dao.updatePlanExercise(current.copy(
+                        exerciseId = target.id, name = target.name, muscleGroup = target.primaryMuscle,
+                        weight = 0.0, restSeconds = rest, notes = ""
+                    ))
+                    val session = selectedDaySession.value?.takeIf { it.id == current.planSessionId }
+                    if (session != null) {
+                        val focus = dao.getExercisesForSession(session.id)
+                            .map { it.muscleGroup }.distinct().joinToString(", ")
+                        dao.updatePlanSession(session.copy(focus = focus))
+                    }
+                    true
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("PlanBuilderViewModel", "Unable to substitute exercise", e)
+                false
+            }
+        }
+
     fun deleteExercise(exerciseId: Long) {
         planBuilderExercises.value = planBuilderExercises.value.filter { it.id != exerciseId }
     }
