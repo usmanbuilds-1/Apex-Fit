@@ -34,7 +34,7 @@ data class OnboardingProfile(
     fun validationError(): String? = when {
         name.isBlank() || name.length > AppConstants.MAX_NAME_LENGTH -> "Please enter a name of 1–50 characters."
         goal !in GOALS -> "Choose a training goal."
-        age !in AppConstants.MIN_AGE..AppConstants.MAX_AGE -> "Enter an age from 13 to 100."
+        age !in AppConstants.MIN_AGE..AppConstants.MAX_AGE -> "Apex Fit is currently for adults aged 18 to 100."
         !heightCm.isFinite() || heightCm !in AppConstants.MIN_HEIGHT_CM..AppConstants.MAX_HEIGHT_CM -> "Enter a height from 100 to 250 cm."
         !weightKg.isFinite() || weightKg !in AppConstants.MIN_WEIGHT_KG..AppConstants.MAX_WEIGHT_KG -> "Enter a weight from 20 to 300 kg."
         targetWeightKg != null && (!targetWeightKg.isFinite() || targetWeightKg !in AppConstants.MIN_WEIGHT_KG..AppConstants.MAX_WEIGHT_KG) -> "Enter a target weight from 20 to 300 kg."

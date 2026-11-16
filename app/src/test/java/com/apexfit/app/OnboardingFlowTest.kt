@@ -65,6 +65,28 @@ class OnboardingFlowTest {
         compose.onNodeWithText("Recomposition").assertExists()
     }
 
+    @Test
+    fun personalDetailsRequireAdultAge() {
+        compose.setContent { OnboardingScreen(onComplete = {}) }
+        compose.onNodeWithTag("onboarding_welcome_next").performScrollTo().performClick()
+        compose.onNodeWithText("Gain Muscle").performScrollTo().performClick()
+        compose.onNodeWithTag("onboarding_continue").performClick()
+
+        compose.onNodeWithTag("onboarding_name").performScrollTo().performTextInput("Alex")
+        compose.onNodeWithTag("onboarding_height").performScrollTo().performTextInput("175")
+        compose.onNodeWithTag("onboarding_weight").performScrollTo().performTextInput("70")
+        compose.onNodeWithTag("onboarding_age").performScrollTo().performTextInput("17")
+        compose.onNodeWithText("Male").performScrollTo().performClick()
+        compose.onNodeWithTag("onboarding_continue").performClick()
+        compose.onNodeWithText("Apex Fit is currently for adults aged 18 to 100.").assertExists()
+        compose.onNodeWithText("Personal details").assertExists()
+
+        compose.onNodeWithTag("onboarding_age").performScrollTo().performTextClearance()
+        compose.onNodeWithTag("onboarding_age").performTextInput("18")
+        compose.onNodeWithTag("onboarding_continue").performClick()
+        compose.onNodeWithText("What’s your training experience?").assertExists()
+    }
+
     private fun fillProfileDetails() {
         compose.onNodeWithTag("onboarding_name").performScrollTo().performTextInput("Alex")
         compose.onNodeWithTag("onboarding_height").performScrollTo().performTextInput("175")

@@ -37,6 +37,7 @@ import com.apexfit.app.data.NutritionTargets
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.ui.theme.ArchivoFamily
 import com.apexfit.app.utils.MacroEngine
+import com.apexfit.app.utils.AppConstants
 import com.apexfit.app.utils.StarterPlanBuilder
 import com.apexfit.app.utils.TdeeEngine
 
@@ -103,7 +104,9 @@ internal fun OnboardingContent(
     val nameError = if (name.trim().isEmpty() || name.trim().length > 50) "Enter a name of 1–50 characters." else null
     val heightError = if (heightCm == null || !heightCm.isFinite() || heightCm !in 100.0..250.0) "Enter a height from ${if (imperial) "39.4 to 98.4 in" else "100 to 250 cm"}." else null
     val weightError = if (weightKg == null || !weightKg.isFinite() || weightKg !in 20.0..300.0) "Enter a weight from ${if (imperial) "44.1 to 661.4 lb" else "20 to 300 kg"}." else null
-    val ageError = if (age.toIntOrNull() !in 13..100) "Enter an age from 13 to 100." else null
+    val ageError = if (age.toIntOrNull() !in AppConstants.MIN_AGE..AppConstants.MAX_AGE) {
+        "Apex Fit is currently for adults aged 18 to 100."
+    } else null
     val detailsValid = nameError == null && heightError == null && weightError == null && ageError == null && sex.isNotEmpty()
     val profile = if (detailsValid && goal != null && experience != null) OnboardingProfile(
         name = name.trim(), goal = goal!!, experience = experience!!,

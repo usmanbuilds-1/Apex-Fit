@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
+import com.apexfit.app.utils.AppConstants
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -324,7 +325,9 @@ fun SettingsScreen(
                         val filtered = it.filter { c -> c.isDigit() }
                         editAge = filtered
                         val v = filtered.toIntOrNull()
-                        ageError = if (v != null && v !in 13..100) "Age must be 13-100" else null
+                        ageError = if (v != null && v !in AppConstants.MIN_AGE..AppConstants.MAX_AGE) {
+                            "Apex Fit is currently for adults aged 18 to 100."
+                        } else null
                     },
                     isError = ageError != null,
                     supportingText = ageError?.let { { Text(it, color = RedAccent) } },
@@ -563,8 +566,8 @@ fun SettingsScreen(
                         manualCalError = null
                     }
                     val ageVal = editAge.toIntOrNull() ?: 0
-                    if (ageVal !in 13..100) {
-                        ageError = "Age must be 13-100"
+                    if (ageVal !in AppConstants.MIN_AGE..AppConstants.MAX_AGE) {
+                        ageError = "Apex Fit is currently for adults aged 18 to 100."
                         return@Button
                     } else {
                         ageError = null
