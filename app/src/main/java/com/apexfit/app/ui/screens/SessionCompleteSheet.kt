@@ -57,7 +57,7 @@ internal fun SessionCompleteSheet(
                 ?.let { "$it complete" } ?: "Workout complete"
             Text(title, style = MaterialTheme.typography.headlineLarge, color = ApexColors.TextPrimary)
             val duration = if (receipt.durationMinutes > 0) "${receipt.durationMinutes} min · " else ""
-            Text("$duration${receipt.setsCompleted} working sets · $volume $units", color = ApexColors.TextSecondary)
+            Text("$duration${receipt.setsCompleted} working sets · $volume $units total load", color = ApexColors.TextSecondary)
             HorizontalDivider(color = ApexColors.BorderSubtle)
             if (showDetails) {
                 sessionSets.filter { it.completed }.groupBy { it.exerciseId }.values.forEach { sets ->

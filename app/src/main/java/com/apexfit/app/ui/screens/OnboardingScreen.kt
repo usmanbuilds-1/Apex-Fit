@@ -24,6 +24,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -180,15 +181,35 @@ internal fun OnboardingContent(
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     (2..5).forEach { value ->
                                         Surface(onClick = { days = value }, enabled = !isSaving,
-                                            color = if (days == value) SetupText else SetupSurface,
-                                            contentColor = if (days == value) SetupGround else SetupText,
+                                            color = if (days == value) ApexColors.PrimaryMist else SetupSurface,
+                                            contentColor = if (days == value) SetupAccent else SetupText,
                                             shape = RoundedCornerShape(6.dp), modifier = Modifier.weight(1f)
+                                                .semantics { selected = days == value }
                                                 .testTag("onboarding_frequency_$value")) {
                                             Box(Modifier.heightIn(min = 52.dp).padding(4.dp), contentAlignment = Alignment.Center) {
                                                 Text("$value days", fontSize = 13.sp, fontFamily = SetupFont, fontWeight = FontWeight.SemiBold)
                                             }
                                         }
                                     }
+                                }
+                                val sessions = remember(days) { StarterPlanBuilder.templates(days) }
+                                Spacer(Modifier.height(24.dp))
+                                Text("$days days / week", style = MaterialTheme.typography.titleLarge)
+                                SetupBody(when (days) {
+                                    2, 3 -> "Full body"
+                                    4 -> "Upper / Lower"
+                                    else -> "Upper / Lower + Push / Pull / Legs"
+                                }, Modifier.padding(top = 4.dp, bottom = 16.dp))
+                                Text("First week", style = MaterialTheme.typography.titleMedium)
+                                sessions.forEach { session ->
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                    ) {
+                                        Text(session.day.take(3), color = SetupMuted, modifier = Modifier.width(36.dp))
+                                        Text(session.label, color = SetupText)
+                                    }
+                                    HorizontalDivider(color = ApexColors.BorderSubtle)
                                 }
                             }
                             5 -> profile?.let { SetupReady(it) }
@@ -331,8 +352,13 @@ internal fun SetupReady(profile: OnboardingProfile) {
             Text(session.day.take(3), color = SetupMuted, modifier = Modifier.width(36.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(session.label, style = MaterialTheme.typography.titleMedium, color = SetupText)
-                Text(session.exercises.take(3).joinToString(" · "), style = MaterialTheme.typography.bodySmall,
-                    color = SetupMuted)
+                val remaining = session.exercises.size - 3
+                val exercises = session.exercises.take(3).joinToString(" · ")
+                Text(
+                    if (remaining > 0) "$exercises · +$remaining more" else exercises,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SetupMuted
+                )
             }
         }
         HorizontalDivider(color = ApexColors.BorderSubtle)

@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.HomeViewModel
 import com.apexfit.app.data.RichTrainingSession
 import com.apexfit.app.ui.components.ApexAnatomy
+import com.apexfit.app.ui.components.showsOnBackOnly
 import com.apexfit.app.ui.components.ApexSegmentedControl
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.MuscleVolumePeriod
@@ -40,13 +41,14 @@ internal fun MuscleVolumeContent(
     onBack: () -> Unit
 ) {
     var periodIndex by rememberSaveable { mutableIntStateOf(0) }
-    var showBack by rememberSaveable { mutableStateOf(false) }
+    var preferredBack by rememberSaveable { mutableStateOf<Boolean?>(null) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     BackHandler(enabled = selected != null) { selected = null }
     val period = MuscleVolumePeriod.entries[periodIndex]
     val rows = remember(sessions, today, period) {
         sessions?.let { MuscleVolumeSummary.calculate(it, today, period) }.orEmpty()
     }
+    val showBack = preferredBack ?: (rows.firstOrNull { it.directSets > 0 }?.muscle?.let(::showsOnBackOnly) == true)
     val chosen = rows.find { it.muscle == selected }
     val directCounts = remember(rows) { rows.associate { it.muscle to it.directSets } }
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
@@ -65,7 +67,10 @@ internal fun MuscleVolumeContent(
                 modifier = Modifier.padding(vertical = 8.dp))
             ApexSegmentedControl(
                 labels = listOf("Week", "Month"), selectedIndex = periodIndex,
-                onSelect = { periodIndex = it }
+                onSelect = {
+                    periodIndex = it
+                    preferredBack = null
+                }
             )
             Text("${window.start.format(dateFormat)} – ${window.endInclusive.format(dateFormat)}",
                 color = ApexColors.TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
@@ -95,7 +100,7 @@ internal fun MuscleVolumeContent(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(if (showBack) "Back" else "Front", style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = { showBack = !showBack }) {
+                        TextButton(onClick = { preferredBack = !showBack }) {
                             Text(if (showBack) "Show front" else "Show back")
                         }
                     }

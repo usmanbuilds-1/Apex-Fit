@@ -47,7 +47,7 @@ fun PersonalRecordsScreen(progressViewModel: ProgressViewModel, onBack: () -> Un
                         Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
                             Text(entry.displayName ?: record.exerciseId, color = PrimaryText, fontWeight = FontWeight.Bold)
                             Text("$label · ${record.value.toDisplayWeight(units)} $suffix", color = SecondaryText)
-                            Text(record.date, color = SecondaryText)
+                            Text(com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(record.date), color = SecondaryText)
                         }
                     }
                 }

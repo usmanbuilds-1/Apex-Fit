@@ -126,63 +126,15 @@ fun DeloadCard(
 ) {
     if (deloadResult.urgency.equals("none", ignoreCase = true) || deloadResult.urgency.isEmpty()) return
 
-    androidx.compose.material3.Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = DarkRaised,
-        border = BorderStroke(1.dp, AmberAccent.copy(alpha = 0.5f)),
-        modifier = modifier.fillMaxWidth()
+    Column(
+        modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            // Amber left accent bar
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(ApexColors.Primary)
-            )
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-                    .fillMaxWidth()
-            ) {
-                Text(
-                    text = "DELOAD RECOMMENDED",
-                    fontFamily = SyneFamily,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = AmberAccent,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = deloadResult.recommendation,
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 12.sp,
-                    color = SecondaryText
-                )
-                if (deloadResult.protocol.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    deloadResult.protocol.forEach { action ->
-                        Row(
-                            verticalAlignment = Alignment.Top,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        ) {
-                            Text(
-                                text = "→ ",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 12.sp,
-                                color = AmberAccent
-                            )
-                            Text(
-                                text = action,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 12.sp,
-                                color = PrimaryText
-                            )
-                        }
-                    }
-                }
-            }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Deload recommended", style = MaterialTheme.typography.titleMedium)
+        Text(deloadResult.recommendation, color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
+        deloadResult.protocol.forEach { action ->
+            Text(action, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -527,7 +479,7 @@ fun ProgressMainTabContent(
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
                         Text(
-                            text = "Tracked for each day entered with system local time auto picked.",
+                            text = "Entries use your local date.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = MutedText,

@@ -84,7 +84,7 @@ internal fun MuscleRecoveryContent(
                             ) {
                                 Column(Modifier.weight(1f)) {
                                     Text(status.muscleGroup, style = MaterialTheme.typography.titleMedium)
-                                    Text("Last trained ${status.lastTrainedDate}", color = MutedText)
+                                    Text("Last trained ${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(status.lastTrainedDate)}", color = MutedText)
                                 }
                                 if (status.hoursRemaining > 0) {
                                     Text("~${status.hoursRemaining} h remaining", color = AmberAccent)

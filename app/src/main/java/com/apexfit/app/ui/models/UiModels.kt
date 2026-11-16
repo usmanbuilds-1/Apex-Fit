@@ -428,7 +428,7 @@ fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
         prediction = predictionText,
         recommendation = this.recommendation,
         factors = factorList.toPersistentList(),
-        confidence = if (this.dataConfidence == "full") "More logged history" else "Limited logged history"
+        confidence = if (this.dataConfidence == "full") "Higher" else "Limited"
     )
 }
 

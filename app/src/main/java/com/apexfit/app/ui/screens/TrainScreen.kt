@@ -256,13 +256,11 @@ fun ProgramSubTab(
                 ) {
                     // Focus Card first
                     item {
-                        PremiumCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
                             Text(
-                                text = "CURRENT SESSION PARAMETERS",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AmberAccent
+                                text = "Scheduled workout",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = SecondaryText
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -281,24 +279,6 @@ fun ProgramSubTab(
                             )
 
                             Spacer(modifier = Modifier.height(14.dp))
-
-                            // Fast Warmup Checklist preview
-                            Text(
-                                text = "Warmup",
-                                fontFamily = SyneFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryText
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "✓ 5 Mins light cardio + Shoulder cuff activations + Barbell sets",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                color = MutedText
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
 
                             Button(
                                 onClick = {

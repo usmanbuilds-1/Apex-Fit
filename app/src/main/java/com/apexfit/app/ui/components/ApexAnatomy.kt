@@ -48,6 +48,9 @@ private val back = shoulders + forearms + calves +
     pair("glutes", 54, 138, 77, 139, 76, 154, 62, 162, 51, 155) +
     pair("hamstrings", 53, 163, 68, 165, 76, 157, 72, 187, 67, 201, 59, 194)
 
+internal fun showsOnBackOnly(muscle: String): Boolean =
+    back.any { it.muscle == muscle } && front.none { it.muscle == muscle }
+
 private fun List<Offset>.containsPoint(point: Offset): Boolean {
     var contains = false
     var previous = last()

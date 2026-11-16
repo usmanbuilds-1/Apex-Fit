@@ -99,6 +99,6 @@ internal fun WorkoutHistoryDetail(
 }
 
 private fun sessionSummary(session: TrainingSession): String = listOfNotNull(
-    session.date, "${session.durationMinutes} min".takeIf { session.durationMinutes > 0 },
+    com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(session.date), "${session.durationMinutes} min".takeIf { session.durationMinutes > 0 },
     "Partial".takeIf { session.status == "partial" }
 ).joinToString(" · ")

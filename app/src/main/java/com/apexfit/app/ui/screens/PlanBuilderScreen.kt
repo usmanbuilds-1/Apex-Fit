@@ -397,9 +397,8 @@ fun PlanBuilderScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("session_card_${session.id}"),
-                        colors = CardDefaults.cardColors(containerColor = DarkCardSurface),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(12.dp)
+                        colors = CardDefaults.cardColors(containerColor = ApexColors.Canvas),
+                        shape = RoundedCornerShape(0.dp)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),

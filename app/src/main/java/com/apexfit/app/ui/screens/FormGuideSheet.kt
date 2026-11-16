@@ -38,11 +38,10 @@ fun FormGuideSheet(exercise: Exercise, content: FormGuideContent, onDismiss: () 
                 }
             }
         } else {
-            FormGuideSection("Setup", content.setup)
-            FormGuideSection("Execution", content.execution)
+            Text("Written instructions aren’t available for this exercise.", color = ApexColors.TextSecondary)
+            content.sourceNote?.let { FormGuideSection("Notes", it) }
         }
         HorizontalDivider(color = ApexColors.BorderSubtle)
-        FormGuideSection("Common mistakes", content.commonMistake)
         FormGuideSection("Muscles", content.muscleNote)
         ExerciseMediaPanel(exerciseId = exercise.id)
         Spacer(Modifier.height(20.dp))

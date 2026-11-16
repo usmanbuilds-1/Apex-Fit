@@ -4,9 +4,7 @@ import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.ExerciseMetadata
 
 data class FormGuideContent(
-    val setup: String,
-    val execution: String,
-    val commonMistake: String,
+    val sourceNote: String?,
     val muscleNote: String,
     val instructions: List<String> = emptyList()
 )
@@ -17,37 +15,17 @@ object FormGuideBuilder {
         metadata: ExerciseMetadata?,
         sourceInstructions: List<String> = emptyList()
     ): FormGuideContent {
-        val forceType = metadata?.forceType ?: "movement"
         val instructions = sourceInstructions
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .ifEmpty { parseNumberedInstructions(metadata?.notes) }
 
-        val setup =
-            "For this ${exercise.category.lowercase()} exercise utilizing a $forceType pattern, ensure a stable base and proper bracing before initiating the movement."
-
-        val execution =
-            "Drive the $forceType motion deliberately, focusing on contracting the ${exercise.primaryMuscle.lowercase()} throughout the entire range of motion."
-
-        val mistakeBase =
-            "Avoid using excessive momentum or compromising your posture. Control the eccentric (yielding) phase."
-        val commonMistake = if (instructions.isEmpty() && !metadata?.notes.isNullOrBlank()) {
-            "$mistakeBase Note: ${metadata?.notes}"
-        } else {
-            mistakeBase
-        }
-
-        val secondary = if (exercise.secondaryMuscles.isNotEmpty()) {
-            "Secondary engagers include: ${exercise.secondaryMuscles.joinToString(", ")}."
-        } else {
-            "This is a highly isolated movement."
-        }
-
+        val sourceNote = metadata?.notes?.trim()?.takeIf { instructions.isEmpty() && it.isNotEmpty() }
+        val secondary = exercise.secondaryMuscles.takeIf { it.isNotEmpty() }
+            ?.joinToString(", ", prefix = " Secondary: ", postfix = ".").orEmpty()
         return FormGuideContent(
-            setup = setup,
-            execution = execution,
-            commonMistake = commonMistake,
-            muscleNote = "Primary target: ${exercise.primaryMuscle}. $secondary",
+            sourceNote = sourceNote,
+            muscleNote = "Primary: ${exercise.primaryMuscle}.$secondary",
             instructions = instructions
         )
     }
