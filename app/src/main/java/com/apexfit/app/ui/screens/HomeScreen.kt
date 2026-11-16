@@ -661,80 +661,20 @@ private fun RecentSessionsSection(sessions: List<RichTrainingSession>, onSeeAll:
 @Composable
 private fun SessionRow(session: RichTrainingSession) {
     val metadata = buildList {
+        add(formatSessionDate(session.date))
         if (session.durationMinutes > 0) add("${session.durationMinutes} min")
         if (session.exercises.isNotEmpty()) {
             val count = session.exercises.size
             add("$count exercise${if (count == 1) "" else "s"}")
         }
     }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(SurfaceNight1)
-            .border(1.dp, BorderMuted, MaterialTheme.shapes.medium)
-            .padding(horizontal = ApexSpacing.lg, vertical = ApexSpacing.md),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = session.sessionType.ifBlank { "Session" },
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (session.completed) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_check_circle),
-                        contentDescription = "Completed",
-                        tint = MineralBlue,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "Completed",
-                        fontSize = 13.sp,
-                        color = TextMuted
-                    )
-                    Text(
-                        text = "·",
-                        fontSize = 13.sp,
-                        color = TextTertiary
-                    )
-                }
-                if (metadata.isNotEmpty()) {
-                    Text(
-                        text = metadata.joinToString(" · "),
-                        fontSize = 13.sp,
-                        color = TextMuted
-                    )
-                }
-            }
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(ApexSpacing.xs)
-        ) {
-            Text(
-                text = formatSessionDate(session.date),
-                fontSize = 13.sp,
-                color = TextMuted
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_chevron_right),
-                contentDescription = null,
-                tint = TextTertiary,
-                modifier = Modifier.size(14.dp)
-            )
-        }
+    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(session.sessionType.ifBlank { "Workout" }, style = MaterialTheme.typography.titleMedium,
+            color = PrimaryText)
+        Text(metadata.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = TextMuted)
     }
+    HorizontalDivider(color = BorderMuted)
 }
 
 @Composable

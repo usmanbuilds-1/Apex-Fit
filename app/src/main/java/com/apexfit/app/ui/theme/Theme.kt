@@ -1,8 +1,10 @@
 package com.apexfit.app.ui.theme
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 
 private val ApexDarkColorScheme = darkColorScheme(
     primary = ApexColors.Primary,
@@ -39,7 +41,8 @@ fun ApexFitTheme(
 ) {
     MaterialTheme(
         colorScheme = ApexDarkColorScheme,
-        typography = Typography,
-        content = content
-    )
+        typography = Typography
+    ) {
+        CompositionLocalProvider(LocalContentColor provides ApexColors.TextPrimary, content = content)
+    }
 }

@@ -34,141 +34,69 @@ fun MuscleRecoveryScreen(
     onBack: () -> Unit
 ) {
     val statusesState by progressViewModel.muscleRecoveryStatuses.collectAsStateWithLifecycle()
-    
-    if (statusesState is UiState.Loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = BlueAccent)
-        }
-        return
-    }
-
-    if (statusesState is UiState.Error) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.progress_detail_error_loading_recovery_statuse), color = Color.White)
-        }
-        return
-    }
-
-    val statuses: List<com.apexfit.app.data.MuscleRecoveryStatus> = (statusesState as? UiState.Success)?.data ?: emptyList()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DarkBackground)
-            .padding(16.dp)
-    ) {
-        // Header with back button
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = PrimaryText)
-            }
-            Text(
-                text = "MUSCLE RECOVERY",
-                style = MaterialTheme.typography.titleLarge,
-                color = PrimaryText,
-                fontWeight = FontWeight.Bold,
-                fontFamily = SyneFamily,
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (statuses.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No training data yet.\nLog a workout to see muscle recovery status.",
-                    color = MutedText,
-                    textAlign = TextAlign.Center
-                )
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(statuses.size, key = { statuses[it].muscleGroup }) { idx ->
-                    val status = statuses[idx]
-                    RecoveryCard(status)
-                }
-            }
-        }
-    }
+    MuscleRecoveryContent(statusesState, onBack)
 }
 
 @Composable
-private fun RecoveryCard(status: MuscleRecoveryStatus) {
-    val recoveryColor = when {
-        status.hoursRemaining <= 0 -> GreenAccent
-        status.hoursRemaining < 24 -> AmberAccent
-        status.hoursRemaining < 48 -> ApexColors.Amber
-        else -> ApexColors.Alert
-    }
-    val recoveryLabel = when {
-        status.hoursRemaining <= 0 -> "ESTIMATED RECOVERY"
-        status.hoursRemaining < 24 -> "RECOVERING"
-        status.hoursRemaining < 48 -> "RECOVERY ESTIMATE"
-        else -> "RECOVERY ESTIMATE"
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = status.muscleGroup,
-                    color = PrimaryText,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                if (status.lastTrainedDate.isNotEmpty()) {
-                    Text(
-                        text = "Last trained: ${status.lastTrainedDate}",
-                        color = MutedText,
-                        fontSize = 12.sp
-                    )
-                }
+internal fun MuscleRecoveryContent(
+    state: UiState<List<MuscleRecoveryStatus>>,
+    onBack: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(horizontal = 20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    text = recoveryLabel,
-                    color = recoveryColor,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-                if (status.hoursRemaining > 0) {
+            Text("Muscle Recovery", style = MaterialTheme.typography.titleLarge)
+        }
+        when (state) {
+            UiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = BlueAccent)
+            }
+            is UiState.Error -> Text(
+                stringResource(R.string.progress_detail_error_loading_recovery_statuse),
+                color = ApexColors.Alert,
+                modifier = Modifier.padding(vertical = 24.dp)
+            )
+            is UiState.Success -> {
+                val statuses = state.data.filter { it.lastTrainedDate.isNotBlank() }
+                if (statuses.isEmpty()) {
                     Text(
-                        text = "~${status.hoursRemaining}h estimated",
+                        "Log a workout to see recovery estimates for the muscles you train.",
                         color = MutedText,
-                        fontSize = 11.sp
+                        modifier = Modifier.padding(vertical = 24.dp)
                     )
+                } else {
+                    Text(
+                        "Estimates reflect recent training. Use how you feel to guide your next session.",
+                        color = MutedText,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                    val sorted = statuses.sortedByDescending { it.hoursRemaining }
+                    LazyColumn {
+                        items(sorted.size, key = { sorted[it].muscleGroup }) { index ->
+                            val status = sorted[index]
+                            HorizontalDivider()
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(status.muscleGroup, style = MaterialTheme.typography.titleMedium)
+                                    Text("Last trained ${status.lastTrainedDate}", color = MutedText)
+                                }
+                                if (status.hoursRemaining > 0) {
+                                    Text("~${status.hoursRemaining} h remaining", color = AmberAccent)
+                                } else {
+                                    Text("Likely recovered", color = MutedText)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-        LinearProgressIndicator(
-            progress = { status.recoveryFraction },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp),
-            color = recoveryColor,
-            trackColor = DarkRaised
-        )
     }
 }
 

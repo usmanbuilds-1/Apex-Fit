@@ -510,9 +510,6 @@ fun ApexFitApp(
 
 @Composable
 fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
-    // v2.1: full-width bar on Canvas with a hairline top edge (mockup-verified).
-    // All four labels always visible. Active item = mint icon + mint label +
-    // short 24×4dp signal pill beneath the label; inactive items stay muted.
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -546,7 +543,7 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                         ) {
                             Icon(
                                 painter = painterResource(destination.iconRes),
-                                contentDescription = destination.label,
+                                contentDescription = null,
                                 tint = itemColor,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -554,19 +551,12 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                             Text(
                                 text = destination.label,
                                 fontFamily = InterFamily,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                                 color = itemColor,
                                 letterSpacing = 0.4.sp
                             )
-                            Spacer(Modifier.height(3.dp))
-                            // Signal pill — solid under the active tab, invisible otherwise
-                            Box(
-                                Modifier
-                                    .size(width = 24.dp, height = 4.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(if (isSelected) ApexColors.Primary else Color.Transparent)
-                            )
+
                         }
                     }
                 }

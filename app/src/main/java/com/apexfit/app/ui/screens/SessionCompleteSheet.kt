@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.FitnessViewModel
@@ -36,11 +37,12 @@ internal fun SessionCompleteSheet(
 ) {
     val workingSets = remember(sessionSets) { sessionSets.filter { it.completed && !it.isWarmup } }
     val names = remember(workingSets) { workingSets.associate { it.exerciseId to it.exerciseName } }
-    var reveal by rememberSaveable(receipt.sessionId) { mutableStateOf(false) }
+    val preview = LocalInspectionMode.current
+    var reveal by rememberSaveable(receipt.sessionId) { mutableStateOf(preview && receipt.records.isNotEmpty()) }
     var showDetails by rememberSaveable(receipt.sessionId) { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(receipt.sessionId) {
-        if (!reveal && receipt.records.isNotEmpty()) {
+        if (!preview && !reveal && receipt.records.isNotEmpty()) {
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             reveal = true
         }
