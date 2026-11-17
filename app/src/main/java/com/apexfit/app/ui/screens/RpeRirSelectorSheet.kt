@@ -1,44 +1,64 @@
 package com.apexfit.app.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.FitnessViewModel
-import com.apexfit.app.R
 import com.apexfit.app.WorkoutExecutionViewModel
 import com.apexfit.app.data.LastSetWithDate
-import com.apexfit.app.ui.theme.*
+import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.AppConstants
+import com.apexfit.app.utils.ProgressionEngine
 
 private val RIR_OPTIONS = listOf(0, 1, 2, 3, 4, 5)
 
 @Composable
 fun RpeRirSelectorSheet(
+    exerciseName: String,
+    setNumber: Int,
+    totalSets: Int,
+    targetRepsMin: Int,
+    targetRepsMax: Int,
     selectedRir: Int,
     weight: Double,
     reps: Int,
@@ -47,176 +67,160 @@ fun RpeRirSelectorSheet(
     units: String,
     onSelectRirOption: (Int) -> Unit,
     onConfirmRirSelection: () -> Unit,
+    onReturnFromHistory: () -> Unit,
     onConfirmRirAndNextSet: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val currentPage = if (isShowingHistory) 1 else 0
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.9f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss
-            ),
-        contentAlignment = Alignment.Center
+            .background(ApexColors.Canvas)
+            .systemBarsPadding()
+            .padding(horizontal = 24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.Start
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .padding(16.dp)
-                .clickable(enabled = false) {},
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()).padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (currentPage == 0) {
-                    // Page 1: RIR selection
+            Text(
+                text = if (isShowingHistory) "PREVIOUS SETS" else "LOG SET",
+                style = MaterialTheme.typography.labelLarge,
+                color = ApexColors.TextTertiary,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.1.sp
+            )
+            IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = ApexColors.TextSecondary)
+            }
+        }
+
+        if (isShowingHistory) {
+            Text("Previous sets", style = MaterialTheme.typography.headlineSmall, color = ApexColors.TextPrimary,
+                fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text(exerciseName, style = MaterialTheme.typography.bodyMedium, color = ApexColors.TextSecondary)
+            Spacer(Modifier.height(20.dp))
+            HorizontalDivider(color = ApexColors.BorderSubtle)
+            if (exerciseHistory.isEmpty()) {
+                Text(
+                    text = "No previous sets for this exercise yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ApexColors.TextSecondary,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp)
+                )
+            } else {
+                exerciseHistory.take(5).forEach { session ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Text(session.date, color = ApexColors.TextSecondary, fontSize = 13.sp)
+                        val displayWeight = if (units.lowercase() in listOf("lb", "lbs")) {
+                            Math.round(session.weight * AppConstants.KG_TO_LBS * 10.0) / 10.0
+                        } else session.weight
                         Text(
-                            text = "REPS IN RESERVE",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = SecondaryText,
-                            fontWeight = FontWeight.Bold
+                            text = "$displayWeight $units × ${session.reps}",
+                            color = ApexColors.TextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
                         )
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = SecondaryText)
-                        }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "How many more reps could you have done?",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MutedText
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
+                    HorizontalDivider(color = ApexColors.BorderSubtle)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            TextButton(onClick = onReturnFromHistory, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text("Back to effort", color = ApexColors.Primary)
+            }
+        } else {
+            Text(
+                text = exerciseName,
+                style = MaterialTheme.typography.headlineSmall,
+                color = ApexColors.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(5.dp))
+            Text(
+                text = "SET $setNumber OF $totalSets  ·  TARGET $targetRepsMin–$targetRepsMax REPS",
+                style = MaterialTheme.typography.labelMedium,
+                color = ApexColors.TextSecondary,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.4.sp
+            )
 
-                    Text(
-                        text = "LOGGED: $weight $units × $reps reps",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = PrimaryText,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
+            Spacer(Modifier.height(26.dp))
+            HorizontalDivider(color = ApexColors.BorderSubtle)
+            Spacer(Modifier.height(20.dp))
+            Text("COMPLETED SET", style = MaterialTheme.typography.labelMedium,
+                color = ApexColors.TextTertiary, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "$weight $units  ×  $reps reps",
+                style = MaterialTheme.typography.titleLarge,
+                color = ApexColors.TextPrimary,
+                fontWeight = FontWeight.SemiBold
+            )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RIR_OPTIONS.chunked(3).forEach { choices ->
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                choices.forEach { rir ->
-                                    val isSelected = selectedRir == rir
-                                    Box(
-                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(if (isSelected) ApexColors.Primary else DarkRaised)
-                                            .semantics { selected = isSelected }
-                                            .clickable(role = Role.RadioButton) { onSelectRirOption(rir) },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(rir.toString(), color = if (isSelected) ApexColors.OnGlow else PrimaryText,
-                                            fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    TextButton(onClick = onConfirmRirSelection, modifier = Modifier.fillMaxWidth()) {
-                        Text("View previous sets", color = SecondaryText)
-                    }
-                    Button(
-                        onClick = onConfirmRirAndNextSet,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        enabled = true,
-                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(stringResource(R.string.overlay_confirm_next_set), color = ApexColors.OnGlow, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    // Page 2: History
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            Spacer(Modifier.height(28.dp))
+            Text("How many more reps could you have done?", style = MaterialTheme.typography.titleMedium,
+                color = ApexColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                RIR_OPTIONS.forEach { rir ->
+                    val isSelected = selectedRir == rir
+                    val interactionSource = remember(rir) { MutableInteractionSource() }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 52.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) ApexColors.PrimaryMist else Color.Transparent)
+                            .semantics { selected = isSelected }
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                role = Role.RadioButton
+                            ) { onSelectRirOption(rir) },
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "EXERCISE HISTORY",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = SecondaryText,
-                            fontWeight = FontWeight.Bold
+                            text = if (rir == 5) "5+" else rir.toString(),
+                            color = if (isSelected) ApexColors.Primary else ApexColors.TextPrimary,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            fontSize = 17.sp
                         )
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = SecondaryText)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    if (exerciseHistory.isEmpty()) {
-                        Text(
-                            text = "No previous sessions for this exercise.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MutedText,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(vertical = 24.dp)
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.heightIn(max = 300.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(exerciseHistory.size, key = { exerciseHistory[it].id }) { idx ->
-                                val session = exerciseHistory[idx]
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(DarkRaised, RoundedCornerShape(8.dp))
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = session.date,
-                                        color = SecondaryText,
-                                        fontSize = 12.sp
-                                    )
-                                    val displayWeight = if (units.lowercase() in listOf("lb", "lbs")) {
-                                        Math.round(session.weight * AppConstants.KG_TO_LBS * 10.0) / 10.0
-                                    } else {
-                                        session.weight
-                                    }
-                                    Text(
-                                        text = "$displayWeight $units × ${session.reps}",
-                                        color = PrimaryText,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Button(
-                        onClick = onConfirmRirAndNextSet,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(stringResource(R.string.overlay_confirm_next_set), color = ApexColors.OnGlow, fontWeight = FontWeight.Bold)
                     }
                 }
             }
+
+            Spacer(Modifier.height(10.dp))
+            val rpe = ProgressionEngine.calculateRPEFromRIR(selectedRir)
+            Text(
+                text = "RIR ${if (selectedRir == 5) "5+" else selectedRir}  ·  RPE $rpe",
+                style = MaterialTheme.typography.bodyMedium,
+                color = ApexColors.TextSecondary,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(Modifier.height(18.dp))
+            HorizontalDivider(color = ApexColors.BorderSubtle)
+            TextButton(onClick = onConfirmRirSelection, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                Text("View previous sets", color = ApexColors.TextSecondary)
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onConfirmRirAndNextSet,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Log set $setNumber", color = ApexColors.OnGlow, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -225,27 +229,35 @@ fun RpeRirSelectorSheet(
 fun RirSelectorOverlay(
     fitnessViewModel: FitnessViewModel,
     workoutExecutionViewModel: WorkoutExecutionViewModel,
-    onTriggerRestTimer: (rpe: Int, exerciseName: String, muscleGroup: String, reps: Int, setIndex: Int, totalSets: Int) -> Unit,
+    onTriggerRestTimer: (rpe: Int, exerciseName: String, muscleGroup: String, weight: Double, units: String, reps: Int, setIndex: Int, totalSets: Int) -> Unit,
     onDismiss: () -> Unit = { workoutExecutionViewModel.closeRirSelector() }
 ) {
-    val selectedRir by workoutExecutionViewModel.selectedRir.collectAsStateWithLifecycle()
-    val weight by workoutExecutionViewModel.rirSelectorWeight.collectAsStateWithLifecycle()
-    val reps by workoutExecutionViewModel.rirSelectorReps.collectAsStateWithLifecycle()
-    val exerciseHistory by workoutExecutionViewModel.rirHistoricalSets.collectAsStateWithLifecycle()
-    val isShowingHistory by workoutExecutionViewModel.isShowingRirHistory.collectAsStateWithLifecycle()
+    val state by workoutExecutionViewModel.rirOverlayState.collectAsStateWithLifecycle()
+    val activeExercises by workoutExecutionViewModel.activeExercises.collectAsStateWithLifecycle()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
+    val exercise = activeExercises.firstOrNull { it.exerciseId == state.exerciseId }
+    val repMin = exercise?.repsMin?.coerceAtLeast(1) ?: 1
+    val repMax = exercise?.repsMax?.coerceAtLeast(repMin) ?: repMin
 
     RpeRirSelectorSheet(
-        selectedRir = selectedRir,
-        weight = weight,
-        reps = reps,
-        exerciseHistory = exerciseHistory,
-        isShowingHistory = isShowingHistory,
+        exerciseName = state.exerciseName,
+        setNumber = state.setIndex + 1,
+        totalSets = state.totalSets.coerceAtLeast(1),
+        targetRepsMin = repMin,
+        targetRepsMax = repMax,
+        selectedRir = state.selectedRir,
+        weight = state.weight,
+        reps = state.reps,
+        exerciseHistory = state.historicalSets,
+        isShowingHistory = state.isShowingHistory,
         units = units,
-        onSelectRirOption = { workoutExecutionViewModel.selectRirOption(it) },
-        onConfirmRirSelection = { workoutExecutionViewModel.confirmRirSelection() },
+        onSelectRirOption = workoutExecutionViewModel::selectRirOption,
+        onConfirmRirSelection = workoutExecutionViewModel::confirmRirSelection,
+        onReturnFromHistory = workoutExecutionViewModel::returnToRirSelection,
         onConfirmRirAndNextSet = {
-            workoutExecutionViewModel.confirmRirAndNextSet(onTriggerRestTimer = onTriggerRestTimer)
+            workoutExecutionViewModel.confirmRirAndNextSet { rpe, name, muscle, weight, reps, setIndex, totalSets ->
+                onTriggerRestTimer(rpe, name, muscle, weight, units, reps, setIndex, totalSets)
+            }
             workoutExecutionViewModel.closeRirSelector()
         },
         onDismiss = onDismiss

@@ -837,11 +837,16 @@ fun WorkoutExecutionSubTab(
                             restTakenSeconds = restTaken
                         )
                     },
-                    onCompleteSet = { exId, exName, muscleGroup, sIdx, w, r, totalSets, rpe ->
-                        workoutExecutionViewModel.completeSetWithRpe(exId, exName, muscleGroup, sIdx, w, r, totalSets, rpe) {
-                            restTimerViewModel.triggerRestTimer(rpe, exName, muscleGroup, r, sIdx, totalSets,
-                                workoutExecutionViewModel.currentExerciseIdx.value, exId)
-                        }
+                    onCompleteSet = { exId, exName, muscleGroup, sIdx, w, r, totalSets, _ ->
+                        workoutExecutionViewModel.openRirSelector(
+                            exerciseId = exId,
+                            exerciseName = exName,
+                            muscleGroup = muscleGroup,
+                            setIndex = sIdx,
+                            weight = w,
+                            reps = r,
+                            totalSets = totalSets
+                        )
                     },
                     onAddCustomLogSet = { workoutExecutionViewModel.addCustomLogSet(it) },
                     onNextExercise = { workoutExecutionViewModel.nextExercise() },

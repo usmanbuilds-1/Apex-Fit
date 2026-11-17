@@ -330,8 +330,12 @@ class WorkoutExecutionViewModel @Inject constructor(
         }
     }
 
+    fun returnToRirSelection() {
+        _rirOverlayState.value = _rirOverlayState.value.copy(isShowingHistory = false)
+    }
+
     fun confirmRirAndNextSet(
-        onTriggerRestTimer: ((rpe: Int, exerciseName: String, muscleGroup: String, reps: Int, setIndex: Int, totalSets: Int) -> Unit)? = null
+        onTriggerRestTimer: ((rpe: Int, exerciseName: String, muscleGroup: String, weight: Double, reps: Int, setIndex: Int, totalSets: Int) -> Unit)? = null
     ) {
         val s = _rirOverlayState.value
         val exId = s.exerciseId
@@ -361,7 +365,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed } == true
         val lastExerciseDone = exerciseDone && currentIndex == exercises.lastIndex
         if (!lastExerciseDone) {
-            onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, r, sIdx, totalSets)
+            onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, w, r, sIdx, totalSets)
         }
         if (exerciseDone && currentIndex >= 0 && currentIndex < exercises.lastIndex) {
             _currentExerciseIdx.value = currentIndex + 1

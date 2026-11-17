@@ -25,9 +25,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -59,7 +56,7 @@ fun SetLoggingRow(
     // Local editing state keyed to stable set id to avoid reset when the session model updates
     var rawWeight by rememberSaveable(ex.exerciseId, setObj.id) { mutableStateOf(setObj.weight.toString()) }
     var rawReps by rememberSaveable(ex.exerciseId, setObj.id) { mutableStateOf(setObj.reps.toString()) }
-    var selectedRpe by remember(ex.exerciseId, setObj.id) { mutableStateOf(setObj.rpe) }
+    var selectedRpe by remember(ex.exerciseId, setObj.id, setObj.rpe) { mutableStateOf(setObj.rpe) }
 
     LaunchedEffect(setObj.weight) {
         val current = rawWeight.toDoubleOrNull()
@@ -107,11 +104,10 @@ fun SetLoggingRow(
         }
     }
 
-    val isSetValid = remember(rawWeight, rawReps, selectedRpe, weightMin, weightMax) {
+    val isSetValid = remember(rawWeight, rawReps, weightMin, weightMax) {
         val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in weightMin..weightMax } ?: false
         val isRepsValid = rawReps.toIntOrNull()?.let { it in 1..50 } ?: false
-        val isRpeValid = selectedRpe in 1..10
-        isWeightValid && isRepsValid && isRpeValid
+        isWeightValid && isRepsValid
     }
 
     Box(
@@ -367,39 +363,11 @@ fun SetLoggingRow(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = if (selectedRpe in 1..10) stringResource(R.string.train_rpe, selectedRpe) else "RPE — select effort",
+                text = if (setObj.completed) "RPE ${setObj.rpe}  ·  RIR ${setObj.repsInReserve}" else "Effort is recorded after the set",
                 fontFamily = InterFamily,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
                 color = SecondaryText
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf(1..5, 6..10).forEach { range ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                        range.forEach { rpeVal ->
-                            val isRpeSelected = selectedRpe == rpeVal
-                            Box(
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isRpeSelected) ApexColors.Primary else DarkRaised)
-                                    .semantics { selected = isRpeSelected }
-                                    .clickable(role = Role.RadioButton) {
-                                        selectedRpe = rpeVal
-                                        val w = rawWeight.toDoubleOrNull() ?: setObj.weight
-                                        val r = rawReps.toIntOrNull() ?: setObj.reps
-                                        onLogSetState(ex.exerciseId, sIdx, w, r, rpeVal, setObj.completed, setObj.restTaken)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(rpeVal.toString(), fontFamily = InterFamily, fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isRpeSelected) ApexColors.OnGlow else PrimaryText)
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }

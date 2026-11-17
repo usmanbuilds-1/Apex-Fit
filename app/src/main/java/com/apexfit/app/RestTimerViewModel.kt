@@ -55,6 +55,8 @@ class RestTimerViewModel @Inject constructor(
         reps: Int,
         setIndex: Int,
         totalSets: Int,
+        weight: Double? = null,
+        units: String = "kg",
         currentExerciseIdx: Int = 0,
         completedExerciseId: String? = null
     ) {
@@ -63,7 +65,11 @@ class RestTimerViewModel @Inject constructor(
             ?: com.apexfit.app.utils.exerciseNameToSlug(exerciseName)
         val restSeconds = sessionManager.calculateRestTimeSeconds(exerciseId, exerciseType, rpe)
 
-        _restTimerLastSetContext.value = "Last set: $reps reps @ RPE $rpe"
+        _restTimerLastSetContext.value = if (weight != null) {
+            "Last set: $weight $units × $reps reps · RPE $rpe"
+        } else {
+            "Last set: $reps reps @ RPE $rpe"
+        }
 
         val activeExercises = sessionManager.activeSession.value?.exercises ?: emptyList()
         restSetPointer = activeExercises.firstOrNull { it.exerciseId == exerciseId }?.let { it.exerciseId to setIndex }

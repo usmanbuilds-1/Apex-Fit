@@ -471,7 +471,7 @@ fun ApexFitApp(
                 val showRestOverlay by restTimerViewModel.showRestOverlay.collectAsStateWithLifecycle()
                 if (showRestOverlay) {
                     BackHandler { restTimerViewModel.closeRestTimer() }
-                    RestTimerOverlay(fitnessViewModel, restTimerViewModel)
+                    RestTimerOverlay(restTimerViewModel)
                 }
 
                 // Render smart RIR selector overlay if triggered
@@ -481,11 +481,13 @@ fun ApexFitApp(
                     RirSelectorOverlay(
                         fitnessViewModel = fitnessViewModel,
                         workoutExecutionViewModel = workoutExecutionViewModel,
-                        onTriggerRestTimer = { rpe, exName, muscle, reps, setIdx, totalSets ->
+                        onTriggerRestTimer = { rpe, exName, muscle, weight, units, reps, setIdx, totalSets ->
                             restTimerViewModel.triggerRestTimer(
                                 rpe = rpe,
                                 exerciseName = exName,
                                 muscleGroup = muscle,
+                                weight = weight,
+                                units = units,
                                 reps = reps,
                                 setIndex = setIdx,
                                 totalSets = totalSets,
