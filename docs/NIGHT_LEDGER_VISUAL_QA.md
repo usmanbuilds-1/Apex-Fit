@@ -36,6 +36,7 @@ Automated Android CI, lint, unit tests, palette checks and Compose preview rende
 ### 1. Finish the reachable Night Ledger migration
 
 The remaining high-risk legacy surfaces require the local/visual pass:
+- Today: finish Stitch comparison of scheduled, rest-day, insufficient-weight and larger-font states.
 - Train Program / active Workout / Plans
 - Plan Builder and its edit dialogs
 - Settings final polish
@@ -100,7 +101,7 @@ Use a real emulator/device when available. If the local Windows environment cont
 
 Stitch project: `14369859982852578965`.
 
-Stitch MCP is responding: `list_screens` returned the approved screens and `download_file` retrieved the RIR/rest reference. The RIR/rest render from `c8ba042` was compared against that reference. Continue comparisons for the approved references that are actually available; never expose or request API keys.
+Stitch MCP is responding: `list_screens` returned the approved screens and `download_file` retrieved the RIR/rest and Today references. The RIR/rest render from `c8ba042` and Today render from `ecb9f36` were compared against their references. Continue comparisons for the approved references that are actually available; never expose or request API keys.
 
 ### 8. Eight end-to-end flows
 
@@ -108,9 +109,10 @@ Run and report, where the environment permits, the eight flows defined in `docs/
 
 ## Current automated evidence
 
-- Latest confirmed green head: `c8ba04205d565e8f766733a069dd8bdabd33da38`.
+- Latest confirmed green head: `ecb9f36f9973f08113b90a55c51460c8bbc6c70f`.
 - Android CI/APK build, unit tests, lint, Compose screenshot rendering, and palette regression passed on that exact head.
-- Render artifact `14303777272` includes the combined RIR/rest state, pre-log selector, and history state among the expanded screen coverage.
+- Render artifact `14304402671` includes the updated Today state matrix plus the combined RIR/rest, pre-log selector, and history states among the expanded screen coverage.
+- Today was checked against Stitch: the contextual local photo and fade align; the main readiness row was shortened to remove duplicate explanation copy. Calorie and weight hierarchy is receiving one more compactness pass.
 - The post-log RIR/rest screenshot was visually compared with the approved Stitch reference and refined for hierarchy, timer formatting, and real next-set context.
 - Subsequent changes must be reverified on their exact final head.
 - A transient Maven Central HTTP 429 on an intermediate run is infrastructure noise, not evidence of a source-code failure.

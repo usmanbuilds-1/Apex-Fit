@@ -447,19 +447,20 @@ private fun NutritionCard(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(Modifier.weight(1f)) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("%,d".format(calLogged), style = ApexTextStyles.dataMedium.copy(fontSize = 22.sp),
                     color = PrimaryText)
                 Text(
-                    if (calTarget > 0) "of %,d kcal".format(calTarget) else "kcal logged",
+                    if (calTarget > 0) "/ %,d kcal".format(calTarget) else "kcal logged",
                     color = TextMuted, fontSize = 12.sp
                 )
             }
             if (calTarget > 0) {
                 val remaining = calTarget - calLogged
                 Text(
-                    if (remaining >= 0) "%,d kcal remaining".format(remaining)
-                    else "%,d kcal over target".format(-remaining),
+                    if (remaining >= 0) "%,d remaining".format(remaining)
+                    else "%,d over".format(-remaining),
                     color = TextMuted, fontSize = 12.sp
                 )
             }
@@ -511,13 +512,15 @@ private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, un
             Text("Add your first weigh-in", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("Your logged weight will appear here.", color = TextMuted, fontSize = 13.sp)
         } else {
-            Text(String.format(Locale.getDefault(), "%.1f %s", history.last().weight * multiplier, unit),
-                color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            if (history.size > 1) {
-                val change = (history.last().weight - history.first().weight) * multiplier
-                Text(String.format(Locale.getDefault(), "%+.1f %s across these weigh-ins", change, unit),
-                    color = TextMuted, fontSize = 13.sp)
-            } else Text("One weigh-in recorded.", color = TextMuted, fontSize = 13.sp)
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(String.format(Locale.getDefault(), "%.1f %s", history.last().weight * multiplier, unit),
+                    color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                if (history.size > 1) {
+                    val change = (history.last().weight - history.first().weight) * multiplier
+                    Text(String.format(Locale.getDefault(), "%+.1f %s across these weigh-ins", change, unit),
+                        color = TextMuted, fontSize = 13.sp)
+                } else Text("One weigh-in recorded.", color = TextMuted, fontSize = 13.sp)
+            }
 
             val datedWeighIns = history.map { it.date }.distinct().size
             if (datedWeighIns >= 3) {
@@ -526,12 +529,6 @@ private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, un
                     Text(history.first().date, color = TextMuted, fontSize = 11.sp)
                     Text(history.last().date, color = TextMuted, fontSize = 11.sp)
                 }
-            } else {
-                Text(
-                    "Your chart appears after three dated weigh-ins.",
-                    color = TextMuted,
-                    fontSize = 12.sp
-                )
             }
         }
     }
