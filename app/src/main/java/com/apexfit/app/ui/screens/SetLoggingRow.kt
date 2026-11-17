@@ -11,6 +11,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -49,7 +51,11 @@ fun SetLoggingRow(
     weightContextLines: Map<String, String>,
     showRirOverlay: Boolean,
     onLogSetState: (exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int) -> Unit,
-    onCompleteSet: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int) -> Unit
+    onCompleteSet: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int) -> Unit,
+    nightLedgerPresentation: Boolean = false,
+    previousSet: UiExerciseSet? = null,
+    displaySetNumber: Int = sIdx + 1,
+    displayTotalSets: Int = totalSets
 ) {
     val hapticFeedback = LocalHapticFeedback.current
 
@@ -108,6 +114,169 @@ fun SetLoggingRow(
         val isWeightValid = rawWeight.toDoubleOrNull()?.let { it in weightMin..weightMax } ?: false
         val isRepsValid = rawReps.toIntOrNull()?.let { it in 1..50 } ?: false
         isWeightValid && isRepsValid
+    }
+
+    if (nightLedgerPresentation) {
+        val step = if (isImperial) 2.5 else 1.25
+        val currentWeight = rawWeight.toDoubleOrNull() ?: setObj.weight
+        val currentReps = rawReps.toIntOrNull() ?: setObj.reps
+        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Set $displaySetNumber of $displayTotalSets", color = ApexColors.TextPrimary,
+                    fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text("Target ${ex.repsMin}–${ex.repsMax} reps", color = ApexColors.TextSecondary,
+                    fontSize = 13.sp)
+            }
+            val previousText = when {
+                previousSet != null -> "Previous ${previousSet.weight} $unitSuffix × ${previousSet.reps} · RPE ${previousSet.rpe}"
+                lastWeights[ex.exerciseId] != null -> {
+                    val lastWeight = lastWeights.getValue(ex.exerciseId)
+                    val displayed = if (isImperial) lastWeight * AppConstants.KG_TO_LBS else lastWeight
+                    "Previous ${String.format(java.util.Locale.US, "%.1f", displayed)} $unitSuffix"
+                }
+                else -> null
+            }
+            previousText?.let {
+                Text(it, color = ApexColors.TextSecondary, fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 6.dp, bottom = 14.dp))
+            } ?: Spacer(Modifier.height(14.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Weight", color = ApexColors.TextSecondary, fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                            .clip(RoundedCornerShape(10.dp)).background(ApexColors.SurfaceSunken)
+                            .padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                val value = (currentWeight - step).coerceAtLeast(0.0)
+                                val rounded = kotlin.math.round(value / step) * step
+                                rawWeight = String.format(java.util.Locale.US, "%.2f", rounded).trimEnd('0').trimEnd('.')
+                                weightError = ""
+                                onLogSetState(ex.exerciseId, sIdx, rounded, currentReps, selectedRpe,
+                                    setObj.completed, setObj.restTaken)
+                            }, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)
+                        ) { Text("−", color = ApexColors.TextSecondary, fontSize = 22.sp) }
+                        BasicTextField(
+                            value = rawWeight,
+                            onValueChange = { value ->
+                                val filtered = value.replace(',', '.').filter { it.isDigit() || it == '.' }
+                                rawWeight = filtered
+                                val parsed = filtered.toDoubleOrNull()
+                                weightError = when {
+                                    filtered.isNotEmpty() && parsed == null -> "Enter a valid weight"
+                                    parsed != null && parsed !in weightMin..weightMax -> "Weight: 0–$weightMax $unitSuffix"
+                                    else -> ""
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily,
+                                fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically)
+                                .onFocusChanged { if (!it.isFocused) commitWeight() },
+                            decorationBox = { inner ->
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (rawWeight.isEmpty()) Text("0", color = ApexColors.TextTertiary, fontSize = 16.sp)
+                                    inner()
+                                }
+                            }
+                        )
+                        Text(unitSuffix, color = ApexColors.TextSecondary, fontSize = 13.sp)
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                val value = currentWeight + step
+                                val rounded = kotlin.math.round(value / step) * step
+                                rawWeight = String.format(java.util.Locale.US, "%.2f", rounded).trimEnd('0').trimEnd('.')
+                                weightError = ""
+                                onLogSetState(ex.exerciseId, sIdx, rounded, currentReps, selectedRpe,
+                                    setObj.completed, setObj.restTaken)
+                            }, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)
+                        ) { Text("+", color = ApexColors.TextSecondary, fontSize = 22.sp) }
+                    }
+                    if (weightError.isNotEmpty()) Text(weightError, color = ApexColors.Alert,
+                        fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Reps", color = ApexColors.TextSecondary, fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                            .clip(RoundedCornerShape(10.dp)).background(ApexColors.SurfaceSunken)
+                            .padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                val value = (currentReps - 1).coerceAtLeast(1)
+                                rawReps = value.toString(); repsError = ""
+                                onLogSetState(ex.exerciseId, sIdx, currentWeight, value, selectedRpe,
+                                    setObj.completed, setObj.restTaken)
+                            }, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)
+                        ) { Text("−", color = ApexColors.TextSecondary, fontSize = 22.sp) }
+                        BasicTextField(
+                            value = rawReps,
+                            onValueChange = { value ->
+                                val filtered = value.filter(Char::isDigit)
+                                rawReps = filtered
+                                val parsed = filtered.toIntOrNull()
+                                repsError = if (parsed != null && parsed !in 1..50) "Reps: 1–50" else ""
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily,
+                                fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically)
+                                .onFocusChanged { if (!it.isFocused) commitReps() }
+                        )
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                val value = (currentReps + 1).coerceAtMost(50)
+                                rawReps = value.toString(); repsError = ""
+                                onLogSetState(ex.exerciseId, sIdx, currentWeight, value, selectedRpe,
+                                    setObj.completed, setObj.restTaken)
+                            }, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)
+                        ) { Text("+", color = ApexColors.TextSecondary, fontSize = 22.sp) }
+                    }
+                    if (repsError.isNotEmpty()) Text(repsError, color = ApexColors.Alert,
+                        fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (setObj.completed) {
+                        onLogSetState(ex.exerciseId, sIdx, currentWeight, currentReps, selectedRpe,
+                            false, setObj.restTaken)
+                    } else if (isSetValid && !showRirOverlay) {
+                        onCompleteSet(ex.exerciseId, ex.name, ex.muscleGroup, sIdx, currentWeight,
+                            currentReps, totalSets, selectedRpe)
+                    }
+                },
+                enabled = isSetValid && (!showRirOverlay || setObj.completed),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("log_checkmark_button"),
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary,
+                    contentColor = ApexColors.OnGlow)
+            ) {
+                Text(if (setObj.completed) "Undo logged set" else "Log set",
+                    fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            if (setObj.completed) {
+                Text("RPE ${setObj.rpe} · RIR ${setObj.repsInReserve}", color = ApexColors.TextSecondary,
+                    fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+        return
     }
 
     Box(

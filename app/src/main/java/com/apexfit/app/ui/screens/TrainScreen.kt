@@ -37,6 +37,7 @@ import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -451,6 +452,18 @@ fun WorkoutExecutionSubTab(
     val sessionRestoreFailed by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    var workoutClockNow by remember(liveSession?.startTime) {
+        mutableStateOf(System.currentTimeMillis())
+    }
+
+    LaunchedEffect(liveSession?.startTime) {
+        if (liveSession != null) {
+            while (true) {
+                workoutClockNow = System.currentTimeMillis()
+                delay(1_000L)
+            }
+        }
+    }
 
     LaunchedEffect(sessionRestoreFailed) {
         if (sessionRestoreFailed) {
@@ -568,7 +581,7 @@ fun WorkoutExecutionSubTab(
             onDismissRequest = { showFinishEarlyDialog = false },
             title = {
                 Text(
-                    text = "FINISH WORKOUT EARLY?",
+                    text = "Finish workout early?",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -585,7 +598,7 @@ fun WorkoutExecutionSubTab(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "RATE YOUR WORKOUT FEEL (1-5):",
+                        text = "HOW DID IT FEEL? (1–5)",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -620,11 +633,11 @@ fun WorkoutExecutionSubTab(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = when (selectedFeelRating) {
-                            1 -> "1 - Extremely fatigued / bad"
-                            2 -> "2 - Tired / poor feel"
-                            3 -> "3 - Average / neutral"
-                            4 -> "4 - Energetic / strong feel"
-                            else -> "5 - Beast mode / excellent!"
+                            1 -> "1 · Very fatigued"
+                            2 -> "2 · Tired"
+                            3 -> "3 · Typical"
+                            4 -> "4 · Energetic"
+                            else -> "5 · Very good"
                         },
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
@@ -640,7 +653,7 @@ fun WorkoutExecutionSubTab(
                     }
                 ) {
                     Text(
-                        text = "YES, FINISH & SAVE",
+                        text = "SAVE AND FINISH",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         color = GreenAccent,
@@ -653,7 +666,7 @@ fun WorkoutExecutionSubTab(
                     onClick = { showFinishEarlyDialog = false }
                 ) {
                     Text(
-                        text = "CANCEL",
+                        text = "BACK TO WORKOUT",
                         fontFamily = SyneFamily,
                         color = MutedText,
                         fontSize = 11.sp
@@ -672,7 +685,7 @@ fun WorkoutExecutionSubTab(
             onDismissRequest = { showNormalFinishFeelDialog = false },
             title = {
                 Text(
-                    text = "CONGRATULATIONS!",
+                    text = "Finish workout?",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -682,14 +695,14 @@ fun WorkoutExecutionSubTab(
             text = {
                 Column {
                     Text(
-                        text = "Incredible job completing your athletic workout session today! Let's rate how your body felt:",
+                        text = "Save the completed sets in this session and rate how the workout felt.",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
                         color = SecondaryText
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "RATE YOUR WORKOUT FEEL (1-5):",
+                        text = "HOW DID IT FEEL? (1–5)",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -724,11 +737,11 @@ fun WorkoutExecutionSubTab(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = when (selectedFeelRating) {
-                            1 -> "1 - Extremely fatigued / bad"
-                            2 -> "2 - Tired / poor feel"
-                            3 -> "3 - Average / neutral"
-                            4 -> "4 - Energetic / strong feel"
-                            else -> "5 - Beast mode / excellent!"
+                            1 -> "1 · Very fatigued"
+                            2 -> "2 · Tired"
+                            3 -> "3 · Typical"
+                            4 -> "4 · Energetic"
+                            else -> "5 · Very good"
                         },
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
@@ -744,7 +757,7 @@ fun WorkoutExecutionSubTab(
                     }
                 ) {
                     Text(
-                        text = "SAVE LOG & COMPLETE",
+                        text = "SAVE AND FINISH",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         color = GreenAccent,
@@ -757,7 +770,7 @@ fun WorkoutExecutionSubTab(
                     onClick = { showNormalFinishFeelDialog = false }
                 ) {
                     Text(
-                        text = "BACK",
+                        text = "BACK TO WORKOUT",
                         fontFamily = SyneFamily,
                         color = MutedText,
                         fontSize = 11.sp
@@ -812,61 +825,78 @@ fun WorkoutExecutionSubTab(
                     }
                 }
             } else {
-                ExerciseListSection(
-                    exercises = exercises,
-                    currentIdx = currentIdx,
-                    loggedSets = loggedSets,
-                    effectiveSetsMap = effectiveSetsMap,
-                    warmupComp = warmupComp,
-                    lastWeights = lastWeights,
-                    weightContextLines = weightContextLines,
-                    volumeAdjustments = volumeAdjustments,
-                    onUndoVolumeAdjustment = workoutExecutionViewModel.sessionManager::undoSetVolumeAdjustment,
-                    preferredUnits = preferredUnits,
-                    showRirOverlay = showRirOverlay,
-                    onOpenFormGuide = onOpenFormGuide,
-                    onToggleWarmupItem = { workoutExecutionViewModel.toggleWarmupItem(it) },
-                    onLogSetState = { exId, sIdx, w, r, rpe, comp, restTaken ->
-                        workoutExecutionViewModel.logWorkoutSetState(
-                            exerciseId = exId,
-                            setIndex = sIdx,
-                            weight = w,
-                            reps = r,
-                            rpe = rpe,
-                            completed = comp,
-                            restTakenSeconds = restTaken
-                        )
-                    },
-                    onCompleteSet = { exId, exName, muscleGroup, sIdx, w, r, totalSets, _ ->
-                        restTimerViewModel.clearClosedRestTimerContext()
-                        workoutExecutionViewModel.openRirSelector(
-                            exerciseId = exId,
-                            exerciseName = exName,
-                            muscleGroup = muscleGroup,
-                            setIndex = sIdx,
-                            weight = w,
-                            reps = r,
-                            totalSets = totalSets
-                        )
-                    },
-                    onAddCustomLogSet = { workoutExecutionViewModel.addCustomLogSet(it) },
-                    onNextExercise = { workoutExecutionViewModel.nextExercise() },
-                    onSkipExercise = { ex ->
-                        workoutExecutionViewModel.skipExercise()
-                        scope.launch {
-                            snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
-                        }
-                    },
-                    onShowNormalFinishFeelDialog = { showNormalFinishFeelDialog = true },
-                    onShowFinishEarlyDialog = { showFinishEarlyDialog = true },
-                    onShowExitDialog = { showExitDialog = true },
-                    onCancelOrCompleteEmptySession = {
-                        if (!workoutExecutionViewModel.hasCompletedSets) {
-                            restTimerViewModel.cancelRestTimer()
-                        }
-                        workoutExecutionViewModel.cancelOrCompleteEmptySession()
-                    }
-                )
+                Column(Modifier.fillMaxSize()) {
+                    val elapsedSeconds = ((workoutClockNow - (liveSession?.startTime ?: workoutClockNow))
+                        .coerceAtLeast(0L) / 1_000L).toInt()
+                    val elapsedTime = String.format(
+                        java.util.Locale.US,
+                        "%02d:%02d",
+                        elapsedSeconds / 60,
+                        elapsedSeconds % 60
+                    )
+                    WorkoutExecutionHeader(
+                        sessionLabel = activeSession?.label ?: liveSession?.sessionType.orEmpty(),
+                        elapsedTime = elapsedTime,
+                        onBack = { showExitDialog = true },
+                        onFinish = { showNormalFinishFeelDialog = true }
+                    )
+                    ExerciseListSection(
+                        exercises = exercises,
+                        currentIdx = currentIdx,
+                        loggedSets = loggedSets,
+                        effectiveSetsMap = effectiveSetsMap,
+                        warmupComp = warmupComp,
+                        lastWeights = lastWeights,
+                        weightContextLines = weightContextLines,
+                        volumeAdjustments = volumeAdjustments,
+                        onUndoVolumeAdjustment = workoutExecutionViewModel.sessionManager::undoSetVolumeAdjustment,
+                        preferredUnits = preferredUnits,
+                        showRirOverlay = showRirOverlay,
+                        onOpenFormGuide = onOpenFormGuide,
+                        onToggleWarmupItem = { workoutExecutionViewModel.toggleWarmupItem(it) },
+                        onLogSetState = { exId, sIdx, w, r, rpe, comp, restTaken ->
+                            workoutExecutionViewModel.logWorkoutSetState(
+                                exerciseId = exId,
+                                setIndex = sIdx,
+                                weight = w,
+                                reps = r,
+                                rpe = rpe,
+                                completed = comp,
+                                restTakenSeconds = restTaken
+                            )
+                        },
+                        onCompleteSet = { exId, exName, muscleGroup, sIdx, w, r, totalSets, _ ->
+                            restTimerViewModel.clearClosedRestTimerContext()
+                            workoutExecutionViewModel.openRirSelector(
+                                exerciseId = exId,
+                                exerciseName = exName,
+                                muscleGroup = muscleGroup,
+                                setIndex = sIdx,
+                                weight = w,
+                                reps = r,
+                                totalSets = totalSets
+                            )
+                        },
+                        onAddCustomLogSet = { workoutExecutionViewModel.addCustomLogSet(it) },
+                        onNextExercise = { workoutExecutionViewModel.nextExercise() },
+                        onSkipExercise = { ex ->
+                            workoutExecutionViewModel.skipExercise()
+                            scope.launch {
+                                snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
+                            }
+                        },
+                        onShowNormalFinishFeelDialog = { showNormalFinishFeelDialog = true },
+                        onShowFinishEarlyDialog = { showFinishEarlyDialog = true },
+                        onShowExitDialog = { showExitDialog = true },
+                        onCancelOrCompleteEmptySession = {
+                            if (!workoutExecutionViewModel.hasCompletedSets) {
+                                restTimerViewModel.cancelRestTimer()
+                            }
+                            workoutExecutionViewModel.cancelOrCompleteEmptySession()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
 
             if (formGuideExercise != null && formGuideContent != null) {
