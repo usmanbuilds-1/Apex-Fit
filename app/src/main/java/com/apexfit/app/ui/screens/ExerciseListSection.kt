@@ -102,6 +102,8 @@ fun ExerciseListSection(
     val isImperial = remember(preferredUnits) { preferredUnits.lowercase() in listOf("lb", "lbs") }
     val unitSuffix = if (isImperial) "lb" else "kg"
     val warmupList = remember(warmupComp) { warmupComp.toList() }
+    val currentExerciseId = exercises.getOrNull(currentIdx)?.exerciseId
+    var showPlateCalc by rememberSaveable(currentExerciseId) { mutableStateOf(false) }
     var showMore by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
@@ -113,7 +115,6 @@ fun ExerciseListSection(
             val ex = exercises[currentIdx]
             val setsList = loggedSets[ex.exerciseId] ?: emptyList()
             val activeSetIndex = setsList.indexOfFirst { !it.completed && !it.isWarmup }
-            var showPlateCalc by rememberSaveable(ex.exerciseId) { mutableStateOf(false) }
 
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
