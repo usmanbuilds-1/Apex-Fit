@@ -27,6 +27,36 @@ class ReadinessEngineTest {
         assertEquals(score(100.0), score(200.0))
     }
 
+    @Test
+    fun unusuallyLargeTrainingLoadDoesNotBecomeAnInjuryPrediction() {
+        val muscles = listOf("Chest", "Back", "Quads", "Hamstrings", "Glutes", "Shoulders")
+        val sessions = muscles.mapIndexed { index, muscle ->
+            com.apexfit.app.data.RichTrainingSession(
+                date = getDateDaysAgo(index),
+                sessionType = "Training",
+                completed = true,
+                exercises = listOf(
+                    com.apexfit.app.data.ExerciseLog(
+                        id = "exercise-$index",
+                        name = "Exercise $index",
+                        muscleGroup = muscle,
+                        sets = List(30) {
+                            com.apexfit.app.data.ExerciseSet(
+                                weight = 1_000.0,
+                                reps = 100,
+                                rpe = 7,
+                                isWarmup = false,
+                                completed = true
+                            )
+                        }
+                    )
+                )
+            )
+        }
+
+        assertTrue(AlgorithmEngine.detectTrainingPatternSignals(sessions).isEmpty())
+    }
+
 
     @Test
     fun readinessMatchesTrainingHistoryAcrossMuscleAliases() {
