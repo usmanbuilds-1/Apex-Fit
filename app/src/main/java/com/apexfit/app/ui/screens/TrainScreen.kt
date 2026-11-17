@@ -838,6 +838,7 @@ fun WorkoutExecutionSubTab(
                         )
                     },
                     onCompleteSet = { exId, exName, muscleGroup, sIdx, w, r, totalSets, _ ->
+                        restTimerViewModel.clearClosedRestTimerContext()
                         workoutExecutionViewModel.openRirSelector(
                             exerciseId = exId,
                             exerciseName = exName,

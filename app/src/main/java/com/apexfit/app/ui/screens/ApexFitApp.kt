@@ -469,31 +469,26 @@ fun ApexFitApp(
 
                 // Render smart rest timer overlay if triggered
                 val showRestOverlay by restTimerViewModel.showRestOverlay.collectAsStateWithLifecycle()
-                if (showRestOverlay) {
+                val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
+                val rirState by workoutExecutionViewModel.rirOverlayState.collectAsStateWithLifecycle()
+                if (showRestOverlay && !showRirOverlay) {
                     BackHandler { restTimerViewModel.closeRestTimer() }
                     RestTimerOverlay(restTimerViewModel)
                 }
 
-                // Render smart RIR selector overlay if triggered
-                val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
+                // RIR selection and the resulting rest period share the approved transition screen.
                 if (showRirOverlay) {
-                    BackHandler { workoutExecutionViewModel.closeRirSelector() }
+                    BackHandler {
+                        if (rirState.hasLoggedSet && showRestOverlay) restTimerViewModel.closeRestTimer()
+                        workoutExecutionViewModel.closeRirSelector()
+                    }
                     RirSelectorOverlay(
                         fitnessViewModel = fitnessViewModel,
                         workoutExecutionViewModel = workoutExecutionViewModel,
-                        onTriggerRestTimer = { rpe, exName, muscle, weight, units, reps, setIdx, totalSets ->
-                            restTimerViewModel.triggerRestTimer(
-                                rpe = rpe,
-                                exerciseName = exName,
-                                muscleGroup = muscle,
-                                weight = weight,
-                                units = units,
-                                reps = reps,
-                                setIndex = setIdx,
-                                totalSets = totalSets,
-                                currentExerciseIdx = workoutExecutionViewModel.currentExerciseIdx.value,
-                                completedExerciseId = workoutExecutionViewModel.rirOverlayState.value.exerciseId
-                            )
+                        restTimerViewModel = restTimerViewModel,
+                        onDismiss = {
+                            if (rirState.hasLoggedSet && showRestOverlay) restTimerViewModel.closeRestTimer()
+                            workoutExecutionViewModel.closeRirSelector()
                         }
                     )
                 }

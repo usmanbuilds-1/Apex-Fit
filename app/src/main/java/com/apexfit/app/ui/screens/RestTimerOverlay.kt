@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -27,7 +28,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -66,14 +66,21 @@ fun RestTimerOverlay(
         }
 
         Spacer(Modifier.weight(0.6f))
-        Text(
-            text = "${formatTimerTime(seconds)}  /  ${formatTimerTime(totalSeconds)}",
-            fontSize = 42.sp,
-            fontWeight = FontWeight.Bold,
-            color = ApexColors.TextPrimary,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-            textAlign = TextAlign.Center
-        )
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = formatTimerTime(seconds),
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold,
+                color = ApexColors.TextPrimary,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            )
+            Text(
+                text = "of ${formatTimerTime(totalSeconds)}",
+                fontSize = 16.sp,
+                color = ApexColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 7.dp)
+            )
+        }
         Spacer(Modifier.height(18.dp))
         LinearProgressIndicator(
             progress = { if (totalSeconds > 0) ((totalSeconds - seconds).toFloat() / totalSeconds).coerceIn(0f, 1f) else 0f },
@@ -83,10 +90,12 @@ fun RestTimerOverlay(
         )
         Spacer(Modifier.height(22.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onSubtractTime, modifier = Modifier.heightIn(min = 48.dp)) {
+            OutlinedButton(onClick = onSubtractTime, modifier = Modifier.heightIn(min = 48.dp),
+                shape = RoundedCornerShape(7.dp)) {
                 Text("−15 sec", color = ApexColors.TextSecondary)
             }
-            OutlinedButton(onClick = { onAddTime(15) }, modifier = Modifier.heightIn(min = 48.dp)) {
+            OutlinedButton(onClick = { onAddTime(15) }, modifier = Modifier.heightIn(min = 48.dp),
+                shape = RoundedCornerShape(7.dp)) {
                 Text("+15 sec", color = ApexColors.Primary)
             }
         }

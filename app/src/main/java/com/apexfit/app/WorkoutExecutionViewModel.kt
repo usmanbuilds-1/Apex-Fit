@@ -168,6 +168,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         val reps: Int = 0,
         val totalSets: Int = 0,
         val selectedRir: Int = 2,
+        val hasLoggedSet: Boolean = false,
         val isShowingHistory: Boolean = false,
         val historicalSets: List<com.apexfit.app.data.LastSetWithDate> = emptyList()
     )
@@ -307,6 +308,7 @@ class WorkoutExecutionViewModel @Inject constructor(
             reps = reps,
             totalSets = totalSets,
             selectedRir = 2,
+            hasLoggedSet = false,
             isShowingHistory = false,
             historicalSets = emptyList(),
             isVisible = true
@@ -314,7 +316,24 @@ class WorkoutExecutionViewModel @Inject constructor(
     }
 
     fun selectRirOption(rir: Int) {
-        _rirOverlayState.value = _rirOverlayState.value.copy(selectedRir = rir)
+        val current = _rirOverlayState.value
+        val next = current.copy(selectedRir = rir.coerceIn(0, 5))
+        _rirOverlayState.value = next
+        if (current.hasLoggedSet) {
+            val recordedRestSeconds = sessionManager.activeSession.value?.exercises
+                ?.firstOrNull { it.exerciseId == current.exerciseId }
+                ?.sets?.getOrNull(current.setIndex)?.restTakenSeconds ?: 0
+            logWorkoutSetState(
+                exerciseId = current.exerciseId,
+                setIndex = current.setIndex,
+                weight = current.weight,
+                reps = current.reps,
+                rpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(next.selectedRir),
+                restTakenSeconds = recordedRestSeconds,
+                completed = true,
+                repsInReserve = next.selectedRir
+            )
+        }
     }
 
     fun confirmRirSelection() {
@@ -359,7 +378,7 @@ class WorkoutExecutionViewModel @Inject constructor(
             repsInReserve = repsInReserve
         )
 
-        _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
+        _rirOverlayState.value = _rirOverlayState.value.copy(hasLoggedSet = true)
         val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
         val currentIndex = exercises.indexOfFirst { it.exerciseId == exId }
         val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed } == true
