@@ -264,6 +264,7 @@ fun SetLoggingRow(
                     }
                 },
                 enabled = isSetValid && (!showRirOverlay || setObj.completed),
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("log_checkmark_button"),
                 colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary,
                     contentColor = ApexColors.OnGlow)

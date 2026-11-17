@@ -108,7 +108,7 @@ fun ExerciseListSection(
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp)
     ) {
         // Current Exercise Layout
         if (currentIdx < exercises.size) {
@@ -242,7 +242,8 @@ fun ExerciseListSection(
                     exercises = exercises,
                     currentIdx = currentIdx,
                     loggedSets = loggedSets,
-                    preferredUnits = preferredUnits
+                    preferredUnits = preferredUnits,
+                    showAll = showMore
                 )
             }
 
@@ -359,12 +360,12 @@ private fun TrainingRail(
     exercises: List<PlanExercise>,
     currentIdx: Int,
     loggedSets: Map<String, List<UiExerciseSet>>,
-    preferredUnits: String
+    preferredUnits: String,
+    showAll: Boolean
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
     val isImperial = preferredUnits.lowercase() in listOf("lb", "lbs")
     val upcomingExercises = exercises.drop(currentIdx)
-    val visibleCount = if (expanded) upcomingExercises.size else minOf(4, upcomingExercises.size)
+    val visibleCount = if (showAll) upcomingExercises.size else minOf(4, upcomingExercises.size)
     val unit = if (isImperial) "lb" else "kg"
 
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -422,15 +423,6 @@ private fun TrainingRail(
                             fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
-            }
-        }
-        if (upcomingExercises.size > visibleCount) {
-            TextButton(onClick = { expanded = true }, modifier = Modifier.heightIn(min = 44.dp)) {
-                Text("More  ▾", color = ApexColors.TextSecondary, fontSize = 13.sp)
-            }
-        } else if (expanded && upcomingExercises.size > 4) {
-            TextButton(onClick = { expanded = false }, modifier = Modifier.heightIn(min = 44.dp)) {
-                Text("Less  ▴", color = ApexColors.TextSecondary, fontSize = 13.sp)
             }
         }
     }

@@ -73,6 +73,30 @@ private val activeWorkoutExercises = listOf(
         weight = 0.0,
         restSeconds = 90,
         notes = ""
+    ),
+    PlanExercise(
+        planSessionId = 1,
+        exerciseId = "face-pull",
+        name = "Face Pull",
+        muscleGroup = "Shoulders",
+        sets = 3,
+        repsMin = 15,
+        repsMax = 20,
+        weight = 22.5,
+        restSeconds = 60,
+        notes = ""
+    ),
+    PlanExercise(
+        planSessionId = 1,
+        exerciseId = "triceps-rope-pushdown",
+        name = "Triceps Rope Pushdown",
+        muscleGroup = "Arms",
+        sets = 3,
+        repsMin = 12,
+        repsMax = 15,
+        weight = 27.5,
+        restSeconds = 75,
+        notes = ""
     )
 )
 
