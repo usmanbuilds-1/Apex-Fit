@@ -85,7 +85,7 @@ fun RirAndRestNightLedger() {
             restSeconds = 74,
             totalRestSeconds = 90,
             lastSetContext = "Last set: 14 kg × 14 reps · RPE 8",
-            nextSetContext = "Next: Incline Dumbbell Curl (set 3/3)",
+            nextSetContext = "Next: Incline Dumbbell Curl · Set 3 of 3 · 14 kg × 12–15",
             primaryActionLabel = "Start set 3",
             units = "kg",
             onSelectRirOption = {},

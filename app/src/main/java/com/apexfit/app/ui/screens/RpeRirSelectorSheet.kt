@@ -139,9 +139,10 @@ fun RpeRirSelectorSheet(
                 Spacer(Modifier.height(22.dp))
                 Text(
                     text = "How many more reps could you have done?",
-                    style = MaterialTheme.typography.titleLarge,
                     color = ApexColors.TextPrimary,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    lineHeight = 24.sp
                 )
                 Spacer(Modifier.height(14.dp))
                 RirOptions(selectedRir = selectedRir, onSelect = onSelectRirOption)
@@ -154,11 +155,13 @@ fun RpeRirSelectorSheet(
                 }
                 Text("RPE $rpe · $repStatus", style = MaterialTheme.typography.bodyMedium,
                     color = ApexColors.TextSecondary, fontWeight = FontWeight.Medium)
-                TextButton(
-                    onClick = onConfirmRirSelection,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                ) {
-                    Text("View previous sets", color = ApexColors.TextSecondary)
+                if (!hasLoggedSet) {
+                    TextButton(
+                        onClick = onConfirmRirSelection,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) {
+                        Text("View previous sets", color = ApexColors.TextSecondary)
+                    }
                 }
 
                 if (hasLoggedSet && hasRestContext) {
@@ -167,6 +170,7 @@ fun RpeRirSelectorSheet(
                     RestContext(
                         seconds = restSeconds,
                         totalSeconds = totalRestSeconds,
+                        currentExerciseName = exerciseName,
                         lastSet = lastSetContext,
                         nextSet = nextSetContext,
                         onAddTime = onAddRestTime,
@@ -239,6 +243,7 @@ private fun RirOptions(selectedRir: Int, onSelect: (Int) -> Unit) {
 private fun RestContext(
     seconds: Int,
     totalSeconds: Int,
+    currentExerciseName: String,
     lastSet: String,
     nextSet: String,
     onAddTime: (Int) -> Unit,
@@ -253,11 +258,13 @@ private fun RestContext(
         Text("Rest", style = MaterialTheme.typography.titleMedium, color = ApexColors.TextPrimary,
             fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onSubtractTime, modifier = Modifier.heightIn(min = 44.dp),
+            OutlinedButton(onClick = onSubtractTime, modifier = Modifier.heightIn(min = 44.dp)
+                    .background(ApexColors.SurfaceRaised, RoundedCornerShape(7.dp)),
                 shape = RoundedCornerShape(7.dp)) {
                 Text("−15", color = ApexColors.TextSecondary)
             }
-            OutlinedButton(onClick = { onAddTime(15) }, modifier = Modifier.heightIn(min = 44.dp),
+            OutlinedButton(onClick = { onAddTime(15) }, modifier = Modifier.heightIn(min = 44.dp)
+                    .background(ApexColors.SurfaceRaised, RoundedCornerShape(7.dp)),
                 shape = RoundedCornerShape(7.dp)) {
                 Text("+15", color = ApexColors.TextSecondary)
             }
@@ -265,9 +272,9 @@ private fun RestContext(
     }
     Spacer(Modifier.height(4.dp))
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(formatTimerTime(seconds), fontSize = 48.sp, fontWeight = FontWeight.Bold,
+        Text(formatTimerTime(seconds), fontSize = 40.sp, fontWeight = FontWeight.Bold,
             color = ApexColors.TextPrimary, fontFamily = FontFamily.Monospace)
-        Text("of ${formatTimerTime(totalSeconds)}", fontSize = 16.sp, color = ApexColors.TextSecondary,
+        Text("of ${formatTotalTime(totalSeconds)}", fontSize = 16.sp, color = ApexColors.TextSecondary,
             modifier = Modifier.padding(bottom = 7.dp))
     }
     Spacer(Modifier.height(8.dp))
@@ -280,7 +287,11 @@ private fun RestContext(
     Spacer(Modifier.height(14.dp))
     HorizontalDivider(color = ApexColors.BorderSubtle)
     if (lastSet.isNotBlank()) ContextRow("Last", lastSet.removePrefix("Last set: "))
-    if (nextSet.isNotBlank()) ContextRow("Next", nextSet.removePrefix("Next: "))
+    if (nextSet.isNotBlank()) {
+        val nextValue = nextSet.removePrefix("Next: ")
+            .removePrefix("$currentExerciseName · ")
+        ContextRow("Next", nextValue)
+    }
     HorizontalDivider(color = ApexColors.BorderSubtle)
     Spacer(Modifier.height(8.dp))
 }
@@ -428,4 +439,9 @@ fun RirSelectorOverlay(
 private fun formatTimerTime(seconds: Int): String {
     val safeSeconds = seconds.coerceAtLeast(0)
     return String.format(java.util.Locale.US, "%02d:%02d", safeSeconds / 60, safeSeconds % 60)
+}
+
+private fun formatTotalTime(seconds: Int): String {
+    val safeSeconds = seconds.coerceAtLeast(0)
+    return String.format(java.util.Locale.US, "%d:%02d", safeSeconds / 60, safeSeconds % 60)
 }
