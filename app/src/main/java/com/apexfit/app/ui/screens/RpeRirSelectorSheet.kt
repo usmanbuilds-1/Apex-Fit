@@ -141,8 +141,8 @@ fun RpeRirSelectorSheet(
                     text = "How many more reps could you have done?",
                     color = ApexColors.TextPrimary,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp,
-                    lineHeight = 24.sp
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp
                 )
                 Spacer(Modifier.height(14.dp))
                 RirOptions(selectedRir = selectedRir, onSelect = onSelectRirOption)
@@ -286,7 +286,13 @@ private fun RestContext(
     )
     Spacer(Modifier.height(14.dp))
     HorizontalDivider(color = ApexColors.BorderSubtle)
-    if (lastSet.isNotBlank()) ContextRow("Last", lastSet.removePrefix("Last set: "))
+    if (lastSet.isNotBlank()) {
+        val lastValue = lastSet.removePrefix("Last set: ")
+            .substringBefore(" · RPE ")
+            .substringBefore(" @ RPE ")
+            .removeSuffix(" reps")
+        ContextRow("Last", lastValue)
+    }
     if (nextSet.isNotBlank()) {
         val nextValue = nextSet.removePrefix("Next: ")
             .removePrefix("$currentExerciseName · ")
