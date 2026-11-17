@@ -108,7 +108,7 @@ fun ExerciseListSection(
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp)
+        modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp)
     ) {
         // Current Exercise Layout
         if (currentIdx < exercises.size) {
