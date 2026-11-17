@@ -29,14 +29,11 @@ Automated Android CI, lint, unit tests, palette checks and Compose preview rende
 - Workout Complete now has earned-PR, no-PR and partial-receipt render coverage.
 - Settings selection/focus treatment is being normalized away from generic amber; technical BMR-offset wording was removed.
 - Progress weight logging copy now uses consumer-facing `Log weight` / `Weight history` wording and localized dates.
+- Local branch `codex/night-ledger-pr33` is synced to PR #33; local changes were preserved and pushed through `c8ba042`.
 
 ## Still blocking merge
 
-### 1. Preserve and integrate local Codex work
-
-Local branch `codex/night-ledger-pr33` contains commit `6423946`, which is not present on GitHub. Do not reset, overwrite or discard it. Before broad remote UI rewrites, sync the remote PR into that local branch semantically and preserve the local work.
-
-### 2. Finish the reachable Night Ledger migration
+### 1. Finish the reachable Night Ledger migration
 
 The remaining high-risk legacy surfaces require the local/visual pass:
 - Train Program / active Workout / Plans
@@ -44,19 +41,19 @@ The remaining high-risk legacy surfaces require the local/visual pass:
 - Settings final polish
 - Progress weight/body-metrics subroutes
 - Personal Records / Workout History detail
-- rest timer / RPE sheets / import review where reachable
+- import review where reachable
 
 A polished overview does not count if a tap drops into an older visual language.
 
-### 3. One icon family
+### 2. One icon family
 
 The app still mixes Material icons and legacy/custom vector assets on reachable screens. Finalize one approved family (Phosphor, HugeIcons, Radix or Tabler per the product direction), keep bottom-nav labels visible, and use a coherent selected/inactive treatment. Do not hand-roll replacement glyphs.
 
-### 4. Muscle anatomy quality
+### 3. Muscle anatomy quality
 
 Muscle Volume behavior is improved, but the original APEX anatomy still needs final visual refinement against the Night Ledger quality bar. Keep it original, accessible, restrained and set-count-only; do not copy Lyfta or turn it into a neon/thermal recovery map.
 
-### 5. Exercise Detail final polish
+### 4. Exercise Detail final polish
 
 Preserve vetted source instructions and honest no-instruction fallback. Final pass still needs to verify:
 - long real instruction sets
@@ -68,7 +65,7 @@ Preserve vetted source instructions and honest no-instruction fallback. Final pa
 
 Do not invent coaching or biomechanics merely to fill empty space.
 
-### 6. Visual-state coverage still missing
+### 5. Visual-state coverage still missing
 
 Add/verify real renders for:
 - Train Program
@@ -83,9 +80,9 @@ Add/verify real renders for:
 - Muscle Volume selected drill-down / Month / loading or failure path as applicable
 - Workout Complete expanded details
 - importer review/error states
-- rest timer and RPE/RIR sheet
+- combined RIR selection + active rest state, history, and pre-log state
 
-### 7. Real Android validation
+### 6. Real Android validation
 
 Compose screenshot tests are preview renders. They are useful regression evidence but are **not** a substitute for:
 - Android system bars/insets
@@ -99,22 +96,23 @@ Compose screenshot tests are preview renders. They are useful regression evidenc
 
 Use a real emulator/device when available. If the local Windows environment continues to fail, report that as a blocker instead of claiming completion.
 
-### 8. Stitch fidelity
+### 7. Stitch fidelity
 
 Stitch project: `14369859982852578965`.
 
-The local Codex environment has a configured direct Stitch endpoint and has already retrieved/compared the approved Today reference. Do not expose or request the key. Continue comparisons for the approved references that are actually available. The connected Stitch tool authentication failure does not invalidate the working local direct endpoint.
+Stitch MCP is responding: `list_screens` returned the approved screens and `download_file` retrieved the RIR/rest reference. The RIR/rest render from `c8ba042` was compared against that reference. Continue comparisons for the approved references that are actually available; never expose or request API keys.
 
-### 9. Eight end-to-end flows
+### 8. Eight end-to-end flows
 
 Run and report, where the environment permits, the eight flows defined in `docs/NIGHT_LEDGER_CODEX_REMAINDER.md`. Automated compilation alone is not an E2E pass. If hardware/emulator limitations block a flow, name the exact blocked step.
 
 ## Current automated evidence
 
-- Exact PR head must have Android CI/APK + palette success before any final report.
-- Previous confirmed green head: `a47677fbf53246e26d5e418857cb263bb17343b2`.
-- That head produced the expanded Compose render artifact including onboarding, Today, Nutrition, Progress, Measurements, Exercise Picker/media, Muscle Volume, Recovery and Workout Receipt states.
-- Subsequent isolated remote-safe UI/test commits must be reverified on their exact final head.
+- Latest confirmed green head: `c8ba04205d565e8f766733a069dd8bdabd33da38`.
+- Android CI/APK build, unit tests, lint, Compose screenshot rendering, and palette regression passed on that exact head.
+- Render artifact `14303777272` includes the combined RIR/rest state, pre-log selector, and history state among the expanded screen coverage.
+- The post-log RIR/rest screenshot was visually compared with the approved Stitch reference and refined for hierarchy, timer formatting, and real next-set context.
+- Subsequent changes must be reverified on their exact final head.
 - A transient Maven Central HTTP 429 on an intermediate run is infrastructure noise, not evidence of a source-code failure.
 
 ## Exit criteria

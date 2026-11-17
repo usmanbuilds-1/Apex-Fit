@@ -93,7 +93,7 @@ private fun RenderToday(
                     hasActiveSession = inProgress,
                     estimatedWorkoutDuration = if (hasSchedule) 54 else 0,
                     readiness = if (hasSchedule) UiSessionReadiness(
-                        score = 82, label = "Estimated readiness", colorHex = "#7192D3",
+                    score = 82, label = "Good", colorHex = "#7192D3",
                         prediction = "The estimate uses logged training and nutrition, with recent history for your trained muscles.",
                         recommendation = "Consider your energy, sleep, and soreness when choosing today’s effort."
                     ) else null,

@@ -389,9 +389,12 @@ private fun TodayWorkoutCard(
                     if (readiness == null) {
                         Text("Building readiness baseline", color = TextMuted, fontSize = 13.sp)
                     } else {
-                        Text(readiness.label, color = PrimaryText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text(readiness.recommendation, color = TextMuted, fontSize = 12.sp)
-                        Text("Readiness estimate", color = TextMuted, fontSize = 11.sp)
+                        val readinessSummary = if (readiness.label.contains("baseline", ignoreCase = true)) {
+                            readiness.label
+                        } else {
+                            "Estimate · ${readiness.label}"
+                        }
+                        Text(readinessSummary, color = PrimaryText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
