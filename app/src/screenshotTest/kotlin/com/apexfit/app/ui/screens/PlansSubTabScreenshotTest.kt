@@ -100,3 +100,39 @@ fun PlansEmptyState() {
 fun PlansLoading() {
     PlansPreviewFrame { PlansLoadingState(Modifier.weight(1f)) }
 }
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 1032, locale = "en-US")
+@Composable
+fun PlansActivePlanUnavailable() {
+    PlansPreviewFrame {
+        PlansSubTabContent(
+            plans = plansPreview,
+            activePlan = null,
+            activePlanError = "Could not load the active plan.",
+            activeSessions = UiState.Error("Schedule unavailable"),
+            onCreatePlan = {},
+            onImportPlan = {},
+            onEditPlan = {},
+            onActivatePlan = {}
+        )
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 1032, locale = "en-US")
+@Composable
+fun PlansScheduleUnavailable() {
+    PlansPreviewFrame {
+        PlansSubTabContent(
+            plans = plansPreview,
+            activePlan = plansPreview.first(),
+            activePlanError = null,
+            activeSessions = UiState.Error("Schedule unavailable"),
+            onCreatePlan = {},
+            onImportPlan = {},
+            onEditPlan = {},
+            onActivatePlan = {}
+        )
+    }
+}
