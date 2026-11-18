@@ -100,13 +100,16 @@ fun TrainTab(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                Text(if (subTab == 2) "Plans" else "Train", color = PrimaryText,
+                    fontSize = 28.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f))
-                Icon(painter = painterResource(R.drawable.ic_apex_logo), contentDescription = null,
-                    tint = ApexColors.Primary, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("APEX FIT", color = PrimaryText, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp)
+                if (subTab != 2) {
+                    Icon(painter = painterResource(R.drawable.ic_apex_logo), contentDescription = null,
+                        tint = ApexColors.Primary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("APEX FIT", color = PrimaryText, fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                }
             }
             TrainSubTabControl(
                 labels = listOf("Program", "Workout", "Plans"),
@@ -125,11 +128,11 @@ fun TrainTab(
                 )
                 1 -> WorkoutExecutionSubTab(fitnessViewModel, workoutExecutionViewModel, restTimerViewModel, snackbarHostState)
                 2 -> NewPlansSubTab(
-                    fitnessViewModel = fitnessViewModel,
                     planBuilderViewModel = planBuilderViewModel,
                     onNavigateToPlanBuilder = onNavigateToPlanBuilder,
                     onNavigateToWorkoutImport = onNavigateToWorkoutImport,
-                    snackbarHostState = snackbarHostState
+                    snackbarHostState = snackbarHostState,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -811,170 +814,39 @@ private suspend fun loadFormGuideData(
 
 @Composable
 fun NewPlansSubTab(
-    fitnessViewModel: FitnessViewModel,
     planBuilderViewModel: PlanBuilderViewModel,
     onNavigateToPlanBuilder: (Long) -> Unit,
     onNavigateToWorkoutImport: () -> Unit,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    modifier: Modifier = Modifier
 ) {
     val plans by planBuilderViewModel.workoutPlans.collectAsStateWithLifecycle()
     val activePlanState by planBuilderViewModel.activePlan.collectAsStateWithLifecycle()
+    val activeSessions by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     if (activePlanState is UiState.Loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = OrangeAccent)
-        }
+        PlansLoadingState(modifier)
         return
     }
 
-    val activePlan: com.apexfit.app.data.WorkoutPlan? = (activePlanState as? UiState.Success)?.data
-    val context = LocalContext.current
-
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        item {
-            Button(
-                onClick = { onNavigateToPlanBuilder(0L) },
-                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("build_custom_plan_button")
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        tint = ApexColors.OnGlow,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        stringResource(R.string.train_build_custom_workout_plan),
-                        fontFamily = InterFamily,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ApexColors.OnGlow
-                    )
-                }
+    val activePlan = (activePlanState as? UiState.Success)?.data
+    val activePlanError = (activePlanState as? UiState.Error)?.message
+    PlansSubTabContent(
+        plans = plans,
+        activePlan = activePlan,
+        activePlanError = activePlanError,
+        activeSessions = activeSessions,
+        onCreatePlan = { onNavigateToPlanBuilder(0L) },
+        onImportPlan = onNavigateToWorkoutImport,
+        onEditPlan = onNavigateToPlanBuilder,
+        onActivatePlan = { plan ->
+            planBuilderViewModel.activatePlan(plan.id)
+            scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.train_plan_activated))
             }
-        }
-
-        item {
-            OutlinedButton(
-                onClick = onNavigateToWorkoutImport,
-                border = BorderStroke(1.dp, BorderSubtle),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            ) {
-                Text(
-                    "Import from text",
-                    fontFamily = InterFamily,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = PrimaryText
-                )
-            }
-        }
-
-        // List of athletic directories
-        item {
-            Text(
-                text = "Your plans",
-                fontFamily = InterFamily,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = PrimaryText
-            )
-        }
-
-        if (plans.isEmpty()) {
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("No plans yet", color = PrimaryText, fontFamily = InterFamily,
-                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Create a plan to organize your training days and exercises.",
-                        color = SecondaryText, fontFamily = InterFamily, fontSize = 14.sp)
-                }
-            }
-        }
-
-        items(plans, key = { it.id }) { plan ->
-            val isActive = activePlan?.id == plan.id
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkCardSurface)
-                    .border(BorderStroke(1.dp, if (isActive) ApexColors.Primary else BorderSubtle), RoundedCornerShape(12.dp))
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = plan.name,
-                                fontFamily = SyneFamily,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryText
-                            )
-                            if (isActive) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(ApexColors.VictorySoft)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(stringResource(R.string.train_active), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Target Goal: ${plan.goal}",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = SecondaryText
-                        )
-                    }
-
-                    TextButton(onClick = { onNavigateToPlanBuilder(plan.id) }) {
-                        Text("Edit", color = ApexColors.Primary)
-                    }
-                    if (!isActive) {
-                        Button(
-                            onClick = {
-                                planBuilderViewModel.activatePlan(plan.id)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(context.getString(R.string.train_plan_activated))
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(stringResource(R.string.train_activate), fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-    }
+        },
+        modifier = modifier
+    )
 }
