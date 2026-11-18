@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,10 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.apexfit.app.R
 import com.apexfit.app.data.PlanExercise
 import com.apexfit.app.data.PlanSession
 import com.apexfit.app.ui.models.UiState
@@ -160,7 +159,7 @@ internal fun TrainProgramSchedule(
                                 Spacer(Modifier.width(10.dp))
                                 if (isSelected && session != null) {
                                     Icon(
-                                        imageVector = Icons.Filled.ExpandMore,
+                                        painter = painterResource(id = R.drawable.ic_expand_more),
                                         contentDescription = "Collapse $day",
                                         tint = ApexColors.TextSecondary,
                                         modifier = Modifier.size(20.dp)
