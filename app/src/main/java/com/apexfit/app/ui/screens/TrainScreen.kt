@@ -97,7 +97,6 @@ fun TrainTab(
         ) {
             Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-            TextButton(onClick = { showLibrary = true }) { Text("Exercise library") }
             ApexSegmentedControl(
                 labels = listOf("Program", "Workout", "Plans"),
                 selectedIndex = subTab,
@@ -106,7 +105,13 @@ fun TrainTab(
             )
 
             when (subTab) {
-                0 -> ProgramSubTab(fitnessViewModel, planBuilderViewModel, workoutExecutionViewModel)
+                0 -> ProgramSubTab(
+                    fitnessViewModel = fitnessViewModel,
+                    planBuilderViewModel = planBuilderViewModel,
+                    workoutExecutionViewModel = workoutExecutionViewModel,
+                    onOpenLibrary = { showLibrary = true },
+                    modifier = Modifier.weight(1f)
+                )
                 1 -> WorkoutExecutionSubTab(fitnessViewModel, workoutExecutionViewModel, restTimerViewModel, snackbarHostState)
                 2 -> NewPlansSubTab(
                     fitnessViewModel = fitnessViewModel,
@@ -124,27 +129,24 @@ fun TrainTab(
 fun ProgramSubTab(
     fitnessViewModel: FitnessViewModel,
     planBuilderViewModel: PlanBuilderViewModel,
-    workoutExecutionViewModel: WorkoutExecutionViewModel
+    workoutExecutionViewModel: WorkoutExecutionViewModel,
+    onOpenLibrary: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val selectedDay by planBuilderViewModel.selectedDayOfWeek.collectAsStateWithLifecycle()
-    val selectedDaySessionRaw by planBuilderViewModel.selectedDaySession.collectAsStateWithLifecycle()
+    val selectedDaySession by planBuilderViewModel.selectedDaySession.collectAsStateWithLifecycle()
     val exercises by planBuilderViewModel.selectedDayExercises.collectAsStateWithLifecycle()
-
-    val sessionManager = workoutExecutionViewModel.sessionManager
-    val isStarting by sessionManager.isStartingSession.collectAsStateWithLifecycle()
-
-    val selectedDaySession = selectedDaySessionRaw
-
-    val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    val sessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val allExercises by planBuilderViewModel.allPlanExercises.collectAsStateWithLifecycle()
+    val isStarting by workoutExecutionViewModel.sessionManager.isStartingSession.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
     var swapExercise by remember { mutableStateOf<com.apexfit.app.data.PlanExercise?>(null) }
     var pendingSwap by remember { mutableStateOf<com.apexfit.app.data.PlanExercise?>(null) }
     var replacement by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var swapMessage by remember { mutableStateOf<String?>(null) }
-
     var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var formGuideContent by remember { mutableStateOf<FormGuideContent?>(null) }
 
@@ -163,8 +165,10 @@ fun ProgramSubTab(
     if (swap != null) {
         val library by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
         ExercisePickerDialog(
-            state = library, title = "Substitute exercise",
-            initialMuscle = swap.muscleGroup, excludeId = swap.exerciseId,
+            state = library,
+            title = "Substitute exercise",
+            initialMuscle = swap.muscleGroup,
+            excludeId = swap.exerciseId,
             onDismiss = { swapExercise = null },
             onSelect = {
                 replacement = it
@@ -173,13 +177,17 @@ fun ProgramSubTab(
             }
         )
     }
+
     val selectedReplacement = replacement
     val original = pendingSwap
     if (selectedReplacement != null && original != null) {
         AlertDialog(
             onDismissRequest = { replacement = null },
             title = { Text("Substitute exercise?") },
-            text = { Text("Replace ${original.name} with ${selectedReplacement.name}. The new exercise starts with load calibration.") },
+            text = {
+                Text("Replace " + original.name + " with " + selectedReplacement.name +
+                    ". The new exercise starts with load calibration.")
+            },
             dismissButton = { TextButton(onClick = { replacement = null }) { Text("Cancel") } },
             confirmButton = {
                 TextButton(onClick = {
@@ -192,237 +200,51 @@ fun ProgramSubTab(
             }
         )
     }
+
     swapMessage?.let { message ->
-        AlertDialog(onDismissRequest = { swapMessage = null },
+        AlertDialog(
+            onDismissRequest = { swapMessage = null },
             title = { Text(message) },
-            confirmButton = { TextButton(onClick = { swapMessage = null }) { Text("Close") } })
+            confirmButton = { TextButton(onClick = { swapMessage = null }) { Text("Close") } }
+        )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Horizontal Day Picker Chips
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(daysOfWeek, key = { it }) { day ->
-                    val isSelected = selectedDay.equals(day, ignoreCase = true)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) ApexColors.Primary else DarkCardSurface)
-                            .border(
-                                BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
-                                RoundedCornerShape(14.dp)
-                            )
-                            .semantics { selected = isSelected }
-                            .clickable(role = Role.Tab) { planBuilderViewModel.selectDay(day) }
-                            .heightIn(min = 48.dp)
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = day.substring(0, 3).uppercase(),
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) ApexColors.OnGlow else SecondaryText
-                        )
-                    }
+    Box(modifier = modifier.fillMaxSize()) {
+        TrainProgramSchedule(
+            sessionsState = sessionsState,
+            allExercises = allExercises,
+            selectedDay = selectedDay,
+            selectedSession = selectedDaySession,
+            selectedExercises = exercises,
+            preferredUnits = units,
+            isStarting = isStarting,
+            onSelectDay = planBuilderViewModel::selectDay,
+            onStartSession = { session ->
+                if (!isStarting) {
+                    workoutExecutionViewModel.startWorkoutSession(session)
+                    fitnessViewModel.setTrainSubTab(1)
                 }
-            }
+            },
+            onOpenPlans = { fitnessViewModel.setTrainSubTab(2) },
+            onOpenLibrary = onOpenLibrary,
+            onOpenFormGuide = onOpenFormGuide,
+            onSubstituteExercise = { swapExercise = it },
+            modifier = Modifier.fillMaxSize()
+        )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (selectedDaySession == null) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("No workout scheduled for $selectedDay", color = PrimaryText,
-                        fontFamily = InterFamily, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Choose another day or explore your plans.", color = SecondaryText,
-                        fontFamily = InterFamily, fontSize = 14.sp)
-                    TextButton(onClick = { fitnessViewModel.setTrainSubTab(2) }) {
-                        Text("Browse or create a plan", color = ApexColors.Primary)
-                    }
-                }
-            } else {
-                val isImperial = remember(units) { units.lowercase() in listOf("lb", "lbs") }
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Focus Card first
-                    item {
-                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                            Text(
-                                text = "Scheduled workout",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = SecondaryText
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = selectedDaySession.label,
-                                fontFamily = SyneFamily,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = PrimaryText
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = selectedDaySession.focus,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 12.sp,
-                                color = SecondaryText
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            Button(
-                                onClick = {
-                                    if (!isStarting) {
-                                        workoutExecutionViewModel.startWorkoutSession(selectedDaySession)
-                                        fitnessViewModel.setTrainSubTab(1)
-                                    }
-                                },
-                                enabled = !isStarting,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    stringResource(R.string.train_start_current_workout_run),
-                                    fontFamily = SyneFamily,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ApexColors.OnGlow
-                                )
-                            }
-                        }
-                    }
-
-                    // Exercises list
-                    itemsIndexed(exercises, key = { _, ex -> ex.id }) { index, ex ->
-                        var isExpanded by rememberSaveable { mutableStateOf(false) }
-                        val displayWeight = if (isImperial) (ex.weight * AppConstants.KG_TO_LBS).let { Math.round(it * 10.0) / 10.0 } else ex.weight
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(DarkCardSurface)
-                                .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-                                .clickable(role = Role.Button) { isExpanded = !isExpanded }
-                                .padding(16.dp)
-                        ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = ex.name,
-                                            fontFamily = SyneFamily,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = PrimaryText
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "${ex.sets} Sets x ${ex.repsMin}-${ex.repsMax} Reps • $displayWeight $units",
-                                            fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 11.sp,
-                                            color = AmberAccent
-                                        )
-                                    }
-                                    Icon(
-                                        painter = painterResource(if (isExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more),
-                                        contentDescription = "Expand details",
-                                        tint = SecondaryText
-                                    )
-                                }
-
-                                if (isExpanded) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(1.dp)
-                                            .background(BorderSubtle)
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    Text(
-                                        text = "Rest Target Interval: ${ex.restSeconds} Seconds",
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 11.sp,
-                                        color = SecondaryText
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = ex.notes,
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 11.sp,
-                                        color = MutedText,
-                                        lineHeight = 16.sp
-                                    )
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        // Form Guide button
-                                        Button(
-                                            onClick = { onOpenFormGuide(ex.name) },
-                                            colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(stringResource(R.string.train_form_guide), fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
-                                        }
-
-                                        // Replace Exercise button suggestion
-                                        Button(
-                                            onClick = { swapExercise = ex },
-                                            colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(stringResource(R.string.train_substitute), fontFamily = SyneFamily, fontSize = 11.sp, color = AmberAccent)
-                                        }
-                                    }
-
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-                }
-            } // end if-else
-        } // end Column
-
-        if (formGuideExercise != null && formGuideContent != null) {
-            val exercise = formGuideExercise ?: return@Box
-            val content = formGuideContent ?: return@Box
+        val guideExercise = formGuideExercise
+        val guideContent = formGuideContent
+        if (guideExercise != null && guideContent != null) {
             FormGuideSheet(
-                exercise = exercise,
-                content = content,
+                exercise = guideExercise,
+                content = guideContent,
                 onDismiss = {
                     formGuideExercise = null
                     formGuideContent = null
                 }
             )
         }
-    } // end Box
+    }
 }
 
 @Composable
