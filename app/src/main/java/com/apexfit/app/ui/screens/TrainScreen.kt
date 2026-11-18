@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -143,26 +144,32 @@ internal fun TrainSubTabControl(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
+        val density = LocalDensity.current
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             labels.forEachIndexed { index, label ->
                 val isSelected = index == selectedIndex
+                var labelWidthPx by remember(label) { mutableIntStateOf(0) }
                 Column(
                     modifier = Modifier
                         .semantics { selected = isSelected }
                         .clickable(role = Role.Tab) { onSelect(index) }
                         .heightIn(min = 48.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.Start
                 ) {
                     Text(
                         label,
                         color = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary,
                         fontSize = 16.sp,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        modifier = Modifier.padding(top = 10.dp)
+                        modifier = Modifier.padding(top = 10.dp),
+                        onTextLayout = { labelWidthPx = it.size.width }
                     )
                     Spacer(Modifier.height(10.dp))
                     if (isSelected) {
-                        Box(Modifier.fillMaxWidth().height(2.dp).background(ApexColors.Primary))
+                        Box(
+                            Modifier.width(with(density) { labelWidthPx.toDp() })
+                                .height(2.dp).background(ApexColors.Primary)
+                        )
                     }
                 }
             }
