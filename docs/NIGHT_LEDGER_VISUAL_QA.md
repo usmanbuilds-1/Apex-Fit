@@ -27,6 +27,7 @@ Automated Android CI, lint, unit tests, palette checks and Compose preview rende
 - Exercise-media loading/no-video/offline states are covered; their fixtures now render on the Night Ledger canvas rather than a transparent white preview.
 - The technique-video surface no longer uses the old amber technical label or a mixed Material play icon.
 - Workout Complete now has earned-PR, no-PR and partial-receipt render coverage.
+- Train Program now renders a full seven-day schedule with an expanded selected session, real plan fields, substitution/Form Guide actions, and a start action. Its tabs and density were compared with the approved Stitch reference and refined.
 - Settings selection/focus treatment is being normalized away from generic amber; technical BMR-offset wording was removed.
 - Progress weight logging copy now uses consumer-facing `Log weight` / `Weight history` wording and localized dates.
 - Local branch `codex/night-ledger-pr33` is synced to PR #33; local changes were preserved and pushed through `c8ba042`.
@@ -37,7 +38,7 @@ Automated Android CI, lint, unit tests, palette checks and Compose preview rende
 
 The remaining high-risk legacy surfaces require the local/visual pass:
 - Today: finish Stitch comparison of scheduled, rest-day, insufficient-weight and larger-font states.
-- Train Program / active Workout / Plans
+- active Workout / Plans
 - Plan Builder and its edit dialogs
 - Settings final polish
 - Progress weight/body-metrics subroutes
@@ -69,7 +70,6 @@ Do not invent coaching or biomechanics merely to fill empty space.
 ### 5. Visual-state coverage still missing
 
 Add/verify real renders for:
-- Train Program
 - active Workout logger
 - Plans
 - Plan Builder
@@ -109,9 +109,10 @@ Run and report, where the environment permits, the eight flows defined in `docs/
 
 ## Current automated evidence
 
-- Latest confirmed green head: `ecb9f36f9973f08113b90a55c51460c8bbc6c70f`.
-- Android CI/APK build, unit tests, lint, Compose screenshot rendering, and palette regression passed on that exact head.
-- Render artifact `14304402671` includes the updated Today state matrix plus the combined RIR/rest, pre-log selector, and history states among the expanded screen coverage.
+- Latest confirmed green source head: `76777abda49b96eb8b66aa70e5dd1a2662dc772e`.
+- Android CI/APK build, unit tests, lint, and Compose screenshot rendering passed on that exact head (run `44240119909`); palette regression passed (run `44240119849`).
+- Render artifact `14399372153` includes `TrainProgramScheduleNightLedger` and the existing screen state coverage.
+- Train Program was compared with Stitch screen `projects/14369859982852578965/screens/f72ba5e089ce4cf8a003e4c32c5671f4` (screenshot file `6540126667228233814`). The rendered weekly schedule now fits the full week at the preview viewport.
 - Today was checked against Stitch: the contextual local photo and fade align; the main readiness row was shortened to remove duplicate explanation copy. Calorie and weight hierarchy is receiving one more compactness pass.
 - The post-log RIR/rest screenshot was visually compared with the approved Stitch reference and refined for hierarchy, timer formatting, and real next-set context.
 - Subsequent changes must be reverified on their exact final head.
