@@ -129,8 +129,8 @@ internal fun TrainProgramSchedule(
                                 modifier = Modifier.fillMaxWidth()
                                     .semantics { selected = isSelected }
                                     .clickable(role = Role.Button) { onSelectDay(day) }
-                                    .heightIn(min = 64.dp)
-                                    .padding(vertical = 8.dp),
+                                    .heightIn(min = 52.dp)
+                                    .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(day.take(3), color = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary,
@@ -176,7 +176,7 @@ internal fun TrainProgramSchedule(
                                         HorizontalDivider(color = ApexColors.BorderSubtle)
                                         Row(
                                             modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { expanded = !expanded }
-                                                .heightIn(min = 66.dp).padding(vertical = 8.dp),
+                                                .heightIn(min = 48.dp).padding(vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {

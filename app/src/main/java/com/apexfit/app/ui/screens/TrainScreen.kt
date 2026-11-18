@@ -95,13 +95,23 @@ fun TrainTab(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
-            Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-            ApexSegmentedControl(
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                Icon(painter = painterResource(R.drawable.ic_apex_logo), contentDescription = null,
+                    tint = ApexColors.Primary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("APEX FIT", color = PrimaryText, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp)
+            }
+            TrainSubTabControl(
                 labels = listOf("Program", "Workout", "Plans"),
                 selectedIndex = subTab,
                 onSelect = fitnessViewModel::setTrainSubTab,
-                modifier = Modifier.padding(vertical = 12.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
             when (subTab) {
@@ -122,6 +132,42 @@ fun TrainTab(
                 )
             }
         }
+    }
+}
+
+@Composable
+internal fun TrainSubTabControl(
+    labels: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            labels.forEachIndexed { index, label ->
+                val isSelected = index == selectedIndex
+                Column(
+                    modifier = Modifier
+                        .semantics { selected = isSelected }
+                        .clickable(role = Role.Tab) { onSelect(index) }
+                        .heightIn(min = 48.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        label,
+                        color = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary,
+                        fontSize = 16.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(top = 10.dp)
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    if (isSelected) {
+                        Box(Modifier.fillMaxWidth().height(2.dp).background(ApexColors.Primary))
+                    }
+                }
+            }
+        }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
     }
 }
 
