@@ -8,15 +8,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
@@ -33,8 +27,6 @@ import androidx.core.graphics.PathParser
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.MuscleAliases
 import com.google.gson.Gson
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.ceil
@@ -152,13 +144,9 @@ internal fun ApexAnatomy(
     onMuscleSelected: (String) -> Unit
 ) {
     val context = LocalContext.current.applicationContext
-    var anatomy by remember(showBack) { mutableStateOf(AnatomyAssetLoader.cached(showBack)) }
-    var loadFailed by remember(showBack) { mutableStateOf(false) }
-
-    LaunchedEffect(context, showBack) {
-        anatomy = withContext(Dispatchers.IO) { AnatomyAssetLoader.load(context, showBack) }
-        loadFailed = anatomy == null
-    }
+    // These bundled vector files are small and cached after parsing; loading here
+    // keeps first-entry and screenshot renders from capturing an empty placeholder.
+    val anatomy = remember(context, showBack) { AnatomyAssetLoader.load(context, showBack) }
 
     val selected = selectedMuscle?.let(MuscleAliases::getCanonical)
     val normalizedDirectSets = remember(directSets) {
@@ -167,11 +155,7 @@ internal fun ApexAnatomy(
 
     if (anatomy == null) {
         Box(modifier.aspectRatio(2f / 3f), contentAlignment = Alignment.Center) {
-            if (loadFailed) {
-                Text("Anatomy unavailable", color = ApexColors.TextSecondary)
-            } else {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = ApexColors.Primary)
-            }
+            Text("Anatomy unavailable", color = ApexColors.TextSecondary)
         }
         return
     }
