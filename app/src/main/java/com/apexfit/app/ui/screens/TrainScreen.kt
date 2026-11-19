@@ -56,6 +56,7 @@ fun TrainTab(
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showLibrary by rememberSaveable { mutableStateOf(false) }
+    val libraryUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
     val libraryContext = LocalContext.current
     val libraryScope = rememberCoroutineScope()
     var libraryDetail by remember { mutableStateOf<Pair<com.apexfit.app.data.Exercise, FormGuideContent>?>(null) }
@@ -68,11 +69,14 @@ fun TrainTab(
         }
         val detail = libraryDetail
         if (detail != null) {
-            FormGuideSheet(detail.first, detail.second, onDismiss = { libraryDetail = null })
+            FormGuideSheet(detail.first, detail.second, preferredUnits = libraryUnits,
+                onDismiss = { libraryDetail = null })
         } else {
             ExercisePicker(library, "Exercise library", onBack = { showLibrary = false }, onSelect = { exercise ->
                 libraryScope.launch {
-                    libraryDetail = runCatching { loadFormGuideData(libraryContext, exercise.name) }.getOrNull()
+                    libraryDetail = runCatching {
+                        loadFormGuideData(libraryContext, exercise.name)
+                    }.getOrNull()
                     libraryError = libraryDetail == null
                 }
             })
@@ -206,10 +210,10 @@ fun ProgramSubTab(
     var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var formGuideContent by remember { mutableStateOf<FormGuideContent?>(null) }
 
-    val onOpenFormGuide: (String) -> Unit = remember(scope, context) {
-        { exerciseName ->
+    val onOpenFormGuide: (com.apexfit.app.data.PlanExercise) -> Unit = remember(scope, context, units) {
+        { planExercise ->
             scope.launch {
-                loadFormGuideData(context, exerciseName)?.let { (exercise, content) ->
+                loadFormGuideData(context, planExercise.name, planExercise)?.let { (exercise, content) ->
                     formGuideExercise = exercise
                     formGuideContent = content
                 }
@@ -294,6 +298,7 @@ fun ProgramSubTab(
             FormGuideSheet(
                 exercise = guideExercise,
                 content = guideContent,
+                preferredUnits = units,
                 onDismiss = {
                     formGuideExercise = null
                     formGuideContent = null
@@ -360,10 +365,10 @@ fun WorkoutExecutionSubTab(
 
     var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var formGuideContent by remember { mutableStateOf<FormGuideContent?>(null) }
-    val onOpenFormGuide: (String) -> Unit = remember(scope, context) {
-        { exerciseName ->
+    val onOpenFormGuide: (com.apexfit.app.data.PlanExercise) -> Unit = remember(scope, context, preferredUnits) {
+        { planExercise ->
             scope.launch {
-                loadFormGuideData(context, exerciseName)?.let { (exercise, content) ->
+                loadFormGuideData(context, planExercise.name, planExercise)?.let { (exercise, content) ->
                     formGuideExercise = exercise
                     formGuideContent = content
                 }
@@ -784,6 +789,7 @@ fun WorkoutExecutionSubTab(
                     FormGuideSheet(
                         exercise = exercise,
                         content = content,
+                        preferredUnits = preferredUnits,
                         onDismiss = {
                             formGuideExercise = null
                             formGuideContent = null
@@ -797,7 +803,8 @@ fun WorkoutExecutionSubTab(
 
 private suspend fun loadFormGuideData(
     context: android.content.Context,
-    exerciseName: String
+    exerciseName: String,
+    prescription: com.apexfit.app.data.PlanExercise? = null
 ): Pair<com.apexfit.app.data.Exercise, FormGuideContent>? = withContext(Dispatchers.IO) {
     val dao = com.apexfit.app.data.AppDatabase.getDatabase(context).fitnessDao()
     val slug = exerciseNameToSlug(exerciseName)
@@ -805,10 +812,15 @@ private suspend fun loadFormGuideData(
         ?: return@withContext null
     val metadata = dao.getMetadataForExercise(exercise.id)
     val sourceInstructions = ExerciseMediaCatalog.get(context, exercise.id)?.instructions.orEmpty()
+    val recentHistory = dao.getRecentExerciseHistoryForGuide(exercise.id)
+    val personalRecords = dao.getPRsForExercise(exercise.id)
     exercise to FormGuideBuilder.buildFormGuide(
         exercise = exercise,
         metadata = metadata,
-        sourceInstructions = sourceInstructions
+        sourceInstructions = sourceInstructions,
+        prescription = prescription,
+        recentHistory = recentHistory,
+        personalRecords = personalRecords
     )
 }
 

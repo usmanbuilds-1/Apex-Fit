@@ -86,7 +86,7 @@ fun ExerciseListSection(
     onUndoVolumeAdjustment: (String) -> Boolean,
     preferredUnits: String,
     showRirOverlay: Boolean,
-    onOpenFormGuide: (String) -> Unit,
+    onOpenFormGuide: (PlanExercise) -> Unit,
     onToggleWarmupItem: (String) -> Unit,
     onLogSetState: (exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int) -> Unit,
     onCompleteSet: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int) -> Unit,
@@ -131,7 +131,7 @@ fun ExerciseListSection(
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TextButton(
-                                onClick = { onOpenFormGuide(ex.name) },
+                                onClick = { onOpenFormGuide(ex) },
                                 contentPadding = PaddingValues(horizontal = 0.dp),
                                 modifier = Modifier.heightIn(min = 44.dp)
                             ) {

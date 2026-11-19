@@ -60,7 +60,7 @@ internal fun TrainProgramSchedule(
     onStartSession: (PlanSession) -> Unit,
     onOpenPlans: () -> Unit,
     onOpenLibrary: () -> Unit,
-    onOpenFormGuide: (String) -> Unit,
+    onOpenFormGuide: (PlanExercise) -> Unit,
     onSubstituteExercise: (PlanExercise) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -202,7 +202,7 @@ internal fun TrainProgramSchedule(
                                                         fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                                                 }
                                                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                                    TextButton(onClick = { onOpenFormGuide(exercise.name) },
+                                                    TextButton(onClick = { onOpenFormGuide(exercise) },
                                                         modifier = Modifier.heightIn(min = 48.dp)) {
                                                         Text("Form guide", color = ApexColors.TextSecondary)
                                                     }

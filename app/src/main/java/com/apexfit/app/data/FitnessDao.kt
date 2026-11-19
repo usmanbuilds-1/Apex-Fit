@@ -472,6 +472,39 @@ interface FitnessDao {
     suspend fun getLastSetForExercise(exerciseId: String): LastSetWithDate?
 
     @Query("""
+        SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
+               es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
+               es.restTaken, es.completed, es.repsInReserve,
+               ts.date AS date
+        FROM exercise_sets es
+        INNER JOIN workout_sessions ts ON es.sessionId = ts.id
+        WHERE es.exerciseId = :exerciseId
+          AND es.completed = 1
+          AND es.isWarmup = 0
+          AND ts.completed = 1
+          AND es.sessionId IN (
+              SELECT recent.sessionId
+              FROM exercise_sets recent
+              INNER JOIN workout_sessions recentSession ON recent.sessionId = recentSession.id
+              WHERE recent.exerciseId = :exerciseId
+                AND recent.completed = 1
+                AND recent.isWarmup = 0
+                AND recentSession.completed = 1
+              GROUP BY recent.sessionId
+              ORDER BY COALESCE(MAX(recentSession.completed_at), MAX(recentSession.started_at), 0) DESC,
+                       MAX(recentSession.date) DESC
+              LIMIT :sessionLimit
+          )
+        ORDER BY COALESCE(ts.completed_at, ts.started_at, 0) DESC,
+                 ts.date DESC,
+                 es.id ASC
+    """)
+    suspend fun getRecentExerciseHistoryForGuide(
+        exerciseId: String,
+        sessionLimit: Int = 3
+    ): List<LastSetWithDate>
+
+    @Query("""
         SELECT COALESCE(SUM(es.weight * es.reps), 0.0)
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id

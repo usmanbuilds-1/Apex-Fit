@@ -2,18 +2,27 @@ package com.apexfit.app.utils
 
 import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.ExerciseMetadata
+import com.apexfit.app.data.LastSetWithDate
+import com.apexfit.app.data.PersonalRecord
+import com.apexfit.app.data.PlanExercise
 
 data class FormGuideContent(
     val sourceNote: String?,
     val muscleNote: String,
-    val instructions: List<String> = emptyList()
+    val instructions: List<String> = emptyList(),
+    val prescription: PlanExercise? = null,
+    val recentHistory: List<LastSetWithDate> = emptyList(),
+    val personalRecords: List<PersonalRecord> = emptyList()
 )
 
 object FormGuideBuilder {
     fun buildFormGuide(
         exercise: Exercise,
         metadata: ExerciseMetadata?,
-        sourceInstructions: List<String> = emptyList()
+        sourceInstructions: List<String> = emptyList(),
+        prescription: PlanExercise? = null,
+        recentHistory: List<LastSetWithDate> = emptyList(),
+        personalRecords: List<PersonalRecord> = emptyList()
     ): FormGuideContent {
         val instructions = sourceInstructions
             .map { it.trim() }
@@ -26,7 +35,10 @@ object FormGuideBuilder {
         return FormGuideContent(
             sourceNote = sourceNote,
             muscleNote = "Primary: ${exercise.primaryMuscle}.$secondary",
-            instructions = instructions
+            instructions = instructions,
+            prescription = prescription,
+            recentHistory = recentHistory,
+            personalRecords = personalRecords
         )
     }
 
