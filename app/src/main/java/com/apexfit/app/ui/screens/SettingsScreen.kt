@@ -18,13 +18,13 @@ import com.apexfit.app.R
 import com.apexfit.app.utils.AppConstants
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +41,6 @@ import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ui.theme.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
 
@@ -774,6 +773,7 @@ internal fun SettingsDisclosureRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 64.dp)
+                .semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }
                 .clickable(role = Role.Button, onClick = onClick)
                 .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -794,13 +794,14 @@ internal fun SettingsDisclosureRow(
                 overflow = TextOverflow.Ellipsis
             )
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = if (expanded) "Collapse $label" else "Edit $label",
+                painter = painterResource(
+                    if (expanded) R.drawable.ic_expand_more else R.drawable.ic_chevron_right
+                ),
+                contentDescription = null,
                 tint = SecondaryText,
                 modifier = Modifier
                     .padding(start = 8.dp)
                     .size(18.dp)
-                    .rotate(if (expanded) 90f else 0f)
             )
         }
         if (expanded) {
