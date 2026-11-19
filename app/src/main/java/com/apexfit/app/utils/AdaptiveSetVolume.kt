@@ -8,12 +8,26 @@ import java.time.LocalDate
 @Keep
 data class SetVolumeAdjustment(val baseSets: Int, val adjustedSets: Int, val reason: String) {
     fun revert(sets: List<ActiveSet>): List<ActiveSet>? {
-        if (sets.size != adjustedSets || sets.any { it.completed || it.isWarmup || it.restTakenSeconds > 0 }) {
-            return null
+        if (sets.size != adjustedSets) return null
+        if (baseSets < adjustedSets) {
+            // Keep any completed original work. Undo is safe while the added
+            // set itself has not started; once it has, removing it would erase work.
+            if (sets.drop(baseSets).any { it.completed || it.isWarmup || it.restTakenSeconds > 0 }) return null
+            return sets.take(baseSets)
         }
-        if (baseSets <= adjustedSets) return sets.take(baseSets)
+        if (baseSets == adjustedSets) return sets
         val template = sets.lastOrNull() ?: return null
-        return sets + (adjustedSets + 1..baseSets).map { number -> template.copy(setNumber = number) }
+        return sets + (adjustedSets + 1..baseSets).map { number ->
+            template.copy(
+                setNumber = number,
+                rpe = 0,
+                isWarmup = false,
+                restTakenSeconds = 0,
+                completedAt = 0L,
+                completed = false,
+                repsInReserve = 2
+            )
+        }
     }
 }
 
