@@ -208,3 +208,64 @@ fun ActiveWorkoutWithAdaptiveSetVolumeNightLedger() {
         }
     }
 }
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun ActiveWorkoutFirstExposureCalibrationNightLedger() {
+    val calibrationExercise = activeWorkoutExercises.first().copy(
+        sets = 3,
+        repsMin = 6,
+        repsMax = 10,
+        weight = 0.0
+    )
+    val currentSet = UiExerciseSet(
+        id = 1,
+        weight = 0.0,
+        reps = 6,
+        rpe = 0,
+        completed = false,
+        exerciseName = calibrationExercise.name,
+        exerciseId = calibrationExercise.exerciseId,
+        muscleGroup = calibrationExercise.muscleGroup
+    )
+
+    ApexFitTheme {
+        Column(Modifier.fillMaxSize().background(ApexColors.Canvas)) {
+            WorkoutExecutionHeader(
+                sessionLabel = "Upper Body A",
+                elapsedTime = "00:42",
+                onBack = {},
+                onFinish = {}
+            )
+            ExerciseListSection(
+                exercises = listOf(calibrationExercise),
+                currentIdx = 0,
+                loggedSets = mapOf(calibrationExercise.exerciseId to listOf(currentSet)),
+                effectiveSetsMap = emptyMap(),
+                warmupComp = emptyMap(),
+                lastWeights = mapOf(calibrationExercise.exerciseId to 0.0),
+                weightContextLines = mapOf(
+                    calibrationExercise.exerciseId to
+                        "Calibration · enter a comfortable starting load. Target: 6–10 reps · about 2–3 RIR."
+                ),
+                volumeAdjustments = emptyMap(),
+                onUndoVolumeAdjustment = { false },
+                preferredUnits = "kg",
+                showRirOverlay = false,
+                onOpenFormGuide = {},
+                onToggleWarmupItem = {},
+                onLogSetState = { _, _, _, _, _, _, _ -> },
+                onCompleteSet = { _, _, _, _, _, _, _, _ -> },
+                onAddCustomLogSet = {},
+                onNextExercise = {},
+                onSkipExercise = {},
+                onShowNormalFinishFeelDialog = {},
+                onShowFinishEarlyDialog = {},
+                onShowExitDialog = {},
+                onCancelOrCompleteEmptySession = {},
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}

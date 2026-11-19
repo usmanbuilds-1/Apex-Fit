@@ -256,16 +256,11 @@ class WorkoutSessionManager(
 
             val suggestedPreferred: Double
             if (lastSet == null) {
-                val prescribedLoad = ex.weight.takeIf { it.isFinite() && it > 0.0 }
-                val calibrationLoad = prescribedLoad ?: 0.0
-                suggestionsMap[exerciseSlug] = calibrationLoad.toDisplayWeight(exerciseUnit)
-                lastWeightMap[exerciseSlug] = calibrationLoad
-                val effort = "Target: ${ex.repsMin}–${ex.repsMax} reps · about 2–3 RIR."
-                contextLinesMap[exerciseSlug] = when {
-                    isBodyweight -> "Calibration · bodyweight. Record any added load separately. $effort"
-                    prescribedLoad != null -> "Calibration · adjust the plan load as needed. $effort"
-                    else -> "Calibration · enter a comfortable starting load. $effort"
-                }
+                val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder
+                    .forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
+                suggestionsMap[exerciseSlug] = calibration.initialLoadKg.toDisplayWeight(exerciseUnit)
+                lastWeightMap[exerciseSlug] = calibration.initialLoadKg
+                contextLinesMap[exerciseSlug] = calibration.guidance
             } else if (isBodyweight && ex.weight <= 0.0 && lastSet.weight <= 0.0) {
                 suggestionsMap[exerciseSlug] = 0.0
                 lastWeightMap[exerciseSlug] = 0.0
