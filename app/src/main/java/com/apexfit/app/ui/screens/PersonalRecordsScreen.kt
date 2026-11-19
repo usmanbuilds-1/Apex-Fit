@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.ProgressViewModel
+import com.apexfit.app.data.PersonalRecordWithName
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.toDisplayWeight
 
@@ -21,6 +22,15 @@ import com.apexfit.app.utils.toDisplayWeight
 fun PersonalRecordsScreen(progressViewModel: ProgressViewModel, onBack: () -> Unit) {
     val records by progressViewModel.personalRecords.collectAsStateWithLifecycle()
     val units by progressViewModel.units.collectAsStateWithLifecycle()
+    PersonalRecordsContent(records, units, onBack)
+}
+
+@Composable
+internal fun PersonalRecordsContent(
+    records: List<PersonalRecordWithName>,
+    units: String,
+    onBack: () -> Unit
+) {
     Column(Modifier.fillMaxSize().background(DarkBackground).padding(horizontal = 16.dp)) {
         Row {
             IconButton(onClick = onBack) {
@@ -30,7 +40,11 @@ fun PersonalRecordsScreen(progressViewModel: ProgressViewModel, onBack: () -> Un
                 modifier = Modifier.padding(top = 10.dp))
         }
         if (records.isEmpty()) {
-            Text("Complete a workout to start building records.", color = SecondaryText, modifier = Modifier.padding(16.dp))
+            Text(
+                "Complete a workout to start building records.",
+                color = SecondaryText,
+                modifier = Modifier.padding(16.dp)
+            )
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
                 items(records, key = { it.record.id }) { entry ->
