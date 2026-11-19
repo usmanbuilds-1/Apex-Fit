@@ -178,3 +178,25 @@ fun ExerciseMediaAvailable() {
     }
 }
 
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun ExerciseRelatedMovementVideoShowsCaution() {
+    RenderMediaState {
+        ExerciseMediaPanelContent(
+            ExerciseMedia(
+                sourceId = null,
+                imageUrls = emptyList(),
+                instructions = emptyList(),
+                youtubeVideoId = "qpAvhLiy50Y",
+                youtubeVideoTitle = "A related shoulder exercise",
+                youtubeMatchType = "fuzzy",
+                youtubeMatchScore = 78,
+                youtubeChannel = "DEMIC"
+            ),
+            isLoaded = true,
+            loadFailed = false
+        )
+    }
+}
+
