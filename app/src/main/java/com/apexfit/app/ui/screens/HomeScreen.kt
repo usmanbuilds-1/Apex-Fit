@@ -322,9 +322,9 @@ private fun HomeTrainingHero(
                 modifier = Modifier.matchParentSize()
             )
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(
-                0f to CanvasVoid.copy(alpha = .70f),
-                .45f to CanvasVoid.copy(alpha = .27f),
-                .66f to CanvasVoid.copy(alpha = .32f),
+                0f to CanvasVoid.copy(alpha = .55f),
+                .35f to CanvasVoid.copy(alpha = .20f),
+                .66f to CanvasVoid.copy(alpha = .24f),
                 1f to CanvasVoid
             )))
         }
