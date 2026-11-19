@@ -184,9 +184,8 @@ fun ExerciseListSection(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = contextLine,
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = AmberAccent
+                            fontSize = 12.sp,
+                            color = ApexColors.TextSecondary
                         )
                     }
 
