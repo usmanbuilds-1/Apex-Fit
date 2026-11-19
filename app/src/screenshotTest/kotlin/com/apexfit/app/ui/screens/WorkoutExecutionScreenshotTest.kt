@@ -161,6 +161,8 @@ fun ActiveWorkoutWithAdaptiveSetVolumeNightLedger() {
         UiExerciseSet(id = 2, weight = 14.0, reps = 14, rpe = 0, completed = false,
             exerciseName = "Dumbbell Lateral Raise", exerciseId = "db-lateral-raise", muscleGroup = "Shoulders"),
         UiExerciseSet(id = 3, weight = 14.0, reps = 12, rpe = 0, completed = false,
+            exerciseName = "Dumbbell Lateral Raise", exerciseId = "db-lateral-raise", muscleGroup = "Shoulders"),
+        UiExerciseSet(id = 4, weight = 14.0, reps = 12, rpe = 0, completed = false,
             exerciseName = "Dumbbell Lateral Raise", exerciseId = "db-lateral-raise", muscleGroup = "Shoulders")
     )
 

@@ -48,13 +48,26 @@ class AdaptiveSetVolumeTest {
         assertNull(adjust(listOf(exposure(12, 9), exposure(10), exposure(8)), readiness = 45))
     }
 
-    @Test fun revertingPreservesLoggedSetsAndRestoresOriginalCountBeforeLogging() {
+    @Test fun revertingAddedSetPreservesBaseWorkAndRefusesToEraseStartedAddedWork() {
         val added = SetVolumeAdjustment(3, 4, "Repeated evidence")
         val sets = List(4) { ActiveSet(it + 1, 20.0, 8) }
-        assertEquals(sets.take(3), added.revert(sets))
-        assertNull(added.revert(sets.mapIndexed { index, set -> set.copy(completed = index == 0) }))
+        val firstSetLogged = sets.mapIndexed { index, set -> set.copy(completed = index == 0) }
+        assertEquals(firstSetLogged.take(3), added.revert(firstSetLogged))
+        assertNull(added.revert(sets.mapIndexed { index, set -> set.copy(completed = index == 3) }))
+        assertNull(added.revert(sets.dropLast(1)))
+    }
+
+    @Test fun revertingReducedTargetAddsAnUntouchedWorkingSetWithoutChangingLoggedWork() {
         val reduced = SetVolumeAdjustment(3, 2, "Recovery")
-        val restored = reduced.revert(sets.take(2))!!
-        assertEquals(sets.take(3), restored)
+        val logged = listOf(
+            ActiveSet(1, 20.0, 8, rpe = 8, completed = true),
+            ActiveSet(2, 20.0, 8, rpe = 7, completed = true)
+        )
+        val restored = reduced.revert(logged)!!
+        assertEquals(logged, restored.take(2))
+        assertEquals(3, restored.last().setNumber)
+        assertFalse(restored.last().completed)
+        assertEquals(0, restored.last().rpe)
+        assertEquals(0, restored.last().restTakenSeconds)
     }
 }
