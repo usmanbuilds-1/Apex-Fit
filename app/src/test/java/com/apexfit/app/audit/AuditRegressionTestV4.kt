@@ -188,6 +188,28 @@ class AuditRegressionTestV4 {
     }
 
     @Test
+    fun firstWeightedExposureUsesAnExplicitCalibrationLoadInsteadOfBodyMetrics() = runBlocking {
+        dao.insertExercises(listOf(Exercise(id = "first-bench", name = "First Bench", category = "Barbell",
+            primaryMuscle = "Chest", equipmentRequired = "Barbell")))
+        val store = DataStoreManager.getInstance(context)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+        val manager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
+        val exercise = PlanExercise(planSessionId = 1, exerciseId = "first-bench", name = "First Bench",
+            muscleGroup = "Chest", sets = 2, repsMin = 6, repsMax = 10, weight = 0.0,
+            weightUnit = "kg", restSeconds = 120, notes = "")
+
+        manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
+            listOf(exercise), userWeight = 120.0, userHeight = 195.0, preferredUnits = "lb")
+
+        val activeExercise = manager.activeSession.value!!.exercises.single()
+        assertEquals(0.0, activeExercise.sets.first().weight, 0.001)
+        assertEquals("lb", activeExercise.sets.first().weightUnit)
+        assertTrue(activeExercise.loadContext.orEmpty().contains("enter a comfortable starting load"))
+        assertTrue(activeExercise.loadContext.orEmpty().contains("6–10 reps · about 2–3 RIR"))
+        manager.discardAndExit()
+    }
+
+    @Test
     fun skippedAndPartialWorkoutsDoNotAdvancePlateauCounters() = runBlocking {
         AppDatabase.setTestDatabase(db)
         try {
