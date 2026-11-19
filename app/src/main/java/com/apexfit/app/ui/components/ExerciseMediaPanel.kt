@@ -67,7 +67,7 @@ internal fun ExerciseMediaPanelContent(
             !isLoaded -> Text("Checking for an available technique video.", color = ApexColors.TextSecondary)
             loadFailed -> Text("Video information could not be loaded.", color = ApexColors.Alert)
             media?.youtubeVideoId == null ->
-                Text("No verified technique video is available for this exercise.", color = ApexColors.TextSecondary)
+                Text("No mapped technique video is available. Follow the written instructions.", color = ApexColors.TextSecondary)
             videoUnavailable ->
                 Text("This video is unavailable. Check your connection and try again.", color = ApexColors.TextSecondary)
             else -> YouTubeTechniqueVideo(
@@ -97,10 +97,18 @@ private fun YouTubeTechniqueVideo(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = if (matchType == "exact") "Verified technique guide" else "Related technique guide",
+            text = if (matchType == "exact") "Video mapped to this exercise" else "Related movement video",
             style = MaterialTheme.typography.labelLarge,
             color = ApexColors.TextSecondary
         )
+
+        if (matchType != "exact") {
+            Text(
+                "This is a related movement, not a verified demo for this exact exercise. Check that the exercise shown matches before following it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = ApexColors.TextTertiary
+            )
+        }
 
         title?.let {
             Text(
@@ -112,7 +120,7 @@ private fun YouTubeTechniqueVideo(
 
         if (!channel.isNullOrBlank()) {
             Text(
-                text = if (matchType == "exact") channel else "$channel · related movement",
+                text = channel,
                 style = MaterialTheme.typography.bodySmall,
                 color = ApexColors.TextTertiary
             )
