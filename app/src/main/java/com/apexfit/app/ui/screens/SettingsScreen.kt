@@ -122,13 +122,13 @@ fun SettingsScreen(
         containerColor = ApexColors.Canvas,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
                     Text(
                         text = "Settings",
                         fontFamily = InterFamily,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
                         color = PrimaryText
                     )
                 },
@@ -144,7 +144,7 @@ fun SettingsScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = ApexColors.Canvas
                 )
             )
@@ -160,6 +160,8 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        SettingsSectionTitle("Profile")
+
         // Name
         OutlinedTextField(
             value = editName,
@@ -183,10 +185,11 @@ fun SettingsScreen(
         // Keep the same goals available during onboarding and in settings.
         Text(
             text = stringResource(R.string.settings_goal_objective_profile),
-            fontFamily = JetBrainsMonoFamily,
-            fontSize = 12.sp,
+            fontFamily = InterFamily,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
             color = SecondaryText,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(top = 4.dp)
         )
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -203,7 +206,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (isSelected) ApexColors.Primary else DarkRaised)
+                        .background(if (isSelected) ApexColors.PrimaryMist else DarkRaised)
                         .border(
                             border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
                             shape = RoundedCornerShape(14.dp)
@@ -227,13 +230,12 @@ fun SettingsScreen(
 
         // Calorie target mode selector
         Text(
-            text = "CALORIE TARGET",
-            fontFamily = SyneFamily,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
+            text = "Nutrition target",
+            fontFamily = InterFamily,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
             color = SecondaryText,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(top = 4.dp)
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -245,7 +247,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected) ApexColors.Primary else DarkRaised)
+                        .background(if (selected) ApexColors.PrimaryMist else DarkRaised)
                         .border(1.dp, if (selected) ApexColors.Primary else BorderSubtle, RoundedCornerShape(10.dp))
                         .semantics { this.selected = selected }
                         .clickable(role = Role.Tab) { editIsManual = isManual }
@@ -258,8 +260,7 @@ fun SettingsScreen(
                         fontFamily = SyneFamily,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (selected) Color.Black else SecondaryText,
-                        letterSpacing = 1.sp
+                        color = if (selected) ApexColors.Primary else SecondaryText
                     )
                 }
             }
@@ -283,7 +284,7 @@ fun SettingsScreen(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = DarkRaised,
                     unfocusedContainerColor = DarkRaised,
-                    focusedIndicatorColor = if (manualCalError != null) RedAccent else AmberAccent,
+                    focusedIndicatorColor = if (manualCalError != null) RedAccent else ApexColors.Primary,
                     unfocusedIndicatorColor = if (manualCalError != null) RedAccent else BorderSubtle
                 )
             )
@@ -338,7 +339,7 @@ fun SettingsScreen(
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = DarkRaised,
                         unfocusedContainerColor = DarkRaised,
-                        focusedIndicatorColor = if (ageError != null) RedAccent else AmberAccent,
+                    focusedIndicatorColor = if (ageError != null) RedAccent else ApexColors.Primary,
                         unfocusedIndicatorColor = if (ageError != null) RedAccent else BorderSubtle
                     )
                 )
@@ -388,12 +389,11 @@ fun SettingsScreen(
 
         // Weekly Workouts Select
         Text(
-            text = "WEEKLY WORKOUTS",
-            fontFamily = SyneFamily,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
+            text = "Weekly sessions",
+            fontFamily = InterFamily,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
             color = SecondaryText,
-            letterSpacing = 1.sp,
             modifier = Modifier.padding(top = 4.dp)
         )
         Row(
@@ -433,9 +433,10 @@ fun SettingsScreen(
 
         // Units Select
         Text(
-            text = "UNITS SYSTEM",
-            fontFamily = SyneFamily,
-            fontSize = 11.sp,
+            text = "Units",
+            fontFamily = InterFamily,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
             color = SecondaryText,
             modifier = Modifier.padding(top = 4.dp)
         )
@@ -475,9 +476,10 @@ fun SettingsScreen(
 
         // Weight Fields Row
         Text(
-            text = "WEIGHT METRICS",
-            fontFamily = SyneFamily,
-            fontSize = 11.sp,
+            text = "Weight",
+            fontFamily = InterFamily,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
             color = SecondaryText,
             modifier = Modifier.padding(top = 4.dp)
         )
@@ -503,7 +505,7 @@ fun SettingsScreen(
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = DarkRaised,
                         unfocusedContainerColor = DarkRaised,
-                        focusedIndicatorColor = if (currentWeightError != null) RedAccent else AmberAccent,
+                        focusedIndicatorColor = if (currentWeightError != null) RedAccent else ApexColors.Primary,
                         unfocusedIndicatorColor = if (currentWeightError != null) RedAccent else BorderSubtle
                     )
                 )
@@ -526,7 +528,7 @@ fun SettingsScreen(
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = DarkRaised,
                         unfocusedContainerColor = DarkRaised,
-                        focusedIndicatorColor = if (goalWeightError != null) RedAccent else AmberAccent,
+                        focusedIndicatorColor = if (goalWeightError != null) RedAccent else ApexColors.Primary,
                         unfocusedIndicatorColor = if (goalWeightError != null) RedAccent else BorderSubtle
                     )
                 )
@@ -672,14 +674,7 @@ fun SettingsScreen(
     }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Data and legal",
-            fontFamily = SyneFamily,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = SecondaryText,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
-        )
+        SettingsSectionTitle("Data and legal")
 
         SettingsActionRow(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -748,7 +743,19 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsActionRow(modifier: Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
+internal fun SettingsSectionTitle(title: String) {
+    Text(
+        text = title,
+        fontFamily = InterFamily,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = PrimaryText,
+        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
+internal fun SettingsActionRow(modifier: Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
     HorizontalDivider(color = ApexColors.BorderSubtle)
     Box(
         modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick)
