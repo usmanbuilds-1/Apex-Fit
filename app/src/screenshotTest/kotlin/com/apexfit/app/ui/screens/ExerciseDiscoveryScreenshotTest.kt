@@ -53,6 +53,22 @@ fun ExercisePickerMuscles() {
 @PreviewTest
 @Preview(widthDp = 390, heightDp = 844, locale = "en-US")
 @Composable
+fun ExercisePickerMusclesBack() {
+    ApexFitTheme {
+        ExercisePicker(
+            UiState.Success(listOf(lateralRaise)),
+            "Substitute exercise",
+            initialMuscle = "Back",
+            initialShowBack = true,
+            onBack = {},
+            onSelect = {}
+        )
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
 fun ExerciseGuideWithoutVerifiedImages() {
     val content = FormGuideBuilder.buildFormGuide(lateralRaise, null,
         listOf("Dumbbells beside hips. Keep wrists neutral.", "Raise until arms are near shoulder height."))
@@ -161,3 +177,4 @@ fun ExerciseMediaAvailable() {
         )
     }
 }
+

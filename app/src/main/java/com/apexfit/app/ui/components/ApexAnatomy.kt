@@ -1,70 +1,148 @@
 package com.apexfit.app.ui.components
 
+import android.content.Context
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Region
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.graphics.PathParser
 import com.apexfit.app.ui.theme.ApexColors
+import com.apexfit.app.utils.MuscleAliases
+import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.min
+import kotlin.math.roundToInt
 
-private data class AnatomyRegion(val muscle: String, val points: List<Offset>)
-
-private fun region(muscle: String, vararg xy: Int): AnatomyRegion =
-    AnatomyRegion(muscle, xy.toList().chunked(2).map { Offset(it[0].toFloat(), it[1].toFloat()) })
-
-private fun pair(muscle: String, vararg xy: Int): List<AnatomyRegion> {
-    val left = region(muscle, *xy)
-    return listOf(left, left.copy(points = left.points.map { Offset(160f - it.x, it.y) }))
-}
-
-private val outline = region(
-    "", 67, 13, 80, 5, 93, 13, 96, 33, 90, 46, 90, 54, 114, 59, 125, 76,
-    136, 112, 149, 151, 146, 164, 137, 160, 122, 134, 111, 104, 108, 130,
-    111, 156, 103, 195, 101, 225, 102, 252, 93, 259, 86, 250, 80, 177, 74, 250,
-    67, 259, 58, 252, 59, 225, 57, 195, 49, 156, 52, 130, 49, 104, 38, 134,
-    23, 160, 14, 164, 11, 151, 24, 112, 35, 76, 46, 59, 70, 54, 70, 46, 64, 33
+private data class AnatomyPathAsset(
+    val id: String? = null,
+    val group: String? = null,
+    val side: String,
+    val d: String
 )
 
-private val shoulders = pair("shoulders", 36, 76, 46, 63, 57, 62, 54, 78, 42, 88)
-private val forearms = pair("forearms", 27, 111, 38, 118, 23, 151, 16, 153)
-private val calves = pair("calves", 60, 207, 72, 208, 70, 246, 63, 246)
-private val front = shoulders + forearms + calves +
-    pair("chest", 58, 65, 77, 65, 77, 85, 61, 91, 52, 84) +
-    pair("biceps", 39, 89, 48, 87, 40, 112, 30, 110) +
-    pair("core", 57, 94, 77, 89, 77, 130, 63, 139, 55, 127) +
-    pair("quads", 53, 145, 73, 148, 76, 171, 68, 199, 60, 199, 51, 167)
+private data class AnatomyDiagramAsset(
+    val view: String,
+    val viewBox: String,
+    val centerX: Float,
+    val outline: List<AnatomyPathAsset>,
+    val muscles: List<AnatomyPathAsset>
+)
 
-private val back = shoulders + forearms + calves +
-    pair("trapezius", 66, 55, 78, 55, 78, 80, 58, 75) +
-    pair("back", 57, 80, 77, 84, 76, 110, 61, 123, 53, 99) +
-    pair("triceps", 38, 88, 47, 87, 40, 112, 30, 110) +
-    pair("lower_back", 63, 122, 77, 111, 77, 136, 60, 138) +
-    pair("glutes", 54, 138, 77, 139, 76, 154, 62, 162, 51, 155) +
-    pair("hamstrings", 53, 163, 68, 165, 76, 157, 72, 187, 67, 201, 59, 194)
+private data class AnatomyPath(
+    val path: Path,
+    val side: String,
+    val muscle: String? = null,
+    val hitRegion: Region? = null
+)
 
-internal fun showsOnBackOnly(muscle: String): Boolean =
-    back.any { it.muscle == muscle } && front.none { it.muscle == muscle }
-
-private fun List<Offset>.containsPoint(point: Offset): Boolean {
-    var contains = false
-    var previous = last()
-    for (current in this) {
-        if ((current.y > point.y) != (previous.y > point.y) &&
-            point.x < (previous.x - current.x) * (point.y - current.y) /
-            (previous.y - current.y) + current.x
-        ) contains = !contains
-        previous = current
+private data class LoadedAnatomy(
+    val viewBoxLeft: Float,
+    val viewBoxTop: Float,
+    val width: Float,
+    val height: Float,
+    val centerX: Float,
+    val outline: List<AnatomyPath>,
+    val muscles: List<AnatomyPath>
+) {
+    fun muscleAt(x: Float, y: Float): String? {
+        val diagramX = x + viewBoxLeft
+        val diagramY = y + viewBoxTop
+        return muscles.asReversed().firstNotNullOfOrNull { region ->
+            val hitRegion = region.hitRegion ?: return@firstNotNullOfOrNull null
+            val hitX = if (region.side == "LEFT") centerX * 2f - diagramX else diagramX
+            if (hitRegion.contains(hitX.roundToInt(), diagramY.roundToInt())) region.muscle else null
+        }
     }
-    return contains
 }
 
-/** Original schematic regions. Screen-level lists provide equivalent non-visual controls. */
+private object AnatomyAssetLoader {
+    private val cache = ConcurrentHashMap<String, LoadedAnatomy>()
+    private val gson = Gson()
+
+    fun cached(showBack: Boolean): LoadedAnatomy? = cache[assetName(showBack)]
+
+    fun load(context: Context, showBack: Boolean): LoadedAnatomy? {
+        val name = assetName(showBack)
+        return cache[name] ?: synchronized(cache) {
+            cache[name] ?: runCatching {
+                context.assets.open("anatomy/$name.json").bufferedReader().use { reader ->
+                    val asset = gson.fromJson(reader, AnatomyDiagramAsset::class.java)
+                    parse(asset)
+                }
+            }.getOrNull()?.also { cache[name] = it }
+        }
+    }
+
+    private fun assetName(showBack: Boolean) = if (showBack) "male_back" else "male_front"
+
+    private fun parse(asset: AnatomyDiagramAsset): LoadedAnatomy {
+        val viewBox = asset.viewBox.trim().split(Regex("\\s+")).map(String::toFloat)
+        require(viewBox.size == 4)
+        val left = viewBox[0]
+        val top = viewBox[1]
+        val width = viewBox[2]
+        val height = viewBox[3]
+        val clip = Region(
+            floor(left).toInt(),
+            floor(top).toInt(),
+            ceil(left + width).toInt(),
+            ceil(top + height).toInt()
+        )
+
+        fun convert(entry: AnatomyPathAsset, clickable: Boolean): AnatomyPath? {
+            val path = PathParser.createPathFromPathData(entry.d) ?: return null
+            val muscle = entry.group?.let(::canonicalApexMuscle)
+            val hitRegion = if (clickable && muscle != null) {
+                Region().apply { setPath(path, clip) }
+            } else null
+            return AnatomyPath(path, entry.side.uppercase(Locale.ROOT), muscle, hitRegion)
+        }
+
+        return LoadedAnatomy(
+            viewBoxLeft = left,
+            viewBoxTop = top,
+            width = width,
+            height = height,
+            centerX = asset.centerX,
+            outline = asset.outline.mapNotNull { convert(it, false) },
+            muscles = asset.muscles.mapNotNull { convert(it, true) }
+        )
+    }
+}
+
+/**
+ * Native, selectable anatomy paths derived from MuscleMap's MIT-licensed flat-vector
+ * diagrams. Only the traced vector paths are bundled; no reference-body photographs ship.
+ */
 @Composable
 internal fun ApexAnatomy(
     showBack: Boolean,
@@ -73,36 +151,140 @@ internal fun ApexAnatomy(
     selectedMuscle: String? = null,
     onMuscleSelected: (String) -> Unit
 ) {
-    val regions = if (showBack) back else front
-    val description = if (showBack) "Back anatomy" else "Front anatomy"
-    Canvas(modifier.aspectRatio(160f / 260f)
-        .semantics { contentDescription = description }
-        .pointerInput(regions, onMuscleSelected) {
-            detectTapGestures { tap ->
-                val scaled = Offset(tap.x * 160f / size.width, tap.y * 260f / size.height)
-                regions.lastOrNull { it.points.containsPoint(scaled) }?.let { onMuscleSelected(it.muscle) }
+    val context = LocalContext.current.applicationContext
+    var anatomy by remember(showBack) { mutableStateOf(AnatomyAssetLoader.cached(showBack)) }
+    var loadFailed by remember(showBack) { mutableStateOf(false) }
+
+    LaunchedEffect(context, showBack) {
+        anatomy = withContext(Dispatchers.IO) { AnatomyAssetLoader.load(context, showBack) }
+        loadFailed = anatomy == null
+    }
+
+    val selected = selectedMuscle?.let(MuscleAliases::getCanonical)
+    val normalizedDirectSets = remember(directSets) {
+        directSets.entries.associate { MuscleAliases.getCanonical(it.key) to it.value }
+    }
+
+    if (anatomy == null) {
+        Box(modifier.aspectRatio(2f / 3f), contentAlignment = Alignment.Center) {
+            if (loadFailed) {
+                Text("Anatomy unavailable", color = ApexColors.TextSecondary)
+            } else {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = ApexColors.Primary)
             }
         }
+        return
+    }
+
+    val currentAnatomy = anatomy ?: return
+    val viewName = if (showBack) "back" else "front"
+    Canvas(
+        modifier = modifier
+            .aspectRatio(2f / 3f)
+            .semantics {
+                contentDescription = "Muscle anatomy map, $viewName view"
+                stateDescription = selected?.let { "${it.replace('_', ' ')} selected" } ?: "No muscle selected"
+            }
+            .pointerInput(currentAnatomy, onMuscleSelected) {
+                detectTapGestures { tap ->
+                    val scale = min(
+                        size.width / currentAnatomy.width,
+                        size.height / currentAnatomy.height
+                    )
+                    if (scale > 0f) {
+                        val drawnWidth = currentAnatomy.width * scale
+                        val drawnHeight = currentAnatomy.height * scale
+                        val offsetX = (size.width - drawnWidth) / 2f
+                        val offsetY = (size.height - drawnHeight) / 2f
+                        val diagramX = (tap.x - offsetX) / scale
+                        val diagramY = (tap.y - offsetY) / scale
+                        if (diagramX in 0f..currentAnatomy.width && diagramY in 0f..currentAnatomy.height) {
+                            currentAnatomy.muscleAt(diagramX, diagramY)?.let(onMuscleSelected)
+                        }
+                    }
+                }
+            }
     ) {
-        fun AnatomyRegion.path() = Path().apply {
-            points.forEachIndexed { index, point ->
-                val x = point.x * size.width / 160
-                val y = point.y * size.height / 260
-                if (index == 0) moveTo(x, y) else lineTo(x, y)
+        val scale = min(size.width / currentAnatomy.width, size.height / currentAnatomy.height)
+        val offsetX = (size.width - currentAnatomy.width * scale) / 2f
+        val offsetY = (size.height - currentAnatomy.height * scale) / 2f
+
+        drawIntoCanvas { canvas ->
+            val nativeCanvas = canvas.nativeCanvas
+            val save = nativeCanvas.save()
+            nativeCanvas.translate(offsetX, offsetY)
+            nativeCanvas.scale(scale, scale)
+            val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = ApexColors.SurfaceRaised.toArgb()
+                style = Paint.Style.FILL
             }
-            close()
-        }
-        drawPath(outline.path(), ApexColors.SurfaceRaised)
-        for (region in regions) {
-            val count = directSets[region.muscle] ?: 0
-            val color = when {
-                region.muscle == selectedMuscle -> ApexColors.Primary
-                count >= 10 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, .80f)
-                count >= 5 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, .55f)
-                count > 0 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, .30f)
-                else -> ApexColors.BorderStrong
+            val musclePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+            val boundaryPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = ApexColors.Canvas.toArgb()
+                style = Paint.Style.STROKE
+                strokeWidth = 3.5f
+                strokeJoin = Paint.Join.ROUND
+                strokeCap = Paint.Cap.ROUND
             }
-            drawPath(region.path(), color)
+
+            currentAnatomy.outline.forEach { drawMirrored(nativeCanvas, it, currentAnatomy.centerX, outlinePaint) }
+            currentAnatomy.muscles.forEach { region ->
+                val group = region.muscle ?: return@forEach
+                val count = normalizedDirectSets[group] ?: 0
+                musclePaint.color = muscleColor(group, selected, count).toArgb()
+                drawMirrored(nativeCanvas, region, currentAnatomy.centerX, musclePaint)
+            }
+            currentAnatomy.muscles.forEach { region ->
+                drawMirrored(nativeCanvas, region, currentAnatomy.centerX, boundaryPaint)
+            }
+            nativeCanvas.restoreToCount(save)
         }
     }
 }
+
+private fun drawMirrored(
+    canvas: android.graphics.Canvas,
+    region: AnatomyPath,
+    centerX: Float,
+    paint: Paint
+) {
+    canvas.drawPath(region.path, paint)
+    if (region.side == "LEFT") {
+        val save = canvas.save()
+        canvas.scale(-1f, 1f, centerX, 0f)
+        canvas.drawPath(region.path, paint)
+        canvas.restoreToCount(save)
+    }
+}
+
+private fun muscleColor(group: String, selected: String?, directSets: Int) = when {
+    group == selected -> ApexColors.Primary
+    directSets >= 10 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, 0.80f)
+    directSets >= 5 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, 0.55f)
+    directSets > 0 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, 0.30f)
+    else -> ApexColors.BorderStrong
+}
+
+private fun canonicalApexMuscle(sourceGroup: String): String? = when (sourceGroup.uppercase(Locale.ROOT)) {
+    "CHEST" -> "chest"
+    "BACK_UPPER", "LATS", "RHOMBOIDS" -> "back"
+    "BACK_LOWER" -> "lower_back"
+    "TRAPEZIUS" -> "trapezius"
+    "SHOULDERS_FRONT", "SHOULDERS_SIDE", "SHOULDERS_REAR" -> "shoulders"
+    "BICEPS" -> "biceps"
+    "TRICEPS" -> "triceps"
+    "FOREARMS" -> "forearms"
+    "CORE", "OBLIQUES" -> "core"
+    "GLUTES" -> "glutes"
+    "QUADS" -> "quads"
+    "HAMSTRINGS" -> "hamstrings"
+    "CALVES" -> "calves"
+    "HIP_FLEXORS" -> "hip_flexors"
+    "ADDUCTORS" -> "hip_adductors"
+    "ABDUCTORS" -> "hip_abductors"
+    else -> null
+}
+
+internal fun showsOnBackOnly(muscle: String): Boolean =
+    MuscleAliases.getCanonical(muscle) in setOf("back", "lower_back", "glutes", "hamstrings")
+

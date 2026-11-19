@@ -17,6 +17,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.apexfit.app.data.Exercise
 import com.apexfit.app.ui.components.ApexAnatomy
 import com.apexfit.app.ui.components.ApexSegmentedControl
+import com.apexfit.app.ui.components.showsOnBackOnly
 import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.ExerciseCatalogFilter
@@ -45,13 +46,16 @@ internal fun ExercisePicker(
     excludeId: String? = null,
     onBack: () -> Unit,
     onSelect: (Exercise) -> Unit,
-    initialQuery: String = ""
+    initialQuery: String = "",
+    initialShowBack: Boolean = false
 ) {
     val exercises = remember(state, excludeId) {
         (state as? UiState.Success)?.data.orEmpty().filter { it.id != excludeId && it.isDeleted == 0 }
     }
     var mode by rememberSaveable { mutableIntStateOf(if (initialMuscle == null) 0 else 1) }
-    var showBack by rememberSaveable { mutableStateOf(false) }
+    var showBack by rememberSaveable {
+        mutableStateOf(initialShowBack || initialMuscle?.let(::showsOnBackOnly) == true)
+    }
     var selectedMuscle by rememberSaveable { mutableStateOf(initialMuscle?.let(MuscleAliases::getCanonical)) }
     var query by rememberSaveable { mutableStateOf(initialQuery) }
     var equipment by rememberSaveable { mutableStateOf<String?>(null) }
@@ -164,3 +168,4 @@ internal fun ExercisePicker(
         }
     }
 }
+
