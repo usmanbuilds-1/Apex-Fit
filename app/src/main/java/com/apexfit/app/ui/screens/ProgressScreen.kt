@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -235,10 +236,14 @@ internal fun WeightLogSection(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = ApexColors.SurfaceSunken,
                     unfocusedContainerColor = ApexColors.SurfaceSunken,
+                    errorContainerColor = ApexColors.SurfaceSunken,
                     focusedTextColor = ApexColors.TextPrimary,
                     unfocusedTextColor = ApexColors.TextPrimary,
+                    errorTextColor = ApexColors.TextPrimary,
                     focusedIndicatorColor = if (weightError != null) ApexColors.Alert else ApexColors.Primary,
                     unfocusedIndicatorColor = if (weightError != null) ApexColors.Alert else ApexColors.BorderSubtle,
+                    errorIndicatorColor = ApexColors.Alert,
+                    errorLabelColor = ApexColors.Alert,
                     focusedSupportingTextColor = ApexColors.Alert,
                     unfocusedSupportingTextColor = ApexColors.Alert
                 )
@@ -246,6 +251,7 @@ internal fun WeightLogSection(
             Button(
                 onClick = onSave,
                 colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
+                shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.testTag("log_weight_button")
             ) {
                 Text(stringResource(R.string.progress_save_weight), color = ApexColors.OnGlow)
