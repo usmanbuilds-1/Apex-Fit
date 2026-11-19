@@ -18,6 +18,7 @@ import com.apexfit.app.R
 import com.apexfit.app.utils.AppConstants
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -25,6 +26,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -39,6 +41,7 @@ import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ui.theme.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
 
@@ -90,6 +93,7 @@ fun SettingsScreen(
     var heightError by remember { mutableStateOf<String?>(null) }
     var profileLoaded by remember { mutableStateOf(false) }
     var profileSaving by remember { mutableStateOf(false) }
+    var expandedSetting by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         val profile = fitnessViewModel.loadSettingsSnapshot()
@@ -158,244 +162,215 @@ fun SettingsScreen(
             .imePadding()
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         SettingsSectionTitle("Profile")
 
-        // Name
-        OutlinedTextField(
+        SettingsDisclosureRow(
+            label = "Name",
             value = editName,
-            onValueChange = {
-                editName = it
-                nameError = null
-            },
-            isError = nameError != null,
-            supportingText = nameError?.let { { Text(it, color = RedAccent) } },
-            label = { Text(stringResource(R.string.settings_athlete_nickname), color = SecondaryText) },
-            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-            modifier = Modifier.fillMaxWidth().testTag("settings_name_input"),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = DarkRaised,
-                unfocusedContainerColor = DarkRaised,
-                focusedIndicatorColor = if (nameError != null) RedAccent else ApexColors.Primary,
-                unfocusedIndicatorColor = if (nameError != null) RedAccent else BorderSubtle
-            )
-        )
-
-        // Keep the same goals available during onboarding and in settings.
-        Text(
-            text = stringResource(R.string.settings_goal_objective_profile),
-            fontFamily = InterFamily,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = SecondaryText,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            maxItemsInEachRow = 2,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-                .testTag("settings_goal_input")
+            expanded = expandedSetting == "name",
+            onClick = { expandedSetting = if (expandedSetting == "name") null else "name" }
         ) {
-            listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition").forEach { option ->
-                val isSelected = editGoal == option
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (isSelected) ApexColors.PrimaryMist else DarkRaised)
-                        .border(
-                            border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
-                            shape = RoundedCornerShape(14.dp)
-                        )
-                        .semantics { selected = isSelected }
-                        .clickable(role = Role.Tab) { editGoal = option }
-                        .heightIn(min = 48.dp)
-                        .padding(horizontal = 8.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = option,
-                        fontFamily = InterFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isSelected) ApexColors.Primary else PrimaryText
-                    )
-                }
-            }
-        }
-
-        // Calorie target mode selector
-        Text(
-            text = "Nutrition target",
-            fontFamily = InterFamily,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = SecondaryText,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf(false to "SMART", true to "MANUAL").forEach { (isManual, label) ->
-                val selected = editIsManual == isManual
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected) ApexColors.PrimaryMist else DarkRaised)
-                        .border(1.dp, if (selected) ApexColors.Primary else BorderSubtle, RoundedCornerShape(10.dp))
-                        .semantics { this.selected = selected }
-                        .clickable(role = Role.Tab) { editIsManual = isManual }
-                        .heightIn(min = 48.dp)
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = label,
-                        fontFamily = SyneFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = if (selected) ApexColors.Primary else SecondaryText
-                    )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        if (editIsManual) {
             OutlinedTextField(
-                value = editedManualCalValue,
+                value = editName,
                 onValueChange = {
-                    val filtered = it.filter { c -> c.isDigit() }
-                    editedManualCalValue = filtered
-                    val v = filtered.toIntOrNull()
-                    manualCalError = if (v != null && v !in 1000..6000) "Must be 1000-6000" else null
+                    editName = it
+                    nameError = null
                 },
-                isError = manualCalError != null,
-                supportingText = manualCalError?.let { { Text(it, color = RedAccent) } },
-                label = { Text("Target (1000–6000 kcal)", color = SecondaryText) },
+                isError = nameError != null,
+                supportingText = nameError?.let { { Text(it, color = RedAccent) } },
+                label = { Text(stringResource(R.string.settings_athlete_nickname), color = SecondaryText) },
                 textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth().testTag("settings_manual_calorie_input"),
+                modifier = Modifier.fillMaxWidth().testTag("settings_name_input"),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = DarkRaised,
                     unfocusedContainerColor = DarkRaised,
-                    focusedIndicatorColor = if (manualCalError != null) RedAccent else ApexColors.Primary,
-                    unfocusedIndicatorColor = if (manualCalError != null) RedAccent else BorderSubtle
+                    focusedIndicatorColor = if (nameError != null) RedAccent else ApexColors.Primary,
+                    unfocusedIndicatorColor = if (nameError != null) RedAccent else BorderSubtle
                 )
-            )
-        } else {
-            Text(
-                text = "Apex Fit will calculate your target based on your weight trend and goal.",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 11.sp,
-                color = SecondaryText,
-                modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
 
-        // Height & Age Row
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth()
+        SettingsDisclosureRow(
+            label = stringResource(R.string.settings_goal_objective_profile),
+            value = settingsGoalSummary(editGoal),
+            expanded = expandedSetting == "goal",
+            onClick = { expandedSetting = if (expandedSetting == "goal") null else "goal" }
         ) {
-            OutlinedTextField(
-                value = editHeight,
-                onValueChange = { editHeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
-                isError = heightError != null,
-                supportingText = heightError?.let { { Text(it, color = RedAccent) } },
-                label = { Text(stringResource(R.string.settings_height_cm), color = SecondaryText) },
-                textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f).testTag("settings_height_input"),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = DarkRaised,
-                    unfocusedContainerColor = DarkRaised,
-                    focusedIndicatorColor = ApexColors.Primary,
-                    unfocusedIndicatorColor = BorderSubtle
-                )
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                OutlinedTextField(
-                    value = editAge,
-                    onValueChange = {
-                        val filtered = it.filter { c -> c.isDigit() }
-                        editAge = filtered
-                        val v = filtered.toIntOrNull()
-                        ageError = if (v != null && v !in AppConstants.MIN_AGE..AppConstants.MAX_AGE) {
-                            "Apex Fit is currently for adults aged 18 to 100."
-                        } else null
-                    },
-                    isError = ageError != null,
-                    supportingText = ageError?.let { { Text(it, color = RedAccent) } },
-                    label = { Text(stringResource(R.string.settings_age_yrs), color = SecondaryText) },
-                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth().testTag("settings_age_input"),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = DarkRaised,
-                        unfocusedContainerColor = DarkRaised,
-                    focusedIndicatorColor = if (ageError != null) RedAccent else ApexColors.Primary,
-                        unfocusedIndicatorColor = if (ageError != null) RedAccent else BorderSubtle
-                    )
-                )
-            }
+            SettingsGoalOptions(selectedGoal = editGoal, onGoalSelected = { editGoal = it })
         }
 
-        // Biological Sex Select
-        Text(
-            text = "Sex used for calorie estimates",
-            fontFamily = SyneFamily,
-            fontSize = 11.sp,
-            color = SecondaryText,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
+        SettingsDisclosureRow(
+            label = "Nutrition target",
+            value = if (editIsManual) {
+                editedManualCalValue.toIntOrNull()?.let { "$it kcal" } ?: "Set target"
+            } else "Automatic",
+            expanded = expandedSetting == "nutrition",
+            onClick = { expandedSetting = if (expandedSetting == "nutrition") null else "nutrition" }
         ) {
-            for (sex in listOf("Male", "Female")) {
-                val isSelected = editSex.equals(sex, ignoreCase = true)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (isSelected) ApexColors.PrimaryMist else DarkRaised)
-                        .border(
-                            border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                        .semantics { selected = isSelected }
-                        .clickable(role = Role.Tab) { editSex = sex.lowercase() }
-                        .padding(vertical = 12.dp)
-                        .heightIn(min = 48.dp)
-                        .testTag("settings_sex_${sex.lowercase()}"),
-                    contentAlignment = Alignment.Center
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    listOf(false to "AUTO", true to "MANUAL").forEach { (isManual, label) ->
+                        val selected = editIsManual == isManual
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selected) ApexColors.PrimaryMist else DarkRaised)
+                                .border(1.dp, if (selected) ApexColors.Primary else BorderSubtle, RoundedCornerShape(8.dp))
+                                .semantics { this.selected = selected }
+                                .clickable(role = Role.Tab) { editIsManual = isManual }
+                                .heightIn(min = 48.dp)
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontFamily = InterFamily,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (selected) ApexColors.Primary else SecondaryText
+                            )
+                        }
+                    }
+                }
+                if (editIsManual) {
+                    OutlinedTextField(
+                        value = editedManualCalValue,
+                        onValueChange = {
+                            val filtered = it.filter { c -> c.isDigit() }
+                            editedManualCalValue = filtered
+                            val v = filtered.toIntOrNull()
+                            manualCalError = if (v != null && v !in 1000..6000) "Must be 1000-6000" else null
+                        },
+                        isError = manualCalError != null,
+                        supportingText = manualCalError?.let { { Text(it, color = RedAccent) } },
+                        label = { Text("Target (1000–6000 kcal)", color = SecondaryText) },
+                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth().testTag("settings_manual_calorie_input"),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = DarkRaised,
+                            unfocusedContainerColor = DarkRaised,
+                            focusedIndicatorColor = if (manualCalError != null) RedAccent else ApexColors.Primary,
+                            unfocusedIndicatorColor = if (manualCalError != null) RedAccent else BorderSubtle
+                        )
+                    )
+                } else {
                     Text(
-                        text = sex.uppercase(),
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSelected) ApexColors.Primary else PrimaryText
+                        text = "Apex Fit will calculate your target based on your weight trend and goal.",
+                        fontFamily = InterFamily,
+                        fontSize = 14.sp,
+                        color = SecondaryText
                     )
                 }
             }
         }
 
-        // Weekly Workouts Select
-        Text(
-            text = "Weekly sessions",
-            fontFamily = InterFamily,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = SecondaryText,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        SettingsDisclosureRow(
+            label = "Personal details",
+            value = "$editHeight cm · $editAge years · ${editSex.replaceFirstChar { it.uppercase() }}",
+            expanded = expandedSetting == "details",
+            onClick = { expandedSetting = if (expandedSetting == "details") null else "details" }
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = editHeight,
+                        onValueChange = { editHeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.') },
+                        isError = heightError != null,
+                        supportingText = heightError?.let { { Text(it, color = RedAccent) } },
+                        label = { Text(stringResource(R.string.settings_height_cm), color = SecondaryText) },
+                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f).testTag("settings_height_input"),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = DarkRaised,
+                            unfocusedContainerColor = DarkRaised,
+                            focusedIndicatorColor = if (heightError != null) RedAccent else ApexColors.Primary,
+                            unfocusedIndicatorColor = if (heightError != null) RedAccent else BorderSubtle
+                        )
+                    )
+                    OutlinedTextField(
+                        value = editAge,
+                        onValueChange = {
+                            val filtered = it.filter { c -> c.isDigit() }
+                            editAge = filtered
+                            val v = filtered.toIntOrNull()
+                            ageError = if (v != null && v !in AppConstants.MIN_AGE..AppConstants.MAX_AGE) {
+                                "Apex Fit is currently for adults aged 18 to 100."
+                            } else null
+                        },
+                        isError = ageError != null,
+                        supportingText = ageError?.let { { Text(it, color = RedAccent) } },
+                        label = { Text(stringResource(R.string.settings_age_yrs), color = SecondaryText) },
+                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f).testTag("settings_age_input"),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = DarkRaised,
+                            unfocusedContainerColor = DarkRaised,
+                            focusedIndicatorColor = if (ageError != null) RedAccent else ApexColors.Primary,
+                            unfocusedIndicatorColor = if (ageError != null) RedAccent else BorderSubtle
+                        )
+                    )
+                }
+
+                Text(
+                    text = "Sex used for calorie estimates",
+                    fontFamily = InterFamily,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = SecondaryText
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    for (sex in listOf("Male", "Female")) {
+                        val isSelected = editSex.equals(sex, ignoreCase = true)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) ApexColors.PrimaryMist else DarkRaised)
+                                .border(
+                                    border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .semantics { selected = isSelected }
+                                .clickable(role = Role.Tab) { editSex = sex.lowercase() }
+                                .padding(vertical = 12.dp)
+                                .heightIn(min = 48.dp)
+                                .testTag("settings_sex_${sex.lowercase()}"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = sex,
+                                fontFamily = InterFamily,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (isSelected) ApexColors.Primary else PrimaryText
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        SettingsDisclosureRow(
+            label = "Weekly sessions",
+            value = "$weeklyWorkouts per week",
+            expanded = expandedSetting == "sessions",
+            onClick = { expandedSetting = if (expandedSetting == "sessions") null else "sessions" }
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -430,16 +405,14 @@ fun SettingsScreen(
                 }
             }
         }
+        }
 
-        // Units Select
-        Text(
-            text = "Units",
-            fontFamily = InterFamily,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = SecondaryText,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        SettingsDisclosureRow(
+            label = "Units",
+            value = if (units == "kg") "kg · cm" else "lb · cm",
+            expanded = expandedSetting == "units",
+            onClick = { expandedSetting = if (expandedSetting == "units") null else "units" }
+        ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
@@ -464,25 +437,23 @@ fun SettingsScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = label.uppercase(),
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = label,
+                        fontFamily = InterFamily,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
                         color = if (isSelected) ApexColors.Primary else PrimaryText
                     )
                 }
             }
         }
+        }
 
-        // Weight Fields Row
-        Text(
-            text = "Weight",
-            fontFamily = InterFamily,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = SecondaryText,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        SettingsDisclosureRow(
+            label = "Weight",
+            value = "Now $editCurrentWeight · Goal $editGoalWeight $units",
+            expanded = expandedSetting == "weight",
+            onClick = { expandedSetting = if (expandedSetting == "weight") null else "weight" }
+        ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
@@ -533,6 +504,7 @@ fun SettingsScreen(
                     )
                 )
             }
+        }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -739,6 +711,108 @@ fun SettingsScreen(
             }
         }
     }
+    }
+}
+
+private fun settingsGoalSummary(goal: String): String = when (goal) {
+    "Gain Muscle" -> "Build muscle"
+    "Lose Fat" -> "Lose fat"
+    "Maintain" -> "Maintain"
+    "Recomposition" -> "Recomposition"
+    else -> goal
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+internal fun SettingsGoalOptions(selectedGoal: String, onGoalSelected: (String) -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        maxItemsInEachRow = 2,
+        modifier = Modifier.fillMaxWidth().testTag("settings_goal_input")
+    ) {
+        listOf("Gain Muscle", "Lose Fat", "Maintain", "Recomposition").forEach { option ->
+            val isSelected = selectedGoal == option
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isSelected) ApexColors.PrimaryMist else DarkRaised)
+                    .border(
+                        border = BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .semantics { selected = isSelected }
+                    .clickable(role = Role.Tab) { onGoalSelected(option) }
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = option,
+                    fontFamily = InterFamily,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isSelected) ApexColors.Primary else PrimaryText
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun SettingsDisclosureRow(
+    label: String,
+    value: String,
+    expanded: Boolean,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .clickable(role = Role.Button, onClick = onClick)
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontFamily = InterFamily,
+                fontSize = 16.sp,
+                color = PrimaryText,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = value,
+                fontFamily = InterFamily,
+                fontSize = 14.sp,
+                color = SecondaryText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = if (expanded) "Collapse $label" else "Edit $label",
+                tint = SecondaryText,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(18.dp)
+                    .rotate(if (expanded) 90f else 0f)
+            )
+        }
+        if (expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                content()
+            }
+        }
     }
 }
 
