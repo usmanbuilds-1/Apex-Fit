@@ -38,13 +38,13 @@ Automated Android CI, lint, unit tests, palette checks and Compose preview rende
 ### 1. Finish the reachable Night Ledger migration
 
 The remaining high-risk legacy surfaces require the local/visual pass:
-- Today: finish Stitch comparison of scheduled, rest-day, insufficient-weight and larger-font states.
-- active Workout
-- Plan Builder and its edit dialogs
-- Settings final polish
-- Progress weight/body-metrics subroutes
-- Personal Records / Workout History detail
-- import review where reachable
+- Today: scheduled, rest-day, active-session, readiness explanation, and larger-font states have Compose renders; finish real-device inset/back checks and review remaining Stitch mismatches.
+- active Workout and RIR/rest states have Compose renders; finish real-device interaction and motion checks.
+- Plan Builder has metadata, validation, and save-action renders; verify edit dialogs and a full edit/save flow.
+- Settings row/editor renders exist; finish reachable-flow and accessibility review.
+- Exercise Detail/Form Guide: preserve vetted text and honest media states; finish the remaining Stitch parity using only prescription/history data that already exists.
+- Progress weight log/history, measurements, PR/history, recovery, fatigue, and volume states have Compose renders; finish real navigation and Stitch comparisons for available references.
+- importer review/error states and the import-to-save flow.
 
 A polished overview does not count if a tap drops into an older visual language.
 
@@ -54,15 +54,12 @@ The app still mixes Material icons and legacy/custom vector assets on reachable 
 
 ### 3. Muscle anatomy quality
 
-The low-detail custom canvas was replaced with the selected MIT-licensed Jsplice/MuscleMap traced front/back vectors; the complete MIT notice and provenance are bundled and documented in `docs/THIRD_PARTY_ASSETS.md`. Exact-head screenshot review found that asynchronous loading captured only a spinner, so the bundled vectors now load from cache before first draw. On head `c3767593d298a6905efdd2716f3f815a43766818`, the front/back picker views and populated Muscle Volume render were inspected from artifact `14499404932`; the anatomy is visible, with mineral-blue selection and direct-set emphasis. No dedicated Stitch anatomy reference exists, so the comparison used the Night Ledger palette, restraint, and set-count-only rules. Device tap-target/accessibility validation remains in the final Android QA gate.
+The low-detail custom canvas was replaced with the selected MIT-licensed Jsplice/MuscleMap traced front/back vectors; the complete MIT notice and provenance are bundled and documented in `docs/THIRD_PARTY_ASSETS.md`. The bundled vectors load from cache before first draw. In the latest visual pass, the shared anatomy width increased from 240dp to 280dp in Exercise Picker and Muscle Volume to make muscle selection easier. On PR head `f0fc664b4aac0f40354c48c82896e1449b18fce6`, I inspected the picker and populated Muscle Volume renders from artifact `14566470969`; muscle outlines and selected/direct-set emphasis are visible at the larger size. No dedicated Stitch anatomy reference exists, so visual review used the Night Ledger palette, restraint, and set-count-only rules. Device tap-target and accessibility validation remains open.
 
 ### 4. Exercise Detail final polish
 
-Preserve vetted source instructions and honest no-instruction fallback. Final pass still needs to verify:
+Preserve vetted source instructions and honest no-instruction fallback. The latest artifact covers the available-instructions, no-instructions, video-loading, no-video, available-video, and offline-video states. Final pass still needs to verify:
 - long real instruction sets
-- available-video state before playback
-- no-video state
-- offline/unavailable video state
 - large-font behavior
 - active-workout Form Guide entry point
 
@@ -70,18 +67,9 @@ Do not invent coaching or biomechanics merely to fill empty space.
 
 ### 5. Visual-state coverage still missing
 
-Add/verify real renders for:
-- active Workout logger
-- Plan Builder
-- Settings
-- Personal Records populated/empty
-- Workout History list/detail
-- body measurement detail
-- Fatigue & Deload
-- Muscle Volume selected drill-down / Month / loading or failure path as applicable
-- Workout Complete expanded details
-- importer review/error states
-- combined RIR selection + active rest state, history, and pre-log state
+Latest Compose renders now cover the active Workout logger and adaptive set-volume row; Plan Builder metadata, validation and save action; Settings row/editor; Personal Records populated/empty; Workout History list/detail; measurement empty/populated; Fatigue & Deload states; Muscle Volume week/month, selected muscle, loading/error and no-training; Workout Complete earned/no-record/partial; and RIR selection/history/rest/pre-log states.
+
+Remaining render/flow gaps are importer review/error, long Exercise Detail instructions at large font, Plan Builder edit dialogs, and Workout Complete expanded details if that interaction exists in the live flow. Screenshot coverage is still not a substitute for interactive device validation.
 
 ### 6. Real Android validation
 
@@ -109,14 +97,15 @@ Run and report, where the environment permits, the eight flows defined in `docs/
 
 ## Current automated evidence
 
-- Latest confirmed green code head: `c3767593d298a6905efdd2716f3f815a43766818`.
-- Android CI/APK build, unit tests, lint, and Compose screenshot rendering passed on that exact head (run `44462081742`); palette regression passed (run `44462081547`).
-- Compose render artifact `14499404932` contains 47 PNG states, including the revised front/back anatomy and populated Muscle Volume views.
+- Latest confirmed green PR head: `f0fc664b4aac0f40354c48c82896e1449b18fce6`.
+- Android CI/APK build, unit tests, lint, and Compose screenshot rendering passed at that head (run `44595437783`); palette regression passed (run `44595437987`). CI logs show `assembleDebug`, `testDebugUnitTest`, `lintDebug`, and `updateDebugScreenshotTest` succeeded.
+- Compose render artifact `14566470969` contains 70 PNG states. The Exercise Picker and Muscle Volume anatomy renders were inspected after the 280dp sizing change; the adaptive-volume active-workout render was also inspected.
+- Today was compared with Stitch screen `projects/14369859982852578965/screens/01d1c4d10ac44aa895349abb6604754f` (screenshot file `4451767822246429594`): local photo/crop and transition align; copy preserves the app's heuristic readiness wording and real preview data. Rest-day, active-session, and 1.3x-font states are present in the same exact-head artifact.
 - Train Program was compared with Stitch screen `projects/14369859982852578965/screens/f72ba5e089ce4cf8a003e4c32c5671f4` (screenshot file `6540126667228233814`). The rendered weekly schedule now fits the full week at the preview viewport.
 - Plans was compared with Stitch screen `projects/14369859982852578965/screens/aac06f19998b4540804c75afd71dd18f` (screenshot file `5916272567711751964`).
-- Today was checked against Stitch: the contextual local photo and fade align; the main readiness row was shortened to remove duplicate explanation copy. Calorie and weight hierarchy is receiving one more compactness pass.
 - The post-log RIR/rest screenshot was visually compared with the approved Stitch reference and refined for hierarchy, timer formatting, and real next-set context.
-- Subsequent changes must be reverified on their exact final head.
+- Exercise Detail was compared with Stitch screen `projects/14369859982852578965/screens/de4245a961994f0c8322ed0b89edd428`. The live Form Guide retains vetted text and omits unverified imagery/coaching, but it does not yet match the reference's prescription, progression, recent-performance, and alternatives sections; fill these only from existing real plan/history data.
+- Physical device/emulator validation is still unavailable in this environment; the evidence above is CI Compose screenshot rendering, not a device run.
 - A transient Maven Central HTTP 429 on an intermediate run is infrastructure noise, not evidence of a source-code failure.
 
 ## Exit criteria
