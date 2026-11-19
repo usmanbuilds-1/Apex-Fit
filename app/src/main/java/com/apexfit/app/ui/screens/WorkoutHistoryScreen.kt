@@ -34,6 +34,19 @@ fun WorkoutHistoryScreen(progressViewModel: ProgressViewModel, onBack: () -> Uni
         WorkoutHistoryDetail(selected, sets, units, onBack = { selectedId = null })
         return
     }
+    WorkoutHistoryContent(
+        sessions = sessions,
+        onBack = onBack,
+        onOpenSession = { selectedId = it.id }
+    )
+}
+
+@Composable
+internal fun WorkoutHistoryContent(
+    sessions: List<TrainingSession>,
+    onBack: () -> Unit,
+    onOpenSession: (TrainingSession) -> Unit
+) {
     LazyColumn(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(horizontal = 20.dp)) {
         item {
             TextButton(onClick = onBack) { Text("Back to Progress") }
@@ -46,7 +59,7 @@ fun WorkoutHistoryScreen(progressViewModel: ProgressViewModel, onBack: () -> Uni
         items(sessions, key = { it.id }) { session ->
             HorizontalDivider(color = ApexColors.BorderSubtle)
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) {
-                selectedId = session.id
+                onOpenSession(session)
             }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(session.sessionType.ifBlank { "Workout" }, style = MaterialTheme.typography.titleMedium)
@@ -102,3 +115,4 @@ private fun sessionSummary(session: TrainingSession): String = listOfNotNull(
     com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(session.date), "${session.durationMinutes} min".takeIf { session.durationMinutes > 0 },
     "Partial".takeIf { session.status == "partial" }
 ).joinToString(" · ")
+
