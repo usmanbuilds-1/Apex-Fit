@@ -22,6 +22,8 @@ import com.apexfit.app.ui.components.ApexSegmentedControl
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.MuscleVolumePeriod
 import com.apexfit.app.utils.MuscleVolumeSummary
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -29,20 +31,53 @@ import java.util.Locale
 
 @Composable
 internal fun MuscleVolumeScreen(homeViewModel: HomeViewModel, onBack: () -> Unit) {
-    val sessions by homeViewModel.completedSessions.collectAsStateWithLifecycle(initialValue = null)
+    var retryAttempt by remember { mutableIntStateOf(0) }
+    val loadState by produceState<MuscleVolumeLoadState>(
+        initialValue = MuscleVolumeLoadState.Loading,
+        key1 = homeViewModel,
+        key2 = retryAttempt
+    ) {
+        try {
+            homeViewModel.completedSessions.collect { sessions ->
+                value = MuscleVolumeLoadState.Loaded(sessions)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            value = MuscleVolumeLoadState.Failed
+        }
+    }
     val date by homeViewModel.todayDate.collectAsStateWithLifecycle()
-    MuscleVolumeContent(sessions, LocalDate.parse(date), onBack)
+    MuscleVolumeContent(
+        sessions = (loadState as? MuscleVolumeLoadState.Loaded)?.sessions,
+        today = LocalDate.parse(date),
+        onBack = onBack,
+        loadError = loadState is MuscleVolumeLoadState.Failed,
+        onRetry = { retryAttempt++ }
+    )
+}
+
+private sealed interface MuscleVolumeLoadState {
+    data object Loading : MuscleVolumeLoadState
+    data class Loaded(val sessions: List<RichTrainingSession>) : MuscleVolumeLoadState
+    data object Failed : MuscleVolumeLoadState
 }
 
 @Composable
 internal fun MuscleVolumeContent(
     sessions: List<RichTrainingSession>?,
     today: LocalDate,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    loadError: Boolean = false,
+    onRetry: () -> Unit = {},
+    initialSelectedMuscle: String? = null,
+    initialPeriod: MuscleVolumePeriod = MuscleVolumePeriod.WEEK
 ) {
-    var periodIndex by rememberSaveable { mutableIntStateOf(0) }
+    var periodIndex by rememberSaveable(initialPeriod) {
+        mutableIntStateOf(MuscleVolumePeriod.entries.indexOf(initialPeriod).coerceAtLeast(0))
+    }
     var preferredBack by rememberSaveable { mutableStateOf<Boolean?>(null) }
-    var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    var selected by rememberSaveable(initialSelectedMuscle) { mutableStateOf(initialSelectedMuscle) }
     BackHandler(enabled = selected != null) { selected = null }
     val period = MuscleVolumePeriod.entries[periodIndex]
     val rows = remember(sessions, today, period) {
@@ -76,7 +111,16 @@ internal fun MuscleVolumeContent(
                 color = ApexColors.TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
         }
         when {
-            sessions == null -> item { CircularProgressIndicator(Modifier.size(24.dp)) }
+            loadError -> item {
+                Text("Training volume couldn't load.", color = ApexColors.TextSecondary)
+                TextButton(onClick = onRetry) { Text("Try again") }
+            }
+            sessions == null -> item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                    Text("Loading training volume…", color = ApexColors.TextSecondary)
+                }
+            }
             selected != null -> {
                 item {
                     Text("${chosen?.directSets ?: 0} direct sets · ${chosen?.secondarySets ?: 0} secondary exposure",
