@@ -12,6 +12,7 @@ import com.apexfit.app.data.PlanExercise
 import com.apexfit.app.ui.models.UiExerciseSet
 import com.apexfit.app.ui.theme.ApexFitTheme
 import com.apexfit.app.ui.theme.ApexColors
+import com.apexfit.app.utils.SetVolumeAdjustment
 
 private val activeWorkoutExercises = listOf(
     PlanExercise(
@@ -131,6 +132,62 @@ fun ActiveWorkoutNightLedger() {
                 weightContextLines = emptyMap(),
                 volumeAdjustments = emptyMap(),
                 onUndoVolumeAdjustment = { false },
+                preferredUnits = "kg",
+                showRirOverlay = false,
+                onOpenFormGuide = {},
+                onToggleWarmupItem = {},
+                onLogSetState = { _, _, _, _, _, _, _ -> },
+                onCompleteSet = { _, _, _, _, _, _, _, _ -> },
+                onAddCustomLogSet = {},
+                onNextExercise = {},
+                onSkipExercise = {},
+                onShowNormalFinishFeelDialog = {},
+                onShowFinishEarlyDialog = {},
+                onShowExitDialog = {},
+                onCancelOrCompleteEmptySession = {},
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun ActiveWorkoutWithAdaptiveSetVolumeNightLedger() {
+    val lateralRaises = listOf(
+        UiExerciseSet(id = 1, weight = 14.0, reps = 14, rpe = 8, completed = true,
+            exerciseName = "Dumbbell Lateral Raise", exerciseId = "db-lateral-raise", muscleGroup = "Shoulders"),
+        UiExerciseSet(id = 2, weight = 14.0, reps = 14, rpe = 0, completed = false,
+            exerciseName = "Dumbbell Lateral Raise", exerciseId = "db-lateral-raise", muscleGroup = "Shoulders"),
+        UiExerciseSet(id = 3, weight = 14.0, reps = 12, rpe = 0, completed = false,
+            exerciseName = "Dumbbell Lateral Raise", exerciseId = "db-lateral-raise", muscleGroup = "Shoulders")
+    )
+
+    ApexFitTheme {
+        Column(Modifier.fillMaxSize().background(ApexColors.Canvas)) {
+            WorkoutExecutionHeader(
+                sessionLabel = "Upper Body A",
+                elapsedTime = "24:18",
+                onBack = {},
+                onFinish = {}
+            )
+            ExerciseListSection(
+                exercises = activeWorkoutExercises,
+                currentIdx = 1,
+                loggedSets = mapOf("db-lateral-raise" to lateralRaises),
+                effectiveSetsMap = emptyMap(),
+                warmupComp = emptyMap(),
+                lastWeights = mapOf("db-lateral-raise" to 14.0),
+                weightContextLines = emptyMap(),
+                volumeAdjustments = mapOf(
+                    "db-lateral-raise" to SetVolumeAdjustment(
+                        baseSets = 3,
+                        adjustedSets = 4,
+                        reason = "Three completed sessions on different days met the rep minimum at RPE 8 or lower."
+                    )
+                ),
+                onUndoVolumeAdjustment = { true },
                 preferredUnits = "kg",
                 showRirOverlay = false,
                 onOpenFormGuide = {},
