@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,7 +15,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
@@ -43,7 +41,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.times
 import com.apexfit.app.ui.components.ApexSegmentedControl
 import com.apexfit.app.ui.components.MuscleHeatmapCanvas
@@ -203,6 +200,110 @@ fun BodyMeasurementsTrackerPanel(
     }
 }
 
+@Composable
+internal fun WeightLogSection(
+    inputWeight: String,
+    weightError: String?,
+    units: String,
+    onInputWeightChange: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Log weight", style = MaterialTheme.typography.titleMedium, color = ApexColors.TextPrimary)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = inputWeight,
+                onValueChange = onInputWeightChange,
+                label = { Text("Weight ($units)") },
+                isError = weightError != null,
+                supportingText = weightError?.let { { Text(it, color = ApexColors.Alert) } },
+                placeholder = {
+                    Text(
+                        stringResource(R.string.progress_log_weight_index_e_g_78_5),
+                        color = ApexColors.TextTertiary
+                    )
+                },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f).testTag("log_weight_input"),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = ApexColors.SurfaceSunken,
+                    unfocusedContainerColor = ApexColors.SurfaceSunken,
+                    focusedTextColor = ApexColors.TextPrimary,
+                    unfocusedTextColor = ApexColors.TextPrimary,
+                    focusedIndicatorColor = if (weightError != null) ApexColors.Alert else ApexColors.Primary,
+                    unfocusedIndicatorColor = if (weightError != null) ApexColors.Alert else ApexColors.BorderSubtle,
+                    focusedSupportingTextColor = ApexColors.Alert,
+                    unfocusedSupportingTextColor = ApexColors.Alert
+                )
+            )
+            Button(
+                onClick = onSave,
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
+                modifier = Modifier.testTag("log_weight_button")
+            ) {
+                Text(stringResource(R.string.progress_save_weight), color = ApexColors.OnGlow)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun WeightHistorySection(
+    entries: List<com.apexfit.app.ui.models.UiWeightEntry>,
+    units: String,
+    onDelete: (Long) -> Unit
+) {
+    if (entries.isEmpty()) return
+    val context = LocalContext.current
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = ApexColors.BorderSubtle, modifier = Modifier.padding(bottom = 12.dp))
+        Text("Weight history", style = MaterialTheme.typography.titleMedium, color = ApexColors.TextPrimary)
+        Text(
+            "Your recent weigh-ins.",
+            style = MaterialTheme.typography.bodySmall,
+            color = ApexColors.TextSecondary,
+            modifier = Modifier.padding(top = 3.dp, bottom = 4.dp)
+        )
+        entries.take(10).forEachIndexed { index, entry ->
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "${entry.weight.toDisplayWeight(units)} $units",
+                        style = ApexTextStyles.dataMedium,
+                        color = ApexColors.TextPrimary
+                    )
+                    Text(
+                        "${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(entry.date)}" +
+                            if (entry.time.isNotEmpty()) " · ${com.apexfit.app.utils.formatTimeForDisplay(context, entry.time)}" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ApexColors.TextSecondary
+                    )
+                }
+                IconButton(onClick = { onDelete(entry.id) }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Delete weight entry",
+                        tint = ApexColors.TextTertiary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            if (index < entries.take(10).lastIndex) HorizontalDivider(color = ApexColors.BorderSubtle)
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgressMainTabContent(
@@ -342,135 +443,36 @@ fun ProgressMainTabContent(
 
         // Category 2: BODY METRICS
         if (activeSubTab == 2 && !isSectionLoading && !isSectionError) {
-            // Quick Body weight log text field
             item {
                 var inputWeight by rememberSaveable { mutableStateOf("") }
                 var weightError by remember { mutableStateOf<String?>(null) }
-
-                PremiumCard(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                    Text(
-                        text = "Log weight",
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AmberAccent,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = inputWeight,
-                            onValueChange = {
-                                inputWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                WeightLogSection(
+                    inputWeight = inputWeight,
+                    weightError = weightError,
+                    units = units,
+                    onInputWeightChange = { value ->
+                        inputWeight = value.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                        weightError = null
+                    },
+                    onSave = {
+                        val weight = inputWeight.toDoubleOrNull()
+                        val minimum = if (units.lowercase() == "kg") 20.0 else 44.0
+                        val maximum = if (units.lowercase() == "kg") 300.0 else 660.0
+                        when {
+                            weight == null -> weightError = "Enter a valid number"
+                            weight !in minimum..maximum -> weightError = "Must be $minimum–$maximum $units"
+                            else -> {
                                 weightError = null
-                            },
-                            isError = weightError != null,
-                            supportingText = weightError?.let { { Text(it, color = RedAccent) } },
-                            placeholder = { Text(stringResource(R.string.progress_log_weight_index_e_g_78_5), color = MutedText, fontSize = 11.sp) },
-                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(1f).testTag("log_weight_input"),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkRaised,
-                                unfocusedContainerColor = DarkRaised,
-                                focusedIndicatorColor = if (weightError != null) RedAccent else ApexColors.Primary,
-                                unfocusedIndicatorColor = if (weightError != null) RedAccent else BorderSubtle
-                            )
-                        )
-
-                        Button(
-                            onClick = {
-                                val w = inputWeight.toDoubleOrNull()
-                                val weightMin = if (units.lowercase() == "kg") 20.0 else 44.0
-                                val weightMax = if (units.lowercase() == "kg") 300.0 else 660.0
-                                when {
-                                    w == null ->
-                                        weightError = "Enter a valid number"
-                                    w !in weightMin..weightMax ->
-                                        weightError = "Must be $weightMin–$weightMax $units"
-                                    else -> {
-                                        weightError = null
-                                        homeViewModel.logWeight(w, preferredUnit = units)
-                                        inputWeight = ""
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.testTag("log_weight_button")
-                        ) {
-                            Text(stringResource(R.string.progress_save_weight), fontFamily = SyneFamily, fontSize = 11.sp, color = ApexColors.OnGlow)
-                         }
-                    }
-                }
-            }
-
-            // Weight log entries history
-            if (visibleWeights.isNotEmpty()) {
-                item {
-                    PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Weight history",
-                            fontFamily = SyneFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SecondaryText,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        Text(
-                            text = "Your recent weigh-ins.",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = MutedText,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
-
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            visibleWeights.take(10).forEach { entry ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(DarkCardSurface)
-                                        .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = "${entry.weight.toDisplayWeight(units)} $units",
-                                            fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = PrimaryText
-                                        )
-                                            Text(
-                                                text = "${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(entry.date)}${if (entry.time.isNotEmpty()) " • ${com.apexfit.app.utils.formatTimeForDisplay(LocalContext.current, entry.time)}" else ""}",
-                                                fontFamily = JetBrainsMonoFamily,
-                                                fontSize = 11.sp,
-                                                color = SecondaryText
-                                            )
-                                    }
-                                    IconButton(
-                                        onClick = { triggerPendingWeightDeletion(entry.id) },
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Delete,
-                                            contentDescription = "Delete weight entry",
-                                            tint = MutedText,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
+                                homeViewModel.logWeight(weight, preferredUnit = units)
+                                inputWeight = ""
                             }
                         }
                     }
-                }
+                )
+            }
+
+            if (visibleWeights.isNotEmpty()) {
+                item { WeightHistorySection(visibleWeights, units, onDelete = ::triggerPendingWeightDeletion) }
             }
         } // End of activeSubTab == 2
 
