@@ -77,7 +77,7 @@
     <string name="nutrition_the_system_learns_your_metabol">The system learns your metabolic rate from daily weight + nutrition logs. Once you hit 14 days of history, precise targets unlock.</string>
     <string name="progress_error_loading_progress_data">Error loading progress data</string>
     <string name="progress_log_weight_index_e_g_78_5">Log weight index (e.g. 78.5)...</string>
-    <string name="progress_save_weight">SAVE WEIGHT</string>
+    <string name="progress_save_weight">Save weight</string>
     <string name="progress_undertrained">Low Load</string>
     <string name="progress_optimal">Optimal Load</string>
     <string name="progress_overreaching">High Load Warning</string>
