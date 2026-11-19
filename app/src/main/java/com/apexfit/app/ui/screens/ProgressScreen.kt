@@ -33,6 +33,7 @@ import com.apexfit.app.HomeViewModel
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.ui.models.UiBodyMeasurement
 import com.apexfit.app.ui.models.UiDeloadResult
+import com.apexfit.app.ui.models.UiFatigueResult
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -134,6 +135,41 @@ fun DeloadCard(
         Text(deloadResult.recommendation, color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
         deloadResult.protocol.forEach { action ->
             Text(action, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+internal fun FatigueDeloadContent(
+    fatigue: UiFatigueResult,
+    deload: UiDeloadResult,
+    onOpenRecovery: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Fatigue & deload", color = PrimaryText, style = MaterialTheme.typography.headlineSmall)
+        if (fatigue.ratio == null) {
+            Text(
+                "More logged training is needed to summarize current load.",
+                color = SecondaryText,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        } else {
+            Text(fatigue.statusLabel, color = PrimaryText, style = MaterialTheme.typography.titleLarge)
+            Text(fatigue.recommendation, color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text(
+            "Training-load estimates can guide adjustments. Consider how you feel today.",
+            color = SecondaryText,
+            style = MaterialTheme.typography.bodySmall
+        )
+        if (!deload.urgency.equals("none", ignoreCase = true) && deload.urgency.isNotBlank()) {
+            DeloadCard(deloadResult = deload)
+        }
+        TextButton(onClick = onOpenRecovery) {
+            Text("View muscle recovery")
         }
     }
 }
@@ -485,24 +521,11 @@ fun ProgressMainTabContent(
         // Category 1: BIO RECOVERY
         if (activeSubTab == 1 && !isSectionLoading && !isSectionError) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Fatigue & deload", color = PrimaryText, style = MaterialTheme.typography.headlineSmall)
-                    if (fatigueInfo.ratio == null) {
-                        Text("More logged training is needed to summarize current load.", color = SecondaryText)
-                    } else {
-                        Text(fatigueInfo.statusLabel, color = PrimaryText, style = MaterialTheme.typography.titleLarge)
-                        Text(fatigueInfo.recommendation, color = SecondaryText)
-                    }
-                    Text("Training-load estimates can guide adjustments. Consider how you feel today.",
-                        color = SecondaryText)
-                    TextButton(onClick = onOpenMuscleRecovery) { Text("View muscle recovery") }
-                }
-            }
-
-            if (deloadResult.urgency != "none") {
-                item {
-                    DeloadCard(deloadResult = deloadResult)
-                }
+                FatigueDeloadContent(
+                    fatigue = fatigueInfo,
+                    deload = deloadResult,
+                    onOpenRecovery = onOpenMuscleRecovery
+                )
             }
 
         } // End of activeSubTab == 1
@@ -522,3 +545,4 @@ fun ProgressMainTabContent(
         }
     }
 }
+
