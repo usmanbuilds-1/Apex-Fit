@@ -75,3 +75,45 @@ fun MuscleVolumeLoadError() {
         )
     }
 }
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun MuscleVolumeMonthWithTraining() {
+    ApexFitTheme {
+        MuscleVolumeContent(
+            listOf(pullSession()), LocalDate.parse("2026-11-16"), onBack = {},
+            initialPeriod = MuscleVolumePeriod.MONTH
+        )
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun MuscleVolumeSelectedMuscle() {
+    ApexFitTheme {
+        MuscleVolumeContent(
+            listOf(pullSession()), LocalDate.parse("2026-11-16"), onBack = {},
+            initialSelectedMuscle = "back"
+        )
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun MuscleVolumeLoading() {
+    ApexFitTheme { MuscleVolumeContent(null, LocalDate.parse("2026-11-16"), onBack = {}) }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun MuscleVolumeLoadError() {
+    ApexFitTheme {
+        MuscleVolumeContent(
+            null, LocalDate.parse("2026-11-16"), onBack = {}, loadError = true, onRetry = {}
+        )
+    }
+}

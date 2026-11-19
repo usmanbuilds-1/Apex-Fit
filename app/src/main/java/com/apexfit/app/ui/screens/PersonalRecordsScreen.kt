@@ -69,3 +69,4 @@ internal fun PersonalRecordsContent(
         }
     }
 }
+

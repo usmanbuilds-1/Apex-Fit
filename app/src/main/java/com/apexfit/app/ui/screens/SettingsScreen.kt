@@ -840,3 +840,4 @@ internal fun SettingsActionRow(modifier: Modifier, onClick: () -> Unit, content:
         content()
     }
 }
+
