@@ -53,7 +53,6 @@ class ProgressionEngineTest {
     }
 
     @Test
-    @Test
     fun testCalculateEffectiveSetValue_normal() {
         assertEquals(0.75, ProgressionEngine.calculateEffectiveSetValue(8), 0.01)
     }
