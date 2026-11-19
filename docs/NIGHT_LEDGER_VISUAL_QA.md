@@ -54,7 +54,7 @@ The app still mixes Material icons and legacy/custom vector assets on reachable 
 
 ### 3. Muscle anatomy quality
 
-Muscle Volume behavior is improved, but the original APEX anatomy still needs final visual refinement against the Night Ledger quality bar. Keep it original, accessible, restrained and set-count-only; do not copy Lyfta or turn it into a neon/thermal recovery map.
+The low-detail custom canvas was replaced with the selected MIT-licensed Jsplice/MuscleMap traced front/back vectors; the complete MIT notice and provenance are bundled and documented in `docs/THIRD_PARTY_ASSETS.md`. Exact-head screenshot review found that asynchronous loading captured only a spinner, so the bundled vectors now load from cache before first draw. On head `c3767593d298a6905efdd2716f3f815a43766818`, the front/back picker views and populated Muscle Volume render were inspected from artifact `14499404932`; the anatomy is visible, with mineral-blue selection and direct-set emphasis. No dedicated Stitch anatomy reference exists, so the comparison used the Night Ledger palette, restraint, and set-count-only rules. Device tap-target/accessibility validation remains in the final Android QA gate.
 
 ### 4. Exercise Detail final polish
 
@@ -109,9 +109,9 @@ Run and report, where the environment permits, the eight flows defined in `docs/
 
 ## Current automated evidence
 
-- Latest confirmed green source head: `03c3b3dc1f1fa090146a51ff6ede6b9fd57d380e`.
-- Android CI/APK build, unit tests, lint, and Compose screenshot rendering passed on that exact head (run `44243256286`); palette regression passed (run `44243256265`).
-- Render artifact `14401150179` includes Train Program and Plans, including the added Plans empty/loading/unavailable states.
+- Latest confirmed green code head: `c3767593d298a6905efdd2716f3f815a43766818`.
+- Android CI/APK build, unit tests, lint, and Compose screenshot rendering passed on that exact head (run `44462081742`); palette regression passed (run `44462081547`).
+- Compose render artifact `14499404932` contains 47 PNG states, including the revised front/back anatomy and populated Muscle Volume views.
 - Train Program was compared with Stitch screen `projects/14369859982852578965/screens/f72ba5e089ce4cf8a003e4c32c5671f4` (screenshot file `6540126667228233814`). The rendered weekly schedule now fits the full week at the preview viewport.
 - Plans was compared with Stitch screen `projects/14369859982852578965/screens/aac06f19998b4540804c75afd71dd18f` (screenshot file `5916272567711751964`).
 - Today was checked against Stitch: the contextual local photo and fade align; the main readiness row was shortened to remove duplicate explanation copy. Calorie and weight hierarchy is receiving one more compactness pass.
