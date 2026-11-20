@@ -44,7 +44,9 @@ class HomeViewModel @Inject constructor(
     val todayDate: StateFlow<String> = _todayDate.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        // This is a wall-clock timer, not virtual business logic. Keep its delay off
+        // Dispatchers.Main so runTest's advanceUntilIdle cannot loop through days.
+        viewModelScope.launch(Dispatchers.Default) {
             while (true) {
                 val tomorrow = java.time.LocalDate.now().plusDays(1).atStartOfDay()
                 val millis = java.time.Duration.between(java.time.LocalDateTime.now(), tomorrow).toMillis()

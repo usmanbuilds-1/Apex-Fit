@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -159,7 +160,7 @@ internal fun TrainProgramSchedule(
                                 Spacer(Modifier.width(10.dp))
                                 if (isSelected && session != null) {
                                     Icon(
-                                        painter = painterResource(id = R.drawable.ic_expand_more),
+                                        painter = painterResource(id = ApexIcons.ChevronDown),
                                         contentDescription = "Collapse $day",
                                         tint = ApexColors.TextSecondary,
                                         modifier = Modifier.size(20.dp)

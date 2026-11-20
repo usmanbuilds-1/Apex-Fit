@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
@@ -7,9 +9,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -124,7 +122,7 @@ internal fun OnboardingContent(
                 Column(Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(top = 12.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { step-- }, enabled = !isSaving, modifier = Modifier.testTag("onboarding_back")) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = SetupText)
+                            Icon(painterResource(ApexIcons.ArrowLeft), "Back", tint = SetupText)
                         }
                         SetupBrand(Modifier.weight(1f))
                         Text("Step $step / 5", color = SetupMuted, fontSize = 12.sp, fontFamily = SetupFont)

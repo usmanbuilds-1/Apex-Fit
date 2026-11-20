@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -12,8 +14,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -61,7 +61,7 @@ fun RestTimerOverlay(
             Text("REST", style = MaterialTheme.typography.labelLarge, color = ApexColors.TextTertiary,
                 fontWeight = FontWeight.SemiBold, letterSpacing = 1.1.sp)
             IconButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
-                Icon(Icons.Default.Close, contentDescription = "Skip rest", tint = ApexColors.TextSecondary)
+                Icon(painterResource(ApexIcons.Close), contentDescription = "Skip rest", tint = ApexColors.TextSecondary)
             }
         }
 

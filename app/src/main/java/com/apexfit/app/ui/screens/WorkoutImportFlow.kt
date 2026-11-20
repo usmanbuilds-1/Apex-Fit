@@ -1,5 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -9,11 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.ExerciseField
 import com.apexfit.app.WorkoutImportStage
+import com.apexfit.app.WorkoutImportUiState
 import com.apexfit.app.WorkoutImportViewModel
 import com.apexfit.app.domain.importer.EditableImportedDay
 import com.apexfit.app.domain.importer.EditableImportedExercise
@@ -58,14 +56,52 @@ fun WorkoutImportFlow(
         )
     } else {
         WorkoutImportReviewScreen(
-            viewModel = viewModel,
+            state = state,
             library = library,
-            onBack = viewModel::backToPaste,
-            onClose = onClose,
-            onSaved = onSaved
+            actions = WorkoutImportReviewActions(
+                onBack = viewModel::backToPaste,
+                onClose = onClose,
+                onSave = { viewModel.save(onSaved) },
+                onUpdatePlanName = viewModel::updatePlanName,
+                onUpdatePlanGoal = viewModel::updatePlanGoal,
+                onUpdateMakeActive = viewModel::updateMakeActive,
+                onAddDay = viewModel::addDay,
+                onAddExercise = viewModel::addExercise,
+                onSelectExercise = viewModel::selectExercise,
+                onUpdateDayLabel = viewModel::updateDayLabel,
+                onUpdateDayWeekday = viewModel::updateDayWeekday,
+                onMoveDay = viewModel::moveDay,
+                onDeleteDay = viewModel::deleteDay,
+                onConfirmSuggestedMatch = viewModel::confirmSuggestedMatch,
+                onUpdateExerciseText = viewModel::updateExerciseText,
+                onUpdateWeightUnit = viewModel::updateWeightUnit,
+                onMoveExercise = viewModel::moveExercise,
+                onDeleteExercise = viewModel::deleteExercise
+            )
         )
     }
 }
+
+internal data class WorkoutImportReviewActions(
+    val onBack: () -> Unit = {},
+    val onClose: () -> Unit = {},
+    val onSave: () -> Unit = {},
+    val onUpdatePlanName: (String) -> Unit = {},
+    val onUpdatePlanGoal: (String) -> Unit = {},
+    val onUpdateMakeActive: (Boolean) -> Unit = {},
+    val onAddDay: () -> Unit = {},
+    val onAddExercise: (dayKey: String, exerciseId: String) -> Unit = { _, _ -> },
+    val onSelectExercise: (dayKey: String, exerciseKey: String, exerciseId: String) -> Unit = { _, _, _ -> },
+    val onUpdateDayLabel: (dayKey: String, label: String) -> Unit = { _, _ -> },
+    val onUpdateDayWeekday: (dayKey: String, weekday: String?) -> Unit = { _, _ -> },
+    val onMoveDay: (dayKey: String, delta: Int) -> Unit = { _, _ -> },
+    val onDeleteDay: (dayKey: String) -> Unit = {},
+    val onConfirmSuggestedMatch: (dayKey: String, exerciseKey: String) -> Unit = { _, _ -> },
+    val onUpdateExerciseText: (dayKey: String, exerciseKey: String, field: ExerciseField, value: String) -> Unit = { _, _, _, _ -> },
+    val onUpdateWeightUnit: (dayKey: String, exerciseKey: String, unit: ImportWeightUnit) -> Unit = { _, _, _ -> },
+    val onMoveExercise: (dayKey: String, exerciseKey: String, delta: Int) -> Unit = { _, _, _ -> },
+    val onDeleteExercise: (dayKey: String, exerciseKey: String) -> Unit = { _, _ -> }
+)
 
 @Composable
 private fun WorkoutImportPasteScreen(
@@ -84,7 +120,7 @@ private fun WorkoutImportPasteScreen(
                 title = { ImportHeader("Import workout") },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = PrimaryText)
+                        Icon(painterResource(ApexIcons.ArrowLeft), "Back", tint = PrimaryText)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = DarkBackground)
@@ -165,7 +201,7 @@ private fun WorkoutImportPasteScreen(
                     TextButton(onClick = {
                         clipboard.getText()?.text?.let(onInput)
                     }) {
-                        Icon(Icons.Filled.Add, null)
+                        Icon(painterResource(ApexIcons.Add), null)
                         Spacer(Modifier.width(6.dp))
                         Text("Paste")
                     }
@@ -191,14 +227,11 @@ private fun WorkoutImportPasteScreen(
 }
 
 @Composable
-private fun WorkoutImportReviewScreen(
-    viewModel: WorkoutImportViewModel,
+internal fun WorkoutImportReviewScreen(
+    state: WorkoutImportUiState,
     library: List<ExerciseLibraryEntry>,
-    onBack: () -> Unit,
-    onClose: () -> Unit,
-    onSaved: () -> Unit
+    actions: WorkoutImportReviewActions
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val draft = state.draft ?: return
     var pickerTarget by remember { mutableStateOf<Pair<String, String?>?>(null) }
 
@@ -208,9 +241,9 @@ private fun WorkoutImportReviewScreen(
             onDismiss = { pickerTarget = null },
             onSelect = { option ->
                 if (target.second == null) {
-                    viewModel.addExercise(target.first, option.id)
+                    actions.onAddExercise(target.first, option.id)
                 } else {
-                    viewModel.selectExercise(target.first, target.second!!, option.id)
+                    actions.onSelectExercise(target.first, target.second!!, option.id)
                 }
                 pickerTarget = null
             }
@@ -223,12 +256,12 @@ private fun WorkoutImportReviewScreen(
             CenterAlignedTopAppBar(
                 title = { ImportHeader("Review import") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to text", tint = PrimaryText)
+                    IconButton(onClick = actions.onBack) {
+                        Icon(painterResource(ApexIcons.ArrowLeft), "Back to text", tint = PrimaryText)
                     }
                 },
                 actions = {
-                    TextButton(onClick = onClose) { Text("Cancel", color = SecondaryText) }
+                    TextButton(onClick = actions.onClose) { Text("Cancel", color = SecondaryText) }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = DarkBackground)
             )
@@ -236,7 +269,7 @@ private fun WorkoutImportReviewScreen(
         bottomBar = {
             Surface(color = DarkBackground) {
                 Button(
-                    onClick = { viewModel.save(onSaved) },
+                    onClick = actions.onSave,
                     enabled = !state.isSaving,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -271,7 +304,7 @@ private fun WorkoutImportReviewScreen(
             item {
                 OutlinedTextField(
                     value = draft.name,
-                    onValueChange = viewModel::updatePlanName,
+                    onValueChange = actions.onUpdatePlanName,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Plan name") },
                     singleLine = true,
@@ -281,7 +314,7 @@ private fun WorkoutImportReviewScreen(
             item {
                 OutlinedTextField(
                     value = state.goal,
-                    onValueChange = viewModel::updatePlanGoal,
+                    onValueChange = actions.onUpdatePlanGoal,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Plan goal") },
                     supportingText = { Text("Defaults to your current APEX goal.") },
@@ -301,7 +334,7 @@ private fun WorkoutImportReviewScreen(
                     }
                     Switch(
                         checked = draft.makeActive,
-                        onCheckedChange = viewModel::updateMakeActive
+                        onCheckedChange = actions.onUpdateMakeActive
                     )
                 }
             }
@@ -316,25 +349,25 @@ private fun WorkoutImportReviewScreen(
             items(draft.days, key = { it.key }) { day ->
                 ImportedDayCard(
                     day = day,
-                    onLabel = { viewModel.updateDayLabel(day.key, it) },
-                    onWeekday = { viewModel.updateDayWeekday(day.key, it) },
-                    onMoveUp = { viewModel.moveDay(day.key, -1) },
-                    onMoveDown = { viewModel.moveDay(day.key, 1) },
-                    onDeleteDay = { viewModel.deleteDay(day.key) },
+                    onLabel = { actions.onUpdateDayLabel(day.key, it) },
+                    onWeekday = { actions.onUpdateDayWeekday(day.key, it) },
+                    onMoveUp = { actions.onMoveDay(day.key, -1) },
+                    onMoveDown = { actions.onMoveDay(day.key, 1) },
+                    onDeleteDay = { actions.onDeleteDay(day.key) },
                     onChooseExercise = { exerciseKey -> pickerTarget = day.key to exerciseKey },
-                    onConfirmMatch = { exerciseKey -> viewModel.confirmSuggestedMatch(day.key, exerciseKey) },
-                    onSelectCandidate = { exerciseKey, id -> viewModel.selectExercise(day.key, exerciseKey, id) },
+                    onConfirmMatch = { exerciseKey -> actions.onConfirmSuggestedMatch(day.key, exerciseKey) },
+                    onSelectCandidate = { exerciseKey, id -> actions.onSelectExercise(day.key, exerciseKey, id) },
                     onField = { exerciseKey, field, value ->
-                        viewModel.updateExerciseText(day.key, exerciseKey, field, value)
+                        actions.onUpdateExerciseText(day.key, exerciseKey, field, value)
                     },
                     onUnit = { exerciseKey, unit ->
-                        viewModel.updateWeightUnit(day.key, exerciseKey, unit)
+                        actions.onUpdateWeightUnit(day.key, exerciseKey, unit)
                     },
                     onMoveExercise = { exerciseKey, delta ->
-                        viewModel.moveExercise(day.key, exerciseKey, delta)
+                        actions.onMoveExercise(day.key, exerciseKey, delta)
                     },
                     onDeleteExercise = { exerciseKey ->
-                        viewModel.deleteExercise(day.key, exerciseKey)
+                        actions.onDeleteExercise(day.key, exerciseKey)
                     },
                     onAddExercise = { pickerTarget = day.key to null }
                 )
@@ -342,12 +375,12 @@ private fun WorkoutImportReviewScreen(
 
             item {
                 OutlinedButton(
-                    onClick = viewModel::addDay,
+                    onClick = actions.onAddDay,
                     modifier = Modifier.fillMaxWidth(),
                     border = BorderStroke(1.dp, BorderSubtle),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Filled.Add, null)
+                    Icon(painterResource(ApexIcons.Add), null)
                     Spacer(Modifier.width(6.dp))
                     Text("Add training day")
                 }
@@ -411,7 +444,7 @@ private fun ImportedDayCard(
             }
 
             TextButton(onClick = onAddExercise) {
-                Icon(Icons.Filled.Add, null)
+                Icon(painterResource(ApexIcons.Add), null)
                 Spacer(Modifier.width(6.dp))
                 Text("Add exercise")
             }
@@ -513,7 +546,7 @@ private fun MatchStatus(
         exercise.matchConfirmed
     if (trusted) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Check, null, tint = ApexColors.Primary, modifier = Modifier.size(16.dp))
+            Icon(painterResource(ApexIcons.Check), null, tint = ApexColors.Primary, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
             Text("Matched to Apex Fit library", color = ApexColors.Primary, fontSize = 11.sp)
             Spacer(Modifier.weight(1f))
@@ -541,7 +574,7 @@ private fun MatchStatus(
                 }
             }
             OutlinedButton(onClick = onChoose, shape = RoundedCornerShape(10.dp)) {
-                Icon(Icons.Filled.Search, null, modifier = Modifier.size(16.dp))
+                Icon(painterResource(ApexIcons.Search), null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Search library")
             }
@@ -647,7 +680,7 @@ private fun ExercisePickerDialog(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    leadingIcon = { Icon(painterResource(ApexIcons.Search), null) },
                     placeholder = { Text("Search exercises") },
                     singleLine = true,
                     colors = importFieldColors()

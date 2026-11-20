@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -21,14 +23,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -381,7 +379,7 @@ fun ApexFitApp(
                                 onClick = openSettings,
                                 modifier = Modifier.testTag("settings_button")
                             ) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = PrimaryText)
+                                Icon(painterResource(ApexIcons.Settings), contentDescription = "Settings", tint = PrimaryText)
                             }
                         }
                     )

@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -8,9 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -522,7 +521,7 @@ fun SetLoggingRow(
                     modifier = Modifier.testTag("log_checkmark_button")
                 ) {
                     Icon(
-                        imageVector = if (setObj.completed) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                        painter = painterResource(if (setObj.completed) ApexIcons.CheckCircle else ApexIcons.Circle),
                         contentDescription = "Log set",
                         tint = if (!isSetValid) MutedText.copy(alpha = 0.3f) else if (setObj.completed) GreenAccent else MutedText,
                         modifier = Modifier.size(28.dp)

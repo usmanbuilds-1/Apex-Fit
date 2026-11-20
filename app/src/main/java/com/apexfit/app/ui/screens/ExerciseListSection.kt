@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -8,10 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -51,7 +48,7 @@ internal fun WorkoutExecutionHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit workout",
+                Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Exit workout",
                     tint = ApexColors.TextPrimary)
             }
             Column(
@@ -135,7 +132,7 @@ fun ExerciseListSection(
                                 contentPadding = PaddingValues(horizontal = 0.dp),
                                 modifier = Modifier.heightIn(min = 44.dp)
                             ) {
-                                Icon(Icons.Filled.Info, contentDescription = null,
+                                Icon(painterResource(ApexIcons.Info), contentDescription = null,
                                     tint = ApexColors.TextSecondary, modifier = Modifier.size(17.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("Form guide", color = ApexColors.TextSecondary, fontSize = 13.sp)
@@ -520,7 +517,7 @@ fun RealTimeEffectiveSetsCard(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (effData.lastSetRPE == 8) {
-                                Icon(Icons.Filled.Star, contentDescription = "Sweet Spot", tint = AmberAccent, modifier = Modifier.size(14.dp))
+                                Icon(painterResource(ApexIcons.Star), contentDescription = "Sweet Spot", tint = AmberAccent, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                             }
                             Text(

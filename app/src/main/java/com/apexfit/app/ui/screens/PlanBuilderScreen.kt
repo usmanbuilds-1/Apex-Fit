@@ -1,5 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 import com.apexfit.app.ui.models.UiState
 
 import kotlinx.coroutines.launch
@@ -9,14 +11,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -44,6 +42,133 @@ import com.apexfit.app.data.PlanExercise
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.AppConstants
 import com.apexfit.app.utils.MuscleGroups
+
+@Composable
+internal fun PlanBuilderDayDialog(
+    initialLabel: String,
+    initialDayOfWeek: String,
+    isEditing: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (label: String, dayOfWeek: String) -> Unit,
+    initialValidationError: String? = null
+) {
+    var dayLabel by rememberSaveable(isEditing, initialLabel) { mutableStateOf(initialLabel) }
+    var dayLabelError by rememberSaveable(isEditing, initialLabel) { mutableStateOf(initialValidationError) }
+    var selectedDayOfWeek by rememberSaveable(isEditing, initialDayOfWeek) {
+        mutableStateOf(initialDayOfWeek)
+    }
+    val requiredLabelError = stringResource(R.string.plan_builder_session_name_is_required)
+    val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkRaised,
+        title = {
+            Text(
+                text = if (isEditing) "EDIT TRAINING DAY" else "ADD TRAINING DAY",
+                fontFamily = SyneFamily,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                fontSize = 16.sp
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = dayLabel,
+                    onValueChange = {
+                        dayLabel = it
+                        dayLabelError = null
+                    },
+                    isError = dayLabelError != null,
+                    supportingText = dayLabelError?.let { { Text(it) } },
+                    label = {
+                        Text(
+                            stringResource(R.string.plan_builder_session_name_e_g_upper_a),
+                            color = SecondaryText
+                        )
+                    },
+                    textStyle = LocalTextStyle.current.copy(color = Color.White),
+                    modifier = Modifier.fillMaxWidth().testTag("day_name_input"),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ApexColors.Primary,
+                        unfocusedBorderColor = BorderSubtle,
+                        cursorColor = ApexColors.Primary
+                    ),
+                    singleLine = true
+                )
+
+                Text(
+                    stringResource(R.string.plan_builder_day_of_the_week),
+                    fontFamily = SyneFamily,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SecondaryText
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    daysOfWeek.forEach { day ->
+                        val isSelected = selectedDayOfWeek == day
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) ApexColors.Primary else DarkBackground)
+                                .border(
+                                    BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .semantics { selected = isSelected }
+                                .clickable(role = Role.Tab) { selectedDayOfWeek = day }
+                                .heightIn(min = 48.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = day,
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) ApexColors.OnGlow else SecondaryText
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (dayLabel.isBlank()) {
+                        dayLabelError = requiredLabelError
+                    } else {
+                        dayLabelError = null
+                        onSave(dayLabel.trim(), selectedDayOfWeek)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
+                modifier = Modifier.testTag("save_day_confirm_button")
+            ) {
+                Text(
+                    stringResource(R.string.plan_builder_save),
+                    fontFamily = SyneFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.plan_builder_cancel), fontFamily = SyneFamily, color = SecondaryText)
+            }
+        }
+    )
+}
 
 @Composable
 internal fun PlanBuilderMetadataFields(
@@ -262,7 +387,7 @@ fun PlanBuilderScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack, modifier = Modifier.testTag("back_button")) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            painter = painterResource(ApexIcons.ArrowLeft),
                             contentDescription = "Back",
                             tint = ApexColors.TextPrimary
                         )
@@ -298,7 +423,7 @@ fun PlanBuilderScreen(
                         border = BorderStroke(1.dp, ApexColors.Primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "Import workout from text",
@@ -345,7 +470,7 @@ fun PlanBuilderScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("Add day", style = MaterialTheme.typography.bodyLarge)
                         }
                     }
@@ -414,7 +539,7 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            painter = painterResource(R.drawable.ic_arrow_upward),
+                                            painter = painterResource(ApexIcons.ArrowUp),
                                             contentDescription = "Move Up",
                                             tint = if (index > 0) ApexColors.TextPrimary else ApexColors.TextTertiary,
                                             modifier = Modifier.size(20.dp)
@@ -430,7 +555,7 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            painter = painterResource(R.drawable.ic_arrow_downward),
+                                            painter = painterResource(ApexIcons.ArrowDown),
                                             contentDescription = "Move Down",
                                             tint = if (index < sessionsList.size - 1) ApexColors.TextPrimary else ApexColors.TextTertiary,
                                             modifier = Modifier.size(20.dp)
@@ -446,7 +571,7 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Edit,
+                                            painter = painterResource(ApexIcons.Edit),
                                             contentDescription = "Edit Day",
                                             tint = ApexColors.TextSecondary,
                                             modifier = Modifier.size(20.dp)
@@ -461,7 +586,7 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Delete,
+                                            painter = painterResource(ApexIcons.Delete),
                                             contentDescription = "Delete Day",
                                             tint = ApexColors.Alert,
                                             modifier = Modifier.size(20.dp)
@@ -523,7 +648,7 @@ fun PlanBuilderScreen(
                                                     modifier = Modifier.size(48.dp)
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.Edit,
+                                                        painter = painterResource(ApexIcons.Edit),
                                                         contentDescription = "Edit Exercise",
                                                         tint = ApexColors.TextSecondary,
                                                         modifier = Modifier.size(20.dp)
@@ -537,7 +662,7 @@ fun PlanBuilderScreen(
                                                     modifier = Modifier.size(48.dp)
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.Close,
+                                                        painter = painterResource(ApexIcons.Close),
                                                         contentDescription = "Delete Exercise",
                                                         tint = ApexColors.Alert,
                                                         modifier = Modifier.size(20.dp)
@@ -568,7 +693,7 @@ fun PlanBuilderScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
                                     Text("Add exercise", style = MaterialTheme.typography.bodyLarge)
                                 }
                             }
@@ -586,132 +711,31 @@ fun PlanBuilderScreen(
     // Add / Edit Day Dialog
     if (showAddDayDialog) {
         val session = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
-        var dayLabel by rememberSaveable { mutableStateOf(session?.label ?: "") }
-        var dayLabelError by remember { mutableStateOf<String?>(null) }
-        var selectedDayOfWeek by rememberSaveable { mutableStateOf(session?.day ?: "Monday") }
-        
-        val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-
-        AlertDialog(
-            onDismissRequest = { showAddDayDialog = false },
-            containerColor = DarkRaised,
-            title = {
-                Text(
-                    text = if (editingSessionId == null) "ADD TRAINING DAY" else "EDIT TRAINING DAY",
-                    fontFamily = SyneFamily,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    fontSize = 16.sp
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = dayLabel,
-                        onValueChange = {
-                            dayLabel = it
-                            dayLabelError = null
-                        },
-                        isError = dayLabelError != null,
-                        supportingText = dayLabelError?.let { { Text(it) } },
-                        label = { Text(stringResource(R.string.plan_builder_session_name_e_g_upper_a), color = SecondaryText) },
-                        textStyle = LocalTextStyle.current.copy(color = Color.White),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("day_name_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = ApexColors.Primary,
-                            unfocusedBorderColor = BorderSubtle,
-                            cursorColor = ApexColors.Primary
-                        ),
-                        singleLine = true
+        PlanBuilderDayDialog(
+            initialLabel = session?.label.orEmpty(),
+            initialDayOfWeek = session?.day.orEmpty().ifBlank { "Monday" },
+            isEditing = editingSessionId != null,
+            onDismiss = { showAddDayDialog = false },
+            onSave = { dayLabel, selectedDayOfWeek ->
+                if (editingSessionId == null) {
+                    planBuilderViewModel.addSession(
+                        PlanSession(
+                            id = planBuilderViewModel.generateNewSessionId(),
+                            planId = activePlan?.id ?: 0L,
+                            label = dayLabel,
+                            day = selectedDayOfWeek,
+                            focus = "General"
+                        )
                     )
-
-                    Text(stringResource(R.string.plan_builder_day_of_the_week),
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryText
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        daysOfWeek.forEach { day ->
-                            val isSelected = selectedDayOfWeek == day
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) ApexColors.Primary else DarkBackground)
-                                    .border(BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle), RoundedCornerShape(8.dp))
-                                    .semantics { selected = isSelected }
-                                    .clickable(role = Role.Tab) { selectedDayOfWeek = day }
-                                    .heightIn(min = 48.dp)
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = day,
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) ApexColors.OnGlow else SecondaryText
-                                )
-                            }
-                        }
+                } else {
+                    val currentSession = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
+                    if (currentSession != null) {
+                        planBuilderViewModel.updateSession(
+                            currentSession.copy(label = dayLabel, day = selectedDayOfWeek)
+                        )
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (dayLabel.isBlank()) {
-                            dayLabelError = context.getString(R.string.plan_builder_session_name_is_required)
-                            return@Button
-                        } else {
-                            dayLabelError = null
-                        }
-                        
-                        if (editingSessionId == null) {
-                            val newId = planBuilderViewModel.generateNewSessionId()
-                            planBuilderViewModel.addSession(
-                                PlanSession(
-                                    id = newId,
-                                    planId = activePlan?.id ?: 0L,
-                                    label = dayLabel.trim(),
-                                    day = selectedDayOfWeek,
-                                    focus = "General"
-                                )
-                            )
-                        } else {
-                            val session = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
-                            if (session != null) {
-                                planBuilderViewModel.updateSession(
-                                    session.copy(
-                                        label = dayLabel.trim(),
-                                        day = selectedDayOfWeek
-                                    )
-                                )
-                            }
-                        }
-                        showAddDayDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                    modifier = Modifier.testTag("save_day_confirm_button")
-                ) {
-                    Text(stringResource(R.string.plan_builder_save), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDayDialog = false }) {
-                    Text(stringResource(R.string.plan_builder_cancel), fontFamily = SyneFamily, color = SecondaryText)
-                }
+                showAddDayDialog = false
             }
         )
     }
@@ -860,7 +884,7 @@ fun PlanBuilderScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(selectedMuscle, fontFamily = JetBrainsMonoFamily, fontSize = 13.sp)
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White)
+                                Icon(painterResource(ApexIcons.ChevronDown), contentDescription = null, tint = Color.White)
                             }
                         }
 

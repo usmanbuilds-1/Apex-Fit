@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,10 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -238,7 +235,7 @@ fun NutritionScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { nutritionViewModel.changeNutritionDate(-1) }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev Day", tint = PrimaryText)
+                    Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Prev Day", tint = PrimaryText)
                 }
                 Text(
                     text = com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(selectedDate),
@@ -252,7 +249,7 @@ fun NutritionScreen(
                     enabled = !isToday
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
+                        painterResource(ApexIcons.ArrowRight),
                         contentDescription = "Next Day",
                         tint = if (isToday) SecondaryText else PrimaryText
                     )
@@ -346,7 +343,7 @@ fun NutritionScreen(
                             contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Delete,
+                                painter = painterResource(ApexIcons.Delete),
                                 contentDescription = "Delete",
                                 tint = Color.White
                             )
@@ -377,7 +374,7 @@ fun NutritionScreen(
                                     )
                                 }
                                 IconButton(onClick = { triggerPendingDeletion(meal) }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete entry", tint = MutedText)
+                                    Icon(painterResource(ApexIcons.Delete), contentDescription = "Delete entry", tint = MutedText)
                                 }
                             }
                         }
@@ -821,7 +818,7 @@ fun AdaptiveCalorieTargetCard(
                     color = SecondaryText
                 )
                 Icon(
-                    painter = painterResource(R.drawable.ic_trending_up),
+                    painter = painterResource(ApexIcons.TrendingUp),
                     contentDescription = "Adaptive",
                     tint = OrangeAccent,
                     modifier = Modifier.size(16.dp)

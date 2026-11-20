@@ -93,3 +93,28 @@ fun ExerciseDetailWithoutPlanOrTrainingHistory() {
         )
     }
 }
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 1100, locale = "en-US", fontScale = 1.3f)
+@Composable
+fun ExerciseDetailLongInstructionsLargeFont() {
+    val content = FormGuideBuilder.buildFormGuide(
+        exercise = lateralRaiseDetail,
+        metadata = null,
+        sourceInstructions = listOf(
+            "Pick a couple of dumbbells and stand with a straight torso and the dumbbells by your side at arms length with the palms of the hand facing you. This will be your starting position.",
+            "While maintaining the torso in a stationary position (no swinging), lift the dumbbells to your side with a slight bend on the elbow and the hands slightly tilted forward as if pouring water in a glass. Continue to go up until your arms are parallel to the floor. Exhale as you execute this movement and pause for a second at the top.",
+            "Lower the dumbbells back down slowly to the starting position as you inhale.",
+            "Repeat for the recommended amount of repetitions."
+        )
+    )
+    ApexFitTheme {
+        FormGuideScreenContent(
+            exercise = lateralRaiseDetail,
+            content = content,
+            preferredUnits = "kg",
+            onBack = {},
+            mediaContent = { ExerciseMediaPanelContent(media = null, isLoaded = true, loadFailed = false) }
+        )
+    }
+}

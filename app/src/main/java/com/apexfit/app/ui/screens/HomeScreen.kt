@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -10,8 +12,6 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,7 +26,6 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,11 +59,31 @@ private val TextMuted      get() = ApexColors.TextSecondary
 private val TextTertiary   get() = ApexColors.TextTertiary
 private val BorderMuted get() = ApexColors.BorderSubtle
 
-internal fun currentWeekTrainingCount(dates: Set<LocalDate>, today: LocalDate): Int {
+internal fun currentWeekTrainingSessionCount(sessions: List<RichTrainingSession>, today: LocalDate): Int {
     val weekStart = today.with(
         java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)
     )
-    return dates.count { date -> !date.isBefore(weekStart) && !date.isAfter(today) }
+    return sessions.count { session ->
+        if (!session.completed) return@count false
+        val date = runCatching { LocalDate.parse(session.date) }.getOrNull() ?: return@count false
+        !date.isBefore(weekStart) && !date.isAfter(today)
+    }
+}
+
+internal fun todayTrainingWeekSummary(completedSessions: Int, weeklyTarget: Int): String {
+    val completed = completedSessions.coerceAtLeast(0)
+    val target = weeklyTarget.coerceAtLeast(0)
+    return when {
+        target > 0 -> "$completed of $target ${if (target == 1) "session" else "sessions"} this week"
+        completed == 1 -> "1 session completed this week"
+        else -> "$completed sessions completed this week"
+    }
+}
+
+internal fun todayExerciseCountLabel(exerciseCount: Int): String? = when {
+    exerciseCount == 1 -> "1 exercise"
+    exerciseCount > 1 -> "$exerciseCount exercises"
+    else -> null
 }
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
@@ -90,6 +109,7 @@ fun HomeScreen(
     val userGoal          by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val heroCategory by homeViewModel.todayHeroCategory.collectAsStateWithLifecycle()
     val planSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val todayExercises by homeViewModel.todayExercisesFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     val activeSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val todayDate          by homeViewModel.todayDate.collectAsStateWithLifecycle()
     val estimatedWorkoutDuration by homeViewModel.estimatedWorkoutDuration.collectAsStateWithLifecycle()
@@ -102,6 +122,12 @@ fun HomeScreen(
         when (val s = planSessionsState) {
             is UiState.Success -> s.data?.find { it.day.equals(todayDayName, ignoreCase = true) }
             else -> null
+        }
+    }
+    val weeklySessionTarget = remember(planSessionsState) {
+        when (val state = planSessionsState) {
+            is UiState.Success -> state.data?.count { it.day.isNotBlank() } ?: 0
+            else -> 0
         }
     }
 
@@ -119,11 +145,9 @@ fun HomeScreen(
         }
     }
 
-    val trainingDates = remember(completedSessions) {
-        completedSessions.filter { it.completed }
-            .mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()
+    val completedSessionsThisWeek = remember(completedSessions, todayDate) {
+        currentWeekTrainingSessionCount(completedSessions, LocalDate.parse(todayDate))
     }
-    val trainingStreak = currentWeekTrainingCount(trainingDates, LocalDate.parse(todayDate))
 
     var showLogWeight by rememberSaveable { mutableStateOf(false) }
     TodayContent(
@@ -131,6 +155,8 @@ fun HomeScreen(
         todayDate = todayDate,
         sessionLabel = todaySession?.label,
         sessionFocus = todaySession?.focus.orEmpty(),
+        scheduledExerciseCount = todayExercises.size,
+        weeklySessionTarget = weeklySessionTarget,
         hasActiveSession = activeSession != null,
         estimatedWorkoutDuration = estimatedWorkoutDuration,
         readiness = readiness,
@@ -143,7 +169,7 @@ fun HomeScreen(
         units = units,
         userGoal = userGoal,
         completedSessions = completedSessions,
-        trainingStreak = trainingStreak,
+        completedSessionsThisWeek = completedSessionsThisWeek,
         onOpenSettings = onOpenSettings,
         onNutrition = { onNavigateTo(2) },
         onProgress = { onNavigateTo(3) },
@@ -170,6 +196,8 @@ internal fun TodayContent(
     todayDate: String,
     sessionLabel: String? = null,
     sessionFocus: String = "",
+    scheduledExerciseCount: Int = 0,
+    weeklySessionTarget: Int = 0,
     hasActiveSession: Boolean = false,
     estimatedWorkoutDuration: Int = 0,
     readiness: UiSessionReadiness? = null,
@@ -182,7 +210,7 @@ internal fun TodayContent(
     units: String = "kg",
     userGoal: String = "",
     completedSessions: List<RichTrainingSession> = emptyList(),
-    trainingStreak: Int = 0,
+    completedSessionsThisWeek: Int = 0,
     onOpenSettings: () -> Unit,
     onNutrition: () -> Unit,
     onProgress: () -> Unit,
@@ -216,11 +244,13 @@ internal fun TodayContent(
                 TodayWorkoutCard(
                     sessionLabel = sessionLabel.orEmpty(),
                     sessionFocus = sessionFocus,
+                    scheduledExerciseCount = scheduledExerciseCount,
+                    weeklySessionTarget = weeklySessionTarget,
                     hasActiveSession = hasActiveSession,
                     estimatedDurationMin = estimatedWorkoutDuration,
                     onDurationInfo = { showDurationExplanation = true },
                     readiness = readiness,
-                    completedThisWeek = trainingStreak,
+                    completedThisWeek = completedSessionsThisWeek,
                     onReadinessInfo = { showReadinessExplanation = true },
 
                     onStartWorkout = onStartWorkout
@@ -338,7 +368,7 @@ private fun HomeTrainingHero(
                     fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onOpenSettings) {
-                    Icon(Icons.Outlined.Settings, "Settings", tint = PrimaryText)
+                    Icon(painterResource(ApexIcons.Settings), "Settings", tint = PrimaryText)
                 }
             }
             Text("Today", color = PrimaryText, fontSize = 30.sp, fontWeight = FontWeight.Bold)
@@ -352,6 +382,8 @@ private fun HomeTrainingHero(
 private fun TodayWorkoutCard(
     sessionLabel: String,
     sessionFocus: String,
+    scheduledExerciseCount: Int,
+    weeklySessionTarget: Int,
     hasActiveSession: Boolean,
     estimatedDurationMin: Int,
     onDurationInfo: () -> Unit,
@@ -361,52 +393,123 @@ private fun TodayWorkoutCard(
     onStartWorkout: () -> Unit
 ) {
     val hasSession = sessionLabel.isNotBlank()
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(if (hasSession) sessionLabel else "No session scheduled today",
-            color = Color.White, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
+    val exerciseCountLabel = todayExerciseCountLabel(scheduledExerciseCount)
+    val cardShape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(cardShape)
+            .background(SurfaceNight1)
+            .border(1.dp, BorderMuted, cardShape)
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        if (hasSession) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    sessionLabel,
+                    modifier = Modifier.weight(1f),
+                    color = PrimaryText,
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    todayTrainingWeekSummary(completedThisWeek, weeklySessionTarget),
+                    modifier = Modifier.widthIn(max = 132.dp),
+                    color = TextMuted,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                )
+            }
+        } else {
+            Text(
+                "No session scheduled today",
+                color = PrimaryText,
+                fontSize = 24.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
         Text(if (hasSession) sessionFocus else "Take a recovery day, or choose a workout from your plan.",
             color = TextMuted, fontSize = 14.sp, lineHeight = 21.sp)
         if (hasSession) {
             Row(
-                Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (estimatedDurationMin > 0) {
-                    Text(
-                        "~$estimatedDurationMin min",
-                        modifier = Modifier.heightIn(min = 48.dp)
-                            .clickable(role = Role.Button, onClickLabel = "Estimated workout time", onClick = onDurationInfo)
-                            .wrapContentHeight(Alignment.CenterVertically),
-                        color = TextMuted, fontSize = 13.sp
-                    )
+                Row(
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (estimatedDurationMin > 0) {
+                        Text(
+                            "~$estimatedDurationMin min",
+                            modifier = Modifier.heightIn(min = 48.dp)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = "Estimated workout time",
+                                    onClick = onDurationInfo
+                                )
+                                .wrapContentHeight(Alignment.CenterVertically),
+                            color = TextMuted,
+                            fontSize = 13.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                    if (estimatedDurationMin > 0 && exerciseCountLabel != null) {
+                        Text("·", color = TextMuted, fontSize = 13.sp)
+                    }
+                    exerciseCountLabel?.let { label ->
+                        Text(label, color = TextMuted, fontSize = 13.sp, lineHeight = 17.sp)
+                    }
                 }
-                Column(
-                    Modifier.weight(1f).heightIn(min = 48.dp)
-                        .clickable(role = Role.Button, onClickLabel = "About the readiness estimate", onClick = onReadinessInfo)
-                        .wrapContentHeight(Alignment.CenterVertically)
+                Row(
+                    modifier = Modifier.heightIn(min = 48.dp)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = "About the readiness estimate",
+                            onClick = onReadinessInfo
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (readiness == null) {
                         Text("Building readiness baseline", color = TextMuted, fontSize = 13.sp)
+                    } else if (readiness.label.contains("baseline", ignoreCase = true)) {
+                        Text(readiness.label, color = TextMuted, fontSize = 13.sp)
                     } else {
-                        val readinessSummary = if (readiness.label.contains("baseline", ignoreCase = true)) {
+                        Text(
+                            readiness.score.coerceIn(0, 100).toString(),
+                            color = MineralBlue,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        val readinessLabel = if (readiness.label.contains("estimate", ignoreCase = true)) {
                             readiness.label
                         } else {
-                            "Estimate · ${readiness.label}"
+                            "${readiness.label} estimate"
                         }
-                        Text(readinessSummary, color = PrimaryText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text(readinessLabel, color = PrimaryText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
-        Text(
-            if (completedThisWeek == 1) "1 session completed this week"
-            else "$completedThisWeek sessions completed this week",
-            color = TextMuted, fontSize = 12.sp
-        )
+        if (!hasSession) {
+            Text(
+                todayTrainingWeekSummary(completedThisWeek, weeklySessionTarget),
+                color = TextMuted, fontSize = 12.sp
+            )
+        }
         Button(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
             shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MineralBlue, contentColor = CanvasVoid)) {
+            colors = ButtonDefaults.buttonColors(containerColor = MineralBlue, contentColor = PrimaryText)) {
             Text(if (hasActiveSession) "Resume workout" else if (hasSession) "Start workout" else "View training plan", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
@@ -431,7 +534,7 @@ private fun NutritionCard(
     val dispCarbs = loggedCarbs.coerceAtLeast(0)
     val dispFat = loggedFat.coerceAtLeast(0)
 
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         HorizontalDivider(color = BorderMuted)
         Row(
             Modifier.fillMaxWidth(),
@@ -501,7 +604,7 @@ private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, un
     val multiplier = if (imperial) com.apexfit.app.utils.AppConstants.KG_TO_LBS else 1.0
     val unit = if (imperial) "lb" else "kg"
     Column(modifier,
-        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
         HorizontalDivider(color = BorderMuted)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically) {
@@ -639,7 +742,7 @@ private fun RecentSessionsSection(sessions: List<RichTrainingSession>, onSeeAll:
                         color = TextMuted
                     )
                     Icon(
-                        painter = painterResource(R.drawable.ic_chevron_right),
+                        painter = painterResource(ApexIcons.ChevronRight),
                         contentDescription = null,
                         tint = TextTertiary,
                         modifier = Modifier.size(14.dp)
@@ -669,7 +772,7 @@ private fun SessionRow(session: RichTrainingSession) {
             add("$count exercise${if (count == 1) "" else "s"}")
         }
     }
-    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp),
+    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(session.sessionType.ifBlank { "Workout" }, style = MaterialTheme.typography.titleMedium,
             color = PrimaryText)

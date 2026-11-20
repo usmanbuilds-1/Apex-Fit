@@ -1,18 +1,17 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -38,7 +37,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
@@ -334,7 +332,7 @@ internal fun WeightHistorySection(
                 }
                 IconButton(onClick = { onDelete(entry.id) }, modifier = Modifier.size(48.dp)) {
                     Icon(
-                        imageVector = Icons.Filled.Delete,
+                        painter = painterResource(ApexIcons.Delete),
                         contentDescription = "Delete weight entry",
                         tint = ApexColors.TextTertiary,
                         modifier = Modifier.size(20.dp)

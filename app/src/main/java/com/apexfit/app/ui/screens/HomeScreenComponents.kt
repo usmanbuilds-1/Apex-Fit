@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
@@ -6,9 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,9 +25,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -237,7 +234,7 @@ fun HomeTodayWorkoutCard(
                         letterSpacing = 1.5.sp
                     )
                     Icon(
-                        imageVector = Icons.Default.Info,
+                        painter = painterResource(ApexIcons.Info),
                         contentDescription = "How readiness is calculated",
                         tint = AmberAccent.copy(alpha = 0.8f),
                         modifier = Modifier
@@ -286,7 +283,7 @@ fun HomeTodayWorkoutCard(
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_timer),
+                                painter = painterResource(ApexIcons.Stopwatch),
                                 contentDescription = null,
                                 tint = AmberAccent,
                                 modifier = Modifier.size(14.dp)
@@ -411,10 +408,10 @@ fun HomeTodayWorkoutCard(
                 ) {
                     Icon(
                         painter = when {
-                            activeWorkoutSession != null -> painterResource(R.drawable.ic_play_circle)
-                            isTodayWorkoutCompleted -> rememberVectorPainter(Icons.Default.CheckCircle)
-                            todaySession == null -> painterResource(R.drawable.ic_self_improvement)
-                            else -> rememberVectorPainter(Icons.Default.PlayArrow)
+                            activeWorkoutSession != null -> painterResource(ApexIcons.Play)
+                            isTodayWorkoutCompleted -> painterResource(ApexIcons.CheckCircle)
+                            todaySession == null -> painterResource(ApexIcons.Yoga)
+                            else -> painterResource(ApexIcons.Play)
                         },
                         contentDescription = null,
                         tint = when {
@@ -600,7 +597,7 @@ fun HomeNutritionRingCard(
                         }
                     }
                     Icon(
-                        painter = painterResource(R.drawable.ic_chevron_right),
+                        painter = painterResource(ApexIcons.ChevronRight),
                         contentDescription = null,
                         tint = IndigoAccent.copy(alpha = 0.8f),
                         modifier = Modifier.size(16.dp)
@@ -650,7 +647,7 @@ fun HomeNutritionRingCard(
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(painter = painterResource(R.drawable.ic_local_fire_department), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
+                        Icon(painter = painterResource(ApexIcons.Flame), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                         Text(
                             text = if (calTarget > 0) "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal left" else "No target",
                             fontSize = 12.sp,
@@ -659,7 +656,7 @@ fun HomeNutritionRingCard(
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(painter = painterResource(R.drawable.ic_egg), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
+                        Icon(painter = painterResource(ApexIcons.Egg), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                         Text(
                             text = if (proteinTarget > 0) "$proteinLogged / ${proteinTarget}g protein" else "$proteinLogged / — protein",
                             fontSize = 12.sp,
@@ -684,7 +681,7 @@ fun HomeNutritionRingCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    painter = painterResource(ApexIcons.Add),
                     contentDescription = null,
                     tint = IndigoAccent,
                     modifier = Modifier.size(18.dp)
@@ -763,7 +760,7 @@ fun HomeWeightChartCard(
                         letterSpacing = 1.sp
                     )
                     Icon(
-                        painter = painterResource(R.drawable.ic_chevron_right),
+                        painter = painterResource(ApexIcons.ChevronRight),
                         contentDescription = null,
                         tint = IndigoAccent.copy(alpha = 0.8f),
                         modifier = Modifier.size(16.dp)
@@ -792,14 +789,14 @@ fun HomeWeightChartCard(
                         ) {
                             if (change < 0) {
                                 Icon(
-                                    painter = painterResource(R.drawable.ic_arrow_downward),
+                                    painter = painterResource(ApexIcons.ArrowDown),
                                     contentDescription = null,
                                     tint = deltaColor,
                                     modifier = Modifier.size(14.dp)
                                 )
                             } else if (change > 0) {
                                 Icon(
-                                    painter = painterResource(R.drawable.ic_arrow_upward),
+                                    painter = painterResource(ApexIcons.ArrowUp),
                                     contentDescription = null,
                                     tint = deltaColor,
                                     modifier = Modifier.size(14.dp)
@@ -1008,7 +1005,7 @@ fun HomeWeightChartCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    painter = painterResource(ApexIcons.Add),
                     contentDescription = null,
                     tint = IndigoAccent,
                     modifier = Modifier.size(18.dp)

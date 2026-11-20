@@ -1,4 +1,5 @@
 package com.apexfit.app.ui.models
+import com.apexfit.app.ui.theme.ApexIcons
 
 import androidx.annotation.DrawableRes
 import com.apexfit.app.R
@@ -8,8 +9,8 @@ enum class TopLevelDestination(
     val label: String,
     @DrawableRes val iconRes: Int
 ) {
-    HOME("home", "Today", R.drawable.ic_nav_today),
-    TRAIN("train", "Train", R.drawable.ic_fitness_center),
-    NUTRITION("nutrition", "Nutrition", R.drawable.ic_cutlery),
-    PROGRESS("progress", "Progress", R.drawable.ic_trending_up)
+    HOME("home", "Today", ApexIcons.Calendar),
+    TRAIN("train", "Train", ApexIcons.Barbell),
+    NUTRITION("nutrition", "Nutrition", ApexIcons.Kitchen),
+    PROGRESS("progress", "Progress", ApexIcons.TrendingUp)
 }

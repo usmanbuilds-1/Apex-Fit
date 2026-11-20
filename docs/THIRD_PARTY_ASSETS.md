@@ -1,5 +1,13 @@
 # Third-party assets
 
+## Tabler outline icons
+
+- Source: [Tabler Icons](https://github.com/tabler/tabler-icons), imported as selected Android vector resources from [Compose Icons](https://github.com/composablehorizons/compose-icons) 2.2.1.
+- Bundled assets: 27 outline vectors under `app/src/main/res/drawable/tabler_ic_*_outline.xml`; no icon-pack dependency is shipped at runtime.
+- Scope: one consistent outline set for app UI glyphs; custom APEX logo and chevron marks remain brand assets.
+- Licenses: both upstream projects use MIT. Full notices are bundled at `app/src/main/assets/licenses/Tabler-MIT.txt` and `Compose-Icons-MIT.txt`.
+- Commercial use: the MIT terms allow commercial redistribution when the copyright and permission notices are included. This records provenance and notices, not a legal opinion.
+
 ## MuscleMap flat-vector anatomy
 
 - Repository: [Jsplice/MuscleMap](https://github.com/Jsplice/MuscleMap)

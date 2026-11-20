@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -39,9 +41,6 @@ import com.apexfit.app.HomeViewModel
 import com.apexfit.app.WorkoutExecutionViewModel
 import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ui.theme.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -141,7 +140,7 @@ fun SettingsScreen(
                         modifier = Modifier.testTag("settings_back_button")
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            painter = painterResource(ApexIcons.ArrowLeft),
                             contentDescription = "Back",
                             tint = PrimaryText
                         )
@@ -664,7 +663,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Privacy Policy", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
-                Icon(painter = painterResource(R.drawable.ic_open_in_new), contentDescription = "Opens Privacy Policy in browser",
+                Icon(painter = painterResource(ApexIcons.ExternalLink), contentDescription = "Opens Privacy Policy in browser",
                     tint = SecondaryText, modifier = Modifier.size(16.dp))
             }
         }
@@ -705,7 +704,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Terms of Service", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
-                Icon(painter = painterResource(R.drawable.ic_open_in_new), contentDescription = "Opens Terms of Service in browser",
+                Icon(painter = painterResource(ApexIcons.ExternalLink), contentDescription = "Opens Terms of Service in browser",
                     tint = SecondaryText, modifier = Modifier.size(16.dp))
             }
         }
@@ -795,7 +794,7 @@ internal fun SettingsDisclosureRow(
             )
             Icon(
                 painter = painterResource(
-                    if (expanded) R.drawable.ic_expand_more else R.drawable.ic_chevron_right
+                    if (expanded) ApexIcons.ChevronDown else ApexIcons.ChevronRight
                 ),
                 contentDescription = null,
                 tint = SecondaryText,

@@ -1,13 +1,12 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -45,7 +44,7 @@ internal fun MuscleRecoveryContent(
     Column(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(horizontal = 20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Back")
             }
             Text("Muscle Recovery", style = MaterialTheme.typography.titleLarge)
         }
@@ -136,7 +135,7 @@ fun BodyMeasurementDetailScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = PrimaryText)
+                Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Back", tint = PrimaryText)
             }
             Text(
                 text = bodyPart.replaceFirstChar { it.titlecase() },
@@ -242,7 +241,7 @@ fun BodyMeasurementDetailScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             IconButton(onClick = { deleteId = m.id }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete measurement", tint = SecondaryText)
+                                Icon(painterResource(ApexIcons.Delete), contentDescription = "Delete measurement", tint = SecondaryText)
                             }
                         }
                     }

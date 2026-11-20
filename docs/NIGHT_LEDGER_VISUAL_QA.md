@@ -40,17 +40,17 @@ Automated Android CI, lint, unit tests, palette checks and Compose preview rende
 The remaining high-risk legacy surfaces require the local/visual pass:
 - Today: scheduled, rest-day, active-session, readiness explanation, and larger-font states have Compose renders; finish real-device inset/back checks and review remaining Stitch mismatches.
 - active Workout and RIR/rest states have Compose renders; finish real-device interaction and motion checks.
-- Plan Builder has metadata, validation, and save-action renders; verify edit dialogs and a full edit/save flow.
+- Plan Builder has metadata, validation, save-action, and add/edit training-day dialog renders; the exercise editor dialog and full edit/save flow still need verification.
 - Settings row/editor renders exist; finish reachable-flow and accessibility review.
 - Exercise Detail/Form Guide: preserve vetted text and honest media states; finish the remaining Stitch parity using only prescription/history data that already exists.
 - Progress weight log/history, measurements, PR/history, recovery, fatigue, and volume states have Compose renders; finish real navigation and Stitch comparisons for available references.
-- importer review/error states and the import-to-save flow.
+- importer review/error states now have Compose renders; the import-to-save flow still needs verification.
 
 A polished overview does not count if a tap drops into an older visual language.
 
 ### 2. One icon family
 
-The app still mixes Material icons and legacy/custom vector assets on reachable screens. Finalize one approved family (Phosphor, HugeIcons, Radix or Tabler per the product direction), keep bottom-nav labels visible, and use a coherent selected/inactive treatment. Do not hand-roll replacement glyphs.
+The current local tree uses 27 curated Tabler outline vectors for app UI glyphs, with the selected SVG-derived vectors, MIT license notices, and provenance documented. The full icon-pack dependency is removed. APEX brand marks and the notification icon remain purpose-built. Bottom-nav labels stay visible. This is complete in the unpushed local tree; visual inspection is recorded below. Device accessibility/tap-target validation remains open.
 
 ### 3. Muscle anatomy quality
 
@@ -58,18 +58,15 @@ The low-detail custom canvas was replaced with the selected MIT-licensed Jsplice
 
 ### 4. Exercise Detail final polish
 
-Preserve vetted source instructions and honest no-instruction fallback. The latest artifact covers the available-instructions, no-instructions, video-loading, no-video, available-video, and offline-video states. Final pass still needs to verify:
-- long real instruction sets
-- large-font behavior
-- active-workout Form Guide entry point
+Preserve vetted source instructions and honest no-instruction fallback. The latest artifact covers the available-instructions, no-instructions, video-loading, no-video, available-video, and offline-video states. A new 1.3x-font render uses the bundled lateral-raise instruction text; I inspected the full-width wrapping and found no horizontal clipping. Still verify the active-workout Form Guide entry point and real device scrolling/accessibility.
 
 Do not invent coaching or biomechanics merely to fill empty space.
 
 ### 5. Visual-state coverage still missing
 
-Latest Compose renders now cover the active Workout logger and adaptive set-volume row; Plan Builder metadata, validation and save action; Settings row/editor; Personal Records populated/empty; Workout History list/detail; measurement empty/populated; Fatigue & Deload states; Muscle Volume week/month, selected muscle, loading/error and no-training; Workout Complete earned/no-record/partial; and RIR selection/history/rest/pre-log states.
+Latest Compose renders now cover the active Workout logger and adaptive set-volume row; Plan Builder metadata, validation, save action, and add/edit training-day dialogs; Settings row/editor; Personal Records populated/empty; Workout History list/detail; measurement empty/populated; Fatigue & Deload states; Muscle Volume week/month, selected muscle, loading/error and no-training; Workout Complete earned/no-record/partial; RIR selection/history/rest/pre-log states; and workout-import review/error states. The import review/error renders were visually inspected locally.
 
-Remaining render/flow gaps are importer review/error, long Exercise Detail instructions at large font, Plan Builder edit dialogs, and Workout Complete expanded details if that interaction exists in the live flow. Screenshot coverage is still not a substitute for interactive device validation.
+Remaining render/flow gaps are the Plan Builder exercise editor dialog and Workout Complete expanded details if that interaction exists in the live flow. The import-to-save and full Plan Builder edit/save flows also remain unverified. Screenshot coverage is still not a substitute for interactive device validation.
 
 ### 6. Real Android validation
 
@@ -96,6 +93,14 @@ Stitch MCP is responding: `list_screens` returned the approved screens and `down
 Run and report, where the environment permits, the eight flows defined in `docs/NIGHT_LEDGER_CODEX_REMAINDER.md`. Automated compilation alone is not an E2E pass. If hardware/emulator limitations block a flow, name the exact blocked step.
 
 ## Current automated evidence
+
+- Current unpushed local Today pass is based on `be71435`. The latest isolated-source run passed `lintDebug`, `assembleDebug`, and `updateDebugScreenshotTest` (`BUILD SUCCESSFUL`, 5m 10s). The source snapshot hash matched the working tree. I inspected the fresh 390dp scheduled-pull render against the approved Stitch Today screenshot (`4451767822246429594`): the supported-row photo/crop, typography, workout hierarchy, two recent-session rows, and fixed bottom navigation fit. Readiness is labeled as an estimate, and the weekly count uses real completed sessions. Lower-body scheduled, active-session at 1.3x font, recovery/no-history, and readiness-explanation renders were also inspected. The 1.3x view scrolls; its last visible recent row continues below the viewport as expected. Physical device/system-bar/back checks remain open.
+- Local changes remain unpushed; this render is not evidence for the remote PR head.
+- The current unpushed icon pass replaced Material and legacy UI glyphs with 27 curated Tabler outline vectors. The full icon-pack dependency was removed; only the selected vectors are bundled. The APEX logo/chevron brand marks and notification icon remain custom. Today, Exercise Picker, Workout Complete, and Progress renders were checked after the change; the new icons read consistently at their existing sizes.
+- The latest isolated-source run for the combined unpushed local tree passed `testDebugUnitTest lintDebug assembleDebug updateDebugScreenshotTest` (`BUILD SUCCESSFUL`, 7m 10s): 43 suites, 333 tests, no failures/errors/skips, and 74 Compose screenshot renders. The new importer review and save-error states were inspected. This run is local evidence, not evidence for the remote PR head.
+- Plan Builder add/edit training-day and validation-error dialog renders were added and inspected. The actual exercise editor dialog and full edit/save interaction remain open.
+- Exercise Detail now has a 1.3x-font long-instruction render using its bundled exercise instructions. The fresh render was visually inspected; wrapped text remains legible without horizontal clipping. The incremental screenshot task passed in 3m 28s and produced 75 Compose renders.
+- `git diff --check` passes for the current working tree.
 
 - Latest confirmed green PR head: `f0fc664b4aac0f40354c48c82896e1449b18fce6`.
 - Android CI/APK build, unit tests, lint, and Compose screenshot rendering passed at that head (run `44595437783`); palette regression passed (run `44595437987`). CI logs show `assembleDebug`, `testDebugUnitTest`, `lintDebug`, and `updateDebugScreenshotTest` succeeded.

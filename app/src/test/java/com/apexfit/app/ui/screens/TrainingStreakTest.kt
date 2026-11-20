@@ -3,46 +3,31 @@ package com.apexfit.app.ui.screens
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
+import com.apexfit.app.data.RichTrainingSession
 
-class TrainingStreakTest {
+class WeeklyTrainingSessionCountTest {
     private val today = LocalDate.of(2026, 11, 15) // Sunday
 
     @Test
-    fun weeklyTrainingCountIgnoresGapsAndCountsOnlyCurrentWeek() {
-        assertEquals(0, currentWeekTrainingCount(emptySet(), today))
-
-        // Monday and Thursday both count even though rest days exist between them.
-        assertEquals(
-            2,
-            currentWeekTrainingCount(
-                setOf(
-                    LocalDate.of(2026, 11, 9),
-                    LocalDate.of(2026, 11, 12)
-                ),
-                today
-            )
+    fun countsCompletedSessionsNotUniqueDatesAndExcludesOutsideWeek() {
+        val sessions = listOf(
+            RichTrainingSession(date = "2026-11-09", sessionType = "Upper A", completed = true),
+            RichTrainingSession(date = "2026-11-09", sessionType = "Lower A", completed = true),
+            RichTrainingSession(date = "2026-11-12", sessionType = "Upper B", completed = true),
+            RichTrainingSession(date = "2026-11-08", sessionType = "Previous week", completed = true),
+            RichTrainingSession(date = "2026-11-16", sessionType = "Future", completed = true),
+            RichTrainingSession(date = "2026-11-14", sessionType = "Incomplete", completed = false)
         )
 
-        // A session from the previous week does not inflate this week.
-        assertEquals(
-            1,
-            currentWeekTrainingCount(
-                setOf(
-                    LocalDate.of(2026, 11, 8),
-                    LocalDate.of(2026, 11, 10)
-                ),
-                today
-            )
-        )
+        assertEquals(3, currentWeekTrainingSessionCount(sessions, today))
+    }
 
-        // Future dates are ignored.
+    @Test
+    fun ignoresMalformedDates() {
         assertEquals(
-            1,
-            currentWeekTrainingCount(
-                setOf(
-                    LocalDate.of(2026, 11, 14),
-                    LocalDate.of(2026, 11, 16)
-                ),
+            0,
+            currentWeekTrainingSessionCount(
+                listOf(RichTrainingSession(date = "not-a-date", sessionType = "Unknown", completed = true)),
                 today
             )
         )

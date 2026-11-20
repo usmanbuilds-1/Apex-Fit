@@ -1,6 +1,7 @@
 package com.apexfit.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -53,6 +54,58 @@ fun PlanBuilderSaveAction() {
     ApexFitTheme {
         Column(Modifier.fillMaxSize().background(ApexColors.Canvas)) {
             PlanBuilderSaveBar(isSaving = false, onSave = {})
+        }
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun PlanBuilderAddDayDialogRender() {
+    ApexFitTheme {
+        Box(Modifier.fillMaxSize().background(ApexColors.Canvas)) {
+            PlanBuilderDayDialog(
+                initialLabel = "",
+                initialDayOfWeek = "Monday",
+                isEditing = false,
+                onDismiss = {},
+                onSave = { _, _ -> }
+            )
+        }
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun PlanBuilderEditDayDialogRender() {
+    ApexFitTheme {
+        Box(Modifier.fillMaxSize().background(ApexColors.Canvas)) {
+            PlanBuilderDayDialog(
+                initialLabel = "Upper Body A",
+                initialDayOfWeek = "Monday",
+                isEditing = true,
+                onDismiss = {},
+                onSave = { _, _ -> }
+            )
+        }
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun PlanBuilderDayDialogValidationErrorRender() {
+    ApexFitTheme {
+        Box(Modifier.fillMaxSize().background(ApexColors.Canvas)) {
+            PlanBuilderDayDialog(
+                initialLabel = "",
+                initialDayOfWeek = "Monday",
+                isEditing = false,
+                onDismiss = {},
+                onSave = { _, _ -> },
+                initialValidationError = "A session name is required"
+            )
         }
     }
 }

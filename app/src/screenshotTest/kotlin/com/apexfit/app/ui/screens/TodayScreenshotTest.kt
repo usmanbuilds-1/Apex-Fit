@@ -90,6 +90,8 @@ private fun RenderToday(
                     todayDate = "2025-11-14",
                     sessionLabel = session,
                     sessionFocus = focus,
+                    scheduledExerciseCount = if (hasSchedule) 5 else 0,
+                    weeklySessionTarget = if (hasSchedule) 4 else 0,
                     hasActiveSession = inProgress,
                     estimatedWorkoutDuration = if (hasSchedule) 54 else 0,
                     readiness = if (hasSchedule) UiSessionReadiness(
@@ -107,9 +109,10 @@ private fun RenderToday(
                         UiWeightEntry(weight = 78.4, date = "2025-11-14")
                     ) else emptyList(),
                     completedSessions = if (hasSchedule) listOf(
-                        RichTrainingSession("2025-11-13", "Lower Body B", true, durationMinutes = 48)
+                        RichTrainingSession("2025-11-13", "Lower Body B", true, durationMinutes = 48),
+                        RichTrainingSession("2025-10-21", "Upper Body B", true, durationMinutes = 45)
                     ) else emptyList(),
-                    trainingStreak = if (hasSchedule) 1 else 0,
+                    completedSessionsThisWeek = if (hasSchedule) 1 else 0,
                     onOpenSettings = {},
                     onNutrition = {},
                     onProgress = {},

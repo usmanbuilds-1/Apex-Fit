@@ -1,11 +1,11 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,7 +34,7 @@ internal fun PersonalRecordsContent(
     Column(Modifier.fillMaxSize().background(DarkBackground).padding(horizontal = 16.dp)) {
         Row {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = PrimaryText)
+                Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Back", tint = PrimaryText)
             }
             Text("Personal records", color = PrimaryText, style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 10.dp))
