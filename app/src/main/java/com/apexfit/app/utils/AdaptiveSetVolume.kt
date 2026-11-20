@@ -40,9 +40,16 @@ object AdaptiveSetVolume {
         sessions: List<RichTrainingSession>,
         today: LocalDate,
         readiness: Int?,
-        loadChanged: Boolean
+        loadChanged: Boolean,
+        fatigueRatio: Double? = null,
+        deloadRecommended: Boolean = false
     ): SetVolumeAdjustment? {
         if (goal != "Gain Muscle" || baseSets !in 1..5 || loadChanged || readiness == null) return null
+        // Do not stack a per-exercise volume suggestion on top of the app's
+        // broader deload recommendation. Elevated workload also blocks additions
+        // even when other recovery inputs currently look favorable.
+        if (deloadRecommended) return null
+        val elevatedFatigue = fatigueRatio != null && fatigueRatio >= 1.3
         val exposures = sessions.asSequence()
             .filter(RichTrainingSession::completed)
             .mapNotNull { session ->
@@ -64,7 +71,7 @@ object AdaptiveSetVolume {
             return SetVolumeAdjustment(baseSets, baseSets - 1,
                 "Two recent workouts on different days included repeated high-effort sets, and logged recovery signals suggest reducing work today.")
         }
-        if (readiness >= 70 && baseSets < 5 &&
+        if (!elevatedFatigue && readiness >= 70 && baseSets < 5 &&
             exposures.all { sets -> sets.all { it.reps >= repsMin && it.rpe <= 8 } }
         ) {
             return SetVolumeAdjustment(baseSets, baseSets + 1,

@@ -20,8 +20,10 @@ class AdaptiveSetVolumeTest {
 
     private fun adjust(
         sessions: List<RichTrainingSession> = clean, goal: String = "Gain Muscle", readiness: Int? = 80,
-        loadChanged: Boolean = false
-    ) = AdaptiveSetVolume.adjustment(goal, "row", 3, 8, sessions, today, readiness, loadChanged)
+        loadChanged: Boolean = false, fatigueRatio: Double? = null, deloadRecommended: Boolean = false
+    ) = AdaptiveSetVolume.adjustment(
+        goal, "row", 3, 8, sessions, today, readiness, loadChanged, fatigueRatio, deloadRecommended
+    )
 
     @Test fun repeatedEvidenceCanAddOnlyOneSet() {
         val adjustment = adjust()!!
@@ -40,6 +42,18 @@ class AdaptiveSetVolumeTest {
         assertNull(adjust(readiness = 60))
         assertNull(adjust(goal = "Maintain"))
         assertNull(adjust(loadChanged = true))
+    }
+
+    @Test fun elevatedFatigueBlocksAddsAndRecommendedDeloadBlocksAllAdjustments() {
+        assertNull(adjust(fatigueRatio = 1.3))
+        assertNull(adjust(fatigueRatio = 1.6))
+        assertNull(adjust(deloadRecommended = true))
+
+        // Lowering one set for poor readiness and repeated high effort remains
+        // available when fatigue is elevated, but a full deload takes precedence.
+        val highEffort = listOf(exposure(12, 9), exposure(10, 10), exposure(8))
+        assertEquals(2, adjust(highEffort, readiness = 45, fatigueRatio = 1.4)?.adjustedSets)
+        assertNull(adjust(highEffort, readiness = 45, fatigueRatio = 1.4, deloadRecommended = true))
     }
 
     @Test fun lowRecoveryAndRepeatedHighEffortReduceWork() {

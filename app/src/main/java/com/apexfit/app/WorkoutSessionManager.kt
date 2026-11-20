@@ -406,6 +406,12 @@ class WorkoutSessionManager(
 
         val proposedGoal = dao.getAllPlans().firstOrNull { it.id == planSession.planId }?.goal.orEmpty()
         val recentSessions = repository.richSessionsFlow.value
+        val fatigueSnapshot = com.apexfit.app.utils.FatigueEngine.calcFatigueToFitnessRatio(recentSessions)
+        val deloadRecommended = com.apexfit.app.utils.PlateauEngine.calcDeloadRecommendation(
+            trainingLog = recentSessions,
+            complianceScore = 0,
+            precomputedFatigue = fatigueSnapshot
+        ).urgency.let { it == "deload_now" || it == "deload_soon" }
         val readinessByMuscle = readinessScore?.takeIf { it.finalScore != null }
             ?.muscleDetails.orEmpty().filter { it.confidence != "none" }
             .associateBy { com.apexfit.app.utils.MuscleAliases.getCanonical(it.muscleGroup) }
@@ -429,7 +435,9 @@ class WorkoutSessionManager(
                     sessions = recentSessions,
                     today = java.time.LocalDate.parse(today),
                     readiness = readinessForVolume,
-                    loadChanged = kotlin.math.abs(suggestedWeight.fromDisplayWeightToKg(exerciseUnit) - lastLoggedWeight) > 0.05
+                    loadChanged = kotlin.math.abs(suggestedWeight.fromDisplayWeightToKg(exerciseUnit) - lastLoggedWeight) > 0.05,
+                    fatigueRatio = fatigueSnapshot.ratio,
+                    deloadRecommended = deloadRecommended
                 )
             } else null
             if (adjustment != null) adjustedMuscles.add(muscle)
