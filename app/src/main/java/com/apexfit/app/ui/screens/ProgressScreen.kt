@@ -59,6 +59,20 @@ import kotlin.math.sin
 val AccentSecondary = com.apexfit.app.ui.theme.OrangeAccent // Orange accent for visual hierarchy
 
 @Composable
+internal fun ProgressHeader(modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(painterResource(R.drawable.ic_apex_chevron), contentDescription = null,
+                tint = ApexColors.Primary, modifier = Modifier.size(18.dp))
+            Text("APEX FIT", color = PrimaryText, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 1.6.sp)
+        }
+    }
+}
+
+@Composable
 fun ProgressScreen(
     fitnessViewModel: FitnessViewModel,
     algorithmViewModel: AlgorithmViewModel,
@@ -366,6 +380,8 @@ fun ProgressMainTabContent(
     val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
     val deloadResult by algorithmViewModel.deloadRecommendation.collectAsStateWithLifecycle()
     val records by progressViewModel.personalRecords.collectAsStateWithLifecycle()
+    val recovery by progressViewModel.muscleRecoveryStatuses.collectAsStateWithLifecycle()
+    val weeklyTarget by fitnessViewModel.weeklyWorkouts.collectAsStateWithLifecycle()
     val today by homeViewModel.todayDate.collectAsStateWithLifecycle()
     val goal by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val recordedSessions by homeViewModel.completedSessions.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -442,8 +458,7 @@ fun ProgressMainTabContent(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
         item {
-            Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp))
+            ProgressHeader(Modifier.padding(top = 16.dp))
         }
         if (activeSubTab != 0) item {
             TextButton(onClick = { activeSubTab = 0 }) { Text("Back to Progress") }
@@ -451,9 +466,7 @@ fun ProgressMainTabContent(
         if (activeSubTab == 0) item {
             ProgressOverviewContent(
                 weightHistoryState, recordedSessions, java.time.LocalDate.parse(today), goal, units,
-                records.size,
-                if (fatigueInfo.ratio == null) "Recovery estimates need more training history."
-                else "Recent training load: " + fatigueInfo.statusLabel.lowercase(),
+                records, weeklyTarget, recovery,
                 onLogWeight = { showLogWeight = true },
                 onOpenRecords = onOpenPersonalRecords,
                 onOpenHistory = onOpenWorkoutHistory,
