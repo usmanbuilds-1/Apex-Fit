@@ -28,7 +28,7 @@ private val nutritionPreviewMeals = listOf(
         carbs = 74.0,
         fat = 14.0,
         timestamp = 0L,
-        date = "2026-11-14",
+        date = "2025-11-14",
         time = "08:40"
     ),
     UiNutritionEntry(
@@ -39,7 +39,7 @@ private val nutritionPreviewMeals = listOf(
         carbs = 91.0,
         fat = 13.0,
         timestamp = 0L,
-        date = "2026-11-14",
+        date = "2025-11-14",
         time = "13:15"
     ),
     UiNutritionEntry(
@@ -50,7 +50,7 @@ private val nutritionPreviewMeals = listOf(
         carbs = 45.0,
         fat = 17.0,
         timestamp = 0L,
-        date = "2026-11-14",
+        date = "2025-11-14",
         time = "16:20"
     )
 )
@@ -79,7 +79,7 @@ fun NutritionLoggedDayScreen() {
             ) {
                 item {
                     NutritionHeader(
-                        date = "2026-11-14",
+                        date = "2025-11-14",
                         onPreviousDay = {},
                         onNextDay = {},
                         canGoForward = false
@@ -136,7 +136,7 @@ fun NutritionEmptyDayScreenLargeText() {
             ) {
                 item {
                     NutritionHeader(
-                        date = "2026-11-15",
+                        date = "2025-11-15",
                         onPreviousDay = {},
                         onNextDay = {},
                         canGoForward = false

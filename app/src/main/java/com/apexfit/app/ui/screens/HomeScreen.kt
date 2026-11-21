@@ -232,15 +232,14 @@ internal fun TodayContent(
             HomeTrainingHero(heroCategory, sessionLabel != null, todayDate, onOpenSettings)
         }
 
-        // ── Padded content cards ───────────────────────────────────────────
+        // ── Today's training and logged details ────────────────────────────
         item {
             Column(
                 modifier = Modifier.padding(horizontal = ApexSpacing.screenPadding),
                 verticalArrangement = Arrangement.spacedBy(ApexSpacing.cardGap)
             ) {
-                Spacer(Modifier.height(ApexSpacing.xs))
+                Spacer(Modifier.height(4.dp))
 
-                // Workout Card
                 TodayWorkoutCard(
                     sessionLabel = sessionLabel.orEmpty(),
                     sessionFocus = sessionFocus,
@@ -394,14 +393,9 @@ private fun TodayWorkoutCard(
 ) {
     val hasSession = sessionLabel.isNotBlank()
     val exerciseCountLabel = todayExerciseCountLabel(scheduledExerciseCount)
-    val cardShape = RoundedCornerShape(16.dp)
     Column(
-        modifier = Modifier.fillMaxWidth()
-            .clip(cardShape)
-            .background(SurfaceNight1)
-            .border(1.dp, BorderMuted, cardShape)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         if (hasSession) {
             Row(
@@ -507,9 +501,9 @@ private fun TodayWorkoutCard(
                 color = TextMuted, fontSize = 12.sp
             )
         }
-        Button(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        Button(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MineralBlue, contentColor = PrimaryText)) {
+            colors = ButtonDefaults.buttonColors(containerColor = MineralBlue, contentColor = ApexColors.OnGlow)) {
             Text(if (hasActiveSession) "Resume workout" else if (hasSession) "Start workout" else "View training plan", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
