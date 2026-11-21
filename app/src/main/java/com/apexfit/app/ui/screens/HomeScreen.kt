@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import android.view.Gravity
+import android.view.WindowManager
 import com.apexfit.app.ui.theme.ApexIcons
 import androidx.compose.ui.res.painterResource
 
@@ -28,12 +30,16 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.FitnessViewModel
@@ -882,37 +888,50 @@ private fun TodayExplanationSheet(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.84f
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
-        containerColor = ApexColors.Surface,
-        contentColor = ApexColors.TextPrimary,
-        tonalElevation = 0.dp,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = BorderMuted) }
+        properties = DialogProperties(
+            dismissOnClickOutside = true,
+            usePlatformDefaultWidth = false
+        )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = maxSheetHeight)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+        val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect {
+            dialogWindow?.setGravity(Gravity.BOTTOM)
+            dialogWindow?.setLayout(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.WRAP_CONTENT
+            )
+            dialogWindow?.setDimAmount(0.38f)
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth().heightIn(max = maxSheetHeight),
+            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
+            color = ApexColors.Surface,
+            contentColor = ApexColors.TextPrimary
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = maxSheetHeight)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                Text(title, style = MaterialTheme.typography.headlineSmall, color = PrimaryText)
-                TextButton(onClick = onDismiss) {
-                    Text("Close", color = ApexColors.TextSecondary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(title, style = MaterialTheme.typography.headlineSmall, color = PrimaryText)
+                    TextButton(onClick = onDismiss) {
+                        Text("Close", color = ApexColors.TextSecondary)
+                    }
                 }
+                content()
             }
-            content()
         }
     }
 }
