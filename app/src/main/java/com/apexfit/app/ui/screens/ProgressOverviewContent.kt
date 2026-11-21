@@ -201,8 +201,8 @@ internal fun ProgressOverviewContent(
         HorizontalDivider(color = ApexColors.BorderSubtle)
         Text("Explore", style = MaterialTheme.typography.titleLarge)
         listOf(
-            "Personal records" to onOpenRecords, "Workout history" to onOpenHistory,
-            "Measurements" to onOpenMeasurements, "Volume" to onOpenVolume,
+            "Personal records" to onOpenRecords, "Measurements" to onOpenMeasurements,
+            "Workout history" to onOpenHistory, "Training volume" to onOpenVolume,
             "Muscle recovery" to onOpenRecovery, "Fatigue & deload" to onOpenFatigue
         ).forEach { (label, action) ->
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClick = action),
