@@ -149,7 +149,7 @@ internal fun MuscleVolumeContent(
                         }
                     }
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        ApexAnatomy(showBack, Modifier.width(280.dp), directSets = directCounts,
+                        ApexAnatomy(showBack, Modifier.widthIn(max = 320.dp).fillMaxWidth(), directSets = directCounts,
                             onMuscleSelected = { selected = it })
                     }
                     Text("Muscles by direct set count", style = MaterialTheme.typography.titleMedium,
