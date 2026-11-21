@@ -18,7 +18,7 @@ Automated Android CI, lint, unit tests, palette checks and Compose preview rende
 - Muscle Volume now opens on the anatomy side containing the dominant direct-set work when appropriate.
 - Form Guide no longer invents generic biomechanics when vetted written instructions are absent.
 - User-facing recovery/history dates were moved toward localized display instead of raw ISO where migrated.
-- Workout Complete labels aggregate load as total load.
+- Workout Complete shows actual elapsed and rest time plus per-exercise sets, loads, and reps; it omits aggregate volume per the user's request.
 - Readiness confidence/copy was tightened and the baseline-building suppression remains.
 - Nutrition has populated/no-target visual coverage.
 - Progress has insufficient-data and populated dated-weight-trend visual coverage.
@@ -31,7 +31,7 @@ Automated Android CI, lint, unit tests, palette checks and Compose preview rende
 - Plans now uses the flat active-plan summary, upcoming scheduled session, other-plan rows, import action and fixed Create plan action. Populated, empty, loading, active-plan unavailable and schedule unavailable states are rendered.
 - Settings selection/focus treatment is being normalized away from generic amber; technical BMR-offset wording was removed.
 - Progress weight logging copy now uses consumer-facing `Log weight` / `Weight history` wording and localized dates.
-- Local branch `codex/night-ledger-pr33` was synced to PR #33 head `845c97ffae58d7eb2429dd037018560b6eab8531`; the current Ready/Form Guide/Plan Builder changes are local and not yet pushed.
+- The Ready, Form Guide, anatomy accessibility, and Plan Builder Night Ledger changes were published to PR #33 head `429394909b0d5ebe6e8065a362d3b8d1825287f1`; Android CI/APK Build and palette regression passed there. The Plan Builder numeric-range follow-up passes locally and requires CI on its next PR head.
 - Plan Builder exercise input validation now rejects malformed numbers instead of silently replacing them with defaults. Kilogram/pound normalization and field-specific error routing are covered by `PlanExerciseDraftValidatorTest`; save and edit interaction still require a fresh UI render/device flow.
 - The shared anatomy now exposes a screen-reader custom action for each visible muscle path; physical TalkBack verification remains open.
 
@@ -53,7 +53,7 @@ A polished overview does not count if a tap drops into an older visual language.
 
 ### 2. One icon family
 
-The current local tree uses 27 curated Tabler outline vectors for app UI glyphs, with the selected SVG-derived vectors, MIT license notices, and provenance documented. The full icon-pack dependency is removed. APEX brand marks and the notification icon remain purpose-built. Bottom-nav labels stay visible. This is complete in the unpushed local tree; visual inspection is recorded below. Device accessibility/tap-target validation remains open.
+The current tree uses 27 curated Tabler outline vectors for app UI glyphs, with the selected SVG-derived vectors, MIT license notices, and provenance documented. The full icon-pack dependency is removed. APEX brand marks and the notification icon remain purpose-built. Bottom-nav labels stay visible. This is published in PR #33; device accessibility/tap-target validation remains open.
 
 ### 3. Muscle anatomy quality
 
@@ -110,9 +110,11 @@ Run and report, where the environment permits, the eight flows defined in `docs/
 - Adaptive set volume now receives the live fatigue estimate and deload recommendation at session start. Elevated fatigue blocks set additions; an active deload recommendation suppresses conflicting per-exercise adjustments. The targeted regression tests and full Gradle verification pass; on-device active-workout/history validation remains open.
 - `git diff --check` passes for the current working tree.
 
-- Latest pushed PR head: `845c97ffae58d7eb2429dd037018560b6eab8531`; no CI result has been recorded for the new current-turn changes yet.
+- Previous PR head `429394909b0d5ebe6e8065a362d3b8d1825287f1` passed Android CI/APK Build, including Compose screenshot rendering, and palette regression (runs `44871176798` and `44871176763`). The later Plan Builder range-validation follow-up is verified locally; check the workflow on its PR head before merge.
 - Current local changes passed `testDebugUnitTest lintDebug assembleDebug` (`BUILD SUCCESSFUL in 7m 47s`): 346 tests, 0 failures, 0 errors, 0 skipped; APK assembled and lint passed. The expanded Ready and replaceable-alternative Compose renders were generated and visually inspected. `validateDebugScreenshotTest` reports missing goldens for the new states and an intentional visual mismatch for the expanded Ready state; the user-owned `app/src/screenshotTestDebug/` baselines were left untouched.
 - The latest full local check after the Plan Builder input-validation and anatomy screen-reader actions passed all 350 unit tests, `lintDebug`, and `assembleDebug`; the debug APK is present. Lint reports two existing `MissingPermission` warnings for exact rest-timer alarms. `validateDebugScreenshotTest` rendered 82 screens and failed 42 baseline comparisons (33 image mismatches, 9 missing goldens). Existing and user-owned screenshot references were not changed. The fresh Ready-expanded, Exercise Guide replacement, and Workout Complete receipt renders were visually inspected.
+- Plan Builder draft validation now uses the same bounded input ranges as text import (sets 1–99, reps 1–999, rest 0–3600s) and displays field-specific range errors; the focused validator suite covers the limits.
+- The latest full local check passed all 351 unit tests, `lintDebug`, and `assembleDebug` (`BUILD SUCCESSFUL` in 7m 3s); the debug APK is present. Lint reports two existing `MissingPermission` warnings for exact rest-timer alarms. Existing and user-owned screenshot references were not changed.
 - A read-only ADB check found no attached device; this SDK has no installed system image or configured AVD. Device interaction, TalkBack, and system-bar verification therefore remain open.
 - Compose render artifact `14566470969` contains 70 PNG states. The Exercise Picker and Muscle Volume anatomy renders were inspected after the 280dp sizing change; the adaptive-volume active-workout render was also inspected.
 - Today was compared with Stitch screen `projects/14369859982852578965/screens/01d1c4d10ac44aa895349abb6604754f` (screenshot file `4451767822246429594`): local photo/crop and transition align; copy preserves the app's heuristic readiness wording and real preview data. Rest-day, active-session, and 1.3x-font states are present in the same exact-head artifact.
@@ -120,7 +122,7 @@ Run and report, where the environment permits, the eight flows defined in `docs/
 - Plans was compared with Stitch screen `projects/14369859982852578965/screens/aac06f19998b4540804c75afd71dd18f` (screenshot file `5916272567711751964`).
 - The post-log RIR/rest screenshot was visually compared with the approved Stitch reference and refined for hierarchy, timer formatting, and real next-set context.
 - Workout Complete was compared with Stitch screen `projects/14369859982852578965/screens/bf78310391cc4ca8a8237e5b7967cb4c`. The local receipt keeps the same flat headline / earned-PR / fixed actions hierarchy, adds actual duration and rest time, and shows each exercise's completed loads and reps. It omits the reference's aggregate load, consistent with the user's request for useful set detail without total volume.
-- Exercise Detail was compared with Stitch screen `projects/14369859982852578965/screens/de4245a961994f0c8322ed0b89edd428`. The current local render now includes the available prescription, progression target, PR/history, and catalog alternatives. It keeps vetted text and omits unverified imagery/coaching. The Stitch sample's separate technique/mistake copy and clickable alternative behavior remain visual/functionality gaps; do not fill them with invented cues or claim this surface complete yet.
+- Exercise Detail was compared with Stitch screen `projects/14369859982852578965/screens/de4245a961994f0c8322ed0b89edd428`. The render includes the available prescription, progression target, PR/history, and catalog alternatives. It keeps vetted text and omits unverified imagery/coaching. The screen does not reproduce the sample's unsupported technique/mistake copy; the active-workout replacement flow still needs real-device verification.
 - No Android AVD is configured in the local SDK. A physical-device run has not been performed in this pass; the evidence above is Compose screenshot rendering, not device validation.
 - A transient Maven Central HTTP 429 on an intermediate run is infrastructure noise, not evidence of a source-code failure.
 

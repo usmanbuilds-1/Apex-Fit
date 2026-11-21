@@ -83,6 +83,35 @@ class PlanExerciseDraftValidatorTest {
         assertInvalid(validate(weight = "NaN"), PlanExerciseDraftField.WEIGHT)
     }
 
+    @Test
+    fun rejectsValuesOutsidePlanBuilderAndImporterLimits() {
+        assertOutOfRange(sets = "100", expectedField = PlanExerciseDraftField.SETS)
+        assertOutOfRange(min = "1000", expectedField = PlanExerciseDraftField.MIN_REPS)
+        assertOutOfRange(max = "1000", expectedField = PlanExerciseDraftField.MAX_REPS)
+        assertOutOfRange(rest = "3601", expectedField = PlanExerciseDraftField.REST)
+    }
+
+    private fun assertOutOfRange(
+        sets: String = "3",
+        min: String = "8",
+        max: String = "12",
+        rest: String = "90",
+        expectedField: PlanExerciseDraftField
+    ) {
+        val result = validatePlanExerciseDraft(
+            name = "Press",
+            setsText = sets,
+            minRepsText = min,
+            maxRepsText = max,
+            weightText = "",
+            weightUnit = "kg",
+            restText = rest
+        ) as PlanExerciseDraftValidation.Invalid
+
+        assertEquals(expectedField, result.field)
+        assertEquals(PlanExerciseDraftIssue.OUT_OF_RANGE, result.issue)
+    }
+
     private fun assertInvalid(
         result: PlanExerciseDraftValidation,
         expectedField: PlanExerciseDraftField

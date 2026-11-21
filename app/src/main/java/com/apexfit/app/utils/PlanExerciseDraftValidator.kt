@@ -50,21 +50,39 @@ internal fun validatePlanExerciseDraft(
         )
     }
 
-    val sets = setsText.toIntOrNull()?.takeIf { it > 0 }
+    val sets = setsText.toIntOrNull()
         ?: return PlanExerciseDraftValidation.Invalid(
             PlanExerciseDraftField.SETS,
             PlanExerciseDraftIssue.INVALID_NUMBER
         )
-    val minReps = minRepsText.toIntOrNull()?.takeIf { it > 0 }
+    if (sets !in 1..99) {
+        return PlanExerciseDraftValidation.Invalid(
+            PlanExerciseDraftField.SETS,
+            PlanExerciseDraftIssue.OUT_OF_RANGE
+        )
+    }
+    val minReps = minRepsText.toIntOrNull()
         ?: return PlanExerciseDraftValidation.Invalid(
             PlanExerciseDraftField.MIN_REPS,
             PlanExerciseDraftIssue.INVALID_NUMBER
         )
-    val maxReps = maxRepsText.toIntOrNull()?.takeIf { it > 0 }
+    if (minReps !in 1..999) {
+        return PlanExerciseDraftValidation.Invalid(
+            PlanExerciseDraftField.MIN_REPS,
+            PlanExerciseDraftIssue.OUT_OF_RANGE
+        )
+    }
+    val maxReps = maxRepsText.toIntOrNull()
         ?: return PlanExerciseDraftValidation.Invalid(
             PlanExerciseDraftField.MAX_REPS,
             PlanExerciseDraftIssue.INVALID_NUMBER
         )
+    if (maxReps !in 1..999) {
+        return PlanExerciseDraftValidation.Invalid(
+            PlanExerciseDraftField.MAX_REPS,
+            PlanExerciseDraftIssue.OUT_OF_RANGE
+        )
+    }
     if (minReps > maxReps) {
         return PlanExerciseDraftValidation.Invalid(
             PlanExerciseDraftField.MIN_REPS,
@@ -72,11 +90,17 @@ internal fun validatePlanExerciseDraft(
         )
     }
 
-    val restSeconds = restText.toIntOrNull()?.takeIf { it >= 0 }
+    val restSeconds = restText.toIntOrNull()
         ?: return PlanExerciseDraftValidation.Invalid(
             PlanExerciseDraftField.REST,
             PlanExerciseDraftIssue.INVALID_NUMBER
         )
+    if (restSeconds !in 0..3600) {
+        return PlanExerciseDraftValidation.Invalid(
+            PlanExerciseDraftField.REST,
+            PlanExerciseDraftIssue.OUT_OF_RANGE
+        )
+    }
 
     val isPounds = weightUnit.lowercase() in listOf("lb", "lbs")
     val maxWeight = if (isPounds) 660.0 else 300.0

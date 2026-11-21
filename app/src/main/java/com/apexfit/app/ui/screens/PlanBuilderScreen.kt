@@ -1114,18 +1114,31 @@ fun PlanBuilderScreen(
                                 PlanExerciseDraftField.NAME -> exNameError = context.getString(
                                     R.string.plan_builder_exercise_name_is_required
                                 )
-                                PlanExerciseDraftField.SETS -> setsError = numericError
+                                PlanExerciseDraftField.SETS -> setsError = if (
+                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                                ) context.getString(R.string.plan_builder_sets_range) else numericError
                                 PlanExerciseDraftField.MIN_REPS -> repsMinError = when (validation.issue) {
                                     PlanExerciseDraftIssue.MIN_REPS_EXCEEDS_MAX -> context.getString(
                                         R.string.plan_builder_min_reps_greater_than_max
                                     )
+                                    PlanExerciseDraftIssue.OUT_OF_RANGE -> context.getString(
+                                        R.string.plan_builder_reps_range
+                                    )
                                     else -> numericError
                                 }
-                                PlanExerciseDraftField.MAX_REPS -> repsMaxError = numericError
-                                PlanExerciseDraftField.REST -> restError = numericError
+                                PlanExerciseDraftField.MAX_REPS -> repsMaxError = if (
+                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                                ) context.getString(R.string.plan_builder_reps_range) else numericError
+                                PlanExerciseDraftField.REST -> restError = if (
+                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                                ) context.getString(R.string.plan_builder_rest_range) else numericError
                                 PlanExerciseDraftField.WEIGHT -> {
                                     val maxWeight = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
-                                    weightError = "Enter a valid weight (0–$maxWeight $unitSuffix)"
+                                    weightError = context.getString(
+                                        R.string.plan_builder_weight_range,
+                                        maxWeight.toString(),
+                                        unitSuffix
+                                    )
                                 }
                             }
                             return@Button
