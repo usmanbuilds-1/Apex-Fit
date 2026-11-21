@@ -17,6 +17,9 @@ import javax.inject.Inject
 internal fun remainingRestSeconds(deadline: Long, now: Long): Int =
     ((deadline - now).coerceAtLeast(0L) + 999L).div(1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
+internal fun elapsedRestSeconds(startedAt: Long, now: Long): Int =
+    ((now - startedAt).coerceAtLeast(0L) / 1_000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+
 @HiltViewModel
 class RestTimerViewModel @Inject constructor(
     application: Application,
@@ -192,8 +195,7 @@ class RestTimerViewModel @Inject constructor(
         _restTimerLastSetContext.value = "Last set: $weight $units × $reps reps · RPE $rpe"
         if (!_isRestTimerActive.value) return
         val now = SystemClock.elapsedRealtime()
-        val elapsed = ((now - restStartedAt).coerceAtLeast(0L) / 1000L)
-            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val elapsed = elapsedRestSeconds(restStartedAt, now)
         val exerciseType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(exerciseName, muscleGroup)
         val baseSeconds = sessionManager.calculateRestTimeSeconds(exerciseId, exerciseType, rpe)
         val newTotal = (baseSeconds + restAdjustmentSeconds).coerceAtLeast(1)
@@ -222,7 +224,7 @@ class RestTimerViewModel @Inject constructor(
         // Commit the elapsed rest time to the last completed set
         val pointer = lastCompletedSetPointer ?: restSetPointer ?: findLastCompletedSetPointer()
         pointer?.let { (exId, sIdx) ->
-            val elapsed = ((SystemClock.elapsedRealtime() - restStartedAt).coerceAtLeast(0L) / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            val elapsed = elapsedRestSeconds(restStartedAt, SystemClock.elapsedRealtime())
             sessionManager.commitRestTaken(exId, sIdx, elapsed)
         }
         restSetPointer = null
