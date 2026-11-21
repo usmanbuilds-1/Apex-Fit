@@ -1,11 +1,11 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apexfit.app.ProgressViewModel
+import com.apexfit.app.data.PersonalRecordWithName
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.toDisplayWeight
 
@@ -21,16 +22,29 @@ import com.apexfit.app.utils.toDisplayWeight
 fun PersonalRecordsScreen(progressViewModel: ProgressViewModel, onBack: () -> Unit) {
     val records by progressViewModel.personalRecords.collectAsStateWithLifecycle()
     val units by progressViewModel.units.collectAsStateWithLifecycle()
+    PersonalRecordsContent(records, units, onBack)
+}
+
+@Composable
+internal fun PersonalRecordsContent(
+    records: List<PersonalRecordWithName>,
+    units: String,
+    onBack: () -> Unit
+) {
     Column(Modifier.fillMaxSize().background(DarkBackground).padding(horizontal = 16.dp)) {
         Row {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = PrimaryText)
+                Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Back", tint = PrimaryText)
             }
             Text("Personal records", color = PrimaryText, style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 10.dp))
         }
         if (records.isEmpty()) {
-            Text("Complete a workout to start building records.", color = SecondaryText, modifier = Modifier.padding(16.dp))
+            Text(
+                "Complete a workout to start building records.",
+                color = SecondaryText,
+                modifier = Modifier.padding(16.dp)
+            )
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
                 items(records, key = { it.record.id }) { entry ->
@@ -42,11 +56,12 @@ fun PersonalRecordsScreen(progressViewModel: ProgressViewModel, onBack: () -> Un
                         else -> record.type.replace('_', ' ')
                     }
                     val suffix = if (record.type == "volume") "$units × reps" else units
-                    Card(colors = CardDefaults.cardColors(containerColor = DarkCardSurface)) {
-                        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Column {
+                        HorizontalDivider(color = ApexColors.BorderSubtle)
+                        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
                             Text(entry.displayName ?: record.exerciseId, color = PrimaryText, fontWeight = FontWeight.Bold)
                             Text("$label · ${record.value.toDisplayWeight(units)} $suffix", color = SecondaryText)
-                            Text(record.date, color = SecondaryText)
+                            Text(com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(record.date), color = SecondaryText)
                         }
                     }
                 }
@@ -54,3 +69,4 @@ fun PersonalRecordsScreen(progressViewModel: ProgressViewModel, onBack: () -> Un
         }
     }
 }
+

@@ -1,108 +1,130 @@
 package com.apexfit.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.apexfit.app.data.Exercise
+import com.apexfit.app.data.PersonalRecord
+import com.apexfit.app.data.PlanExercise
 import com.apexfit.app.ui.components.ExerciseMediaPanel
-import com.apexfit.app.ui.theme.*
+import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.FormGuideContent
+import com.apexfit.app.utils.toDisplayWeight
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun FormGuideSheet(
     exercise: Exercise,
     content: FormGuideContent,
-    onDismiss: () -> Unit
+    preferredUnits: String = "kg",
+    onDismiss: () -> Unit,
+    onSelectAlternative: ((Exercise) -> Unit)? = null
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.9f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onDismiss() },
-        contentAlignment = Alignment.Center
+    BackHandler(onBack = onDismiss)
+    FormGuideScreenContent(
+        exercise = exercise,
+        content = content,
+        preferredUnits = preferredUnits,
+        onBack = onDismiss,
+        onSelectAlternative = onSelectAlternative,
+        mediaContent = { ExerciseMediaPanel(exerciseId = exercise.id) }
+    )
+}
+
+@Composable
+internal fun FormGuideScreenContent(
+    exercise: Exercise,
+    content: FormGuideContent,
+    preferredUnits: String,
+    onBack: () -> Unit,
+    onSelectAlternative: ((Exercise) -> Unit)? = null,
+    mediaContent: @Composable () -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().background(ApexColors.Canvas).safeDrawingPadding()
+            .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .fillMaxHeight(0.9f)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { },
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkCardSurface)
-        ) {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = exercise.name,
-                            fontFamily = SyneFamily,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = PrimaryText
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "${exercise.primaryMuscle} · ${exercise.equipmentRequired}",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = SecondaryText
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = SecondaryText)
+        TextButton(onClick = onBack) { Text("Back") }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(exercise.name, color = ApexColors.TextPrimary, style = MaterialTheme.typography.headlineMedium)
+            Text("${exercise.primaryMuscle} · ${exercise.equipmentRequired}",
+                color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+        }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        content.prescription?.let { prescription ->
+            FormGuidePrescription(prescription, preferredUnits)
+            HorizontalDivider(color = ApexColors.BorderSubtle)
+        }
+        Text("Form reference", color = ApexColors.TextPrimary, style = MaterialTheme.typography.titleLarge)
+        if (content.instructions.isNotEmpty()) {
+            content.instructions.forEachIndexed { index, instruction ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("${index + 1}.", color = ApexColors.Primary, style = MaterialTheme.typography.bodyMedium)
+                    Text(instruction, color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        } else {
+            Text("Written instructions aren’t available for this exercise.", color = ApexColors.TextSecondary)
+            content.sourceNote?.let { FormGuideSection("Notes", it) }
+        }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        FormGuideSection("Muscles", content.muscleNote)
+        mediaContent()
+        val maxWeightRecord = content.personalRecords
+            .filter { it.type == "max_weight" }
+            .maxByOrNull { it.value }
+        if (maxWeightRecord != null || content.recentHistory.isNotEmpty()) {
+            HorizontalDivider(color = ApexColors.BorderSubtle)
+            Text("Recent performance", color = ApexColors.TextPrimary,
+                style = MaterialTheme.typography.titleLarge)
+            maxWeightRecord?.let { FormGuidePersonalRecord(it, preferredUnits) }
+            content.recentHistory.groupBy { it.sessionId }.values.take(3).forEach { sessionSets ->
+                FormGuideHistoryEntry(sessionSets, preferredUnits)
+            }
+        }
+        if (content.alternativeExercises.isNotEmpty()) {
+            HorizontalDivider(color = ApexColors.BorderSubtle)
+            Text("Alternatives", color = ApexColors.TextPrimary,
+                style = MaterialTheme.typography.titleLarge)
+            Text("Other exercises that train ${exercise.primaryMuscle}; equipment is shown for comparison.",
+                color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            content.alternativeExercises.forEachIndexed { index, alternative ->
+                Column(
+                    Modifier.fillMaxWidth()
+                        .then(if (onSelectAlternative != null) Modifier.heightIn(min = 48.dp)
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = "Replace with ${alternative.name}",
+                                onClick = { onSelectAlternative(alternative) }
+                            ) else Modifier)
+                        .padding(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(alternative.name, color = ApexColors.TextPrimary,
+                        style = MaterialTheme.typography.titleMedium)
+                    Text("${alternative.primaryMuscle} · ${alternative.equipmentRequired}",
+                        color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    if (onSelectAlternative != null) {
+                        Text("Replace", color = ApexColors.Primary,
+                            style = MaterialTheme.typography.labelMedium)
                     }
                 }
-
-                ExerciseMediaPanel(exerciseId = exercise.id)
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (content.instructions.isNotEmpty()) {
-                        FormGuideInstructions(content.instructions)
-                    } else {
-                        FormGuideSection("SETUP", content.setup)
-                        FormGuideSection("EXECUTION", content.execution)
-                    }
-                    FormGuideSection("COMMON MISTAKES", content.commonMistake)
-                    FormGuideSection("MUSCLES", content.muscleNote)
+                if (index != content.alternativeExercises.lastIndex) {
+                    HorizontalDivider(color = ApexColors.BorderSubtle)
                 }
             }
         }
+        Spacer(Modifier.height(20.dp))
     }
 }
 
@@ -110,71 +132,76 @@ fun FormGuideSheet(
 fun FormGuideOverlay(
     exercise: Exercise,
     content: FormGuideContent,
-    onDismiss: () -> Unit
+    preferredUnits: String = "kg",
+    onDismiss: () -> Unit,
+    onSelectAlternative: ((Exercise) -> Unit)? = null
 ) {
-    FormGuideSheet(
-        exercise = exercise,
-        content = content,
-        onDismiss = onDismiss
-    )
+    FormGuideSheet(exercise, content, preferredUnits, onDismiss, onSelectAlternative)
 }
 
 @Composable
-private fun FormGuideInstructions(instructions: List<String>) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(
-            text = "INSTRUCTIONS",
-            fontFamily = SyneFamily,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = AmberAccent
-        )
-        instructions.forEachIndexed { index, step ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    text = "${index + 1}.",
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = ApexColors.Primary
-                )
-                Text(
-                    text = step,
-                    fontFamily = InterFamily,
-                    fontSize = 13.sp,
-                    color = SecondaryText,
-                    lineHeight = 19.sp,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+private fun FormGuidePrescription(prescription: PlanExercise, preferredUnits: String) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Program prescription", color = ApexColors.TextPrimary,
+            style = MaterialTheme.typography.titleLarge)
+        val repTarget = if (prescription.repsMin == prescription.repsMax) {
+            "${prescription.repsMin} reps"
+        } else {
+            "${prescription.repsMin}–${prescription.repsMax} reps"
+        }
+        Text("${prescription.sets} sets · $repTarget · ${prescription.restSeconds}s rest",
+            color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+        val loadDescription = if (prescription.weight > 0.0) {
+            "Planned load · ${formatGuideWeight(prescription.weight, preferredUnits)} $preferredUnits"
+        } else {
+            "Load · Calibrate a comfortable starting weight on first exposure"
+        }
+        Text(loadDescription, color = ApexColors.TextSecondary,
+            style = MaterialTheme.typography.bodyMedium)
+        if (prescription.sets > 0 && prescription.repsMax > 0) {
+            Text("Progression target · Reach ${prescription.repsMax} reps on all ${prescription.sets} sets at RPE 8 or lower.",
+                color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+        }
+        prescription.notes.trim().takeIf { it.isNotEmpty() }?.let {
+            FormGuideSection("Plan note", it)
         }
     }
 }
 
 @Composable
+private fun FormGuidePersonalRecord(record: PersonalRecord, preferredUnits: String) {
+    val date = formatGuideDate(record.date)
+    Text("Personal record · ${formatGuideWeight(record.value, preferredUnits)} $preferredUnits${date?.let { " · $it" }.orEmpty()}",
+        color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+}
+
+@Composable
+private fun FormGuideHistoryEntry(
+    sets: List<com.apexfit.app.data.LastSetWithDate>,
+    preferredUnits: String
+) {
+    val first = sets.firstOrNull() ?: return
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(formatGuideDate(first.date) ?: first.date,
+            color = ApexColors.TextPrimary, style = MaterialTheme.typography.bodyMedium)
+        sets.joinToString(" · ") { set ->
+            val weight = "${formatGuideWeight(set.weight, preferredUnits)} $preferredUnits × ${set.reps}"
+            if (set.rpe in 1..10) "$weight · RPE ${set.rpe}" else "$weight · RPE not rated"
+        }.let { Text(it, color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+private fun formatGuideWeight(weightKg: Double, preferredUnits: String): String =
+    String.format(Locale.getDefault(), "%.1f", weightKg.toDisplayWeight(preferredUnits))
+
+private fun formatGuideDate(date: String): String? = runCatching {
+    LocalDate.parse(date).format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+}.getOrNull()
+
+@Composable
 fun FormGuideSection(title: String, text: String) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = title,
-            fontFamily = SyneFamily,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = AmberAccent
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = text,
-            fontFamily = InterFamily,
-            fontSize = 13.sp,
-            color = SecondaryText,
-            lineHeight = 19.sp
-        )
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, color = ApexColors.TextPrimary, style = MaterialTheme.typography.titleMedium)
+        Text(text, color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
     }
 }

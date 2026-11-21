@@ -21,19 +21,23 @@ class OnboardingFlowTest {
         var submitted: OnboardingProfile? = null
         compose.setContent { OnboardingScreen(onComplete = { submitted = it }) }
         compose.onNodeWithTag("onboarding_welcome_next").performScrollTo().performClick()
-        compose.onNodeWithText("Losing").assertExists()
-        compose.onNodeWithText("Recomp").assertExists()
-        compose.onNodeWithText("Gaining").assertExists()
-        compose.onNodeWithText("Losing").performScrollTo().performClick()
-        compose.onNodeWithText("Meet yourself where you are.").assertIsDisplayed()
+        compose.onNodeWithText("Lose fat").assertExists()
+        compose.onNodeWithText("Recomposition").assertExists()
+        compose.onNodeWithText("Build muscle").assertExists()
+        compose.onNodeWithText("Maintain").assertExists()
+        compose.onNodeWithTag("onboarding_continue").assertIsNotEnabled()
+        compose.onNodeWithText("Lose fat").performScrollTo().performClick()
+        compose.onNodeWithTag("onboarding_continue").performClick()
+        compose.onNodeWithText("Personal details").assertIsDisplayed()
+        fillProfileDetails()
         compose.onNodeWithTag("onboarding_continue").assertIsNotEnabled()
         compose.onNodeWithText("Training regularly").performScrollTo().performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
         compose.onNodeWithTag("onboarding_frequency_2").performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
-        fillProfileDetails()
-        compose.onNodeWithText("Your profile, ready to go.").assertIsDisplayed()
-        compose.onNodeWithText("2 training days per week").assertExists()
+        compose.onNodeWithText("Your plan is ready").assertIsDisplayed()
+        compose.onNodeWithText("Full body · 2 days").assertExists()
+        compose.onNodeWithText("Starting targets").assertExists()
         compose.runOnIdle { assertNull(submitted) }
         compose.onNodeWithTag("onboarding_complete_button").performClick()
         compose.runOnIdle {
@@ -47,19 +51,40 @@ class OnboardingFlowTest {
     fun backAndReviewChangesKeepAnswers() {
         compose.setContent { OnboardingScreen(onComplete = {}) }
         compose.onNodeWithTag("onboarding_welcome_next").performScrollTo().performClick()
-        compose.onNodeWithText("Recomp").performScrollTo().performClick()
+        compose.onNodeWithText("Recomposition").performScrollTo().performClick()
+        compose.onNodeWithTag("onboarding_continue").performClick()
+        fillProfileDetails()
         compose.onNodeWithText("Finding my rhythm").performScrollTo().performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
         compose.onNodeWithTag("onboarding_frequency_5").performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
-        fillProfileDetails()
-        compose.onNodeWithTag("onboarding_change_Activity").performScrollTo().performClick()
+        compose.onNodeWithTag("onboarding_back").performClick()
         compose.onNodeWithTag("onboarding_frequency_4").performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
+        compose.onNodeWithText("Upper / Lower · 4 days").assertExists()
+        compose.onNodeWithText("Recomposition").assertExists()
+    }
+
+    @Test
+    fun personalDetailsRequireAdultAge() {
+        compose.setContent { OnboardingScreen(onComplete = {}) }
+        compose.onNodeWithTag("onboarding_welcome_next").performScrollTo().performClick()
+        compose.onNodeWithText("Build muscle").performScrollTo().performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
-        compose.onNodeWithText("4 training days per week").assertExists()
-        compose.onNodeWithText("Finding my rhythm").assertExists()
-        compose.onNodeWithText("Recomp").assertExists()
+
+        compose.onNodeWithTag("onboarding_name").performScrollTo().performTextInput("Alex")
+        compose.onNodeWithTag("onboarding_height").performScrollTo().performTextInput("175")
+        compose.onNodeWithTag("onboarding_weight").performScrollTo().performTextInput("70")
+        compose.onNodeWithTag("onboarding_age").performScrollTo().performTextInput("17")
+        compose.onNodeWithText("Male").performScrollTo().performClick()
+        compose.onNodeWithTag("onboarding_continue").performClick()
+        compose.onNodeWithText("Apex Fit is currently for adults aged 18 to 100.").assertExists()
+        compose.onNodeWithText("Personal details").assertExists()
+
+        compose.onNodeWithTag("onboarding_age").performScrollTo().performTextClearance()
+        compose.onNodeWithTag("onboarding_age").performTextInput("18")
+        compose.onNodeWithTag("onboarding_continue").performClick()
+        compose.onNodeWithText("What’s your training experience?").assertExists()
     }
 
     private fun fillProfileDetails() {

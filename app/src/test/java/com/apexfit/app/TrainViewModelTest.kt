@@ -136,6 +136,54 @@ class TrainViewModelTest {
     }
 
     @Test
+    fun rirConfirmationLogsSelectedEffortAndStartsRestWithSetContext() = runTest(testDispatcher) {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val dao = testDb!!.fitnessDao()
+        val store = DataStoreManager.getInstance(application)
+        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(testDb!!, dao, store)
+        val manager = WorkoutSessionManager(repository, store, testScope!!, dao, application)
+        val viewModel = WorkoutExecutionViewModel(application, repository, store, dao, manager)
+        val exercise = PlanExercise(
+            planSessionId = 1,
+            exerciseId = "bench",
+            name = "Bench Press",
+            muscleGroup = "Chest",
+            sets = 2,
+            repsMin = 8,
+            repsMax = 12,
+            weight = 60.0,
+            restSeconds = 90,
+            notes = ""
+        )
+        manager.startSession(
+            PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Upper"),
+            listOf(exercise), 70.0, 175.0, "kg"
+        )
+
+        viewModel.openRirSelector("bench", "Bench Press", "Chest", 0, 60.0, 10, 2)
+        viewModel.selectRirOption(3)
+        var callback: List<Any>? = null
+        viewModel.confirmRirAndNextSet { rpe, name, muscle, weight, reps, setIndex, totalSets ->
+            callback = listOf(rpe, name, muscle, weight, reps, setIndex, totalSets)
+        }
+
+        val loggedSet = manager.activeSession.value!!.exercises.single().sets.first()
+        assertTrue("RIR confirmation should complete the set", loggedSet.completed)
+        assertEquals(3, loggedSet.repsInReserve)
+        assertEquals(7, loggedSet.rpe)
+        assertEquals(listOf(7, "Bench Press", "Chest", 60.0, 10, 0, 2), callback)
+        assertTrue("The combined RIR/rest screen stays visible while resting", viewModel.rirOverlayState.value.isVisible)
+        assertTrue(viewModel.rirOverlayState.value.hasLoggedSet)
+        viewModel.selectRirOption(1)
+        val adjustedSet = manager.activeSession.value!!.exercises.single().sets.first()
+        assertEquals(1, adjustedSet.repsInReserve)
+        assertEquals(9, adjustedSet.rpe)
+        viewModel.closeRirSelector()
+        manager.discardAndExit()
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
+    }
+
+    @Test
     fun activatePlan_updatesActiveStatus() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val dao = testDb!!.fitnessDao()

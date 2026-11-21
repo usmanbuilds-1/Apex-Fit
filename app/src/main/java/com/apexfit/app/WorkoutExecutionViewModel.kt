@@ -1,6 +1,8 @@
 @file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 package com.apexfit.app
 
+import com.apexfit.app.utils.fromDisplayWeightToKg
+
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -66,8 +68,8 @@ class WorkoutExecutionViewModel @Inject constructor(
                 name = entry.exerciseName,
                 muscleGroup = entry.muscleGroup,
                 sets = entry.sets.size,
-                repsMin = entry.sets.firstOrNull()?.reps ?: 6,
-                repsMax = entry.sets.firstOrNull()?.reps ?: 12,
+                repsMin = entry.targetRepsMin ?: entry.sets.firstOrNull()?.reps ?: 6,
+                repsMax = entry.targetRepsMax ?: entry.sets.firstOrNull()?.reps ?: 12,
                 weight = entry.sets.firstOrNull()?.weight ?: 0.0,
                 restSeconds = 90,
                 notes = ""
@@ -153,13 +155,9 @@ class WorkoutExecutionViewModel @Inject constructor(
     private val _showSessionCompleteScreen = MutableStateFlow(false)
     val showSessionCompleteScreen: StateFlow<Boolean> = _showSessionCompleteScreen.asStateFlow()
 
-    private val _completedStats = MutableStateFlow<Pair<Int, Double>>(0 to 0.0) // Pair of (DurationMinutes, TotalVolumeWeight)
-    val completedStats: StateFlow<Pair<Int, Double>> = _completedStats.asStateFlow()
+    private val _completedReceipt = MutableStateFlow<SessionCommitResult?>(null)
+    val completedReceipt: StateFlow<SessionCommitResult?> = _completedReceipt.asStateFlow()
 
-    private val _completedPRsBroken = MutableStateFlow<List<String>>(emptyList())
-    val completedPRsBroken: StateFlow<List<String>> = _completedPRsBroken.asStateFlow()
-
-    // RIR Selector Overlay State
     data class RirOverlayState(
         val isVisible: Boolean = false,
         val exerciseId: String = "",
@@ -170,6 +168,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         val reps: Int = 0,
         val totalSets: Int = 0,
         val selectedRir: Int = 2,
+        val hasLoggedSet: Boolean = false,
         val isShowingHistory: Boolean = false,
         val historicalSets: List<com.apexfit.app.data.LastSetWithDate> = emptyList()
     )
@@ -309,6 +308,7 @@ class WorkoutExecutionViewModel @Inject constructor(
             reps = reps,
             totalSets = totalSets,
             selectedRir = 2,
+            hasLoggedSet = false,
             isShowingHistory = false,
             historicalSets = emptyList(),
             isVisible = true
@@ -316,7 +316,24 @@ class WorkoutExecutionViewModel @Inject constructor(
     }
 
     fun selectRirOption(rir: Int) {
-        _rirOverlayState.value = _rirOverlayState.value.copy(selectedRir = rir)
+        val current = _rirOverlayState.value
+        val next = current.copy(selectedRir = rir.coerceIn(0, 5))
+        _rirOverlayState.value = next
+        if (current.hasLoggedSet) {
+            val recordedRestSeconds = sessionManager.activeSession.value?.exercises
+                ?.firstOrNull { it.exerciseId == current.exerciseId }
+                ?.sets?.getOrNull(current.setIndex)?.restTakenSeconds ?: 0
+            logWorkoutSetState(
+                exerciseId = current.exerciseId,
+                setIndex = current.setIndex,
+                weight = current.weight,
+                reps = current.reps,
+                rpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(next.selectedRir),
+                restTakenSeconds = recordedRestSeconds,
+                completed = true,
+                repsInReserve = next.selectedRir
+            )
+        }
     }
 
     fun confirmRirSelection() {
@@ -332,8 +349,12 @@ class WorkoutExecutionViewModel @Inject constructor(
         }
     }
 
+    fun returnToRirSelection() {
+        _rirOverlayState.value = _rirOverlayState.value.copy(isShowingHistory = false)
+    }
+
     fun confirmRirAndNextSet(
-        onTriggerRestTimer: ((rpe: Int, exerciseName: String, muscleGroup: String, reps: Int, setIndex: Int, totalSets: Int) -> Unit)? = null
+        onTriggerRestTimer: ((rpe: Int, exerciseName: String, muscleGroup: String, weight: Double, reps: Int, setIndex: Int, totalSets: Int) -> Unit)? = null
     ) {
         val s = _rirOverlayState.value
         val exId = s.exerciseId
@@ -357,13 +378,13 @@ class WorkoutExecutionViewModel @Inject constructor(
             repsInReserve = repsInReserve
         )
 
-        _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
+        _rirOverlayState.value = _rirOverlayState.value.copy(hasLoggedSet = true)
         val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
         val currentIndex = exercises.indexOfFirst { it.exerciseId == exId }
         val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed } == true
         val lastExerciseDone = exerciseDone && currentIndex == exercises.lastIndex
         if (!lastExerciseDone) {
-            onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, r, sIdx, totalSets)
+            onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, w, r, sIdx, totalSets)
         }
         if (exerciseDone && currentIndex >= 0 && currentIndex < exercises.lastIndex) {
             _currentExerciseIdx.value = currentIndex + 1
@@ -411,7 +432,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                                 exerciseId = ex.exerciseId,
                                 exerciseName = ex.exerciseName,
                                 muscleGroup = ex.muscleGroup,
-                                weight = setObj.weight,
+                                weight = setObj.weight.fromDisplayWeightToKg(setObj.weightUnit),
                                 reps = setObj.reps,
                                 rpe = setObj.rpe,
                                 isWarmup = setObj.isWarmup,
@@ -429,12 +450,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                 _lastCompletedSessionSets.value = completedSets
                 val result = sessionManager.commitToDatabase(sessionFeel)
                 sessionManager.clearPersistedSession()
-                _completedStats.value = result.durationMinutes to (result.totalVolumeTonnes * 1000.0)
-
-                _completedPRsBroken.value = result.confirmedPRs.map { exerciseId ->
-                    val exerciseName = session?.exercises?.find { it.exerciseId == exerciseId }?.exerciseName ?: "Exercise"
-                    "$exerciseName PR Conquered!"
-                }
+                _completedReceipt.value = result
 
                 val score = withContext(Dispatchers.Default) {
                     calculateWorkoutSessionHypertrophyQualityScore(completedSets)
@@ -509,7 +525,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                                 exerciseId = ex.exerciseId,
                                 exerciseName = ex.exerciseName,
                                 muscleGroup = ex.muscleGroup,
-                                weight = setObj.weight,
+                                weight = setObj.weight.fromDisplayWeightToKg(setObj.weightUnit),
                                 reps = setObj.reps,
                                 rpe = setObj.rpe,
                                 isWarmup = setObj.isWarmup,
@@ -527,12 +543,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                 _lastCompletedSessionSets.value = completedSets
                 val result = sessionManager.savePartialAndExit(sessionFeel)
                 sessionManager.clearPersistedSession()
-                _completedStats.value = result.durationMinutes to (result.totalVolumeTonnes * 1000.0)
-                
-                _completedPRsBroken.value = result.confirmedPRs.map { exerciseId ->
-                    val exerciseName = session?.exercises?.find { it.exerciseId == exerciseId }?.exerciseName ?: "Exercise"
-                    "$exerciseName PR Conquered!"
-                }
+                _completedReceipt.value = result
 
                 val score = withContext(Dispatchers.Default) {
                     calculateWorkoutSessionHypertrophyQualityScore(completedSets)

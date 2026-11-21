@@ -107,7 +107,8 @@ class OnboardingStateTest {
     @Test
     fun invalidSetupDoesNotSavePartialProfile() = runBlocking {
         for (invalid in listOf(OnboardingProfile(name = ""), OnboardingProfile(heightCm = Double.NaN),
-            OnboardingProfile(weightKg = -1.0), OnboardingProfile(age = 0), OnboardingProfile(sex = ""))) {
+            OnboardingProfile(weightKg = -1.0), OnboardingProfile(age = 17), OnboardingProfile(age = 0),
+            OnboardingProfile(sex = ""))) {
             try {
                 preferences.saveTrainingSetup(invalid)
                 org.junit.Assert.fail("Invalid personal details must be rejected")
@@ -116,6 +117,15 @@ class OnboardingStateTest {
                 assertFalse(preferences.hasBodyDetailsFlow.first())
             }
         }
+    }
+
+    @Test
+    fun adultAgeBoundaryAcceptsEighteenAndRejectsSeventeen() {
+        val validAdult = OnboardingProfile(age = 18)
+        val underage = OnboardingProfile(age = 17)
+
+        assertEquals(null, validAdult.validationError())
+        assertEquals("Apex Fit is currently for adults aged 18 to 100.", underage.validationError())
     }
 
 }

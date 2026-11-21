@@ -347,7 +347,11 @@ data class ActiveExercise(
     val exerciseName: String,
     val muscleGroup: String,
     val sets: MutableList<ActiveSet>,
-    val restSeconds: Int? = null
+    val restSeconds: Int? = null,
+    val targetRepsMin: Int? = null,
+    val targetRepsMax: Int? = null,
+    val loadContext: String? = null,
+    val volumeAdjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null
 )
 
 @Keep

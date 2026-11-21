@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
@@ -7,9 +9,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,10 +19,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -32,19 +31,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexfit.app.R
 import com.apexfit.app.data.OnboardingProfile
+import com.apexfit.app.data.NutritionTargets
+import com.apexfit.app.data.Exercise
+import com.apexfit.app.ui.theme.ApexColors
+import com.apexfit.app.ui.theme.ArchivoFamily
+import com.apexfit.app.utils.MacroEngine
+import com.apexfit.app.utils.AppConstants
+import com.apexfit.app.utils.StarterPlanBuilder
+import com.apexfit.app.utils.TdeeEngine
 
-private val SetupGround = Color(0xFF101617)
-private val SetupSurface = Color(0xFF1B2223)
-private val SetupRaised = Color(0xFF283031)
-private val SetupText = Color(0xFFF3F5F3)
-private val SetupMuted = Color(0xFFADB7B8)
-private val SetupMint = Color(0xFF47E1C2)
-private val SetupFont = FontFamily(Font(R.font.onboarding_jakarta))
+private val SetupGround get() = ApexColors.Canvas
+private val SetupSurface get() = ApexColors.Surface
+private val SetupRaised get() = ApexColors.SurfaceRaised
+private val SetupText get() = ApexColors.TextPrimary
+private val SetupMuted get() = ApexColors.TextSecondary
+private val SetupAccent get() = ApexColors.Primary
+private val SetupFont = ArchivoFamily
 private data class SetupChoice(val value: String, val title: String, val description: String)
 private val SetupGoals = listOf(
-    SetupChoice("Lose Fat", "Losing", "Reduce body weight."),
-    SetupChoice("Recomposition", "Recomp", "Work on body composition."),
-    SetupChoice("Gain Muscle", "Gaining", "Increase body weight.")
+    SetupChoice("Gain Muscle", "Build muscle", "Gain size and strength"),
+    SetupChoice("Lose Fat", "Lose fat", "Reduce body fat while keeping muscle"),
+    SetupChoice("Recomposition", "Recomposition", "Build muscle while leaning out"),
+    SetupChoice("Maintain", "Maintain", "Stay where you are")
 )
 private val SetupExperience = listOf(
     SetupChoice("Beginner", "New to training", "I am learning the movements."),
@@ -58,94 +66,87 @@ fun OnboardingScreen(
     isSaving: Boolean = false,
     saveError: String? = null,
     onExplore: () -> Unit = {},
-    onComplete: (OnboardingProfile) -> Unit
+    onComplete: (OnboardingProfile) -> Unit,
+    exerciseCatalog: List<Exercise> = emptyList()
+) {
+    OnboardingContent(preferredUnits, isSaving, saveError, onExplore, onComplete,
+        exerciseCatalog = exerciseCatalog)
+}
+
+@Composable
+internal fun OnboardingContent(
+    preferredUnits: String,
+    isSaving: Boolean,
+    saveError: String?,
+    onExplore: () -> Unit,
+    onComplete: (OnboardingProfile) -> Unit,
+    initialStep: Int = 0,
+    initialProfile: OnboardingProfile? = null,
+    exerciseCatalog: List<Exercise> = emptyList(),
+    initialExpandedSession: Int = -1
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
-    var step by rememberSaveable { mutableIntStateOf(0) }
-    var goal by rememberSaveable { mutableStateOf<String?>(null) }
-    var experience by rememberSaveable { mutableStateOf<String?>(null) }
-    var days by rememberSaveable { mutableIntStateOf(3) }
-    var name by rememberSaveable { mutableStateOf("") }
-    var height by rememberSaveable { mutableStateOf("") }
-    var weight by rememberSaveable { mutableStateOf("") }
-    var age by rememberSaveable { mutableStateOf("") }
-    var sex by rememberSaveable { mutableStateOf("") }
-    var imperial by rememberSaveable { mutableStateOf(preferredUnits in listOf("lb", "lbs")) }
+    var step by rememberSaveable { mutableIntStateOf(initialStep) }
+    var goal by rememberSaveable { mutableStateOf(initialProfile?.goal) }
+    var experience by rememberSaveable { mutableStateOf(initialProfile?.experience) }
+    var days by rememberSaveable { mutableIntStateOf(initialProfile?.daysPerWeek ?: 3) }
+    var name by rememberSaveable { mutableStateOf(initialProfile?.name.orEmpty()) }
+    val initialImperial = preferredUnits in listOf("lb", "lbs")
+    var height by rememberSaveable {
+        mutableStateOf(initialProfile?.heightCm?.let { if (initialImperial) it / 2.54 else it }?.toString().orEmpty())
+    }
+    var weight by rememberSaveable {
+        mutableStateOf(initialProfile?.weightKg?.let { if (initialImperial) it * 2.20462 else it }?.toString().orEmpty())
+    }
+    var age by rememberSaveable { mutableStateOf(initialProfile?.age?.toString().orEmpty()) }
+    var sex by rememberSaveable { mutableStateOf(initialProfile?.sex.orEmpty()) }
+    var imperial by rememberSaveable { mutableStateOf(initialImperial) }
     var showDetailsErrors by rememberSaveable { mutableStateOf(false) }
     val heightCm = height.replace(',', '.').toDoubleOrNull()?.let { if (imperial) kotlin.math.round(it * 2.54 * 1000) / 1000 else it }
     val weightKg = weight.replace(',', '.').toDoubleOrNull()?.let { if (imperial) kotlin.math.round(it / 2.20462 * 1000) / 1000 else it }
     val nameError = if (name.trim().isEmpty() || name.trim().length > 50) "Enter a name of 1–50 characters." else null
     val heightError = if (heightCm == null || !heightCm.isFinite() || heightCm !in 100.0..250.0) "Enter a height from ${if (imperial) "39.4 to 98.4 in" else "100 to 250 cm"}." else null
     val weightError = if (weightKg == null || !weightKg.isFinite() || weightKg !in 20.0..300.0) "Enter a weight from ${if (imperial) "44.1 to 661.4 lb" else "20 to 300 kg"}." else null
-    val ageError = if (age.toIntOrNull() !in 13..100) "Enter an age from 13 to 100." else null
+    val ageError = if (age.toIntOrNull() !in AppConstants.MIN_AGE..AppConstants.MAX_AGE) {
+        "Apex Fit is currently for adults aged 18 to 100."
+    } else null
     val detailsValid = nameError == null && heightError == null && weightError == null && ageError == null && sex.isNotEmpty()
+    val profile = if (detailsValid && goal != null && experience != null) OnboardingProfile(
+        name = name.trim(), goal = goal!!, experience = experience!!,
+        heightCm = heightCm!!, weightKg = weightKg!!,
+        age = age.toInt(), sex = sex, daysPerWeek = days, units = if (imperial) "lb" else "kg"
+    ) else null
     BackHandler(step > 0 || isSaving) { if (!isSaving) step-- }
     if (step == 0) {
         SetupWelcome(isSaving, saveError, { step = 1 }, onExplore)
         return
     }
-    BoxWithConstraints(Modifier.fillMaxSize().background(SetupGround)) {
-        val wide = maxWidth >= 700.dp
-        Row(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
-            if (wide) {
-                val photo = when (step) {
-                    2 -> R.drawable.setup_training
-                    3 -> R.drawable.setup_recovery
-                    else -> R.drawable.setup_portrait
-                }
-                Box(Modifier.weight(1f).fillMaxHeight().padding(28.dp)) {
-                    Image(painterResource(photo), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                    SetupBrand(Modifier.padding(24.dp))
-                }
-            }
+    Box(Modifier.fillMaxSize().background(SetupGround), contentAlignment = Alignment.TopCenter) {
+        Row(Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(bottom = 88.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(top = 12.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { step-- }, enabled = !isSaving, modifier = Modifier.testTag("onboarding_back")) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = SetupText)
+                            Icon(painterResource(ApexIcons.ArrowLeft), "Back", tint = SetupText)
                         }
                         SetupBrand(Modifier.weight(1f))
-                        Text("Your profile", color = SetupMuted, fontSize = 12.sp, fontFamily = SetupFont)
+                        Text("Step $step / 5", color = SetupMuted, fontSize = 12.sp, fontFamily = SetupFont)
                     }
-                    LinearProgressIndicator(progress = { (step - 1) / 5f }, modifier = Modifier.fillMaxWidth().height(4.dp)
+                    LinearProgressIndicator(progress = { step / 5f }, modifier = Modifier.fillMaxWidth().height(4.dp)
                         .padding(top = 0.dp).semantics { contentDescription = "${step - 1} of 5 setup stages complete" },
-                        color = SetupMint, trackColor = SetupRaised)
+                        color = SetupAccent, trackColor = SetupRaised)
                 }
                 key(step) {
-                    Column(Modifier.weight(1f).widthIn(max = 520.dp).fillMaxWidth()
-                        .verticalScroll(rememberScrollState()).padding(top = 30.dp, bottom = 16.dp)) {
+                    Box(Modifier.weight(1f).widthIn(max = 520.dp).fillMaxWidth()) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                            .padding(top = 30.dp, bottom = 16.dp)) {
                         when (step) {
                             1 -> {
-                                SetupHeading("What are you working toward?", "Pick the goal that matters most right now. You can change it later.")
-                                SetupGoals.forEach { choice -> SetupOption(choice, goal == choice.value, !isSaving) { goal = choice.value; step = 2 } }
-                                SetupBody("Select a goal to continue.", Modifier.padding(top = 20.dp))
+                                SetupHeading("What do you want to work toward?", "We’ll build your training and nutrition around this.")
+                                SetupGoals.forEach { choice -> SetupOption(choice, goal == choice.value, !isSaving) { goal = choice.value } }
                             }
                             2 -> {
-                                SetupHeading("Meet yourself where you are.", "Keep your training experience in your profile. This does not generate a workout plan.")
-                                SetupExperience.forEach { choice -> SetupOption(choice, experience == choice.value, !isSaving) { experience = choice.value } }
-                                SetupBody("No catching up. Just a place to begin.", Modifier.padding(top = 20.dp))
-                            }
-                            3 -> {
-                                SetupHeading("How often do you train?", "This helps describe your activity for your profile and energy needs.")
-                                Text("Training days per week", color = SetupText, fontFamily = SetupFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                                Spacer(Modifier.height(12.dp))
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    (2..5).forEach { value ->
-                                        Surface(onClick = { days = value }, enabled = !isSaving,
-                                            color = if (days == value) SetupText else SetupSurface,
-                                            contentColor = if (days == value) SetupGround else SetupText,
-                                            shape = RoundedCornerShape(6.dp), modifier = Modifier.weight(1f)
-                                                .testTag("onboarding_frequency_$value")) {
-                                            Box(Modifier.heightIn(min = 52.dp).padding(4.dp), contentAlignment = Alignment.Center) {
-                                                Text("$value days", fontSize = 13.sp, fontFamily = SetupFont, fontWeight = FontWeight.SemiBold)
-                                            }
-                                        }
-                                    }
-                                }
-                                SetupBody("Your goal and activity are profile inputs. They do not create or recommend a training plan.", Modifier.padding(top = 24.dp))
-                            }
-                            4 -> {
-                                SetupHeading("A little about you.", "Add your details for your profile, progress tracking, and energy estimates.")
+                                SetupHeading("Personal details", "Add your details for your profile, progress tracking, and energy estimates.")
                                 SetupField("Name", name, "onboarding_name", !isSaving, error = if (showDetailsErrors) nameError else null) { name = it }
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     listOf(false to "Metric · cm, kg", true to "Imperial · in, lb").forEach { (value, label) ->
@@ -158,7 +159,7 @@ fun OnboardingScreen(
                                                 }
                                             }, label = { Text(label, fontFamily = SetupFont) },
                                             colors = FilterChipDefaults.filterChipColors(containerColor = SetupGround, labelColor = SetupMuted,
-                                                selectedContainerColor = SetupRaised, selectedLabelColor = SetupMint))
+                                                selectedContainerColor = SetupRaised, selectedLabelColor = SetupAccent))
                                     }
                                 }
                                 SetupField("Height (${if (imperial) "in" else "cm"})", height, "onboarding_height", !isSaving, KeyboardType.Decimal, if (showDetailsErrors) heightError else null) { height = it }
@@ -170,37 +171,79 @@ fun OnboardingScreen(
                                         FilterChip(selected = sex == value, onClick = { sex = value }, enabled = !isSaving,
                                             label = { Text(label, fontFamily = SetupFont) },
                                             colors = FilterChipDefaults.filterChipColors(containerColor = SetupGround, labelColor = SetupMuted,
-                                                selectedContainerColor = SetupRaised, selectedLabelColor = SetupMint))
+                                                selectedContainerColor = SetupRaised, selectedLabelColor = SetupAccent))
                                     }
                                 }
                                 if (showDetailsErrors && sex.isEmpty()) Text("Choose the sex used for estimates.", color = Color(0xFFFFB4AB), fontFamily = SetupFont)
                                 SetupBody("These details stay on this device. You can update them in Settings.", Modifier.padding(top = 16.dp))
                             }
-                            5 -> {
-                                SetupHeading("Your profile, ready to go.", "A starting point for tracking your nutrition and progress.")
-                                SetupReviewRow("Your details", "$name · $age years · ${if (sex == "male") "Male" else "Female"}\n$height ${if (imperial) "in" else "cm"} · $weight ${if (imperial) "lb" else "kg"}", !isSaving) { step = 4 }
-                                SetupReviewRow("Goal", SetupGoals.firstOrNull { it.value == goal }?.title ?: "Not selected", !isSaving) { step = 1 }
-                                SetupReviewRow("Experience", SetupExperience.firstOrNull { it.value == experience }?.title ?: "Not selected", !isSaving) { step = 2 }
-                                SetupReviewRow("Activity", "$days training days per week", !isSaving) { step = 3 }
-                                SetupBody("Your details are used for energy estimates. You stay in control of your training plan.", Modifier.padding(top = 20.dp))
+                            3 -> {
+                                SetupHeading("What’s your training experience?", "Your first week starts at a manageable workload.")
+                                SetupExperience.forEach { choice -> SetupOption(choice, experience == choice.value, !isSaving) { experience = choice.value } }
                             }
+                            4 -> {
+                                SetupHeading("How often do you train?", "Choose a number of days you can train most weeks.")
+                                Text("Training days per week", color = SetupText, fontFamily = SetupFont, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(12.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    (2..5).forEach { value ->
+                                        Surface(onClick = { days = value }, enabled = !isSaving,
+                                            color = if (days == value) ApexColors.PrimaryMist else SetupSurface,
+                                            contentColor = if (days == value) SetupAccent else SetupText,
+                                            shape = RoundedCornerShape(6.dp), modifier = Modifier.weight(1f)
+                                                .semantics { selected = days == value }
+                                                .testTag("onboarding_frequency_$value")) {
+                                            Box(Modifier.heightIn(min = 52.dp).padding(4.dp), contentAlignment = Alignment.Center) {
+                                                Text("$value days", fontSize = 13.sp, fontFamily = SetupFont, fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
+                                    }
+                                }
+                                val sessions = remember(days) { StarterPlanBuilder.templates(days) }
+                                Spacer(Modifier.height(24.dp))
+                                Text("$days days / week", style = MaterialTheme.typography.titleLarge)
+                                SetupBody(when (days) {
+                                    2, 3 -> "Full body"
+                                    4 -> "Upper / Lower"
+                                    else -> "Upper / Lower + Push / Pull / Legs"
+                                }, Modifier.padding(top = 4.dp, bottom = 16.dp))
+                                Text("First week", style = MaterialTheme.typography.titleMedium)
+                                sessions.forEach { session ->
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                    ) {
+                                        Text(session.day.take(3), color = SetupMuted, modifier = Modifier.width(36.dp))
+                                        Text(session.label, color = SetupText)
+                                    }
+                                    HorizontalDivider(color = ApexColors.BorderSubtle)
+                                }
+                            }
+                            5 -> profile?.let { SetupReady(it, exerciseCatalog, initialExpandedSession) }
                         }
                         if (saveError != null) Text(saveError, color = Color(0xFFFFB4AB), fontFamily = SetupFont,
                             modifier = Modifier.padding(top = 16.dp).testTag("onboarding_save_error"))
+                        }
                     }
                 }
-                if (step > 1) {
-                    SetupButton(if (step == 5) "Open APEX FIT" else if (step == 4) "Review my profile" else "Continue",
-                        !isSaving && (step != 2 || experience != null) && (step != 5 || goal != null && experience != null && detailsValid),
-                        isSaving, Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(bottom = 24.dp)
-                            .testTag(if (step == 5) "onboarding_complete_button" else "onboarding_continue")) {
-                        if (step == 4 && !detailsValid) showDetailsErrors = true
-                        else if (step == 5) onComplete(OnboardingProfile(name = name.trim(), goal = goal!!, experience = experience!!,
-                            heightCm = heightCm!!, weightKg = weightKg!!, age = age.toInt(), sex = sex,
-                            daysPerWeek = days, units = if (imperial) "lb" else "kg"))
-                        else { keyboard?.hide(); step++ }
-                    }
-                } else Spacer(Modifier.height(20.dp))
+            }
+        }
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .safeDrawingPadding().imePadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            SetupButton(
+                if (step == 5) "Go to Today" else "Continue",
+                !isSaving && (step != 1 || goal != null) && (step != 3 || experience != null) &&
+                    (step != 5 || profile != null),
+                isSaving, Modifier.widthIn(max = 520.dp).fillMaxWidth()
+                    .testTag(if (step == 5) "onboarding_complete_button" else "onboarding_continue")
+            ) {
+                if (step == 2 && !detailsValid) showDetailsErrors = true
+                else if (step == 5) profile?.let(onComplete)
+                else { keyboard?.hide(); step++ }
             }
         }
     }
@@ -218,8 +261,8 @@ private fun SetupField(
         supportingText = if (error != null) ({ Text(error, fontFamily = SetupFont) }) else null,
         shape = RoundedCornerShape(6.dp),
         colors = OutlinedTextFieldDefaults.colors(focusedTextColor = SetupText, unfocusedTextColor = SetupText,
-            focusedBorderColor = SetupMint, unfocusedBorderColor = SetupMuted.copy(alpha = .5f),
-            focusedLabelColor = SetupMint, unfocusedLabelColor = SetupMuted, cursorColor = SetupMint,
+            focusedBorderColor = SetupAccent, unfocusedBorderColor = SetupMuted.copy(alpha = .5f),
+            focusedLabelColor = SetupAccent, unfocusedLabelColor = SetupMuted, cursorColor = SetupAccent,
             focusedContainerColor = SetupSurface, unfocusedContainerColor = SetupSurface),
         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).testTag(tag))
 }
@@ -229,7 +272,7 @@ private fun SetupWelcome(saving: Boolean, error: String?, onNext: () -> Unit, on
     BoxWithConstraints(Modifier.fillMaxSize().background(SetupGround)) {
         val wide = maxWidth >= 700.dp
         val welcomePhotoSpace = maxHeight * .43f
-        Image(painterResource(R.drawable.setup_opening), null, contentScale = ContentScale.Crop,
+        Image(painterResource(R.drawable.welcome_barbell_deadlift_13106612), null, contentScale = ContentScale.Crop,
             alignment = Alignment.TopCenter, modifier = if (wide) Modifier.fillMaxHeight().fillMaxWidth(.52f) else Modifier.fillMaxSize())
         if (!wide) Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
             0f to Color.Transparent, .4f to Color.Transparent, .7f to SetupGround.copy(alpha = .8f), 1f to SetupGround)))
@@ -239,7 +282,7 @@ private fun SetupWelcome(saving: Boolean, error: String?, onNext: () -> Unit, on
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
                 .padding(horizontal = 26.dp, vertical = 24.dp), verticalArrangement = if (wide) Arrangement.Center else Arrangement.Bottom) {
                 if (!wide) Spacer(Modifier.heightIn(min = welcomePhotoSpace))
-                Text("Build a stronger,\nhealthier you", color = SetupText, fontFamily = SetupFont,
+                Text("Every rep. Every meal. Every PR.", color = SetupText, fontFamily = SetupFont,
                     fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold)
                 SetupBody("Track your training, nutrition, and progress in one place.", Modifier.padding(top = 16.dp, bottom = 24.dp))
                 SetupButton("Get started", !saving, false, Modifier.fillMaxWidth().testTag("onboarding_welcome_next"), onNext)
@@ -256,7 +299,7 @@ private fun SetupWelcome(saving: Boolean, error: String?, onNext: () -> Unit, on
 @Composable
 private fun SetupBrand(modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(painterResource(R.drawable.ic_apex_chevron), null, tint = SetupMint, modifier = Modifier.size(24.dp))
+        Icon(painterResource(R.drawable.ic_apex_chevron), null, tint = SetupAccent, modifier = Modifier.size(24.dp))
         Text("APEX FIT", color = SetupText, fontFamily = SetupFont, fontSize = 13.sp, letterSpacing = 2.sp, fontWeight = FontWeight.ExtraBold)
     }
 }
@@ -275,43 +318,121 @@ private fun SetupBody(value: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun SetupOption(choice: SetupChoice, selected: Boolean, enabled: Boolean, onSelect: () -> Unit) {
-    Surface(color = if (selected) SetupRaised else SetupGround, shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-        Row(Modifier.selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
-            .heightIn(min = 80.dp).padding(horizontal = 10.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            RadioButton(selected, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = SetupMint, unselectedColor = SetupMuted))
+    Column {
+        Row(
+            Modifier.fillMaxWidth().background(if (selected) ApexColors.PrimaryMist else SetupGround)
+                .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
+                .heightIn(min = 62.dp).padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(Modifier.weight(1f)) {
-                Text(choice.title, color = SetupText, fontFamily = SetupFont, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Text(choice.description, color = SetupMuted, fontFamily = SetupFont, fontSize = 13.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 3.dp))
+                Text(choice.title, color = if (selected) SetupAccent else SetupText, fontFamily = SetupFont,
+                    fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(choice.description, color = SetupMuted, fontFamily = SetupFont, fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 3.dp))
             }
+            if (selected) Text("✓", color = SetupAccent)
         }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
     }
 }
 
 @Composable
 private fun SetupButton(label: String, enabled: Boolean, saving: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Button(onClick, enabled = enabled, shape = CircleShape, modifier = modifier.heightIn(min = 54.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = SetupMint, contentColor = Color(0xFF06231E),
-            disabledContainerColor = SetupMint.copy(alpha = .35f), disabledContentColor = SetupText.copy(alpha = .5f))) {
+    Button(onClick, enabled = enabled, shape = RoundedCornerShape(8.dp), modifier = modifier.heightIn(min = 48.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = SetupAccent, contentColor = ApexColors.OnGlow,
+            disabledContainerColor = SetupAccent.copy(alpha = .35f), disabledContentColor = SetupText.copy(alpha = .5f))) {
         if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = SetupGround)
         else {
             Text(label, fontFamily = SetupFont, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.weight(1f))
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, modifier = Modifier.size(22.dp))
         }
     }
 }
 
 @Composable
-private fun SetupReviewRow(label: String, value: String, enabled: Boolean, onChange: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text(label, color = SetupText, fontFamily = SetupFont, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            Text(value, color = SetupMuted, fontFamily = SetupFont, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
-        }
-        TextButton(onChange, enabled = enabled, modifier = Modifier.testTag("onboarding_change_$label")) {
-            Text("Change", color = SetupText, fontFamily = SetupFont)
+internal fun SetupReady(
+    profile: OnboardingProfile,
+    exerciseCatalog: List<Exercise> = emptyList(),
+    initialExpandedSession: Int = -1
+) {
+    val sessions = remember(profile.daysPerWeek, profile.goal, profile.experience, exerciseCatalog) {
+        StarterPlanBuilder.preview(profile.daysPerWeek, profile.goal, profile.experience, exerciseCatalog)
+    }
+    var expandedSession by rememberSaveable(profile.daysPerWeek) { mutableIntStateOf(initialExpandedSession) }
+    val targets = remember(profile) { startingTargets(profile) }
+    val program = when (profile.daysPerWeek) {
+        2, 3 -> "Full body"
+        4 -> "Upper / Lower"
+        else -> "Upper / Lower + Push / Pull / Legs"
+    }
+    Text("Your plan is ready", style = MaterialTheme.typography.headlineLarge, color = SetupText)
+    Spacer(Modifier.height(14.dp))
+    Text("$program · ${profile.daysPerWeek} days", style = MaterialTheme.typography.headlineSmall, color = SetupText)
+    SetupBody(SetupGoals.firstOrNull { it.value == profile.goal }?.title ?: profile.goal)
+    Spacer(Modifier.height(20.dp))
+    Text("First week", style = MaterialTheme.typography.titleLarge, color = SetupText)
+    SetupBody("Planned sets and rep ranges · about 2–3 reps in reserve",
+        Modifier.padding(top = 6.dp, bottom = 4.dp))
+    if (sessions == null) {
+        SetupBody(
+            if (exerciseCatalog.isEmpty()) "Loading your exercise plan…"
+            else "The exercise plan preview is unavailable right now. You can still continue; the app will prepare the plan when you finish setup.",
+            Modifier.padding(vertical = 12.dp)
+        )
+    } else {
+        sessions.forEachIndexed { index, session ->
+            val expanded = expandedSession == index
+            Column(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = if (expanded) "Hide ${session.label} exercises" else "Show ${session.label} exercises",
+                            onClick = { expandedSession = if (expanded) -1 else index }
+                        ).padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(session.day.take(3), color = SetupMuted, modifier = Modifier.width(36.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(session.label, style = MaterialTheme.typography.titleMedium, color = SetupText)
+                        Text("${session.exercises.size} exercises · ${session.exercises.sumOf { it.prescription.sets }} working sets",
+                            style = MaterialTheme.typography.bodySmall, color = SetupMuted)
+                    }
+                    Text(if (expanded) "Hide" else "View", color = SetupAccent,
+                        style = MaterialTheme.typography.labelMedium)
+                }
+                if (expanded) {
+                    session.exercises.forEach { exercise ->
+                        Column(Modifier.fillMaxWidth().padding(start = 50.dp, top = 5.dp, bottom = 9.dp)) {
+                            Text(exercise.name, color = SetupText, style = MaterialTheme.typography.bodyMedium)
+                            val reps = if (exercise.prescription.reps.first == exercise.prescription.reps.last) {
+                                "${exercise.prescription.reps.first} reps"
+                            } else {
+                                "${exercise.prescription.reps.first}–${exercise.prescription.reps.last} reps"
+                            }
+                            SetupBody("${exercise.prescription.sets} sets · $reps · ${exercise.prescription.restSeconds}s rest")
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(color = ApexColors.BorderSubtle)
         }
     }
+    Spacer(Modifier.height(20.dp))
+    Text("Starting targets", style = MaterialTheme.typography.titleLarge, color = SetupText)
+    SetupBody("%,d kcal · %d g protein".format(targets.calories, targets.protein), Modifier.padding(top = 8.dp))
+    SetupBody("You can adjust your plan and targets later.", Modifier.padding(top = 16.dp))
+}
+
+private fun startingTargets(profile: OnboardingProfile): NutritionTargets {
+    val tdee = TdeeEngine.calcAdaptiveTDEE(
+        weightLog = emptyList(), nutritionLog = emptyList(), heightCm = profile.heightCm,
+        ageYears = profile.age, biologicalSex = profile.sex, weeklyWorkouts = profile.daysPerWeek,
+        fallbackWeightKg = profile.weightKg
+    ).tdee ?: com.apexfit.app.UserDefaults.CALORIES
+    val calories = TdeeEngine.suggestCaloricTarget(tdee, profile.goal, profile.weightKg,
+        profile.targetWeightKg, profile.heightCm, profile.age, profile.sex)
+    return MacroEngine.calcMacroTargets(calories, profile.weightKg, profile.goal, profile.heightCm,
+        profile.sex, profile.daysPerWeek)
 }

@@ -129,7 +129,9 @@ class DataStoreManager(context: Context) {
             it[USER_NAME_KEY] = profile.name.trim()
             it[GOAL_KEY] = profile.goal
             it[CURRENT_WEIGHT_KEY] = profile.weightKg
-            it[GOAL_WEIGHT_KEY] = profile.targetWeightKg
+            val startingGoalWeight = profile.targetWeightKg
+            if (startingGoalWeight == null) it.remove(GOAL_WEIGHT_KEY)
+            else it[GOAL_WEIGHT_KEY] = startingGoalWeight
             it[HEIGHT_KEY] = profile.heightCm
             it[AGE_KEY] = profile.age
             it[SEX_KEY] = profile.sex

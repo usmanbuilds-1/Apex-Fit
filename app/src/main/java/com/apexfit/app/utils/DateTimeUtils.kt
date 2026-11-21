@@ -49,6 +49,9 @@ object DateTimeUtils {
             }
         }.distinctUntilChanged()
 
+    fun formatDateForDisplay(isoDate: String): String =
+        runCatching { formatDateForDisplay(LocalDate.parse(isoDate)) }.getOrDefault(isoDate)
+
     fun formatDateForDisplay(localDate: LocalDate): String =
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()).format(localDate)
 }

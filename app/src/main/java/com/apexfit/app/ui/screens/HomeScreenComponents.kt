@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
@@ -6,9 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,9 +25,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -54,6 +51,7 @@ import com.apexfit.app.WorkoutExecutionViewModel
 import com.apexfit.app.ui.components.SingleFrontHeatmapCanvas
 import com.apexfit.app.data.HeatmapEntry
 import com.apexfit.app.ui.models.UiState
+import com.apexfit.app.ui.models.UiSessionReadiness
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.DateTimeUtils
 import com.apexfit.app.utils.toDisplayWeight
@@ -236,7 +234,7 @@ fun HomeTodayWorkoutCard(
                         letterSpacing = 1.5.sp
                     )
                     Icon(
-                        imageVector = Icons.Default.Info,
+                        painter = painterResource(ApexIcons.Info),
                         contentDescription = "How readiness is calculated",
                         tint = AmberAccent.copy(alpha = 0.8f),
                         modifier = Modifier
@@ -285,7 +283,7 @@ fun HomeTodayWorkoutCard(
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_timer),
+                                painter = painterResource(ApexIcons.Stopwatch),
                                 contentDescription = null,
                                 tint = AmberAccent,
                                 modifier = Modifier.size(14.dp)
@@ -410,10 +408,10 @@ fun HomeTodayWorkoutCard(
                 ) {
                     Icon(
                         painter = when {
-                            activeWorkoutSession != null -> painterResource(R.drawable.ic_play_circle)
-                            isTodayWorkoutCompleted -> rememberVectorPainter(Icons.Default.CheckCircle)
-                            todaySession == null -> painterResource(R.drawable.ic_self_improvement)
-                            else -> rememberVectorPainter(Icons.Default.PlayArrow)
+                            activeWorkoutSession != null -> painterResource(ApexIcons.Play)
+                            isTodayWorkoutCompleted -> painterResource(ApexIcons.CheckCircle)
+                            todaySession == null -> painterResource(ApexIcons.Yoga)
+                            else -> painterResource(ApexIcons.Play)
                         },
                         contentDescription = null,
                         tint = when {
@@ -448,7 +446,7 @@ fun HomeTodayWorkoutCard(
     }
 
     if (showCalculationExplanation) {
-        ReadinessExplanationDialog(onDismiss = { showCalculationExplanation = false })
+        ReadinessExplanationDialog(readiness = readiness, onDismiss = { showCalculationExplanation = false })
     }
 }
 
@@ -482,14 +480,14 @@ fun HomeStreakSection(
     ) {
         when {
             streakResult.training.current >= 7 -> {
-                Text("🔥 Perfect week — all sessions done!", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
+                Text("7+ sessions logged this week", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
             }
             streakResult.training.current > 0 -> {
                 val n = streakResult.training.current
-                Text("🔥 $n session${if (n == 1) "" else "s"} this week", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
+                Text("$n session${if (n == 1) "" else "s"} this week", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = OrangeAccent)
             }
             isTodayWorkoutCompleted -> {
-                Text("🔥 First session logged this week!", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OrangeAccent)
+                Text("First session logged this week", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = OrangeAccent)
             }
             else -> {
                 Text("Log a workout to track your weekly sessions", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color.Gray)
@@ -599,7 +597,7 @@ fun HomeNutritionRingCard(
                         }
                     }
                     Icon(
-                        painter = painterResource(R.drawable.ic_chevron_right),
+                        painter = painterResource(ApexIcons.ChevronRight),
                         contentDescription = null,
                         tint = IndigoAccent.copy(alpha = 0.8f),
                         modifier = Modifier.size(16.dp)
@@ -649,7 +647,7 @@ fun HomeNutritionRingCard(
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(painter = painterResource(R.drawable.ic_local_fire_department), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
+                        Icon(painter = painterResource(ApexIcons.Flame), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                         Text(
                             text = if (calTarget > 0) "${String.format(java.util.Locale.US, "%,d", calLeft.coerceAtLeast(0))} kcal left" else "No target",
                             fontSize = 12.sp,
@@ -658,7 +656,7 @@ fun HomeNutritionRingCard(
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(painter = painterResource(R.drawable.ic_egg), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
+                        Icon(painter = painterResource(ApexIcons.Egg), contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(16.dp))
                         Text(
                             text = if (proteinTarget > 0) "$proteinLogged / ${proteinTarget}g protein" else "$proteinLogged / — protein",
                             fontSize = 12.sp,
@@ -683,7 +681,7 @@ fun HomeNutritionRingCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    painter = painterResource(ApexIcons.Add),
                     contentDescription = null,
                     tint = IndigoAccent,
                     modifier = Modifier.size(18.dp)
@@ -762,7 +760,7 @@ fun HomeWeightChartCard(
                         letterSpacing = 1.sp
                     )
                     Icon(
-                        painter = painterResource(R.drawable.ic_chevron_right),
+                        painter = painterResource(ApexIcons.ChevronRight),
                         contentDescription = null,
                         tint = IndigoAccent.copy(alpha = 0.8f),
                         modifier = Modifier.size(16.dp)
@@ -791,14 +789,14 @@ fun HomeWeightChartCard(
                         ) {
                             if (change < 0) {
                                 Icon(
-                                    painter = painterResource(R.drawable.ic_arrow_downward),
+                                    painter = painterResource(ApexIcons.ArrowDown),
                                     contentDescription = null,
                                     tint = deltaColor,
                                     modifier = Modifier.size(14.dp)
                                 )
                             } else if (change > 0) {
                                 Icon(
-                                    painter = painterResource(R.drawable.ic_arrow_upward),
+                                    painter = painterResource(ApexIcons.ArrowUp),
                                     contentDescription = null,
                                     tint = deltaColor,
                                     modifier = Modifier.size(14.dp)
@@ -1007,7 +1005,7 @@ fun HomeWeightChartCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    painter = painterResource(ApexIcons.Add),
                     contentDescription = null,
                     tint = IndigoAccent,
                     modifier = Modifier.size(18.dp)
@@ -1056,7 +1054,7 @@ fun HomeAnalyticsSection(
 }
 
 @Composable
-private fun LogWeightDialog(
+internal fun LogWeightDialog(
     initialInput: String,
     units: String,
     onDismiss: () -> Unit,
@@ -1078,7 +1076,7 @@ private fun LogWeightDialog(
         containerColor = DarkCardSurface,
         title = {
             Text(
-                text = "LOG BODY WEIGHT",
+                text = "Log weight",
                 fontFamily = SyneFamily,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 16.sp,
@@ -1088,7 +1086,7 @@ private fun LogWeightDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Enter your current weight in $units. This updates your dynamic readiness fatigue filters and chronic load baselines.",
+                    text = "Enter your current weight in $units.",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 12.sp,
                     color = SecondaryText,
@@ -1167,13 +1165,16 @@ private fun LogWeightDialog(
 }
 
 @Composable
-private fun ReadinessExplanationDialog(onDismiss: () -> Unit) {
+private fun ReadinessExplanationDialog(
+    readiness: UiSessionReadiness?,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkCardSurface,
         title = {
             Text(
-                text = "HOW READINESS IS CALCULATED",
+                text = "Why this readiness?",
                 fontFamily = SyneFamily,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 16.sp,
@@ -1181,55 +1182,55 @@ private fun ReadinessExplanationDialog(onDismiss: () -> Unit) {
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (readiness == null) {
+                Text(
+                    text = "Log training and nutrition to build a readiness estimate.",
+                    fontFamily = JetBrainsMonoFamily,
+                    fontSize = 12.sp,
+                    color = SecondaryText,
+                    lineHeight = 16.sp
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Daily Recovery Score",
+                        text = "${readiness.score}% · ${readiness.recommendation}",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = AmberAccent
+                        fontSize = 14.sp,
+                        color = PrimaryText
                     )
-                    Text(
-                        text = "Readiness is estimated from your training load and nutrition compliance.",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 12.sp,
-                        color = SecondaryText,
-                        lineHeight = 15.sp
-                    )
-                }
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Muscle Readiness",
-                        fontFamily = SyneFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = AmberAccent
-                    )
-                    Text(
-                        text = "Muscle readiness reflects recovery time needed per muscle group based on training intensity.",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 12.sp,
-                        color = SecondaryText,
-                        lineHeight = 15.sp
-                    )
-                }
+                    readiness.factors.forEach { factor ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(
+                                text = factor.name,
+                                modifier = Modifier.weight(1f),
+                                fontFamily = InterFamily,
+                                fontSize = 12.sp,
+                                color = SecondaryText
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = factor.value,
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryText,
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Systemic Readiness",
-                        fontFamily = SyneFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = AmberAccent
-                    )
-                    Text(
-                        text = "Systemic readiness reflects your overall training load and recovery.",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 12.sp,
-                        color = SecondaryText,
-                        lineHeight = 15.sp
+                        text = readiness.prediction,
+                        fontFamily = InterFamily,
+                        fontSize = 11.sp,
+                        color = MutedText,
+                        lineHeight = 16.sp
                     )
                 }
             }
@@ -1240,7 +1241,7 @@ private fun ReadinessExplanationDialog(onDismiss: () -> Unit) {
                     text = "OK",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
-                    color = AmberAccent
+                    color = ApexColors.Primary
                 )
             }
         }

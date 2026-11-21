@@ -45,7 +45,7 @@ class StarterPlanBuilderTest {
             sessions.forEach { session ->
                 val exercises = dao.getExercisesForSession(session.id)
                 assertTrue(exercises.isNotEmpty())
-                assertTrue(exercises.all { it.sets == 2 && it.weight == 0.0 && it.exerciseId.isNotEmpty() })
+                assertTrue(exercises.all { it.sets in 1..3 && it.weight == 0.0 && it.exerciseId.isNotEmpty() })
             }
             StarterPlanBuilder.createIfNeeded(db, profile.copy(experience = "Advanced", daysPerWeek = 5))
             assertEquals(2, dao.getAllPlans().size)

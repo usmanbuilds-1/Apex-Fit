@@ -8,24 +8,16 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import coil.compose.AsyncImage
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.ExerciseMedia
 import com.apexfit.app.utils.ExerciseMediaCatalog
@@ -39,63 +31,51 @@ fun ExerciseMediaPanel(
 ) {
     val context = LocalContext.current
     var media by remember(exerciseId) { mutableStateOf<ExerciseMedia?>(null) }
+    var isLoaded by remember(exerciseId) { mutableStateOf(false) }
+    var loadFailed by remember(exerciseId) { mutableStateOf(false) }
+    var videoUnavailable by remember(exerciseId) { mutableStateOf(false) }
 
     LaunchedEffect(exerciseId) {
-        media = withContext(Dispatchers.IO) {
-            ExerciseMediaCatalog.get(context, exerciseId)
+        try {
+            media = withContext(Dispatchers.IO) {
+                ExerciseMediaCatalog.get(context, exerciseId)
+            }
+        } catch (_: Exception) {
+            loadFailed = true
+        } finally {
+            isLoaded = true
         }
     }
+    ExerciseMediaPanelContent(media, isLoaded, loadFailed, videoUnavailable, modifier) { videoUnavailable = true }
+}
 
-    val currentMedia = media ?: return
-    if (currentMedia.imageUrls.isEmpty() && currentMedia.youtubeVideoId == null) return
-
+@Composable
+internal fun ExerciseMediaPanelContent(
+    media: ExerciseMedia?,
+    isLoaded: Boolean,
+    loadFailed: Boolean,
+    videoUnavailable: Boolean = false,
+    modifier: Modifier = Modifier,
+    onVideoUnavailable: () -> Unit = {}
+) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        if (currentMedia.imageUrls.isNotEmpty()) {
-            Text(
-                text = "FORM REFERENCE",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = AmberAccent
-            )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                itemsIndexed(currentMedia.imageUrls, key = { index, url -> "$index:$url" }) { index, url ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        AsyncImage(
-                            model = url,
-                            contentDescription = "Exercise form reference ${index + 1}",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(180.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(DarkRaised)
-                        )
-                        Text(
-                            text = if (index == 0) "START" else "FINISH",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
-                            color = MutedText
-                        )
-                    }
-                }
-            }
-            Text(
-                text = "Images: Free Exercise DB · public domain",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
-                color = MutedText
-            )
-        }
-
-        currentMedia.youtubeVideoId?.let { videoId ->
-            YouTubeTechniqueVideo(
-                videoId = videoId,
-                title = currentMedia.youtubeVideoTitle,
-                matchType = currentMedia.youtubeMatchType,
-                channel = currentMedia.youtubeChannel
+        Text("Technique video", style = MaterialTheme.typography.titleMedium)
+        when {
+            !isLoaded -> Text("Checking for an available technique video.", color = ApexColors.TextSecondary)
+            loadFailed -> Text("Video information could not be loaded.", color = ApexColors.Alert)
+            media?.youtubeVideoId == null ->
+                Text("No mapped technique video is available. Follow the written instructions.", color = ApexColors.TextSecondary)
+            videoUnavailable ->
+                Text("This video is unavailable. Check your connection and try again.", color = ApexColors.TextSecondary)
+            else -> YouTubeTechniqueVideo(
+                videoId = media.youtubeVideoId,
+                title = media.youtubeVideoTitle,
+                matchType = media.youtubeMatchType,
+                channel = media.youtubeChannel,
+                onUnavailable = onVideoUnavailable
             )
         }
     }
@@ -106,7 +86,8 @@ private fun YouTubeTechniqueVideo(
     videoId: String,
     title: String?,
     matchType: String?,
-    channel: String?
+    channel: String?,
+    onUnavailable: () -> Unit
 ) {
     var showPlayer by rememberSaveable(videoId) { mutableStateOf(false) }
     var webView by remember(videoId) { mutableStateOf<WebView?>(null) }
@@ -116,53 +97,46 @@ private fun YouTubeTechniqueVideo(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = if (matchType == "exact") "TECHNIQUE VIDEO" else "RELATED TECHNIQUE",
-            fontFamily = JetBrainsMonoFamily,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = AmberAccent
+            text = if (matchType == "exact") "Video mapped to this exercise" else "Related movement video",
+            style = MaterialTheme.typography.labelLarge,
+            color = ApexColors.TextSecondary
         )
+
+        if (matchType != "exact") {
+            Text(
+                "This is a related movement, not a verified demo for this exact exercise. Check that the exercise shown matches before following it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = ApexColors.TextTertiary
+            )
+        }
 
         title?.let {
             Text(
                 text = it,
-                fontFamily = InterFamily,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = PrimaryText,
-                lineHeight = 18.sp
+                style = MaterialTheme.typography.titleMedium,
+                color = ApexColors.TextPrimary
             )
         }
 
         if (!channel.isNullOrBlank()) {
             Text(
-                text = if (matchType == "exact") channel else "$channel · related movement guide",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
-                color = MutedText
+                text = channel,
+                style = MaterialTheme.typography.bodySmall,
+                color = ApexColors.TextTertiary
             )
         }
 
         if (!showPlayer) {
             OutlinedButton(
                 onClick = { showPlayer = true },
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderSubtle),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.heightIn(min = 48.dp)
+                border = androidx.compose.foundation.BorderStroke(1.dp, ApexColors.BorderStrong),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    tint = ApexColors.Primary,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Play technique video",
-                    fontFamily = InterFamily,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = PrimaryText
+                    style = MaterialTheme.typography.labelLarge,
+                    color = ApexColors.TextPrimary
                 )
             }
         } else {
@@ -171,7 +145,7 @@ private fun YouTubeTechniqueVideo(
                     .widthIn(max = 260.dp)
                     .fillMaxWidth()
                     .aspectRatio(9f / 16f)
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .align(Alignment.CenterHorizontally),
                 factory = { context ->
                     WebView(context).apply {
@@ -186,6 +160,14 @@ private fun YouTubeTechniqueVideo(
                         settings.setSupportMultipleWindows(false)
                         webChromeClient = WebChromeClient()
                         webViewClient = object : WebViewClient() {
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                error: android.webkit.WebResourceError?
+                            ) {
+                                if (request?.isForMainFrame == true) onUnavailable()
+                            }
+
                             override fun shouldOverrideUrlLoading(
                                 view: WebView?,
                                 request: WebResourceRequest?
@@ -204,9 +186,8 @@ private fun YouTubeTechniqueVideo(
             )
             Text(
                 text = "Streamed by YouTube. Apex Fit does not download or rehost the video.",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 10.sp,
-                color = MutedText
+                style = MaterialTheme.typography.bodySmall,
+                color = ApexColors.TextTertiary
             )
         }
     }

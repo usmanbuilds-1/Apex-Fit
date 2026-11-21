@@ -1,5 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 import com.apexfit.app.ui.models.UiState
 
 import kotlinx.coroutines.launch
@@ -9,14 +11,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -44,12 +42,213 @@ import com.apexfit.app.data.PlanExercise
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.AppConstants
 import com.apexfit.app.utils.MuscleGroups
+import com.apexfit.app.utils.PlanExerciseDraftField
+import com.apexfit.app.utils.PlanExerciseDraftIssue
+import com.apexfit.app.utils.PlanExerciseDraftValidation
+import com.apexfit.app.utils.validatePlanExerciseDraft
+
+@Composable
+internal fun PlanBuilderDayDialog(
+    initialLabel: String,
+    initialDayOfWeek: String,
+    isEditing: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (label: String, dayOfWeek: String) -> Unit,
+    initialValidationError: String? = null
+) {
+    var dayLabel by rememberSaveable(isEditing, initialLabel) { mutableStateOf(initialLabel) }
+    var dayLabelError by rememberSaveable(isEditing, initialLabel) { mutableStateOf(initialValidationError) }
+    var selectedDayOfWeek by rememberSaveable(isEditing, initialDayOfWeek) {
+        mutableStateOf(initialDayOfWeek)
+    }
+    val requiredLabelError = stringResource(R.string.plan_builder_session_name_is_required)
+    val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkRaised,
+        title = {
+            Text(
+                text = if (isEditing) "EDIT TRAINING DAY" else "ADD TRAINING DAY",
+                fontFamily = SyneFamily,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                fontSize = 16.sp
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = dayLabel,
+                    onValueChange = {
+                        dayLabel = it
+                        dayLabelError = null
+                    },
+                    isError = dayLabelError != null,
+                    supportingText = dayLabelError?.let { { Text(it) } },
+                    label = {
+                        Text(
+                            stringResource(R.string.plan_builder_session_name_e_g_upper_a),
+                            color = SecondaryText
+                        )
+                    },
+                    textStyle = LocalTextStyle.current.copy(color = Color.White),
+                    modifier = Modifier.fillMaxWidth().testTag("day_name_input"),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ApexColors.Primary,
+                        unfocusedBorderColor = BorderSubtle,
+                        cursorColor = ApexColors.Primary
+                    ),
+                    singleLine = true
+                )
+
+                Text(
+                    stringResource(R.string.plan_builder_day_of_the_week),
+                    fontFamily = SyneFamily,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SecondaryText
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    daysOfWeek.forEach { day ->
+                        val isSelected = selectedDayOfWeek == day
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) ApexColors.Primary else DarkBackground)
+                                .border(
+                                    BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .semantics { selected = isSelected }
+                                .clickable(role = Role.Tab) { selectedDayOfWeek = day }
+                                .heightIn(min = 48.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = day,
+                                fontFamily = JetBrainsMonoFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) ApexColors.OnGlow else SecondaryText
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (dayLabel.isBlank()) {
+                        dayLabelError = requiredLabelError
+                    } else {
+                        dayLabelError = null
+                        onSave(dayLabel.trim(), selectedDayOfWeek)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
+                modifier = Modifier.testTag("save_day_confirm_button")
+            ) {
+                Text(
+                    stringResource(R.string.plan_builder_save),
+                    fontFamily = SyneFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.plan_builder_cancel), fontFamily = SyneFamily, color = SecondaryText)
+            }
+        }
+    )
+}
+
+@Composable
+internal fun PlanBuilderMetadataFields(
+    planName: String,
+    planGoal: String,
+    planNameError: String?,
+    onPlanNameChange: (String) -> Unit,
+    onPlanGoalChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = planName,
+            onValueChange = onPlanNameChange,
+            isError = planNameError != null,
+            supportingText = planNameError?.let { { Text(it) } },
+            label = { Text(stringResource(R.string.plan_builder_plan_name)) },
+            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary),
+            modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = ApexColors.Primary,
+                unfocusedBorderColor = ApexColors.BorderSubtle,
+                focusedLabelColor = ApexColors.Primary,
+                unfocusedLabelColor = ApexColors.TextSecondary,
+                cursorColor = ApexColors.Primary
+            ),
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = planGoal,
+            onValueChange = onPlanGoalChange,
+            label = { Text("Goal") },
+            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary),
+            modifier = Modifier.fillMaxWidth().testTag("plan_goal_input"),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = ApexColors.Primary,
+                unfocusedBorderColor = ApexColors.BorderSubtle,
+                focusedLabelColor = ApexColors.Primary,
+                unfocusedLabelColor = ApexColors.TextSecondary,
+                cursorColor = ApexColors.Primary
+            ),
+            singleLine = true
+        )
+    }
+}
+
+@Composable
+internal fun PlanBuilderSaveBar(isSaving: Boolean, onSave: () -> Unit) {
+    Column(Modifier.fillMaxWidth().background(ApexColors.Canvas).navigationBarsPadding()) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Button(
+            onClick = onSave,
+            enabled = !isSaving,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)
+                .heightIn(min = 56.dp).testTag("save_plan_button"),
+            colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                if (isSaving) "Saving…" else "Save plan",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = ApexColors.OnGlow
+            )
+        }
+    }
+}
 
 @Composable
 fun PlanBuilderScreen(
     planBuilderViewModel: PlanBuilderViewModel,
     planId: Long,
     onNavigateBack: () -> Unit,
+    startInImportMode: Boolean = false,
     workoutImportViewModel: WorkoutImportViewModel = hiltViewModel()
 ) {
     DisposableEffect(Unit) {
@@ -77,7 +276,7 @@ fun PlanBuilderScreen(
     var sessionToDelete by rememberSaveable { mutableStateOf<PlanSession?>(null) }
     var exerciseToDelete by rememberSaveable { mutableStateOf<PlanExercise?>(null) }
     var isSaving by remember { mutableStateOf(false) }
-    var showWorkoutImporter by rememberSaveable { mutableStateOf(false) }
+    var showWorkoutImporter by rememberSaveable(planId, startInImportMode) { mutableStateOf(startInImportMode) }
 
     LaunchedEffect(planId) {
         try {
@@ -101,9 +300,9 @@ fun PlanBuilderScreen(
     }
     if (loading || loadError != null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (loading) CircularProgressIndicator(color = OrangeAccent)
+            if (loading) CircularProgressIndicator(color = ApexColors.Primary)
             else Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(loadError.orEmpty(), color = Color.White)
+                Text(loadError.orEmpty(), color = ApexColors.TextPrimary)
                 TextButton(onClick = onNavigateBack) { Text("Go back") }
             }
         }
@@ -115,7 +314,11 @@ fun PlanBuilderScreen(
             viewModel = workoutImportViewModel,
             onClose = {
                 workoutImportViewModel.clear()
-                showWorkoutImporter = false
+                if (startInImportMode) {
+                    onNavigateBack()
+                } else {
+                    showWorkoutImporter = false
+                }
             },
             onSaved = {
                 workoutImportViewModel.clear()
@@ -126,96 +329,80 @@ fun PlanBuilderScreen(
         return
     }
 
+    fun savePlan() {
+        if (isSaving) return
+        if (planName.isBlank()) {
+            planNameError = context.getString(R.string.plan_builder_plan_name_cannot_be_empty)
+            return
+        }
+        planNameError = null
+        if (sessionsList.isEmpty() || sessionsList.any { day -> exercisesList.none { it.planSessionId == day.id } }) {
+            coroutineScope.launch { snackbarHostState.showSnackbar("Add at least one exercise to every training day.") }
+            return
+        }
+        isSaving = true
+        val savedPlanId = activePlan?.id ?: 0L
+        val finalPlan = activePlan?.copy(
+            name = planName.trim(),
+            goal = planGoal.trim().ifEmpty { "General Fitness" }
+        ) ?: WorkoutPlan(
+            name = planName.trim(),
+            goal = planGoal.trim().ifEmpty { "General Fitness" },
+            isActive = true
+        )
+        val updatedSessions = sessionsList.map { session ->
+            val muscles = exercisesList
+                .filter { it.planSessionId == session.id }
+                .map { it.muscleGroup }
+                .distinct()
+            val focus = if (muscles.isEmpty()) "General" else muscles.joinToString(", ")
+            session.copy(planId = savedPlanId, focus = focus)
+        }
+        val updatedExercises = exercisesList.map { exercise ->
+            exercise.copy(weight = exercise.weight.coerceAtLeast(0.0))
+        }
+        coroutineScope.launch {
+            try {
+                planBuilderViewModel.updateWorkoutPlan(finalPlan, updatedSessions, updatedExercises)
+                onNavigateBack()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Couldn't save your plan. Please try again.")
+            } finally {
+                isSaving = false
+            }
+        }
+    }
+
     Scaffold(
         containerColor = DarkBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(stringResource(R.string.plan_builder_custom_plan_builder),
-                        fontFamily = SyneFamily,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                    Text(
+                        "Plan Builder",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ApexColors.TextPrimary
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack, modifier = Modifier.testTag("back_button")) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            painter = painterResource(ApexIcons.ArrowLeft),
                             contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-                },
-                actions = {
-                    TextButton(
-                        onClick = {
-                            if (isSaving) return@TextButton
-                            if (planName.isBlank()) {
-                                planNameError = context.getString(R.string.plan_builder_plan_name_cannot_be_empty)
-                                return@TextButton
-                            } else {
-                                planNameError = null
-                            }
-                            if (sessionsList.isEmpty() || sessionsList.any { day -> exercisesList.none { it.planSessionId == day.id } }) {
-                                coroutineScope.launch { snackbarHostState.showSnackbar("Add at least one exercise to every training day.") }
-                                return@TextButton
-                            }
-                            isSaving = true
-                            val planId = activePlan?.id ?: 0L
-                            val finalPlan = activePlan?.copy(
-                                name = planName.trim(),
-                                goal = planGoal.trim().ifEmpty { "General Fitness" }
-                            ) ?: WorkoutPlan(
-                                name = planName.trim(),
-                                goal = planGoal.trim().ifEmpty { "General Fitness" },
-                                isActive = true
-                            )
-
-                            // Re-calculate focus for sessions
-                            val updatedSessions = sessionsList.map { session ->
-                                val muscles = exercisesList
-                                    .filter { it.planSessionId == session.id }
-                                    .map { it.muscleGroup }
-                                    .distinct()
-                                val focusStr = if (muscles.isEmpty()) "General" else muscles.joinToString(", ")
-                                session.copy(planId = planId, focus = focusStr)
-                            }
-
-                            val updatedExercises = exercisesList.map { exercise ->
-                                exercise.copy(weight = exercise.weight.coerceAtLeast(0.0))
-                            }
-
-                            coroutineScope.launch {
-                                try {
-                                    planBuilderViewModel.updateWorkoutPlan(finalPlan, updatedSessions, updatedExercises)
-                                    onNavigateBack()
-                                } catch (e: kotlinx.coroutines.CancellationException) {
-                                    throw e
-                                } catch (e: Exception) {
-                                    snackbarHostState.showSnackbar("Couldn't save your plan. Please try again.")
-                                } finally {
-                                    isSaving = false
-                                }
-                            }
-                        },
-                        enabled = !isSaving,
-                        modifier = Modifier.testTag("save_plan_button")
-                    ) {
-                        Text(stringResource(R.string.plan_builder_save),
-                            fontFamily = SyneFamily,
-                            fontWeight = FontWeight.Bold,
-                            color = AmberAccent,
-                            fontSize = 14.sp
+                            tint = ApexColors.TextPrimary
                         )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = DarkBackground
+                    containerColor = ApexColors.Canvas
                 )
             )
-        }
+        },
+        bottomBar = { PlanBuilderSaveBar(isSaving, onSave = ::savePlan) }
     ) { innerPadding ->
         val exercisesBySession = remember(exercisesList) {
             exercisesList.groupBy { it.planSessionId }
@@ -240,7 +427,7 @@ fun PlanBuilderScreen(
                         border = BorderStroke(1.dp, ApexColors.Primary),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "Import workout from text",
@@ -252,65 +439,15 @@ fun PlanBuilderScreen(
                 }
             }
 
-            // Plan Meta Details Card
+            // Plan metadata stays on the canvas; the fields are the only surfaces here.
             item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkCardSurface),
-                    border = BorderStroke(1.dp, BorderSubtle),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(stringResource(R.string.plan_builder_plan_details),
-                            fontFamily = InterFamily,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = PrimaryText
-                        )
-
-                        OutlinedTextField(
-                            value = planName,
-                            onValueChange = {
-                                planName = it
-                                planNameError = null
-                            },
-                            isError = planNameError != null,
-                            supportingText = planNameError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.plan_builder_plan_name), color = SecondaryText) },
-                            textStyle = LocalTextStyle.current.copy(color = PrimaryText),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("plan_name_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ApexColors.Primary,
-                                unfocusedBorderColor = BorderSubtle,
-                                cursorColor = ApexColors.Primary
-                            ),
-                            singleLine = true
-                        )
-
-                        OutlinedTextField(
-                            value = planGoal,
-                            onValueChange = { planGoal = it },
-                            label = { Text(stringResource(R.string.plan_builder_plan_goal_e_g_gain_muscle), color = SecondaryText) },
-                            textStyle = LocalTextStyle.current.copy(color = PrimaryText),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("plan_goal_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ApexColors.Primary,
-                                unfocusedBorderColor = BorderSubtle,
-                                cursorColor = ApexColors.Primary
-                            ),
-                            singleLine = true
-                        )
-                    }
-                }
+                PlanBuilderMetadataFields(
+                    planName = planName,
+                    planGoal = planGoal,
+                    planNameError = planNameError,
+                    onPlanNameChange = { planName = it; planNameError = null },
+                    onPlanGoalChange = { planGoal = it }
+                )
             }
 
             // Training Sessions Header
@@ -320,28 +457,25 @@ fun PlanBuilderScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.plan_builder_training_days, sessionsList.size),
-                        fontFamily = SyneFamily,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryText
+                    Text(
+                        "Days",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ApexColors.TextPrimary
                     )
-                    
-                    Button(
+                    TextButton(
                         onClick = {
                             editingSessionId = null
                             showAddDayDialog = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.testTag("add_day_button")
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text(stringResource(R.string.plan_builder_add_day), fontFamily = InterFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Add day", style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }
@@ -349,38 +483,14 @@ fun PlanBuilderScreen(
 
             if (sessionsList.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DarkCardSurface)
-                            .border(BorderStroke(1.dp, BorderSubtle))
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_fitness_center),
-                                contentDescription = null,
-                                tint = MutedText,
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Text(stringResource(R.string.plan_builder_no_training_days_added_yet),
-                                fontFamily = SyneFamily,
-                                fontSize = 13.sp,
-                                color = SecondaryText,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(stringResource(R.string.plan_builder_click_add_day_to_construct_you),
-                                fontFamily = InterFamily,
-                                fontSize = 14.sp,
-                                color = SecondaryText,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        Text("No training days yet", style = MaterialTheme.typography.titleMedium,
+                            color = ApexColors.TextPrimary)
+                        Text("Add a day to start building your weekly plan.",
+                            style = MaterialTheme.typography.bodyMedium, color = ApexColors.TextSecondary)
                     }
                 }
             } else {
@@ -392,9 +502,9 @@ fun PlanBuilderScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("session_card_${session.id}"),
-                        colors = CardDefaults.cardColors(containerColor = DarkCardSurface),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(12.dp)
+                        colors = CardDefaults.cardColors(containerColor = ApexColors.Canvas),
+                        shape = RoundedCornerShape(0.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -409,16 +519,14 @@ fun PlanBuilderScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = session.label,
-                                        fontFamily = SyneFamily,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = ApexColors.TextPrimary
                                     )
                                     Text(
-                                        text = "${session.day} • ${sessionExercises.size} exercises",
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 11.sp,
-                                        color = SecondaryText
+                                        text = "${session.day} · ${sessionExercises.size} exercises",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = ApexColors.TextSecondary
                                     )
                                 }
 
@@ -435,9 +543,9 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            painter = painterResource(R.drawable.ic_arrow_upward),
+                                            painter = painterResource(ApexIcons.ArrowUp),
                                             contentDescription = "Move Up",
-                                            tint = if (index > 0) Color.White else MutedText,
+                                            tint = if (index > 0) ApexColors.TextPrimary else ApexColors.TextTertiary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -451,9 +559,9 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            painter = painterResource(R.drawable.ic_arrow_downward),
+                                            painter = painterResource(ApexIcons.ArrowDown),
                                             contentDescription = "Move Down",
-                                            tint = if (index < sessionsList.size - 1) Color.White else MutedText,
+                                            tint = if (index < sessionsList.size - 1) ApexColors.TextPrimary else ApexColors.TextTertiary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -467,9 +575,9 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Edit,
+                                            painter = painterResource(ApexIcons.Edit),
                                             contentDescription = "Edit Day",
-                                            tint = SecondaryText,
+                                            tint = ApexColors.TextSecondary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -482,9 +590,9 @@ fun PlanBuilderScreen(
                                         modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Delete,
+                                            painter = painterResource(ApexIcons.Delete),
                                             contentDescription = "Delete Day",
-                                            tint = RedAccent,
+                                            tint = ApexColors.Alert,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -493,73 +601,39 @@ fun PlanBuilderScreen(
 
                             // Exercises Sub-List
                             if (sessionExercises.isEmpty()) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(DarkBackground)
-                                        .padding(12.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(stringResource(R.string.plan_builder_no_exercises_tap_add_exercise_),
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 11.sp,
-                                        color = MutedText
-                                    )
-                                }
+                                Text(
+                                    "No exercises yet. Add one to this day.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = ApexColors.TextSecondary,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
                             } else {
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
+                                Column {
                                     sessionExercises.forEachIndexed { exIndex, exercise ->
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(DarkBackground)
-                                                .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(8.dp))
-                                                .padding(10.dp),
+                                                .padding(vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .clip(RoundedCornerShape(4.dp))
-                                                            .background(OrangeAccent.copy(alpha = 0.15f))
-                                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    ) {
-                                                        Text(
-                                                            text = exercise.muscleGroup.uppercase(),
-                                                            fontFamily = JetBrainsMonoFamily,
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = OrangeAccent
-                                                        )
-                                                    }
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(
-                                                        text = exercise.name,
-                                                        fontFamily = SyneFamily,
-                                                        fontSize = 13.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.height(4.dp))
                                                 Text(
-                                                    text = "${exercise.sets} sets x ${exercise.repsMin}-${exercise.repsMax} reps • Rest: ${exercise.restSeconds}s",
-                                                    fontFamily = JetBrainsMonoFamily,
-                                                    fontSize = 11.sp,
-                                                    color = SecondaryText
+                                                    text = exercise.name,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = ApexColors.TextPrimary
+                                                )
+                                                Text(
+                                                    text = "${exercise.muscleGroup} · ${exercise.sets} × ${exercise.repsMin}–${exercise.repsMax} reps · ${exercise.restSeconds}s rest",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = ApexColors.TextSecondary
                                                 )
                                                 if (exercise.notes.isNotBlank()) {
                                                     Text(
-                                                        text = "Notes: ${exercise.notes}",
-                                                        fontFamily = JetBrainsMonoFamily,
-                                                        fontSize = 11.sp,
-                                                        color = MutedText,
+                                                        text = exercise.notes,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = ApexColors.TextTertiary,
                                                         modifier = Modifier.padding(top = 2.dp)
                                                     )
                                                 }
@@ -578,9 +652,9 @@ fun PlanBuilderScreen(
                                                     modifier = Modifier.size(48.dp)
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.Edit,
+                                                        painter = painterResource(ApexIcons.Edit),
                                                         contentDescription = "Edit Exercise",
-                                                        tint = SecondaryText,
+                                                        tint = ApexColors.TextSecondary,
                                                         modifier = Modifier.size(20.dp)
                                                     )
                                                 }
@@ -592,20 +666,23 @@ fun PlanBuilderScreen(
                                                     modifier = Modifier.size(48.dp)
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.Close,
+                                                        painter = painterResource(ApexIcons.Close),
                                                         contentDescription = "Delete Exercise",
-                                                        tint = RedAccent.copy(alpha = 0.8f),
+                                                        tint = ApexColors.Alert,
                                                         modifier = Modifier.size(20.dp)
                                                     )
                                                 }
                                             }
+                                        }
+                                        if (exIndex < sessionExercises.lastIndex) {
+                                            HorizontalDivider(color = ApexColors.BorderSubtle)
                                         }
                                     }
                                 }
                             }
 
                             // Add Exercise Button
-                            OutlinedButton(
+                            TextButton(
                                 onClick = {
                                     selectedSessionIdForExercise = session.id
                                     editingExerciseId = null
@@ -614,20 +691,14 @@ fun PlanBuilderScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("add_exercise_button_${session.id}"),
-                                border = BorderStroke(1.dp, OrangeAccent.copy(alpha = 0.4f)),
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = OrangeAccent)
+                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Text(stringResource(R.string.plan_builder_add_exercise),
-                                        fontFamily = SyneFamily,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Text("Add exercise", style = MaterialTheme.typography.bodyLarge)
                                 }
                             }
                         }
@@ -644,132 +715,31 @@ fun PlanBuilderScreen(
     // Add / Edit Day Dialog
     if (showAddDayDialog) {
         val session = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
-        var dayLabel by rememberSaveable { mutableStateOf(session?.label ?: "") }
-        var dayLabelError by remember { mutableStateOf<String?>(null) }
-        var selectedDayOfWeek by rememberSaveable { mutableStateOf(session?.day ?: "Monday") }
-        
-        val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
-
-        AlertDialog(
-            onDismissRequest = { showAddDayDialog = false },
-            containerColor = DarkRaised,
-            title = {
-                Text(
-                    text = if (editingSessionId == null) "ADD TRAINING DAY" else "EDIT TRAINING DAY",
-                    fontFamily = SyneFamily,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    fontSize = 16.sp
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = dayLabel,
-                        onValueChange = {
-                            dayLabel = it
-                            dayLabelError = null
-                        },
-                        isError = dayLabelError != null,
-                        supportingText = dayLabelError?.let { { Text(it) } },
-                        label = { Text(stringResource(R.string.plan_builder_session_name_e_g_upper_a), color = SecondaryText) },
-                        textStyle = LocalTextStyle.current.copy(color = Color.White),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("day_name_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = ApexColors.Primary,
-                            unfocusedBorderColor = BorderSubtle,
-                            cursorColor = ApexColors.Primary
-                        ),
-                        singleLine = true
+        PlanBuilderDayDialog(
+            initialLabel = session?.label.orEmpty(),
+            initialDayOfWeek = session?.day.orEmpty().ifBlank { "Monday" },
+            isEditing = editingSessionId != null,
+            onDismiss = { showAddDayDialog = false },
+            onSave = { dayLabel, selectedDayOfWeek ->
+                if (editingSessionId == null) {
+                    planBuilderViewModel.addSession(
+                        PlanSession(
+                            id = planBuilderViewModel.generateNewSessionId(),
+                            planId = activePlan?.id ?: 0L,
+                            label = dayLabel,
+                            day = selectedDayOfWeek,
+                            focus = "General"
+                        )
                     )
-
-                    Text(stringResource(R.string.plan_builder_day_of_the_week),
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryText
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        daysOfWeek.forEach { day ->
-                            val isSelected = selectedDayOfWeek == day
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) ApexColors.Primary else DarkBackground)
-                                    .border(BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle), RoundedCornerShape(8.dp))
-                                    .semantics { selected = isSelected }
-                                    .clickable(role = Role.Tab) { selectedDayOfWeek = day }
-                                    .heightIn(min = 48.dp)
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = day,
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) ApexColors.OnGlow else SecondaryText
-                                )
-                            }
-                        }
+                } else {
+                    val currentSession = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
+                    if (currentSession != null) {
+                        planBuilderViewModel.updateSession(
+                            currentSession.copy(label = dayLabel, day = selectedDayOfWeek)
+                        )
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (dayLabel.isBlank()) {
-                            dayLabelError = context.getString(R.string.plan_builder_session_name_is_required)
-                            return@Button
-                        } else {
-                            dayLabelError = null
-                        }
-                        
-                        if (editingSessionId == null) {
-                            val newId = planBuilderViewModel.generateNewSessionId()
-                            planBuilderViewModel.addSession(
-                                PlanSession(
-                                    id = newId,
-                                    planId = activePlan?.id ?: 0L,
-                                    label = dayLabel.trim(),
-                                    day = selectedDayOfWeek,
-                                    focus = "General"
-                                )
-                            )
-                        } else {
-                            val session = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
-                            if (session != null) {
-                                planBuilderViewModel.updateSession(
-                                    session.copy(
-                                        label = dayLabel.trim(),
-                                        day = selectedDayOfWeek
-                                    )
-                                )
-                            }
-                        }
-                        showAddDayDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                    modifier = Modifier.testTag("save_day_confirm_button")
-                ) {
-                    Text(stringResource(R.string.plan_builder_save), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDayDialog = false }) {
-                    Text(stringResource(R.string.plan_builder_cancel), fontFamily = SyneFamily, color = SecondaryText)
-                }
+                showAddDayDialog = false
             }
         )
     }
@@ -778,8 +748,7 @@ fun PlanBuilderScreen(
     if (showAddExerciseDialog) {
         val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
         val libraryState by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
-        val library = (libraryState as? UiState.Success)?.data.orEmpty()
-        var showSuggestions by rememberSaveable { mutableStateOf(false) }
+        var showExercisePicker by rememberSaveable { mutableStateOf(false) }
         val preferredUnits by planBuilderViewModel.units.collectAsStateWithLifecycle()
         val defaultUnit = if (!exercise?.weightUnit.isNullOrBlank()) exercise!!.weightUnit else (if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg")
         var unitSuffix by rememberSaveable { mutableStateOf(defaultUnit) }
@@ -807,9 +776,24 @@ fun PlanBuilderScreen(
         var exNameError by remember { mutableStateOf<String?>(null) }
         var setsError by remember { mutableStateOf<String?>(null) }
         var repsMinError by remember { mutableStateOf<String?>(null) }
+        var repsMaxError by remember { mutableStateOf<String?>(null) }
+        var restError by remember { mutableStateOf<String?>(null) }
         var weightError by remember { mutableStateOf<String?>(null) }
 
         var showMuscleDropdown by rememberSaveable { mutableStateOf(false) }
+        val exerciseFieldColors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = ApexColors.TextPrimary,
+            unfocusedTextColor = ApexColors.TextPrimary,
+            focusedContainerColor = ApexColors.SurfaceSunken,
+            unfocusedContainerColor = ApexColors.SurfaceSunken,
+            focusedBorderColor = ApexColors.Primary,
+            unfocusedBorderColor = ApexColors.BorderSubtle,
+            focusedLabelColor = ApexColors.Primary,
+            unfocusedLabelColor = ApexColors.TextSecondary,
+            cursorColor = ApexColors.Primary,
+            errorBorderColor = ApexColors.Alert,
+            errorLabelColor = ApexColors.Alert
+        )
 
         LaunchedEffect(editingExerciseId, showAddExerciseDialog) {
             if (showAddExerciseDialog) {
@@ -835,16 +819,36 @@ fun PlanBuilderScreen(
             }
         }
 
-        AlertDialog(
+        if (showExercisePicker) {
+            ExercisePickerDialog(
+                state = libraryState, title = "Choose exercise",
+                onDismiss = { showExercisePicker = false },
+                onSelect = { match ->
+                    exName = match.name
+                    selectedMuscle = match.primaryMuscle
+                    exNameError = null
+                    showExercisePicker = false
+                    val previousRest = restText
+                    coroutineScope.launch {
+                        val suggested = planBuilderViewModel.exerciseDefaultRestSeconds(match.id)
+                        if (exName == match.name && restText == previousRest && suggested != null) {
+                            restText = suggested.toString()
+                        }
+                    }
+                }
+            )
+        }
+
+        if (!showExercisePicker) AlertDialog(
             onDismissRequest = { showAddExerciseDialog = false },
-            containerColor = DarkRaised,
+            containerColor = ApexColors.Surface,
             title = {
                 Text(
-                    text = if (editingExerciseId == null) "ADD EXERCISE" else "EDIT EXERCISE",
-                    fontFamily = SyneFamily,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    fontSize = 16.sp
+                    text = if (editingExerciseId == null) "Add exercise" else "Edit exercise",
+                    fontFamily = ArchivoFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    color = ApexColors.TextPrimary,
+                    fontSize = 22.sp
                 )
             },
             text = {
@@ -858,55 +862,27 @@ fun PlanBuilderScreen(
                         value = exName,
                         onValueChange = {
                             exName = it
-                            showSuggestions = true
                             exNameError = null
                         },
                         isError = exNameError != null,
                         supportingText = exNameError?.let { { Text(it) } },
-                        label = { Text(stringResource(R.string.plan_builder_exercise_name), color = SecondaryText) },
-                        textStyle = LocalTextStyle.current.copy(color = Color.White),
+                        label = { Text(stringResource(R.string.plan_builder_exercise_name), color = ApexColors.TextSecondary, fontFamily = ArchivoFamily) },
+                        textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("exercise_name_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = ApexColors.Primary,
-                            unfocusedBorderColor = BorderSubtle,
-                            cursorColor = ApexColors.Primary
-                        ),
+                        colors = exerciseFieldColors,
                         singleLine = true
                     )
 
-                    if (showSuggestions && exName.trim().length >= 2) {
-                        val matches = remember(library, exName) {
-                            library.asSequence().filter { it.name.contains(exName.trim(), ignoreCase = true) }.take(8).toList()
-                        }
-                        if (matches.isEmpty()) {
-                            Text("No match. You can save this as a custom exercise.", color = SecondaryText, fontSize = 12.sp)
-                        } else {
-                            matches.forEach { match ->
-                                Column(Modifier.fillMaxWidth().clickable {
-                                    exName = match.name
-                                    selectedMuscle = match.primaryMuscle
-                                    showSuggestions = false
-                                    val previousRest = restText
-                                    coroutineScope.launch {
-                                        val suggested = planBuilderViewModel.exerciseDefaultRestSeconds(match.id)
-                                        if (exName == match.name && restText == previousRest && suggested != null) {
-                                            restText = suggested.toString()
-                                        }
-                                    }
-                                }.padding(vertical = 10.dp, horizontal = 8.dp)) {
-                                    Text(match.name, color = PrimaryText, fontSize = 14.sp)
-                                    Text("${match.primaryMuscle} · ${match.equipmentRequired}", color = SecondaryText, fontSize = 12.sp)
-                                }
-                            }
-                        }
+                    TextButton(onClick = { showExercisePicker = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text("Browse exercise library", color = ApexColors.Primary, fontFamily = ArchivoFamily)
                     }
                     Text(stringResource(R.string.plan_builder_muscle_group),
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryText
+                        fontFamily = ArchivoFamily,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ApexColors.TextSecondary
                     )
 
                     Box(modifier = Modifier.fillMaxWidth()) {
@@ -915,17 +891,20 @@ fun PlanBuilderScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("muscle_group_dropdown"),
-                            border = BorderStroke(1.dp, BorderSubtle),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                            shape = RoundedCornerShape(8.dp)
+                            border = BorderStroke(1.dp, ApexColors.BorderSubtle),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = ApexColors.TextPrimary,
+                                containerColor = ApexColors.SurfaceSunken
+                            ),
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(selectedMuscle, fontFamily = JetBrainsMonoFamily, fontSize = 13.sp)
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White)
+                                Text(selectedMuscle, fontFamily = ArchivoFamily, fontSize = 14.sp)
+                                Icon(painterResource(ApexIcons.ChevronDown), contentDescription = null, tint = ApexColors.TextSecondary)
                             }
                         }
 
@@ -933,12 +912,12 @@ fun PlanBuilderScreen(
                             expanded = showMuscleDropdown,
                             onDismissRequest = { showMuscleDropdown = false },
                             modifier = Modifier
-                                .background(DarkRaised)
-                                .border(BorderStroke(1.dp, BorderSubtle))
+                                .background(ApexColors.SurfaceRaised)
+                                .border(BorderStroke(1.dp, ApexColors.BorderSubtle))
                         ) {
                             MuscleGroups.ALL.forEach { muscle ->
                                 DropdownMenuItem(
-                                    text = { Text(muscle, color = Color.White, fontFamily = JetBrainsMonoFamily, fontSize = 13.sp) },
+                                    text = { Text(muscle, color = ApexColors.TextPrimary, fontFamily = ArchivoFamily, fontSize = 14.sp) },
                                     onClick = {
                                         selectedMuscle = muscle
                                         showMuscleDropdown = false
@@ -960,15 +939,12 @@ fun PlanBuilderScreen(
                             },
                             isError = setsError != null,
                             supportingText = setsError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.plan_builder_sets), color = SecondaryText, fontSize = 11.sp) },
-                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                            label = { Text(stringResource(R.string.plan_builder_sets), color = ApexColors.TextSecondary, fontSize = 12.sp, fontFamily = ArchivoFamily) },
+                            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("exercise_sets_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ApexColors.Primary,
-                                unfocusedBorderColor = BorderSubtle
-                            ),
+                            colors = exerciseFieldColors,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true
                         )
@@ -981,15 +957,12 @@ fun PlanBuilderScreen(
                             },
                             isError = repsMinError != null,
                             supportingText = repsMinError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.plan_builder_min_reps), color = SecondaryText, fontSize = 11.sp) },
-                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                            label = { Text(stringResource(R.string.plan_builder_min_reps), color = ApexColors.TextSecondary, fontSize = 12.sp, fontFamily = ArchivoFamily) },
+                            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
                             modifier = Modifier
                                 .weight(1.1f)
                                 .testTag("exercise_reps_min_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ApexColors.Primary,
-                                unfocusedBorderColor = BorderSubtle
-                            ),
+                            colors = exerciseFieldColors,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true
                         )
@@ -998,18 +971,17 @@ fun PlanBuilderScreen(
                             value = repsMaxText,
                             onValueChange = {
                                 repsMaxText = it
+                                repsMaxError = null
                                 repsMinError = null
                             },
-                            isError = repsMinError != null,
-                            label = { Text(stringResource(R.string.plan_builder_max_reps), color = SecondaryText, fontSize = 11.sp) },
-                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                            isError = repsMaxError != null,
+                            supportingText = repsMaxError?.let { { Text(it) } },
+                            label = { Text(stringResource(R.string.plan_builder_max_reps), color = ApexColors.TextSecondary, fontSize = 12.sp, fontFamily = ArchivoFamily) },
+                            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
                             modifier = Modifier
                                 .weight(1.1f)
                                 .testTag("exercise_reps_max_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ApexColors.Primary,
-                                unfocusedBorderColor = BorderSubtle
-                            ),
+                            colors = exerciseFieldColors,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true
                         )
@@ -1028,15 +1000,12 @@ fun PlanBuilderScreen(
                             },
                             isError = weightError != null,
                             supportingText = weightError?.let { { Text(it) } },
-                            label = { Text("Starting Weight ($unitSuffix)", color = SecondaryText) },
-                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                            label = { Text("Starting weight ($unitSuffix)", color = ApexColors.TextSecondary, fontFamily = ArchivoFamily) },
+                            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("exercise_weight_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = ApexColors.Primary,
-                                unfocusedBorderColor = BorderSubtle
-                            ),
+                            colors = exerciseFieldColors,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true
                         )
@@ -1045,8 +1014,8 @@ fun PlanBuilderScreen(
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(DarkBackground)
-                                .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(8.dp))
+                                .background(ApexColors.SurfaceSunken)
+                                .border(BorderStroke(1.dp, ApexColors.BorderSubtle), RoundedCornerShape(6.dp))
                                 .heightIn(min = 56.dp)
                                 .padding(4.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -1079,10 +1048,10 @@ fun PlanBuilderScreen(
                                 ) {
                                     Text(
                                         text = unit.uppercase(),
-                                        fontFamily = JetBrainsMonoFamily,
+                                        fontFamily = ArchivoFamily,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) ApexColors.OnGlow else SecondaryText
+                                        color = if (isSelected) ApexColors.OnGlow else ApexColors.TextSecondary
                                     )
                                 }
                             }
@@ -1091,16 +1060,18 @@ fun PlanBuilderScreen(
 
                     OutlinedTextField(
                         value = restText,
-                        onValueChange = { restText = it },
-                        label = { Text(stringResource(R.string.plan_builder_rest_seconds), color = SecondaryText) },
-                        textStyle = LocalTextStyle.current.copy(color = Color.White),
+                        onValueChange = {
+                            restText = it
+                            restError = null
+                        },
+                        isError = restError != null,
+                        supportingText = restError?.let { { Text(it) } },
+                        label = { Text(stringResource(R.string.plan_builder_rest_seconds), color = ApexColors.TextSecondary, fontFamily = ArchivoFamily) },
+                        textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("exercise_rest_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = ApexColors.Primary,
-                            unfocusedBorderColor = BorderSubtle
-                        ),
+                        colors = exerciseFieldColors,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true
                     )
@@ -1108,15 +1079,12 @@ fun PlanBuilderScreen(
                     OutlinedTextField(
                         value = notesText,
                         onValueChange = { notesText = it },
-                        label = { Text(stringResource(R.string.plan_builder_optional_notes), color = SecondaryText) },
-                        textStyle = LocalTextStyle.current.copy(color = Color.White),
+                        label = { Text(stringResource(R.string.plan_builder_optional_notes), color = ApexColors.TextSecondary, fontFamily = ArchivoFamily) },
+                        textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("exercise_notes_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = ApexColors.Primary,
-                            unfocusedBorderColor = BorderSubtle
-                        ),
+                        colors = exerciseFieldColors,
                         maxLines = 3
                     )
                 }
@@ -1124,50 +1092,58 @@ fun PlanBuilderScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (exName.isBlank()) {
-                            exNameError = context.getString(R.string.plan_builder_exercise_name_is_required)
-                            return@Button
-                        } else {
-                            exNameError = null
-                        }
-                        val setsVal = setsText.toIntOrNull() ?: 3
-                        val minRepsVal = repsMinText.toIntOrNull() ?: 8
-                        val maxRepsVal = repsMaxText.toIntOrNull() ?: 12
-                        val restVal = restText.toIntOrNull() ?: 90
+                        exNameError = null
+                        setsError = null
+                        repsMinError = null
+                        repsMaxError = null
+                        restError = null
+                        weightError = null
 
-                        if (setsVal <= 0 || minRepsVal <= 0 || maxRepsVal <= 0 || restVal < 0) {
-                            setsError = context.getString(R.string.plan_builder_numeric_values_must_be_valid)
-                            return@Button
-                        } else {
-                            setsError = null
-                        }
-                        if (minRepsVal > maxRepsVal) {
-                            repsMinError = context.getString(R.string.plan_builder_min_reps_greater_than_max)
-                            return@Button
-                        } else {
-                            repsMinError = null
-                        }
-
-                        val maxWeight = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
-                        val rawWeightVal = weightText.replace(',', '.').toDoubleOrNull()
-
-                        if (weightText.isNotBlank() &&
-                            (rawWeightVal == null || rawWeightVal !in 0.0..maxWeight)) {
-                            weightError = "Enter a valid weight (0–$maxWeight $unitSuffix)"
-                            return@Button
-                        } else {
-                            weightError = null
-                        }
-
-                        val weightVal = if (rawWeightVal != null && rawWeightVal in 0.0..maxWeight) {
-                            if (unitSuffix.lowercase() in listOf("lb", "lbs")) {
-                                rawWeightVal / AppConstants.KG_TO_LBS
-                            } else {
-                                rawWeightVal
+                        val validation = validatePlanExerciseDraft(
+                            name = exName,
+                            setsText = setsText,
+                            minRepsText = repsMinText,
+                            maxRepsText = repsMaxText,
+                            weightText = weightText,
+                            weightUnit = unitSuffix,
+                            restText = restText
+                        )
+                        if (validation is PlanExerciseDraftValidation.Invalid) {
+                            val numericError = context.getString(R.string.plan_builder_numeric_values_must_be_valid)
+                            when (validation.field) {
+                                PlanExerciseDraftField.NAME -> exNameError = context.getString(
+                                    R.string.plan_builder_exercise_name_is_required
+                                )
+                                PlanExerciseDraftField.SETS -> setsError = if (
+                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                                ) context.getString(R.string.plan_builder_sets_range) else numericError
+                                PlanExerciseDraftField.MIN_REPS -> repsMinError = when (validation.issue) {
+                                    PlanExerciseDraftIssue.MIN_REPS_EXCEEDS_MAX -> context.getString(
+                                        R.string.plan_builder_min_reps_greater_than_max
+                                    )
+                                    PlanExerciseDraftIssue.OUT_OF_RANGE -> context.getString(
+                                        R.string.plan_builder_reps_range
+                                    )
+                                    else -> numericError
+                                }
+                                PlanExerciseDraftField.MAX_REPS -> repsMaxError = if (
+                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                                ) context.getString(R.string.plan_builder_reps_range) else numericError
+                                PlanExerciseDraftField.REST -> restError = if (
+                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                                ) context.getString(R.string.plan_builder_rest_range) else numericError
+                                PlanExerciseDraftField.WEIGHT -> {
+                                    val maxWeight = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
+                                    weightError = context.getString(
+                                        R.string.plan_builder_weight_range,
+                                        maxWeight.toString(),
+                                        unitSuffix
+                                    )
+                                }
                             }
-                        } else {
-                            0.0
+                            return@Button
                         }
+                        val validDraft = validation as PlanExerciseDraftValidation.Valid
 
                         val targetSessionId = selectedSessionIdForExercise ?: return@Button
 
@@ -1176,14 +1152,14 @@ fun PlanBuilderScreen(
                             val newEx = PlanExercise(
                                 id = newId,
                                 planSessionId = targetSessionId,
-                                name = exName.trim(),
+                                name = validDraft.name,
                                 muscleGroup = selectedMuscle,
-                                sets = setsVal,
-                                repsMin = minRepsVal,
-                                repsMax = maxRepsVal,
-                                weight = weightVal,
+                                sets = validDraft.sets,
+                                repsMin = validDraft.minReps,
+                                repsMax = validDraft.maxReps,
+                                weight = validDraft.weightKg,
                                 weightUnit = "kg",
-                                restSeconds = restVal,
+                                restSeconds = validDraft.restSeconds,
                                 notes = notesText.trim()
                             )
                             planBuilderViewModel.addExercise(newEx)
@@ -1191,14 +1167,14 @@ fun PlanBuilderScreen(
                             val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
                             if (exercise != null) {
                                 val updated = exercise.copy(
-                                    name = exName.trim(),
+                                    name = validDraft.name,
                                     muscleGroup = selectedMuscle,
-                                    sets = setsVal,
-                                    repsMin = minRepsVal,
-                                    repsMax = maxRepsVal,
-                                    weight = weightVal,
+                                    sets = validDraft.sets,
+                                    repsMin = validDraft.minReps,
+                                    repsMax = validDraft.maxReps,
+                                    weight = validDraft.weightKg,
                                     weightUnit = "kg",
-                                    restSeconds = restVal,
+                                    restSeconds = validDraft.restSeconds,
                                     notes = notesText.trim()
                                 )
                                 planBuilderViewModel.updateExercise(updated)
@@ -1207,15 +1183,19 @@ fun PlanBuilderScreen(
 
                         showAddExerciseDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                    modifier = Modifier.testTag("save_exercise_confirm_button")
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ApexColors.Primary,
+                        contentColor = ApexColors.OnGlow
+                    ),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("save_exercise_confirm_button")
                 ) {
-                    Text(stringResource(R.string.plan_builder_save), fontFamily = SyneFamily, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.plan_builder_save), fontFamily = ArchivoFamily, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showAddExerciseDialog = false }) {
-                    Text(stringResource(R.string.plan_builder_cancel), fontFamily = SyneFamily, color = SecondaryText)
+                    Text(stringResource(R.string.plan_builder_cancel), fontFamily = ArchivoFamily, color = ApexColors.TextSecondary)
                 }
             }
         )

@@ -2,7 +2,6 @@ package com.apexfit.app.utils
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -46,7 +45,7 @@ class ExerciseMediaCatalogTest {
     }
 
     @Test
-    fun catalogCombinesImagesAndStructuredVideoMetadata() {
+    fun catalogKeepsInstructionsAndVideoButDoesNotExposeUnverifiedImages() {
         val media = """
             {
               "dumbbell-lateral-raise": {
@@ -77,9 +76,8 @@ class ExerciseMediaCatalogTest {
         assertEquals("fuzzy", result.youtubeMatchType)
         assertEquals(89, result.youtubeMatchScore)
         assertEquals("DEMIC", result.youtubeChannel)
-        assertEquals(2, result.imageUrls.size)
+        assertEquals(emptyList<String>(), result.imageUrls)
         assertEquals(listOf("Stand tall.", "Raise under control."), result.instructions)
-        assertTrue(result.imageUrls.first().contains("Side_Lateral_Raise/0.jpg"))
     }
 
     @Test

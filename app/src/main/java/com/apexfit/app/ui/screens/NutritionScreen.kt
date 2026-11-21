@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,10 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -238,10 +235,10 @@ fun NutritionScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { nutritionViewModel.changeNutritionDate(-1) }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev Day", tint = PrimaryText)
+                    Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Prev Day", tint = PrimaryText)
                 }
                 Text(
-                    text = selectedDate,
+                    text = com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(selectedDate),
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
@@ -252,7 +249,7 @@ fun NutritionScreen(
                     enabled = !isToday
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
+                        painterResource(ApexIcons.ArrowRight),
                         contentDescription = "Next Day",
                         tint = if (isToday) SecondaryText else PrimaryText
                     )
@@ -260,99 +257,17 @@ fun NutritionScreen(
             }
         }
 
-        // Calorie and macro overview card
         item {
-            val ringColor = remember(userGoal, loggedCalories, calorieTarget) {
-                when {
-                    userGoal == "Lose Fat" -> {
-                        if (loggedCalories <= calorieTarget * 1.05) GreenAccent
-                        else if (loggedCalories <= calorieTarget * 1.15) ApexColors.Amber // Amber
-                        else RedAccent
-                    }
-                    userGoal == "Gain Muscle" -> {
-                        if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) GreenAccent
-                        else if (loggedCalories < calorieTarget * 0.85) RedAccent // Under-eating on gain
-                        else ApexColors.Amber // Significantly over
-                    }
-                    userGoal.lowercase().contains("maintain") -> {
-                        if (loggedCalories >= calorieTarget * 0.95 && loggedCalories <= calorieTarget * 1.05) GreenAccent
-                        else if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) ApexColors.Amber
-                        else RedAccent
-                    }
-                    else -> if (loggedCalories >= calorieTarget) GreenAccent else OrangeAccent
-                }
-            }
-
-            PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Nutrition",
-                        fontFamily = SyneFamily,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryText
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = if (isTodayTrainingDay) AmberAccent.copy(alpha = 0.15f) else BlueAccent.copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            text = if (isTodayTrainingDay) "TRAINING DAY TARGET" else "REST DAY TARGET",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isTodayTrainingDay) AmberAccent else BlueAccent,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Small circular ring
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .drawBehind {
-                                drawCircle(BorderSubtle, size.minDimension / 2, style = Stroke(6.dp.toPx()))
-                                val progress = if (hasCalorieTarget) (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f) else 0f
-                                
-                                drawArc(
-                                    color = ringColor,
-                                    startAngle = -90f,
-                                    sweepAngle = progress * 360f,
-                                    useCenter = false,
-                                    style = Stroke(6.dp.toPx(), cap = StrokeCap.Round)
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (hasCalorieTarget) stringResource(R.string.nutrition_fmt_str, (loggedCalories * 100 / calorieTarget).coerceIn(0, 100)) else "—", fontFamily = InterFamily, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-                            Text(if (hasCalorieTarget) "of target" else "kcal", fontFamily = InterFamily, fontSize = 11.sp, color = SecondaryText)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(if (hasCalorieTarget) stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories) else "$loggedCalories kcal logged · Set a target in Settings", fontFamily = InterFamily, fontSize = 13.sp, color = PrimaryText)
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            MacroStatMini(label = "Protein", value = "${loggedProtein.roundToInt()}${if (hasCalorieTarget) " / $targetProtein" else ""} g", color = ApexColors.Primary)
-                            MacroStatMini(label = "Carbs", value = "${loggedCarbs.roundToInt()}${if (hasCalorieTarget) " / $targetCarbs" else ""} g", color = BlueAccent)
-                            MacroStatMini(label = "Fat", value = "${loggedFat.roundToInt()}${if (hasCalorieTarget) " / $targetFat" else ""} g", color = RedAccent)
-                        }
-                    }
-                }
-            }
+            NutritionDailySummary(
+                calories = loggedCalories,
+                target = calorieTarget.takeIf { hasCalorieTarget },
+                trainingDay = isTodayTrainingDay,
+                macros = listOf(
+                    "Protein" to "${loggedProtein.roundToInt()}${if (hasCalorieTarget) " / $targetProtein" else ""} g",
+                    "Carbs" to "${loggedCarbs.roundToInt()}${if (hasCalorieTarget) " / $targetCarbs" else ""} g",
+                    "Fat" to "${loggedFat.roundToInt()}${if (hasCalorieTarget) " / $targetFat" else ""} g"
+                )
+            )
         }
 
         // Add food triggers Grid
@@ -428,7 +343,7 @@ fun NutritionScreen(
                             contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Delete,
+                                painter = painterResource(ApexIcons.Delete),
                                 contentDescription = "Delete",
                                 tint = Color.White
                             )
@@ -459,7 +374,7 @@ fun NutritionScreen(
                                     )
                                 }
                                 IconButton(onClick = { triggerPendingDeletion(meal) }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete entry", tint = MutedText)
+                                    Icon(painterResource(ApexIcons.Delete), contentDescription = "Delete entry", tint = MutedText)
                                 }
                             }
                         }
@@ -511,11 +426,48 @@ fun NutritionScreen(
 }
 
 @Composable
-fun MacroStatMini(label: String, value: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(stringResource(R.string.nutrition_fmt_str_1, label, value), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+internal fun NutritionDailySummary(
+    calories: Int,
+    target: Int?,
+    trainingDay: Boolean,
+    macros: List<Pair<String, String>>
+) {
+    val numbers = java.text.NumberFormat.getIntegerInstance()
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Calories", style = MaterialTheme.typography.titleLarge)
+        Text(
+            if (target == null) "${numbers.format(calories)} kcal" else
+                "${numbers.format(calories)} / ${numbers.format(target)} kcal",
+            style = ApexTextStyles.dataXL
+        )
+        if (target != null && target > 0) {
+            val delta = target - calories
+            val label = when {
+                delta > 0 -> "${numbers.format(delta)} kcal remaining"
+                delta < 0 -> "${numbers.format(-delta)} kcal over target"
+                else -> "Target reached"
+            }
+            Text(label, color = SecondaryText)
+            LinearProgressIndicator(
+                progress = { (calories.toFloat() / target).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(4.dp),
+                color = ApexColors.Primary,
+                trackColor = ApexColors.SurfaceRaised
+            )
+            Text(if (trainingDay) "Training day target" else "Rest day target", color = SecondaryText)
+        } else {
+            Text("Set a calorie target in Settings.", color = SecondaryText)
+        }
+        macros.forEach { (name, value) ->
+            HorizontalDivider(color = ApexColors.BorderSubtle)
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(name, color = SecondaryText)
+                Text(value, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"))
+            }
+        }
     }
 }
 
@@ -866,7 +818,7 @@ fun AdaptiveCalorieTargetCard(
                     color = SecondaryText
                 )
                 Icon(
-                    painter = painterResource(R.drawable.ic_trending_up),
+                    painter = painterResource(ApexIcons.TrendingUp),
                     contentDescription = "Adaptive",
                     tint = OrangeAccent,
                     modifier = Modifier.size(16.dp)

@@ -82,6 +82,8 @@ class FitnessViewModel @Inject constructor(
     val onboardingError = _onboardingError.asStateFlow()
     val trainingExperience = dataStore.experienceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Beginner")
     val nutritionPreferences = dataStore.nutritionPreferencesFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NutritionPreferences())
+    val onboardingExerciseCatalog: StateFlow<List<Exercise>> = dao.getAllExercisesFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun completeTrainingSetup(profile: OnboardingProfile? = null) {
         if (_onboardingSaving.value) return

@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -21,14 +23,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -172,6 +170,7 @@ fun ApexFitApp(
     var currentRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
     var returnRoute by rememberSaveable { mutableStateOf(TopLevelDestination.HOME.route) }
     var selectedPlanId by rememberSaveable { mutableLongStateOf(0L) }
+    var startPlanBuilderInImportMode by rememberSaveable { mutableStateOf(false) }
     val tabStateHolder = rememberSaveableStateHolder()
     val activeTab = TopLevelDestination.entries.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
@@ -187,6 +186,13 @@ fun ApexFitApp(
     val openPlanBuilder: (Long) -> Unit = { planId ->
         returnRoute = ApexScreenRoutes.safeReturn(currentRoute)
         selectedPlanId = planId
+        startPlanBuilderInImportMode = false
+        currentRoute = ApexScreenRoutes.PLAN_BUILDER
+    }
+    val openWorkoutImport: () -> Unit = {
+        returnRoute = ApexScreenRoutes.safeReturn(currentRoute)
+        selectedPlanId = 0L
+        startPlanBuilderInImportMode = true
         currentRoute = ApexScreenRoutes.PLAN_BUILDER
     }
     val navigateBack: () -> Unit = {
@@ -328,12 +334,14 @@ fun ApexFitApp(
         val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
         val onboardingSaving by fitnessViewModel.onboardingSaving.collectAsStateWithLifecycle()
         val onboardingError by fitnessViewModel.onboardingError.collectAsStateWithLifecycle()
+        val onboardingExerciseCatalog by fitnessViewModel.onboardingExerciseCatalog.collectAsStateWithLifecycle()
         OnboardingScreen(
             preferredUnits = preferredUnits,
             isSaving = onboardingSaving,
             saveError = onboardingError,
             onExplore = { fitnessViewModel.completeTrainingSetup() },
-            onComplete = { profile -> fitnessViewModel.completeTrainingSetup(profile) }
+            onComplete = { profile -> fitnessViewModel.completeOnboarding(profile) },
+            exerciseCatalog = onboardingExerciseCatalog
         )
         } // end false branch
         true -> {
@@ -373,7 +381,7 @@ fun ApexFitApp(
                                 onClick = openSettings,
                                 modifier = Modifier.testTag("settings_button")
                             ) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = PrimaryText)
+                                Icon(painterResource(ApexIcons.Settings), contentDescription = "Settings", tint = PrimaryText)
                             }
                         }
                     )
@@ -422,7 +430,8 @@ fun ApexFitApp(
                             planBuilderViewModel = planBuilderViewModel,
                             workoutExecutionViewModel = workoutExecutionViewModel,
                             restTimerViewModel = restTimerViewModel,
-                            onNavigateToPlanBuilder = openPlanBuilder
+                            onNavigateToPlanBuilder = openPlanBuilder,
+                            onNavigateToWorkoutImport = openWorkoutImport
                         )
                     }
                     TopLevelDestination.NUTRITION.route -> {
@@ -445,7 +454,8 @@ fun ApexFitApp(
                     ApexScreenRoutes.PLAN_BUILDER -> PlanBuilderScreen(
                         planBuilderViewModel = planBuilderViewModel,
                         planId = selectedPlanId,
-                        onNavigateBack = navigateBack
+                        onNavigateBack = navigateBack,
+                        startInImportMode = startPlanBuilderInImportMode
                     )
                     ApexScreenRoutes.SETTINGS -> SettingsScreen(
                         viewModel = fitnessViewModel,
@@ -459,29 +469,26 @@ fun ApexFitApp(
 
                 // Render smart rest timer overlay if triggered
                 val showRestOverlay by restTimerViewModel.showRestOverlay.collectAsStateWithLifecycle()
-                if (showRestOverlay) {
+                val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
+                val rirState by workoutExecutionViewModel.rirOverlayState.collectAsStateWithLifecycle()
+                if (showRestOverlay && !showRirOverlay) {
                     BackHandler { restTimerViewModel.closeRestTimer() }
-                    RestTimerOverlay(fitnessViewModel, restTimerViewModel)
+                    RestTimerOverlay(restTimerViewModel)
                 }
 
-                // Render smart RIR selector overlay if triggered
-                val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
+                // RIR selection and the resulting rest period share the approved transition screen.
                 if (showRirOverlay) {
-                    BackHandler { workoutExecutionViewModel.closeRirSelector() }
+                    BackHandler {
+                        if (rirState.hasLoggedSet && showRestOverlay) restTimerViewModel.closeRestTimer()
+                        workoutExecutionViewModel.closeRirSelector()
+                    }
                     RirSelectorOverlay(
                         fitnessViewModel = fitnessViewModel,
                         workoutExecutionViewModel = workoutExecutionViewModel,
-                        onTriggerRestTimer = { rpe, exName, muscle, reps, setIdx, totalSets ->
-                            restTimerViewModel.triggerRestTimer(
-                                rpe = rpe,
-                                exerciseName = exName,
-                                muscleGroup = muscle,
-                                reps = reps,
-                                setIndex = setIdx,
-                                totalSets = totalSets,
-                                currentExerciseIdx = workoutExecutionViewModel.currentExerciseIdx.value,
-                                completedExerciseId = workoutExecutionViewModel.rirOverlayState.value.exerciseId
-                            )
+                        restTimerViewModel = restTimerViewModel,
+                        onDismiss = {
+                            if (rirState.hasLoggedSet && showRestOverlay) restTimerViewModel.closeRestTimer()
+                            workoutExecutionViewModel.closeRirSelector()
                         }
                     )
                 }
@@ -500,9 +507,6 @@ fun ApexFitApp(
 
 @Composable
 fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
-    // v2.1: full-width bar on Canvas with a hairline top edge (mockup-verified).
-    // All four labels always visible. Active item = mint icon + mint label +
-    // short 24×4dp signal pill beneath the label; inactive items stay muted.
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -536,7 +540,7 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                         ) {
                             Icon(
                                 painter = painterResource(destination.iconRes),
-                                contentDescription = destination.label,
+                                contentDescription = null,
                                 tint = itemColor,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -544,19 +548,12 @@ fun BottomNavBar(activeTab: Int, onTabSelected: (Int) -> Unit) {
                             Text(
                                 text = destination.label,
                                 fontFamily = InterFamily,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                                 color = itemColor,
                                 letterSpacing = 0.4.sp
                             )
-                            Spacer(Modifier.height(3.dp))
-                            // Signal pill — solid under the active tab, invisible otherwise
-                            Box(
-                                Modifier
-                                    .size(width = 24.dp, height = 4.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(if (isSelected) ApexColors.Primary else Color.Transparent)
-                            )
+
                         }
                     }
                 }

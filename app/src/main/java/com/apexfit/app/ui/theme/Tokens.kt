@@ -21,15 +21,17 @@ object ApexSpacing {
     val cardGap       = 12.dp
 }
 
-// ─── Data text styles (monospaced numerics) ───────────────────────────────────
+// ─── Data text styles (tabular numerals) ───────────────────────────────────
 object ApexTextStyles {
     val dataXL = TextStyle(
-        fontFamily = JetBrainsMonoFamily,
+        fontFamily = ArchivoFamily,
+        fontFeatureSettings = "tnum",
         fontWeight = FontWeight.Bold,
         fontSize   = 28.sp
     )
     val dataMedium = TextStyle(
-        fontFamily = JetBrainsMonoFamily,
+        fontFamily = ArchivoFamily,
+        fontFeatureSettings = "tnum",
         fontWeight = FontWeight.Bold,
         fontSize   = 20.sp
     )

@@ -1,6 +1,14 @@
-Free Exercise DB media source
+Free Exercise DB data/instruction source
 
-Dataset/images: https://github.com/yuhonas/free-exercise-db
-License: Unlicense / public domain dedication (see FreeExerciseDB-UNLICENSE.txt)
+Repository: https://github.com/yuhonas/free-exercise-db
+Repository data license: Unlicense (see FreeExerciseDB-UNLICENSE.txt)
 
-Apex Fit stores only source IDs and image paths in exercise_media.json. Images are loaded from the upstream raw GitHub repository on demand. YouTube video IDs/URLs, when curated, belong in exercise_videos.json and are streamed through YouTube's embedded player; videos are not downloaded or rehosted.
+IMPORTANT IMAGE-RIGHTS NOTE
+The upstream project owner has stated that the origin/royalty status of the bundled exercise images is unknown and that image use is at the user's own risk:
+https://github.com/yuhonas/free-exercise-db/issues/2
+
+Apex Fit therefore does not construct, fetch, display, bundle, or claim public-domain rights to those exercise image files in production.
+
+app/src/main/assets/exercise_media.json may retain upstream source IDs, image-path metadata, and written instructions for mapping/provenance. Written instructions remain usable independently of the image paths.
+
+YouTube technique mappings are stored in exercise_videos.json and streamed through YouTube's embedded player. Apex Fit does not download or rehost the audiovisual content.

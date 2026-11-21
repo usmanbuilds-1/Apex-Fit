@@ -1,7 +1,7 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -11,12 +11,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -28,7 +26,6 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +44,8 @@ import com.apexfit.app.ui.models.UiWeightEntry
 import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.NutritionTargets
+import com.apexfit.app.utils.SessionHeroCategory
+import java.time.format.DateTimeFormatter
 import java.time.LocalDate
 import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
@@ -55,20 +54,36 @@ import java.util.Locale
 private val CanvasVoid     get() = ApexColors.Canvas
 private val SurfaceNight1  get() = ApexColors.Surface
 private val SurfaceNight2  get() = ApexColors.SurfaceRaised
-private val ElectricMint   = Color(0xFF47E1C2)
+private val MineralBlue get() = ApexColors.Primary
 private val TextMuted      get() = ApexColors.TextSecondary
 private val TextTertiary   get() = ApexColors.TextTertiary
-private val BrandText      = Color(0xFFC6D2DB)
-private val BorderMuted    = Color(0xFF242F3A)
+private val BorderMuted get() = ApexColors.BorderSubtle
 
-internal fun currentTrainingStreak(dates: Set<LocalDate>, today: LocalDate): Int {
-    var date = if (today in dates) today else today.minusDays(1)
-    var streak = 0
-    while (date in dates) {
-        streak++
-        date = date.minusDays(1)
+internal fun currentWeekTrainingSessionCount(sessions: List<RichTrainingSession>, today: LocalDate): Int {
+    val weekStart = today.with(
+        java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)
+    )
+    return sessions.count { session ->
+        if (!session.completed) return@count false
+        val date = runCatching { LocalDate.parse(session.date) }.getOrNull() ?: return@count false
+        !date.isBefore(weekStart) && !date.isAfter(today)
     }
-    return streak
+}
+
+internal fun todayTrainingWeekSummary(completedSessions: Int, weeklyTarget: Int): String {
+    val completed = completedSessions.coerceAtLeast(0)
+    val target = weeklyTarget.coerceAtLeast(0)
+    return when {
+        target > 0 -> "$completed of $target ${if (target == 1) "session" else "sessions"} this week"
+        completed == 1 -> "1 session completed this week"
+        else -> "$completed sessions completed this week"
+    }
+}
+
+internal fun todayExerciseCountLabel(exerciseCount: Int): String? = when {
+    exerciseCount == 1 -> "1 exercise"
+    exerciseCount > 1 -> "$exerciseCount exercises"
+    else -> null
 }
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
@@ -92,13 +107,12 @@ fun HomeScreen(
     val completedSessions by homeViewModel.completedSessions.collectAsStateWithLifecycle(emptyList())
     val units             by homeViewModel.units.collectAsStateWithLifecycle()
     val userGoal          by fitnessViewModel.goal.collectAsStateWithLifecycle()
-    val athleteName by fitnessViewModel.username.collectAsStateWithLifecycle()
+    val heroCategory by homeViewModel.todayHeroCategory.collectAsStateWithLifecycle()
     val planSessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val todayExercises by homeViewModel.todayExercisesFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     val activeSession by workoutExecutionViewModel.activeWorkoutSession.collectAsStateWithLifecycle()
     val todayDate          by homeViewModel.todayDate.collectAsStateWithLifecycle()
-
-    val configuration = LocalConfiguration.current
-    val isNarrowScreen = configuration.screenWidthDp < 600
+    val estimatedWorkoutDuration by homeViewModel.estimatedWorkoutDuration.collectAsStateWithLifecycle()
 
     // Derive today's session from active plan
     val todayDayName = remember(todayDate) {
@@ -108,6 +122,12 @@ fun HomeScreen(
         when (val s = planSessionsState) {
             is UiState.Success -> s.data?.find { it.day.equals(todayDayName, ignoreCase = true) }
             else -> null
+        }
+    }
+    val weeklySessionTarget = remember(planSessionsState) {
+        when (val state = planSessionsState) {
+            is UiState.Success -> state.data?.count { it.day.isNotBlank() } ?: 0
+            else -> 0
         }
     }
 
@@ -125,11 +145,81 @@ fun HomeScreen(
         }
     }
 
-    val trainingDates = remember(completedSessions) {
-        completedSessions.filter { it.completed }
-            .mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()
+    val completedSessionsThisWeek = remember(completedSessions, todayDate) {
+        currentWeekTrainingSessionCount(completedSessions, LocalDate.parse(todayDate))
     }
-    val trainingStreak = currentTrainingStreak(trainingDates, LocalDate.parse(todayDate))
+
+    var showLogWeight by rememberSaveable { mutableStateOf(false) }
+    TodayContent(
+        heroCategory = heroCategory,
+        todayDate = todayDate,
+        sessionLabel = todaySession?.label,
+        sessionFocus = todaySession?.focus.orEmpty(),
+        scheduledExerciseCount = todayExercises.size,
+        weeklySessionTarget = weeklySessionTarget,
+        hasActiveSession = activeSession != null,
+        estimatedWorkoutDuration = estimatedWorkoutDuration,
+        readiness = readiness,
+        loggedCalories = loggedCalories,
+        loggedProtein = loggedProtein,
+        loggedCarbs = loggedCarbs,
+        loggedFat = loggedFat,
+        macroTargets = macroTargets,
+        weightEntries = weightEntries,
+        units = units,
+        userGoal = userGoal,
+        completedSessions = completedSessions,
+        completedSessionsThisWeek = completedSessionsThisWeek,
+        onOpenSettings = onOpenSettings,
+        onNutrition = { onNavigateTo(2) },
+        onProgress = { onNavigateTo(3) },
+        onLogWeight = { showLogWeight = true },
+        onStartWorkout = {
+            if (activeSession == null) todaySession?.let(workoutExecutionViewModel::startWorkoutSession)
+            fitnessViewModel.setTrainSubTab(if (activeSession != null || todaySession != null) 1 else 0)
+            onNavigateTo(1)
+        }
+    )
+    if (showLogWeight) {
+        LogWeightDialog(initialInput = "", units = units,
+            onDismiss = { showLogWeight = false },
+            onSave = { weight ->
+                homeViewModel.logWeight(weight, preferredUnit = units)
+                showLogWeight = false
+            })
+    }
+}
+
+@Composable
+internal fun TodayContent(
+    heroCategory: SessionHeroCategory,
+    todayDate: String,
+    sessionLabel: String? = null,
+    sessionFocus: String = "",
+    scheduledExerciseCount: Int = 0,
+    weeklySessionTarget: Int = 0,
+    hasActiveSession: Boolean = false,
+    estimatedWorkoutDuration: Int = 0,
+    readiness: UiSessionReadiness? = null,
+    loggedCalories: Int = 0,
+    loggedProtein: Int = 0,
+    loggedCarbs: Int = 0,
+    loggedFat: Int = 0,
+    macroTargets: NutritionTargets? = null,
+    weightEntries: List<UiWeightEntry> = emptyList(),
+    units: String = "kg",
+    userGoal: String = "",
+    completedSessions: List<RichTrainingSession> = emptyList(),
+    completedSessionsThisWeek: Int = 0,
+    onOpenSettings: () -> Unit,
+    onNutrition: () -> Unit,
+    onProgress: () -> Unit,
+    onLogWeight: () -> Unit = onProgress,
+    onStartWorkout: () -> Unit
+) {
+    var showReadinessExplanation by remember { mutableStateOf(false) }
+    var showDurationExplanation by remember { mutableStateOf(false) }
+    val isNarrowScreen = LocalConfiguration.current.screenWidthDp < 600
 
     LazyColumn(
         modifier = Modifier
@@ -138,13 +228,9 @@ fun HomeScreen(
         // Home-indicator clearance ≥ 16pt (plus navigation bar height clearance)
         contentPadding = PaddingValues(bottom = 80.dp)
     ) {
-        // ── Sticky top bar (No simulated iOS status bar; Android status bar respected)
         item {
-            HomeTopBar(athleteName = athleteName, onSettingsClick = onOpenSettings)
+            HomeTrainingHero(heroCategory, sessionLabel != null, todayDate, onOpenSettings)
         }
-
-        // Compact visual header keeps the workout action near the top.
-        item { HomeTrainingHero() }
 
         // ── Padded content cards ───────────────────────────────────────────
         item {
@@ -156,25 +242,19 @@ fun HomeScreen(
 
                 // Workout Card
                 TodayWorkoutCard(
-                    sessionLabel    = todaySession?.label.orEmpty(),
-                    sessionFocus    = todaySession?.focus.orEmpty(),
-                    hasActiveSession = activeSession != null,
+                    sessionLabel = sessionLabel.orEmpty(),
+                    sessionFocus = sessionFocus,
+                    scheduledExerciseCount = scheduledExerciseCount,
+                    weeklySessionTarget = weeklySessionTarget,
+                    hasActiveSession = hasActiveSession,
+                    estimatedDurationMin = estimatedWorkoutDuration,
+                    onDurationInfo = { showDurationExplanation = true },
+                    readiness = readiness,
+                    completedThisWeek = completedSessionsThisWeek,
+                    onReadinessInfo = { showReadinessExplanation = true },
 
-                    onStartWorkout  = {
-                        if (activeSession == null) todaySession?.let { workoutExecutionViewModel.startWorkoutSession(it) }
-                        fitnessViewModel.setTrainSubTab(if (activeSession != null || todaySession != null) 1 else 0)
-                        onNavigateTo(1) // Train tab
-                    }
+                    onStartWorkout = onStartWorkout
                 )
-
-                readiness?.let { state ->
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        Text("Readiness · ${state.score} / 100 · ${state.label}", color = ElectricMint,
-                            fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text(state.recommendation, color = TextMuted, fontSize = 13.sp,
-                            modifier = Modifier.padding(top = 6.dp))
-                    }
-                }
 
                 // Nutrition and weight use logged values, never sample data.
                 if (isNarrowScreen) {
@@ -189,14 +269,14 @@ fun HomeScreen(
                             loggedCarbs    = loggedCarbs,
                             loggedFat      = loggedFat,
                             targets        = macroTargets,
-                            onSeeDetails   = { onNavigateTo(2) }
+                            onSeeDetails   = onNutrition
                         )
                         WeightTrendCard(
                             modifier = Modifier.fillMaxWidth(),
                             entries  = weightEntries,
                             units    = units,
                             userGoal = userGoal,
-                            onView   = { onNavigateTo(3) }
+                            onView   = onLogWeight
                         )
                     }
                 } else {
@@ -211,121 +291,90 @@ fun HomeScreen(
                             loggedCarbs    = loggedCarbs,
                             loggedFat      = loggedFat,
                             targets        = macroTargets,
-                            onSeeDetails   = { onNavigateTo(2) }
+                            onSeeDetails   = onNutrition
                         )
                         WeightTrendCard(
                             modifier = Modifier.weight(1f),
                             entries  = weightEntries,
                             units    = units,
                             userGoal = userGoal,
-                            onView   = { onNavigateTo(3) }
+                            onView   = onLogWeight
                         )
                     }
                 }
 
-                TrainingStreakSection(trainingStreak, onView = { onNavigateTo(3) })
+                HorizontalDivider(color = BorderMuted)
+                RecentSessionsSection(completedSessions.filter { it.completed }.sortedByDescending { it.date }.take(2), onSeeAll = onProgress)
             }
         }
+    }
+
+    if (showReadinessExplanation) {
+        TodayReadinessExplanationDialog(
+            readiness = readiness,
+            onDismiss = { showReadinessExplanation = false }
+        )
+    }
+
+    if (showDurationExplanation) {
+        WorkoutDurationExplanationDialog(
+            estimatedMinutes = estimatedWorkoutDuration,
+            onDismiss = { showDurationExplanation = false }
+        )
     }
 }
 
 // ─── Header Top Bar ──────────────────────────────────────────────────────────
 // Rule 4: Apex chevron mark (18px) + "APEX FIT" 11px/700 tracking-wider #C6D2DB
-// Rule 15: Header mark is Mint #47E1C2 (1 of 5 mint elements). Everything else grayscale.
-
 @Composable
-private fun HomeTopBar(athleteName: String, onSettingsClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .background(CanvasVoid)
-            .padding(horizontal = ApexSpacing.screenPadding, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Apex chevron mark (18px)
-        Icon(
-            painter = painterResource(R.drawable.ic_apex_chevron),
-            contentDescription = null,
-            tint = ElectricMint,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(Modifier.width(8.dp))
-        // "APEX FIT" 11px / 700 tracking-wider #C6D2DB
-        Text(
-            text = "APEX FIT",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp,
-            color = BrandText
-        )
-
-        Spacer(Modifier.weight(1f))
-
-        // Avatar
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(SurfaceNight2)
-                .border(1.dp, BorderMuted, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(athleteName.trim().firstOrNull()?.uppercase() ?: "A", color = Color.White,
-                fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        // Settings icon (hit area 44pt)
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clickable(role = Role.Button, onClick = onSettingsClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Settings,
-                contentDescription = "Settings",
-                tint = TextTertiary,
-                modifier = Modifier.size(20.dp)
+private fun HomeTrainingHero(
+    category: SessionHeroCategory,
+    hasScheduledSession: Boolean,
+    date: String,
+    onOpenSettings: () -> Unit
+) {
+    val photo = when (category) {
+        SessionHeroCategory.UPPER_PULL -> R.drawable.today_upper_supported_row_13106582
+        SessionHeroCategory.LOWER_QUAD -> R.drawable.today_lower_barbell_squat_38771191
+        SessionHeroCategory.RECOVERY ->
+            if (hasScheduledSession) null else R.drawable.today_recovery_band_mobility_20199285
+        else -> null
+    }
+    val displayDate = remember(date) {
+        LocalDate.parse(date).format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()))
+    }
+    Box(Modifier.fillMaxWidth().background(CanvasVoid)
+        .heightIn(min = if (photo == null) 148.dp else 320.dp)) {
+        if (photo != null) {
+            Image(
+                painter = painterResource(photo), contentDescription = null,
+                contentScale = ContentScale.Crop, alignment = Alignment.Center,
+                modifier = Modifier.matchParentSize()
             )
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(
+                0f to CanvasVoid.copy(alpha = .55f),
+                .35f to CanvasVoid.copy(alpha = .20f),
+                .66f to CanvasVoid.copy(alpha = .24f),
+                1f to CanvasVoid
+            )))
         }
-    }
-}
-
-// ─── Compact visual header ──────────────────────────────────────────────────
-
-@Composable
-private fun HomeTrainingHero() {
-    Box(Modifier.fillMaxWidth().height(128.dp).background(CanvasVoid)) {
-        Image(painter = painterResource(R.drawable.home_athlete), contentDescription = null,
-            contentScale = ContentScale.Crop, alignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize())
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(
-            0f to CanvasVoid.copy(alpha = .92f), .52f to CanvasVoid.copy(alpha = .36f),
-            1f to Color.Transparent)))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
-            0f to Color.Transparent, .72f to Color.Transparent, 1f to CanvasVoid)))
-        Column(Modifier.align(Alignment.CenterStart).padding(horizontal = ApexSpacing.screenPadding)) {
-            Text("Today", color = Color.White, fontSize = 28.sp,
-                lineHeight = 34.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text("One set at a time.", color = BrandText, fontSize = 14.sp)
+        Column(Modifier.fillMaxWidth().statusBarsPadding()
+            .padding(horizontal = ApexSpacing.screenPadding, vertical = 8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_apex_chevron), null,
+                    tint = MineralBlue, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("APEX FIT", color = PrimaryText, fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onOpenSettings) {
+                    Icon(painterResource(ApexIcons.Settings), "Settings", tint = PrimaryText)
+                }
+            }
+            Text("Today", color = PrimaryText, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text(displayDate, color = PrimaryText, fontSize = 14.sp,
+                modifier = Modifier.padding(top = 6.dp, bottom = 20.dp))
         }
-    }
-}
-
-@Composable
-private fun TrainingStreakSection(days: Int, onView: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-        .background(SurfaceNight1).clickable(role = Role.Button, onClick = onView).padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Training streak", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text(if (days == 1) "1 day" else "$days days", color = ElectricMint,
-            fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text(if (days == 0) "Complete a workout to start your streak."
-            else "Consecutive days with a completed workout.", color = TextMuted, fontSize = 13.sp)
     }
 }
 
@@ -333,21 +382,134 @@ private fun TrainingStreakSection(days: Int, onView: () -> Unit) {
 private fun TodayWorkoutCard(
     sessionLabel: String,
     sessionFocus: String,
+    scheduledExerciseCount: Int,
+    weeklySessionTarget: Int,
     hasActiveSession: Boolean,
+    estimatedDurationMin: Int,
+    onDurationInfo: () -> Unit,
+    readiness: UiSessionReadiness?,
+    completedThisWeek: Int,
+    onReadinessInfo: () -> Unit,
     onStartWorkout: () -> Unit
 ) {
     val hasSession = sessionLabel.isNotBlank()
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(SurfaceNight1)
-        .padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(if (hasSession) "YOUR NEXT WORKOUT" else "YOUR TRAINING PLAN",
-            color = TextMuted, fontSize = 11.sp, letterSpacing = 1.sp)
-        Text(if (hasSession) sessionLabel else "No session scheduled today",
-            color = Color.White, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
+    val exerciseCountLabel = todayExerciseCountLabel(scheduledExerciseCount)
+    val cardShape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(cardShape)
+            .background(SurfaceNight1)
+            .border(1.dp, BorderMuted, cardShape)
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        if (hasSession) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    sessionLabel,
+                    modifier = Modifier.weight(1f),
+                    color = PrimaryText,
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    todayTrainingWeekSummary(completedThisWeek, weeklySessionTarget),
+                    modifier = Modifier.widthIn(max = 132.dp),
+                    color = TextMuted,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                )
+            }
+        } else {
+            Text(
+                "No session scheduled today",
+                color = PrimaryText,
+                fontSize = 24.sp,
+                lineHeight = 30.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
         Text(if (hasSession) sessionFocus else "Take a recovery day, or choose a workout from your plan.",
             color = TextMuted, fontSize = 14.sp, lineHeight = 21.sp)
-        Button(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = ElectricMint, contentColor = CanvasVoid)) {
+        if (hasSession) {
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (estimatedDurationMin > 0) {
+                        Text(
+                            "~$estimatedDurationMin min",
+                            modifier = Modifier.heightIn(min = 48.dp)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = "Estimated workout time",
+                                    onClick = onDurationInfo
+                                )
+                                .wrapContentHeight(Alignment.CenterVertically),
+                            color = TextMuted,
+                            fontSize = 13.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                    if (estimatedDurationMin > 0 && exerciseCountLabel != null) {
+                        Text("·", color = TextMuted, fontSize = 13.sp)
+                    }
+                    exerciseCountLabel?.let { label ->
+                        Text(label, color = TextMuted, fontSize = 13.sp, lineHeight = 17.sp)
+                    }
+                }
+                Row(
+                    modifier = Modifier.heightIn(min = 48.dp)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = "About the readiness estimate",
+                            onClick = onReadinessInfo
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (readiness == null) {
+                        Text("Building readiness baseline", color = TextMuted, fontSize = 13.sp)
+                    } else if (readiness.label.contains("baseline", ignoreCase = true)) {
+                        Text(readiness.label, color = TextMuted, fontSize = 13.sp)
+                    } else {
+                        Text(
+                            readiness.score.coerceIn(0, 100).toString(),
+                            color = MineralBlue,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        val readinessLabel = if (readiness.label.contains("estimate", ignoreCase = true)) {
+                            readiness.label
+                        } else {
+                            "${readiness.label} estimate"
+                        }
+                        Text(readinessLabel, color = PrimaryText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+        if (!hasSession) {
+            Text(
+                todayTrainingWeekSummary(completedThisWeek, weeklySessionTarget),
+                color = TextMuted, fontSize = 12.sp
+            )
+        }
+        Button(onClick = onStartWorkout, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MineralBlue, contentColor = PrimaryText)) {
             Text(if (hasActiveSession) "Resume workout" else if (hasSession) "Start workout" else "View training plan", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
@@ -372,135 +534,67 @@ private fun NutritionCard(
     val dispCarbs = loggedCarbs.coerceAtLeast(0)
     val dispFat = loggedFat.coerceAtLeast(0)
 
-    Column(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.large)
-            .background(SurfaceNight1)
-            .border(1.dp, BorderMuted, MaterialTheme.shapes.large)
-            .padding(ApexSpacing.cardPadding),
-        verticalArrangement = Arrangement.spacedBy(ApexSpacing.md)
-    ) {
-        // Header with #4B6171 arrow and 44pt hit slop
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        HorizontalDivider(color = BorderMuted)
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "Today's nutrition",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable(role = Role.Button, onClick = onSeeDetails),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_chevron_right),
-                    contentDescription = "See details",
-                    tint = TextTertiary,
-                    modifier = Modifier.size(16.dp)
+            Text("Nutrition", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold, color = PrimaryText)
+            TextButton(onClick = onSeeDetails) { Text("Details →", color = TextMuted) }
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("%,d".format(calLogged), style = ApexTextStyles.dataMedium.copy(fontSize = 22.sp),
+                    color = PrimaryText)
+                Text(
+                    if (calTarget > 0) "/ %,d kcal".format(calTarget) else "kcal logged",
+                    color = TextMuted, fontSize = 12.sp
+                )
+            }
+            if (calTarget > 0) {
+                val remaining = calTarget - calLogged
+                Text(
+                    if (remaining >= 0) "%,d remaining".format(remaining)
+                    else "%,d over".format(-remaining),
+                    color = TextMuted, fontSize = 12.sp
                 )
             }
         }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Calorie donut (Mint)
-            CalorieRing(
-                logged   = calLogged,
-                target   = calTarget,
-                modifier = Modifier.size(76.dp)
+        if (calTarget > 0) {
+            LinearProgressIndicator(
+                progress = { (calLogged.toFloat() / calTarget).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(6.dp),
+                color = MineralBlue,
+                trackColor = SurfaceNight2,
+                gapSize = 0.dp,
+                drawStopIndicator = {}
             )
-
-            // Macro bars column (Bars stay mint, NO unlabeled caret on protein bar)
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                CleanMacroBar(label = "Protein", logged = dispProtein, target = targetProtein)
-                CleanMacroBar(label = "Carbs",   logged = dispCarbs,   target = targetCarbs)
-                CleanMacroBar(label = "Fat",     logged = dispFat,     target = targetFat)
-            }
         }
+        TodayMacroRow("Protein", dispProtein, targetProtein)
+        TodayMacroRow("Carbs", dispCarbs, targetCarbs)
+        TodayMacroRow("Fat", dispFat, targetFat)
     }
 }
 
 @Composable
-private fun CalorieRing(logged: Int, target: Int, modifier: Modifier = Modifier) {
-    val progress by animateFloatAsState(
-        targetValue = if (target > 0) (logged.toFloat() / target).coerceIn(0f, 1f) else 0f,
-        animationSpec = tween(600),
-        label = "calorie_ring"
-    )
-
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val stroke = 6.dp.toPx()
-            val inset  = stroke / 2f
-            val rect   = Size(size.width - stroke, size.height - stroke)
-            val tl     = Offset(inset, inset)
-
-            drawArc(SurfaceNight2, -90f, 360f, false, tl, rect,
-                style = Stroke(stroke, cap = StrokeCap.Round))
-            drawArc(ElectricMint, -90f, 360f * progress, false, tl, rect,
-                style = Stroke(stroke, cap = StrokeCap.Round))
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "%,d".format(logged),
-                style = ApexTextStyles.dataMedium.copy(fontSize = 15.sp),
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                text = "/ %,d kcal".format(target),
-                fontSize = 11.sp,
-                color = TextMuted
-            )
-        }
+private fun TodayMacroRow(label: String, logged: Int, target: Int) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = TextMuted, fontSize = 13.sp)
+        Text(
+            if (target > 0) "$logged / $target g" else "$logged g",
+            style = ApexTextStyles.dataMedium.copy(fontSize = 13.sp),
+            color = PrimaryText
+        )
     }
 }
-
-// Clean Macro Bar without any caret; bar fill is Mint
-@Composable
-private fun CleanMacroBar(label: String, logged: Int, target: Int) {
-    val progress by animateFloatAsState(
-        targetValue = if (target > 0) (logged.toFloat() / target).coerceIn(0f, 1f) else 0f,
-        animationSpec = tween(600),
-        label = "macro_$label"
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(label, fontSize = 12.sp, color = TextMuted)
-            Text("$logged / $target g", fontSize = 12.sp, color = Color.White)
-        }
-        Canvas(modifier = Modifier.fillMaxWidth().height(5.dp)) {
-            val r = androidx.compose.ui.geometry.CornerRadius(2.5.dp.toPx())
-            drawRoundRect(SurfaceNight2, cornerRadius = r)
-            drawRoundRect(
-                color        = ElectricMint,
-                size         = Size(size.width * progress, size.height),
-                cornerRadius = r
-            )
-        }
-    }
-}
-
-// ─── Weight Trend Card ────────────────────────────────────────────────────────
-// Rule 10: Delete "No EWMA trend" pill + lock. Replace with 12px #8EA0AE: "Trend appears after 14 days of check-ins."
-// Rule 11: Payload: "76.4 kg" white + caption "+0.3 since start · on track for your gain goal" (direction-aware), #8EA0AE.
-// Rule 12: Chart: mint line, ONE dot (latest, 6px, white 1px ring). X-axis: 3 ticks max. Header arrow → #4B6171.
-// Rule 15: Chart line is Mint (5 of 5 mint elements).
 
 @Composable
 private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, units: String,
@@ -509,28 +603,35 @@ private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, un
     val imperial = units.lowercase() in listOf("lb", "lbs")
     val multiplier = if (imperial) com.apexfit.app.utils.AppConstants.KG_TO_LBS else 1.0
     val unit = if (imperial) "lb" else "kg"
-    Column(modifier.clip(RoundedCornerShape(20.dp)).background(SurfaceNight1).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        HorizontalDivider(color = BorderMuted)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically) {
-            Text("Weight trend", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            TextButton(onClick = onView) { Text("Check in", color = ElectricMint) }
+            Text("Weight", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            TextButton(onClick = onView) { Text("Log weight", color = MineralBlue) }
         }
         if (history.isEmpty()) {
             Text("Add your first weigh-in", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("Your logged weight will appear here.", color = TextMuted, fontSize = 13.sp)
         } else {
-            Text(String.format(Locale.getDefault(), "%.1f %s", history.last().weight * multiplier, unit),
-                color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            if (history.size > 1) {
-                val change = (history.last().weight - history.first().weight) * multiplier
-                Text(String.format(Locale.getDefault(), "%+.1f %s across these check-ins", change, unit),
-                    color = TextMuted, fontSize = 13.sp)
-            } else Text("One check-in recorded. Keep logging to see a trend.", color = TextMuted, fontSize = 13.sp)
-            WeightSparklineSingleDot(history, Modifier.fillMaxWidth().height(54.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(history.first().date, color = TextMuted, fontSize = 11.sp)
-                if (history.size > 1) Text(history.last().date, color = TextMuted, fontSize = 11.sp)
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(String.format(Locale.getDefault(), "%.1f %s", history.last().weight * multiplier, unit),
+                    color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                if (history.size > 1) {
+                    val change = (history.last().weight - history.first().weight) * multiplier
+                    Text(String.format(Locale.getDefault(), "%+.1f %s across these weigh-ins", change, unit),
+                        color = TextMuted, fontSize = 13.sp)
+                } else Text("One weigh-in recorded.", color = TextMuted, fontSize = 13.sp)
+            }
+
+            val datedWeighIns = history.map { it.date }.distinct().size
+            if (datedWeighIns >= 3) {
+                WeightSparklineSingleDot(history, Modifier.fillMaxWidth().height(54.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(history.first().date, color = TextMuted, fontSize = 11.sp)
+                    Text(history.last().date, color = TextMuted, fontSize = 11.sp)
+                }
             }
         }
     }
@@ -574,7 +675,7 @@ private fun WeightSparklineSingleDot(entries: List<UiWeightEntry>, modifier: Mod
         // Draw mint line
         for (i in 0 until points.size - 1) {
             drawLine(
-                color = ElectricMint,
+                color = MineralBlue,
                 start = points[i],
                 end = points[i + 1],
                 strokeWidth = 2.dp.toPx(),
@@ -594,7 +695,7 @@ private fun WeightSparklineSingleDot(entries: List<UiWeightEntry>, modifier: Mod
             )
             // 6px mint dot
             drawCircle(
-                color = ElectricMint,
+                color = MineralBlue,
                 radius = 3.dp.toPx(),
                 center = latestPt
             )
@@ -603,9 +704,9 @@ private fun WeightSparklineSingleDot(entries: List<UiWeightEntry>, modifier: Mod
 }
 
 // ─── Recent Sessions ──────────────────────────────────────────────────────────
-// Rule 13: "Completed" → mint check-circle 16px + label #8EA0AE.
-// Metadata: "45 min · 12 exercises · 1 PR" pattern. Never "3 sets" at session level.
-// Rule 14: "See all" → #8EA0AE, 44pt hit area.
+// Recent-session metadata must be derived from persisted session data only.
+// Never insert placeholder duration, exercise counts, or PR counts.
+// "See all" keeps a full-size touch target.
 
 @Composable
 private fun RecentSessionsSection(sessions: List<RichTrainingSession>, onSeeAll: () -> Unit) {
@@ -617,7 +718,7 @@ private fun RecentSessionsSection(sessions: List<RichTrainingSession>, onSeeAll:
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Recent sessions",
+                text = "Recent training",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -641,7 +742,7 @@ private fun RecentSessionsSection(sessions: List<RichTrainingSession>, onSeeAll:
                         color = TextMuted
                     )
                     Icon(
-                        painter = painterResource(R.drawable.ic_chevron_right),
+                        painter = painterResource(ApexIcons.ChevronRight),
                         contentDescription = null,
                         tint = TextTertiary,
                         modifier = Modifier.size(14.dp)
@@ -663,76 +764,94 @@ private fun RecentSessionsSection(sessions: List<RichTrainingSession>, onSeeAll:
 
 @Composable
 private fun SessionRow(session: RichTrainingSession) {
-    val duration = if (session.durationMinutes > 0) session.durationMinutes else 45
-    val exerciseCount = if (session.exercises.isNotEmpty()) session.exercises.size else 12
-    val prString = " · 1 PR"
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(SurfaceNight1)
-            .border(1.dp, BorderMuted, MaterialTheme.shapes.medium)
-            .padding(horizontal = ApexSpacing.lg, vertical = ApexSpacing.md),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = session.sessionType.ifBlank { "Session" },
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-
-            // Rule 13: Mint check-circle 16px + label #8EA0AE + "45 min · 12 exercises · 1 PR" pattern
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (session.completed) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_check_circle),
-                        contentDescription = "Completed",
-                        tint = ElectricMint,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "Completed",
-                        fontSize = 13.sp,
-                        color = TextMuted
-                    )
-                    Text(
-                        text = "·",
-                        fontSize = 13.sp,
-                        color = TextTertiary
-                    )
-                }
-                Text(
-                    text = "$duration min · $exerciseCount exercises$prString",
-                    fontSize = 13.sp,
-                    color = TextMuted
-                )
-            }
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(ApexSpacing.xs)
-        ) {
-            Text(
-                text = formatSessionDate(session.date),
-                fontSize = 13.sp,
-                color = TextMuted
-            )
-            Icon(
-                painter = painterResource(R.drawable.ic_chevron_right),
-                contentDescription = null,
-                tint = TextTertiary,
-                modifier = Modifier.size(14.dp)
-            )
+    val metadata = buildList {
+        add(formatSessionDate(session.date))
+        if (session.durationMinutes > 0) add("${session.durationMinutes} min")
+        if (session.exercises.isNotEmpty()) {
+            val count = session.exercises.size
+            add("$count exercise${if (count == 1) "" else "s"}")
         }
     }
+    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(session.sessionType.ifBlank { "Workout" }, style = MaterialTheme.typography.titleMedium,
+            color = PrimaryText)
+        Text(metadata.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+    }
+    HorizontalDivider(color = BorderMuted)
+}
+
+@Composable
+internal fun TodayReadinessExplanationDialog(
+    readiness: UiSessionReadiness?,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Why this readiness?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (readiness == null) {
+                    Text("Log training and nutrition to build a readiness estimate.")
+                } else {
+                    Text(
+                        text = readiness.recommendation,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    readiness.confidence?.let { Text("Training history: $it", color = TextMuted) }
+                    Text("The app combines recent muscle training, overall training load, and logged nutrition. Its weights and recovery timing are model assumptions.", color = TextMuted)
+                    readiness.factors.forEach { factor ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(factor.name, modifier = Modifier.weight(1f))
+                            Spacer(Modifier.width(12.dp))
+                            Text(factor.value, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    if (readiness.prediction.isNotBlank()) {
+                        Text(readiness.prediction, color = TextMuted)
+                    }
+                    Text(
+                        "This is a rough estimate from logged training and nutrition, not a measurement of recovery. Consider sleep, stress, soreness and how you feel.",
+                        color = TextMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        }
+    )
+}
+
+@Composable
+private fun WorkoutDurationExplanationDialog(
+    estimatedMinutes: Int,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Estimated workout time") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (estimatedMinutes > 0) {
+                    Text("~$estimatedMinutes min", fontWeight = FontWeight.SemiBold)
+                }
+                Text("Estimated from your planned sets, rep targets and rest periods. Actual time can vary.")
+                Text(
+                    "This estimate does not include equipment waiting, walking between stations, plate-loading delays, interruptions or breaks.",
+                    color = TextMuted,
+                    fontSize = 12.sp
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        }
+    )
 }
 
 private fun formatSessionDate(dateStr: String): String = runCatching {
