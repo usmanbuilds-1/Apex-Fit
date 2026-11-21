@@ -46,6 +46,7 @@
     <string name="nutrition_kcal">KCAL</string>
     <string name="nutrition_target_kcal_logged_kcal">TARGET: %1$s KCAL • LOGGED: %2$s KCAL</string>
     <string name="nutrition_log_meal">+ Log Meal</string>
+    <string name="nutrition_add_food">Add food</string>
     <string name="nutrition_no_meals_logged_yet">No meals logged yet.</string>
     <string name="nutrition_logged_at">LOGGED AT %1$s</string>
     <string name="nutrition_fmt_str_1">%1$s %2$s</string>

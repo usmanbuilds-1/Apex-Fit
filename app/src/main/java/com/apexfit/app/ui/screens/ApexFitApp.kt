@@ -1,5 +1,4 @@
 package com.apexfit.app.ui.screens
-import com.apexfit.app.ui.theme.ApexIcons
 import androidx.compose.ui.res.painterResource
 
 import android.graphics.Bitmap
@@ -348,45 +347,6 @@ fun ApexFitApp(
             BackHandler(enabled = currentRoute != TopLevelDestination.HOME.route) { navigateBack() }
             Scaffold(
             containerColor = DarkBackground,
-            topBar = {
-                if (currentRoute in listOf("train", "nutrition", "progress")) {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.testTag("app_logo")
-                            ) {
-                                Text(
-                                    text = "APEX ",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "FIT",
-                                    fontFamily = SyneFamily,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            containerColor = DarkBackground
-                        ),
-                        actions = {
-                            IconButton(
-                                onClick = openSettings,
-                                modifier = Modifier.testTag("settings_button")
-                            ) {
-                                Icon(painterResource(ApexIcons.Settings), contentDescription = "Settings", tint = PrimaryText)
-                            }
-                        }
-                    )
-                }
-            },
             bottomBar = {
                 if (currentRoute != ApexScreenRoutes.PLAN_BUILDER && currentRoute != ApexScreenRoutes.SETTINGS) {
                     BottomNavBar(

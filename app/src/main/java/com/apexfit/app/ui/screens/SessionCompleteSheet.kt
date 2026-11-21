@@ -1,5 +1,6 @@
 package com.apexfit.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -52,6 +53,7 @@ internal fun SessionCompleteSheet(
         }
     }
     val numberFormat = remember { NumberFormat.getNumberInstance().apply { maximumFractionDigits = 1 } }
+    BackHandler(enabled = showDetails) { showDetails = false }
     Column(Modifier.fillMaxSize().background(ApexColors.Canvas).safeDrawingPadding().padding(20.dp)) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
