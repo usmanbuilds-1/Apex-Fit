@@ -411,14 +411,6 @@ private fun TodayWorkoutCard(
                     lineHeight = 28.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    todayTrainingWeekSummary(completedThisWeek, weeklySessionTarget),
-                    modifier = Modifier.widthIn(max = 132.dp),
-                    color = TextMuted,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.End
-                )
             }
         } else {
             Text(
@@ -495,7 +487,14 @@ private fun TodayWorkoutCard(
                 }
             }
         }
-        if (!hasSession) {
+        if (hasSession) {
+            Text(
+                todayTrainingWeekSummary(completedThisWeek, weeklySessionTarget),
+                color = TextMuted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp
+            )
+        } else {
             Text(
                 todayTrainingWeekSummary(completedThisWeek, weeklySessionTarget),
                 color = TextMuted, fontSize = 12.sp
