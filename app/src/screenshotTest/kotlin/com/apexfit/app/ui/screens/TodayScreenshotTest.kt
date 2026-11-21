@@ -1,3 +1,4 @@
+
 package com.apexfit.app.ui.screens
 
 import androidx.compose.foundation.layout.Box
@@ -97,6 +98,28 @@ fun TodayReadinessExplanation() {
     }
 }
 
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US", fontScale = 1.3f)
+@Composable
+fun TodayReadinessBaselineExplanation() {
+    ApexFitTheme {
+        Box(Modifier.fillMaxSize()) {
+            TodayReadinessExplanationDialog(readiness = null) {}
+        }
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US", fontScale = 1.3f)
+@Composable
+fun TodayWorkoutDurationExplanation() {
+    ApexFitTheme {
+        Box(Modifier.fillMaxSize()) {
+            WorkoutDurationExplanationDialog(estimatedMinutes = 54) {}
+        }
+    }
+}
+
 @Composable
 private fun RenderToday(
     category: SessionHeroCategory,
@@ -155,4 +178,3 @@ private fun RenderToday(
         }
     }
 }
-
