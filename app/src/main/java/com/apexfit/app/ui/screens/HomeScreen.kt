@@ -857,7 +857,7 @@ internal fun TodayReadinessExplanationDialog(
 }
 
 @Composable
-private fun WorkoutDurationExplanationDialog(
+internal fun WorkoutDurationExplanationDialog(
     estimatedMinutes: Int,
     onDismiss: () -> Unit
 ) {
