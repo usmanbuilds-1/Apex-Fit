@@ -131,7 +131,7 @@ internal fun ExercisePicker(
                     }
                 }
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    ApexAnatomy(showBack, Modifier.width(280.dp), selectedMuscle = selectedMuscle,
+                    ApexAnatomy(showBack, Modifier.widthIn(max = 320.dp).fillMaxWidth(), selectedMuscle = selectedMuscle,
                         onMuscleSelected = { selectedMuscle = it })
                 }
                 if (selectedMuscle != null) {
@@ -168,4 +168,3 @@ internal fun ExercisePicker(
         }
     }
 }
-
