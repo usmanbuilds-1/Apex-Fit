@@ -12,7 +12,8 @@ data class FormGuideContent(
     val instructions: List<String> = emptyList(),
     val prescription: PlanExercise? = null,
     val recentHistory: List<LastSetWithDate> = emptyList(),
-    val personalRecords: List<PersonalRecord> = emptyList()
+    val personalRecords: List<PersonalRecord> = emptyList(),
+    val alternativeExercises: List<Exercise> = emptyList()
 )
 
 object FormGuideBuilder {
@@ -22,7 +23,8 @@ object FormGuideBuilder {
         sourceInstructions: List<String> = emptyList(),
         prescription: PlanExercise? = null,
         recentHistory: List<LastSetWithDate> = emptyList(),
-        personalRecords: List<PersonalRecord> = emptyList()
+        personalRecords: List<PersonalRecord> = emptyList(),
+        exerciseCatalog: List<Exercise> = emptyList()
     ): FormGuideContent {
         val instructions = sourceInstructions
             .map { it.trim() }
@@ -38,7 +40,16 @@ object FormGuideBuilder {
             instructions = instructions,
             prescription = prescription,
             recentHistory = recentHistory,
-            personalRecords = personalRecords
+            personalRecords = personalRecords,
+            alternativeExercises = ExerciseCatalogFilter.filter(
+                exercises = exerciseCatalog,
+                muscle = exercise.primaryMuscle,
+                includeSecondaryMuscleMatches = false
+            ).asSequence()
+                .map { it.exercise }
+                .filterNot { it.id == exercise.id }
+                .take(2)
+                .toList()
         )
     }
 

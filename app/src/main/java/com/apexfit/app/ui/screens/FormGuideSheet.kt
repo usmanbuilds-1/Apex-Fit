@@ -88,6 +88,25 @@ internal fun FormGuideScreenContent(
                 FormGuideHistoryEntry(sessionSets, preferredUnits)
             }
         }
+        if (content.alternativeExercises.isNotEmpty()) {
+            HorizontalDivider(color = ApexColors.BorderSubtle)
+            Text("Alternatives", color = ApexColors.TextPrimary,
+                style = MaterialTheme.typography.titleLarge)
+            Text("Other exercises that train ${exercise.primaryMuscle}; equipment is shown for comparison.",
+                color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            content.alternativeExercises.forEachIndexed { index, alternative ->
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(alternative.name, color = ApexColors.TextPrimary,
+                        style = MaterialTheme.typography.titleMedium)
+                    Text("${alternative.primaryMuscle} · ${alternative.equipmentRequired}",
+                        color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+                if (index != content.alternativeExercises.lastIndex) {
+                    HorizontalDivider(color = ApexColors.BorderSubtle)
+                }
+            }
+        }
         Spacer(Modifier.height(20.dp))
     }
 }

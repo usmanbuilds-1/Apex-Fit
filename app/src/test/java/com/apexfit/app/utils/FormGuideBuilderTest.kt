@@ -109,4 +109,32 @@ class FormGuideBuilderTest {
         assertEquals(listOf(set), result.recentHistory)
         assertEquals(listOf(record), result.personalRecords)
     }
+
+    @Test
+    fun alternativesUseActiveExercisesWithTheSamePrimaryMuscleOnly() {
+        val exercise = Exercise(
+            id = "dumbbell-lateral-raise",
+            name = "Dumbbell Lateral Raise",
+            category = "Dumbbell",
+            primaryMuscle = "Shoulders",
+            equipmentRequired = "Dumbbell"
+        )
+        val catalog = listOf(
+            exercise,
+            exercise.copy(id = "cable-lateral-raise", name = "Cable Lateral Raise", equipmentRequired = "Cable"),
+            exercise.copy(id = "machine-lateral-raise", name = "Machine Lateral Raise", equipmentRequired = "Machine"),
+            exercise.copy(id = "shoulder-press", name = "Shoulder Press", primaryMuscle = "Chest",
+                secondaryMuscles = listOf("Shoulders")),
+            exercise.copy(id = "deleted-raise", name = "Deleted Raise", isDeleted = 1)
+        )
+
+        val result = FormGuideBuilder.buildFormGuide(
+            exercise = exercise,
+            metadata = null,
+            exerciseCatalog = catalog
+        )
+
+        assertEquals(listOf("cable-lateral-raise", "machine-lateral-raise"),
+            result.alternativeExercises.map { it.id })
+    }
 }

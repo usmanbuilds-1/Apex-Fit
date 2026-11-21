@@ -813,13 +813,15 @@ private suspend fun loadFormGuideData(
     val sourceInstructions = ExerciseMediaCatalog.get(context, exercise.id)?.instructions.orEmpty()
     val recentHistory = dao.getRecentExerciseHistoryForGuide(exercise.id)
     val personalRecords = dao.getPRsForExercise(exercise.id)
+    val exerciseCatalog = dao.getAllExercises()
     exercise to FormGuideBuilder.buildFormGuide(
         exercise = exercise,
         metadata = metadata,
         sourceInstructions = sourceInstructions,
         prescription = prescription,
         recentHistory = recentHistory,
-        personalRecords = personalRecords
+        personalRecords = personalRecords,
+        exerciseCatalog = exerciseCatalog
     )
 }
 

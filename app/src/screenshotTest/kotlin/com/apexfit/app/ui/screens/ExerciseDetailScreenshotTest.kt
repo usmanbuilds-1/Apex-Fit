@@ -61,6 +61,13 @@ fun ExerciseDetailWithProgramAndHistory() {
         personalRecords = listOf(
             PersonalRecord("${lateralRaiseDetail.id}_max_weight", lateralRaiseDetail.id,
                 "max_weight", 16.0, "2026-11-19")
+        ),
+        exerciseCatalog = listOf(
+            lateralRaiseDetail,
+            lateralRaiseDetail.copy(id = "cable-lateral-raise", name = "Cable Lateral Raise",
+                category = "Cable", equipmentRequired = "Cable"),
+            lateralRaiseDetail.copy(id = "machine-lateral-raise", name = "Machine Lateral Raise",
+                category = "Machine", equipmentRequired = "Machine")
         )
     )
     ApexFitTheme {

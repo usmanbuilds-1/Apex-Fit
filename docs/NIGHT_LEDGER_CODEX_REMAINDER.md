@@ -22,8 +22,8 @@ All new screens/features are governed by `DESIGN.md`, including features added a
 | 1 | PARTIAL | `DESIGN.md` now makes Night Ledger authoritative. **Codex:** migrate the actual Compose screens/tokens/fonts/icons to the approved Stitch references. |
 | 2 | CODEX | Preserve approved screen priority/hierarchy during visual migration. Do not let new features overpower the primary task. |
 | 3 | DONE | Free Exercise DB photos are disabled in production; false public-domain claims removed; instructions/videos preserved; regression coverage added. |
-| 4 | PARTIAL | Written Form Guide fallback already works without image media. **Codex:** migrate/build the approved Exercise Detail presentation and reuse existing form content/media. No AI biomechanics. |
-| 5 | VERIFY/PARTIAL | DEMIC mapping + nocookie lazy playback already exist in `ExerciseMediaPanel` / `exercise_videos.json`. **Codex:** ensure approved Exercise Detail and active-workout Form Guide expose it; no standalone Videos area. |
+| 4 | PARTIAL/VERIFY | Form Guide now carries plan prescription, progression target, source instructions, real PR/history, and up to two same-primary-muscle alternatives from the local catalog. Keep unverified photos and invented biomechanics out. Continue Stitch parity and device review. |
+| 5 | DONE/VERIFY | `ExerciseMediaPanel` uses the DEMIC mapping + nocookie lazy playback from `exercise_videos.json` in both Exercise Detail and active-workout Form Guide. No standalone Videos area. Verify the real device entry point and playback/back behavior. |
 | 6 | PARTIAL | Deterministic `SessionHeroResolver` + tests implemented; `HomeViewModel.todayHeroCategory` exposes real-session focus. **Codex:** bind categories to verified local hero assets and render-test all split types. |
 | 7 | CODEX | Today hero presentation: verified local assets only, contextual, full bleed, no card/radius, honest fallback/no image. |
 | 8 | CODEX | Bring the final approved photography assets/manifest into the shipping repo and preserve source URL, ID, photographer, license, use category, download date, brand notes. |
