@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.android.tools.screenshot.PreviewTest
+import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.PersonalRecord
 import com.apexfit.app.data.PersonalRecordWithName
 import com.apexfit.app.data.RichTrainingSession
@@ -19,6 +20,29 @@ import com.apexfit.app.ui.models.UiWeightEntry
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.ui.theme.ApexFitTheme
 import java.time.LocalDate
+
+private val onboardingPreviewCatalog = mapOf(
+    "Flat Dumbbell Press" to "Chest",
+    "Chest-Supported Dumbbell Row" to "Back",
+    "Dumbbell Lateral Raise" to "Shoulders",
+    "Hammer Bicep Curl" to "Biceps",
+    "Leg Press (High & Wide)" to "Quads",
+    "Romanian Deadlift" to "Hamstrings",
+    "Seated Leg Curl" to "Hamstrings",
+    "Standing Calf Raise" to "Calves",
+    "Barbell Hip Thrust" to "Glutes",
+    "Standing Overhead Press" to "Shoulders",
+    "Dual Rope Tricep Pushdown" to "Triceps",
+    "Lat Pulldown (Neutral Grip)" to "Back"
+).map { (name, muscle) ->
+    Exercise(
+        id = name.lowercase().replace(' ', '-'),
+        name = name,
+        category = "Strength",
+        primaryMuscle = muscle,
+        equipmentRequired = "Dumbbell"
+    )
+}
 
 @PreviewTest
 @Preview(widthDp = 390, heightDp = 884, locale = "en-US")
@@ -52,12 +76,23 @@ fun OnboardingFrequency() = RenderOnboarding(4)
 @Composable
 fun StartingPlanReady() = RenderOnboarding(5)
 
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
 @Composable
-private fun RenderOnboarding(step: Int) {
+fun StartingPlanReadyExpanded() = RenderOnboarding(5, expandedSession = 0)
+
+@Composable
+private fun RenderOnboarding(step: Int, expandedSession: Int = -1) {
     ApexFitTheme {
-        OnboardingContent("kg", false, null, {}, {}, initialStep = step, initialProfile = OnboardingProfile(
-            name = "Alex", goal = "Gain Muscle", experience = "Beginner", daysPerWeek = 4
-        ))
+        OnboardingContent(
+            "kg", false, null, {}, {},
+            initialStep = step,
+            initialProfile = OnboardingProfile(
+                name = "Alex", goal = "Gain Muscle", experience = "Beginner", daysPerWeek = 4
+            ),
+            exerciseCatalog = onboardingPreviewCatalog,
+            initialExpandedSession = expandedSession
+        )
     }
 }
 

@@ -6,6 +6,8 @@ import com.apexfit.app.data.*
 /** Creates only an onboarding-owned plan. Existing user plans and history are preserved. */
 object StarterPlanBuilder {
     data class SessionTemplate(val label: String, val day: String, val exercises: List<String>)
+    data class ExercisePreview(val name: String, val prescription: Prescription)
+    data class SessionPreview(val label: String, val day: String, val exercises: List<ExercisePreview>)
 
     private val upper = listOf("Flat Dumbbell Press", "Chest-Supported Dumbbell Row", "Dumbbell Lateral Raise", "Hammer Bicep Curl")
     private val lower = listOf("Leg Press (High & Wide)", "Romanian Deadlift", "Seated Leg Curl", "Standing Calf Raise", "Barbell Hip Thrust")
@@ -65,6 +67,33 @@ object StarterPlanBuilder {
                 }
                 Prescription(sets, reps, if (name in compoundExercises) 120 else 90)
             }
+        }
+    }
+
+    /** Builds the onboarding preview with the exact prescription rules used when saving the plan. */
+    fun preview(
+        days: Int,
+        goal: String,
+        experience: String,
+        exerciseCatalog: List<Exercise>
+    ): List<SessionPreview>? {
+        val sessions = templates(days)
+        val catalogByName = exerciseCatalog
+            .filter { it.isDeleted == 0 }
+            .associateBy { it.name.trim().lowercase() }
+        val requiredNames = sessions.flatMap { it.exercises }.distinct()
+        if (requiredNames.any { catalogByName[it.trim().lowercase()] == null }) return null
+
+        val library = requiredNames.associateWith { catalogByName.getValue(it.trim().lowercase()) }
+        val prescriptions = prescribe(sessions, library, goal, experience)
+        return sessions.mapIndexed { sessionIndex, session ->
+            SessionPreview(
+                label = session.label,
+                day = session.day,
+                exercises = session.exercises.mapIndexed { exerciseIndex, name ->
+                    ExercisePreview(name, prescriptions[sessionIndex][exerciseIndex])
+                }
+            )
         }
     }
 

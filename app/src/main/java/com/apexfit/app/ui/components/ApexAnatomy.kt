@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
@@ -168,6 +170,12 @@ internal fun ApexAnatomy(
             .semantics {
                 contentDescription = "Muscle anatomy map, $viewName view"
                 stateDescription = selected?.let { "${it.replace('_', ' ')} selected" } ?: "No muscle selected"
+                customActions = currentAnatomy.muscles.mapNotNull { it.muscle }.distinct().map { muscle ->
+                    CustomAccessibilityAction("Select ${muscle.replace('_', ' ')}") {
+                        onMuscleSelected(muscle)
+                        true
+                    }
+                }
             }
             .pointerInput(currentAnatomy, onMuscleSelected) {
                 detectTapGestures { tap ->

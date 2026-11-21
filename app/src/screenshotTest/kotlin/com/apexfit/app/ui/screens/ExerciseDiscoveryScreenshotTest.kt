@@ -78,6 +78,36 @@ fun ExerciseGuideWithoutVerifiedImages() {
 @PreviewTest
 @Preview(widthDp = 390, heightDp = 844, locale = "en-US")
 @Composable
+fun ExerciseGuideWithReplaceableAlternatives() {
+    val alternatives = listOf(
+        Exercise(
+            id = "cable-lateral-raise", name = "Cable Lateral Raise", category = "Cable",
+            primaryMuscle = "Shoulders", equipmentRequired = "Cable"
+        ),
+        Exercise(
+            id = "machine-lateral-raise", name = "Machine Lateral Raise", category = "Machine",
+            primaryMuscle = "Shoulders", equipmentRequired = "Machine"
+        )
+    )
+    val content = FormGuideBuilder.buildFormGuide(
+        lateralRaise,
+        null,
+        sourceInstructions = listOf("Raise until arms are near shoulder height."),
+        exerciseCatalog = listOf(lateralRaise) + alternatives
+    )
+    ApexFitTheme {
+        FormGuideSheet(
+            lateralRaise,
+            content,
+            onDismiss = {},
+            onSelectAlternative = {}
+        )
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
 fun ExercisePickerLoading() {
     ApexFitTheme { ExercisePicker(UiState.Loading, "Exercise library", onBack = {}, onSelect = {}) }
 }

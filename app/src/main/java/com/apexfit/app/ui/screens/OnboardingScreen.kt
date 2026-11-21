@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.apexfit.app.R
 import com.apexfit.app.data.OnboardingProfile
 import com.apexfit.app.data.NutritionTargets
+import com.apexfit.app.data.Exercise
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.ui.theme.ArchivoFamily
 import com.apexfit.app.utils.MacroEngine
@@ -65,9 +66,11 @@ fun OnboardingScreen(
     isSaving: Boolean = false,
     saveError: String? = null,
     onExplore: () -> Unit = {},
-    onComplete: (OnboardingProfile) -> Unit
+    onComplete: (OnboardingProfile) -> Unit,
+    exerciseCatalog: List<Exercise> = emptyList()
 ) {
-    OnboardingContent(preferredUnits, isSaving, saveError, onExplore, onComplete)
+    OnboardingContent(preferredUnits, isSaving, saveError, onExplore, onComplete,
+        exerciseCatalog = exerciseCatalog)
 }
 
 @Composable
@@ -78,7 +81,9 @@ internal fun OnboardingContent(
     onExplore: () -> Unit,
     onComplete: (OnboardingProfile) -> Unit,
     initialStep: Int = 0,
-    initialProfile: OnboardingProfile? = null
+    initialProfile: OnboardingProfile? = null,
+    exerciseCatalog: List<Exercise> = emptyList(),
+    initialExpandedSession: Int = -1
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     var step by rememberSaveable { mutableIntStateOf(initialStep) }
@@ -117,7 +122,7 @@ internal fun OnboardingContent(
         return
     }
     Box(Modifier.fillMaxSize().background(SetupGround), contentAlignment = Alignment.TopCenter) {
-        Row(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
+        Row(Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(bottom = 88.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Column(Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(top = 12.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -132,8 +137,9 @@ internal fun OnboardingContent(
                         color = SetupAccent, trackColor = SetupRaised)
                 }
                 key(step) {
-                    Column(Modifier.weight(1f).widthIn(max = 520.dp).fillMaxWidth()
-                        .verticalScroll(rememberScrollState()).padding(top = 30.dp, bottom = 16.dp)) {
+                    Box(Modifier.weight(1f).widthIn(max = 520.dp).fillMaxWidth()) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                            .padding(top = 30.dp, bottom = 16.dp)) {
                         when (step) {
                             1 -> {
                                 SetupHeading("What do you want to work toward?", "We’ll build your training and nutrition around this.")
@@ -213,21 +219,31 @@ internal fun OnboardingContent(
                                     HorizontalDivider(color = ApexColors.BorderSubtle)
                                 }
                             }
-                            5 -> profile?.let { SetupReady(it) }
+                            5 -> profile?.let { SetupReady(it, exerciseCatalog, initialExpandedSession) }
                         }
                         if (saveError != null) Text(saveError, color = Color(0xFFFFB4AB), fontFamily = SetupFont,
                             modifier = Modifier.padding(top = 16.dp).testTag("onboarding_save_error"))
+                        }
                     }
                 }
-                SetupButton(if (step == 5) "Go to Today" else "Continue",
-                    !isSaving && (step != 1 || goal != null) && (step != 3 || experience != null) &&
-                        (step != 5 || profile != null),
-                    isSaving, Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(bottom = 20.dp)
-                        .testTag(if (step == 5) "onboarding_complete_button" else "onboarding_continue")) {
-                    if (step == 2 && !detailsValid) showDetailsErrors = true
-                    else if (step == 5) profile?.let(onComplete)
-                    else { keyboard?.hide(); step++ }
-                }
+            }
+        }
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .safeDrawingPadding().imePadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            SetupButton(
+                if (step == 5) "Go to Today" else "Continue",
+                !isSaving && (step != 1 || goal != null) && (step != 3 || experience != null) &&
+                    (step != 5 || profile != null),
+                isSaving, Modifier.widthIn(max = 520.dp).fillMaxWidth()
+                    .testTag(if (step == 5) "onboarding_complete_button" else "onboarding_continue")
+            ) {
+                if (step == 2 && !detailsValid) showDetailsErrors = true
+                else if (step == 5) profile?.let(onComplete)
+                else { keyboard?.hide(); step++ }
             }
         }
     }
@@ -334,8 +350,15 @@ private fun SetupButton(label: String, enabled: Boolean, saving: Boolean, modifi
 }
 
 @Composable
-internal fun SetupReady(profile: OnboardingProfile) {
-    val sessions = remember(profile.daysPerWeek) { StarterPlanBuilder.templates(profile.daysPerWeek) }
+internal fun SetupReady(
+    profile: OnboardingProfile,
+    exerciseCatalog: List<Exercise> = emptyList(),
+    initialExpandedSession: Int = -1
+) {
+    val sessions = remember(profile.daysPerWeek, profile.goal, profile.experience, exerciseCatalog) {
+        StarterPlanBuilder.preview(profile.daysPerWeek, profile.goal, profile.experience, exerciseCatalog)
+    }
+    var expandedSession by rememberSaveable(profile.daysPerWeek) { mutableIntStateOf(initialExpandedSession) }
     val targets = remember(profile) { startingTargets(profile) }
     val program = when (profile.daysPerWeek) {
         2, 3 -> "Full body"
@@ -348,21 +371,53 @@ internal fun SetupReady(profile: OnboardingProfile) {
     SetupBody(SetupGoals.firstOrNull { it.value == profile.goal }?.title ?: profile.goal)
     Spacer(Modifier.height(20.dp))
     Text("First week", style = MaterialTheme.typography.titleLarge, color = SetupText)
-    sessions.forEach { session ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(session.day.take(3), color = SetupMuted, modifier = Modifier.width(36.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(session.label, style = MaterialTheme.typography.titleMedium, color = SetupText)
-                val remaining = session.exercises.size - 3
-                val exercises = session.exercises.take(3).joinToString(" · ")
-                Text(
-                    if (remaining > 0) "$exercises · +$remaining more" else exercises,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SetupMuted
-                )
+    SetupBody("Planned sets and rep ranges · about 2–3 reps in reserve",
+        Modifier.padding(top = 6.dp, bottom = 4.dp))
+    if (sessions == null) {
+        SetupBody(
+            if (exerciseCatalog.isEmpty()) "Loading your exercise plan…"
+            else "The exercise plan preview is unavailable right now. You can still continue; the app will prepare the plan when you finish setup.",
+            Modifier.padding(vertical = 12.dp)
+        )
+    } else {
+        sessions.forEachIndexed { index, session ->
+            val expanded = expandedSession == index
+            Column(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = if (expanded) "Hide ${session.label} exercises" else "Show ${session.label} exercises",
+                            onClick = { expandedSession = if (expanded) -1 else index }
+                        ).padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(session.day.take(3), color = SetupMuted, modifier = Modifier.width(36.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(session.label, style = MaterialTheme.typography.titleMedium, color = SetupText)
+                        Text("${session.exercises.size} exercises · ${session.exercises.sumOf { it.prescription.sets }} working sets",
+                            style = MaterialTheme.typography.bodySmall, color = SetupMuted)
+                    }
+                    Text(if (expanded) "Hide" else "View", color = SetupAccent,
+                        style = MaterialTheme.typography.labelMedium)
+                }
+                if (expanded) {
+                    session.exercises.forEach { exercise ->
+                        Column(Modifier.fillMaxWidth().padding(start = 50.dp, top = 5.dp, bottom = 9.dp)) {
+                            Text(exercise.name, color = SetupText, style = MaterialTheme.typography.bodyMedium)
+                            val reps = if (exercise.prescription.reps.first == exercise.prescription.reps.last) {
+                                "${exercise.prescription.reps.first} reps"
+                            } else {
+                                "${exercise.prescription.reps.first}–${exercise.prescription.reps.last} reps"
+                            }
+                            SetupBody("${exercise.prescription.sets} sets · $reps · ${exercise.prescription.restSeconds}s rest")
+                        }
+                    }
+                }
             }
+            HorizontalDivider(color = ApexColors.BorderSubtle)
         }
-        HorizontalDivider(color = ApexColors.BorderSubtle)
     }
     Spacer(Modifier.height(20.dp))
     Text("Starting targets", style = MaterialTheme.typography.titleLarge, color = SetupText)

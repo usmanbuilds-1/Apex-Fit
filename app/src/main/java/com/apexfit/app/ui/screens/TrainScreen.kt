@@ -208,6 +208,7 @@ fun ProgramSubTab(
     var swapMessage by remember { mutableStateOf<String?>(null) }
     var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var formGuideContent by remember { mutableStateOf<FormGuideContent?>(null) }
+    var formGuidePlanExercise by remember { mutableStateOf<com.apexfit.app.data.PlanExercise?>(null) }
 
     val onOpenFormGuide: (com.apexfit.app.data.PlanExercise) -> Unit = remember(scope, context, units) {
         { planExercise ->
@@ -215,6 +216,7 @@ fun ProgramSubTab(
                 loadFormGuideData(context, planExercise.name, planExercise)?.let { (exercise, content) ->
                     formGuideExercise = exercise
                     formGuideContent = content
+                    formGuidePlanExercise = planExercise
                 }
             }
         }
@@ -301,6 +303,17 @@ fun ProgramSubTab(
                 onDismiss = {
                     formGuideExercise = null
                     formGuideContent = null
+                    formGuidePlanExercise = null
+                },
+                onSelectAlternative = { selected ->
+                    val originalExercise = formGuidePlanExercise
+                    if (originalExercise != null) {
+                        formGuideExercise = null
+                        formGuideContent = null
+                        formGuidePlanExercise = null
+                        replacement = selected
+                        pendingSwap = originalExercise
+                    }
                 }
             )
         }

@@ -2,12 +2,14 @@ package com.apexfit.app.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.PersonalRecord
@@ -25,7 +27,8 @@ fun FormGuideSheet(
     exercise: Exercise,
     content: FormGuideContent,
     preferredUnits: String = "kg",
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSelectAlternative: ((Exercise) -> Unit)? = null
 ) {
     BackHandler(onBack = onDismiss)
     FormGuideScreenContent(
@@ -33,6 +36,7 @@ fun FormGuideSheet(
         content = content,
         preferredUnits = preferredUnits,
         onBack = onDismiss,
+        onSelectAlternative = onSelectAlternative,
         mediaContent = { ExerciseMediaPanel(exerciseId = exercise.id) }
     )
 }
@@ -43,6 +47,7 @@ internal fun FormGuideScreenContent(
     content: FormGuideContent,
     preferredUnits: String,
     onBack: () -> Unit,
+    onSelectAlternative: ((Exercise) -> Unit)? = null,
     mediaContent: @Composable () -> Unit
 ) {
     Column(
@@ -95,12 +100,24 @@ internal fun FormGuideScreenContent(
             Text("Other exercises that train ${exercise.primaryMuscle}; equipment is shown for comparison.",
                 color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
             content.alternativeExercises.forEachIndexed { index, alternative ->
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                Column(
+                    Modifier.fillMaxWidth()
+                        .then(if (onSelectAlternative != null) Modifier.heightIn(min = 48.dp)
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = "Replace with ${alternative.name}",
+                                onClick = { onSelectAlternative(alternative) }
+                            ) else Modifier)
+                        .padding(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(alternative.name, color = ApexColors.TextPrimary,
                         style = MaterialTheme.typography.titleMedium)
                     Text("${alternative.primaryMuscle} · ${alternative.equipmentRequired}",
                         color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    if (onSelectAlternative != null) {
+                        Text("Replace", color = ApexColors.Primary,
+                            style = MaterialTheme.typography.labelMedium)
+                    }
                 }
                 if (index != content.alternativeExercises.lastIndex) {
                     HorizontalDivider(color = ApexColors.BorderSubtle)
@@ -116,9 +133,10 @@ fun FormGuideOverlay(
     exercise: Exercise,
     content: FormGuideContent,
     preferredUnits: String = "kg",
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSelectAlternative: ((Exercise) -> Unit)? = null
 ) {
-    FormGuideSheet(exercise, content, preferredUnits, onDismiss)
+    FormGuideSheet(exercise, content, preferredUnits, onDismiss, onSelectAlternative)
 }
 
 @Composable

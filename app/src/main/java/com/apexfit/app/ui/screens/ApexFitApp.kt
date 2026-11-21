@@ -334,12 +334,14 @@ fun ApexFitApp(
         val preferredUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
         val onboardingSaving by fitnessViewModel.onboardingSaving.collectAsStateWithLifecycle()
         val onboardingError by fitnessViewModel.onboardingError.collectAsStateWithLifecycle()
+        val onboardingExerciseCatalog by fitnessViewModel.onboardingExerciseCatalog.collectAsStateWithLifecycle()
         OnboardingScreen(
             preferredUnits = preferredUnits,
             isSaving = onboardingSaving,
             saveError = onboardingError,
             onExplore = { fitnessViewModel.completeTrainingSetup() },
-            onComplete = { profile -> fitnessViewModel.completeOnboarding(profile) }
+            onComplete = { profile -> fitnessViewModel.completeOnboarding(profile) },
+            exerciseCatalog = onboardingExerciseCatalog
         )
         } // end false branch
         true -> {
