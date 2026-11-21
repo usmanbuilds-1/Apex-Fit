@@ -11,7 +11,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -779,45 +782,72 @@ internal fun TodayReadinessExplanationDialog(
     readiness: UiSessionReadiness?,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Why this readiness?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (readiness == null) {
-                    Text("Log training and nutrition to build a readiness estimate.")
-                } else {
-                    Text(
-                        text = readiness.recommendation,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    readiness.confidence?.let { Text("Training history: $it", color = TextMuted) }
-                    Text("The app combines recent muscle training, overall training load, and logged nutrition. Its weights and recovery timing are model assumptions.", color = TextMuted)
-                    readiness.factors.forEach { factor ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(factor.name, modifier = Modifier.weight(1f))
-                            Spacer(Modifier.width(12.dp))
-                            Text(factor.value, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    if (readiness.prediction.isNotBlank()) {
-                        Text(readiness.prediction, color = TextMuted)
-                    }
-                    Text(
-                        "This is a rough estimate from logged training and nutrition, not a measurement of recovery. Consider sleep, stress, soreness and how you feel.",
-                        color = TextMuted,
-                        fontSize = 12.sp
-                    )
+    TodayExplanationSheet(title = "Readiness estimate", onDismiss = onDismiss) {
+        if (readiness == null) {
+            Text(
+                "Log training and nutrition to build a readiness estimate. Until then, use how you feel today to guide your effort.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextMuted
+            )
+        } else {
+            Text(
+                readiness.recommendation,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = PrimaryText
+            )
+            readiness.confidence?.let {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Training history", style = MaterialTheme.typography.labelLarge, color = TextMuted)
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = PrimaryText)
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK") }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("What influenced it", style = MaterialTheme.typography.titleSmall, color = PrimaryText)
+                Text(
+                    "Recent muscle training, overall training load, and logged nutrition. The model weights and recovery timing are estimates, not calibrated measurements.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted
+                )
+            }
+            readiness.factors.forEachIndexed { index, factor ->
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text(
+                            factor.name,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextMuted
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            factor.value,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = PrimaryText,
+                            textAlign = TextAlign.End
+                        )
+                    }
+                    if (index < readiness.factors.lastIndex) {
+                        HorizontalDivider(color = BorderMuted)
+                    }
+                }
+            }
+            if (readiness.prediction.isNotBlank()) {
+                Text(readiness.prediction, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+            }
+            Text(
+                "This is not a measurement of recovery. Consider sleep, stress, soreness, symptoms, and how you feel before choosing your effort.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMuted
+            )
         }
-    )
+    }
 }
 
 @Composable
@@ -825,26 +855,66 @@ private fun WorkoutDurationExplanationDialog(
     estimatedMinutes: Int,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Estimated workout time") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (estimatedMinutes > 0) {
-                    Text("~$estimatedMinutes min", fontWeight = FontWeight.SemiBold)
-                }
-                Text("Estimated from your planned sets, rep targets and rest periods. Actual time can vary.")
-                Text(
-                    "This estimate does not include equipment waiting, walking between stations, plate-loading delays, interruptions or breaks.",
-                    color = TextMuted,
-                    fontSize = 12.sp
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK") }
+    TodayExplanationSheet(title = "Workout time estimate", onDismiss = onDismiss) {
+        if (estimatedMinutes > 0) {
+            Text("~$estimatedMinutes min", style = MaterialTheme.typography.headlineSmall, color = PrimaryText)
         }
-    )
+        Text(
+            "Estimated from your planned sets, rep targets, and rest periods. Actual time can vary.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = PrimaryText
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Not included", style = MaterialTheme.typography.titleSmall, color = PrimaryText)
+            Text(
+                "Equipment waiting, walking between stations, plate changes, interruptions, and breaks.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextMuted
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TodayExplanationSheet(
+    title: String,
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.84f
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
+        containerColor = ApexColors.Surface,
+        contentColor = ApexColors.TextPrimary,
+        tonalElevation = 0.dp,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = BorderMuted) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxSheetHeight)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, color = PrimaryText)
+                TextButton(onClick = onDismiss) {
+                    Text("Close", color = ApexColors.TextSecondary)
+                }
+            }
+            content()
+        }
+    }
 }
 
 private fun formatSessionDate(dateStr: String): String = runCatching {
