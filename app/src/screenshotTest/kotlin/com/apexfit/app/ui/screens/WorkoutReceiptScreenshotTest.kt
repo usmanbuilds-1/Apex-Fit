@@ -64,6 +64,28 @@ fun PartialWorkoutReceipt() {
     ApexFitTheme { SessionCompleteSheet(receipt, sets, "kg", onDismiss = {}) }
 }
 
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
+@Composable
+fun WorkoutReceiptExerciseDetails() {
+    val sets = listOf(
+        loggedExercise("press", "Dumbbell Chest Press",
+            Triple(16.0, 12, 90), Triple(16.0, 13, 75), Triple(14.0, 12, 0)),
+        loggedExercise("row", "Seated Cable Row",
+            Triple(45.0, 10, 80), Triple(47.5, 9, 60), Triple(47.5, 8, 0))
+    ).flatten()
+    val result = receipt("details", 38, "Upper Body A", sets)
+    ApexFitTheme {
+        SessionCompleteSheet(
+            receipt = result,
+            sessionSets = sets,
+            units = "kg",
+            onDismiss = {},
+            initiallyShowDetails = true
+        )
+    }
+}
+
 private fun loggedExercise(
     exerciseId: String,
     exerciseName: String,

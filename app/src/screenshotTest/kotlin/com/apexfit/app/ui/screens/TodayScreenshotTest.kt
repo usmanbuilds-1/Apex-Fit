@@ -45,6 +45,34 @@ fun TodayScheduledLower() {
 }
 
 @PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun TodayScheduledAccessoryWithoutUnrelatedPhoto() {
+    RenderToday(SessionHeroCategory.UPPER_ACCESSORY, "Arms & Shoulders")
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun TodayScheduledPosteriorWithoutUnrelatedPhoto() {
+    RenderToday(SessionHeroCategory.LOWER_POSTERIOR, "Posterior Chain")
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun TodayScheduledFullBodyWithoutUnrelatedPhoto() {
+    RenderToday(SessionHeroCategory.FULL_BODY, "Full Body")
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun TodayScheduledGenericStrengthWithoutUnrelatedPhoto() {
+    RenderToday(SessionHeroCategory.GENERIC_STRENGTH, "Custom Session")
+}
+
+@PreviewTest
 @Preview(widthDp = 390, heightDp = 844, locale = "en-US", fontScale = 1.3f)
 @Composable
 fun TodayReadinessExplanation() {
@@ -79,7 +107,11 @@ private fun RenderToday(
     val focus = when (category) {
         SessionHeroCategory.UPPER_PULL -> "Chest · Back · Shoulders"
         SessionHeroCategory.UPPER_PUSH -> "Chest · Triceps"
+        SessionHeroCategory.UPPER_ACCESSORY -> "Shoulders · Arms"
         SessionHeroCategory.LOWER_QUAD -> "Quads · Glutes"
+        SessionHeroCategory.LOWER_POSTERIOR -> "Hamstrings · Glutes"
+        SessionHeroCategory.FULL_BODY -> "Full body"
+        SessionHeroCategory.GENERIC_STRENGTH -> "Strength"
         else -> ""
     }
     ApexFitTheme {

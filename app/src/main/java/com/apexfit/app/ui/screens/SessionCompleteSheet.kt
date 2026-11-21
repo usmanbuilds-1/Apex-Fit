@@ -36,7 +36,8 @@ internal fun SessionCompleteSheet(
     receipt: SessionCommitResult,
     sessionSets: List<UiExerciseSet>,
     units: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initiallyShowDetails: Boolean = false
 ) {
     val workingSets = remember(sessionSets) { sessionSets.filter { it.completed && !it.isWarmup } }
     val names = remember(workingSets) { workingSets.associate { it.exerciseId to it.exerciseName } }
@@ -44,7 +45,7 @@ internal fun SessionCompleteSheet(
     val totalRestSeconds = remember(sessionSets) { totalActualRestSeconds(sessionSets) }
     val preview = LocalInspectionMode.current
     var reveal by rememberSaveable(receipt.sessionId) { mutableStateOf(preview && receipt.records.isNotEmpty()) }
-    var showDetails by rememberSaveable(receipt.sessionId) { mutableStateOf(false) }
+    var showDetails by rememberSaveable(receipt.sessionId) { mutableStateOf(initiallyShowDetails) }
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(receipt.sessionId) {
         if (!preview && !reveal && receipt.records.isNotEmpty()) {
@@ -53,7 +54,7 @@ internal fun SessionCompleteSheet(
         }
     }
     val numberFormat = remember { NumberFormat.getNumberInstance().apply { maximumFractionDigits = 1 } }
-    BackHandler(enabled = showDetails) { showDetails = false }
+    BackHandler(enabled = showDetails && !preview) { showDetails = false }
     Column(Modifier.fillMaxSize().background(ApexColors.Canvas).safeDrawingPadding().padding(20.dp)) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
