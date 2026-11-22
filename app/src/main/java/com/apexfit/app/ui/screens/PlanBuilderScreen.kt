@@ -780,21 +780,6 @@ fun PlanBuilderScreen(
         var restError by remember { mutableStateOf<String?>(null) }
         var weightError by remember { mutableStateOf<String?>(null) }
 
-        var showMuscleDropdown by rememberSaveable { mutableStateOf(false) }
-        val exerciseFieldColors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = ApexColors.TextPrimary,
-            unfocusedTextColor = ApexColors.TextPrimary,
-            focusedContainerColor = ApexColors.SurfaceSunken,
-            unfocusedContainerColor = ApexColors.SurfaceSunken,
-            focusedBorderColor = ApexColors.Primary,
-            unfocusedBorderColor = ApexColors.BorderSubtle,
-            focusedLabelColor = ApexColors.Primary,
-            unfocusedLabelColor = ApexColors.TextSecondary,
-            cursorColor = ApexColors.Primary,
-            errorBorderColor = ApexColors.Alert,
-            errorLabelColor = ApexColors.Alert
-        )
-
         LaunchedEffect(editingExerciseId, showAddExerciseDialog) {
             if (showAddExerciseDialog) {
                 val currentEx = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
@@ -839,319 +824,149 @@ fun PlanBuilderScreen(
             )
         }
 
-        if (!showExercisePicker) AlertDialog(
-            onDismissRequest = { showAddExerciseDialog = false },
-            containerColor = ApexColors.Surface,
-            title = {
-                Text(
-                    text = if (editingExerciseId == null) "Add exercise" else "Edit exercise",
-                    fontFamily = ArchivoFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    color = ApexColors.TextPrimary,
-                    fontSize = 22.sp
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    OutlinedTextField(
-                        value = exName,
-                        onValueChange = {
-                            exName = it
+        if (!showExercisePicker) {
+            PlanBuilderExerciseEditorDialog(
+                form = PlanBuilderExerciseEditorForm(
+                    name = exName,
+                    muscleGroup = selectedMuscle,
+                    sets = setsText,
+                    minReps = repsMinText,
+                    maxReps = repsMaxText,
+                    weight = weightText,
+                    weightUnit = unitSuffix,
+                    restSeconds = restText,
+                    notes = notesText,
+                    nameError = exNameError,
+                    setsError = setsError,
+                    minRepsError = repsMinError,
+                    maxRepsError = repsMaxError,
+                    weightError = weightError,
+                    restError = restError
+                ),
+                isEditing = editingExerciseId != null,
+                onDismiss = { showAddExerciseDialog = false },
+                onBrowseLibrary = { showExercisePicker = true },
+                onFieldChange = { field, value ->
+                    when (field) {
+                        PlanBuilderExerciseEditorField.NAME -> {
+                            exName = value
                             exNameError = null
-                        },
-                        isError = exNameError != null,
-                        supportingText = exNameError?.let { { Text(it) } },
-                        label = { Text(stringResource(R.string.plan_builder_exercise_name), color = ApexColors.TextSecondary, fontFamily = ArchivoFamily) },
-                        textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("exercise_name_input"),
-                        colors = exerciseFieldColors,
-                        singleLine = true
-                    )
-
-                    TextButton(onClick = { showExercisePicker = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text("Browse exercise library", color = ApexColors.Primary, fontFamily = ArchivoFamily)
-                    }
-                    Text(stringResource(R.string.plan_builder_muscle_group),
-                        fontFamily = ArchivoFamily,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ApexColors.TextSecondary
-                    )
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = { showMuscleDropdown = true },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("muscle_group_dropdown"),
-                            border = BorderStroke(1.dp, ApexColors.BorderSubtle),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = ApexColors.TextPrimary,
-                                containerColor = ApexColors.SurfaceSunken
-                            ),
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(selectedMuscle, fontFamily = ArchivoFamily, fontSize = 14.sp)
-                                Icon(painterResource(ApexIcons.ChevronDown), contentDescription = null, tint = ApexColors.TextSecondary)
-                            }
                         }
-
-                        DropdownMenu(
-                            expanded = showMuscleDropdown,
-                            onDismissRequest = { showMuscleDropdown = false },
-                            modifier = Modifier
-                                .background(ApexColors.SurfaceRaised)
-                                .border(BorderStroke(1.dp, ApexColors.BorderSubtle))
-                        ) {
-                            MuscleGroups.ALL.forEach { muscle ->
-                                DropdownMenuItem(
-                                    text = { Text(muscle, color = ApexColors.TextPrimary, fontFamily = ArchivoFamily, fontSize = 14.sp) },
-                                    onClick = {
-                                        selectedMuscle = muscle
-                                        showMuscleDropdown = false
-                                    }
-                                )
-                            }
+                        PlanBuilderExerciseEditorField.SETS -> {
+                            setsText = value
+                            setsError = null
                         }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = setsText,
-                            onValueChange = {
-                                setsText = it
-                                setsError = null
-                            },
-                            isError = setsError != null,
-                            supportingText = setsError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.plan_builder_sets), color = ApexColors.TextSecondary, fontSize = 12.sp, fontFamily = ArchivoFamily) },
-                            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("exercise_sets_input"),
-                            colors = exerciseFieldColors,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
-                        )
-
-                        OutlinedTextField(
-                            value = repsMinText,
-                            onValueChange = {
-                                repsMinText = it
-                                repsMinError = null
-                            },
-                            isError = repsMinError != null,
-                            supportingText = repsMinError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.plan_builder_min_reps), color = ApexColors.TextSecondary, fontSize = 12.sp, fontFamily = ArchivoFamily) },
-                            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
-                            modifier = Modifier
-                                .weight(1.1f)
-                                .testTag("exercise_reps_min_input"),
-                            colors = exerciseFieldColors,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
-                        )
-
-                        OutlinedTextField(
-                            value = repsMaxText,
-                            onValueChange = {
-                                repsMaxText = it
-                                repsMaxError = null
-                                repsMinError = null
-                            },
-                            isError = repsMaxError != null,
-                            supportingText = repsMaxError?.let { { Text(it) } },
-                            label = { Text(stringResource(R.string.plan_builder_max_reps), color = ApexColors.TextSecondary, fontSize = 12.sp, fontFamily = ArchivoFamily) },
-                            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
-                            modifier = Modifier
-                                .weight(1.1f)
-                                .testTag("exercise_reps_max_input"),
-                            colors = exerciseFieldColors,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = weightText,
-                            onValueChange = {
-                                weightText = it
-                                weightError = null
-                            },
-                            isError = weightError != null,
-                            supportingText = weightError?.let { { Text(it) } },
-                            label = { Text("Starting weight ($unitSuffix)", color = ApexColors.TextSecondary, fontFamily = ArchivoFamily) },
-                            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("exercise_weight_input"),
-                            colors = exerciseFieldColors,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true
-                        )
-
-                        // Small kg/lb toggle
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(ApexColors.SurfaceSunken)
-                                .border(BorderStroke(1.dp, ApexColors.BorderSubtle), RoundedCornerShape(6.dp))
-                                .heightIn(min = 56.dp)
-                                .padding(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            listOf("kg", "lb").forEach { unit ->
-                                val isSelected = unitSuffix.equals(unit, ignoreCase = true)
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelected) ApexColors.Primary else Color.Transparent)
-                                        .semantics { selected = isSelected }
-                                        .clickable(role = Role.Tab) {
-                                            if (!unitSuffix.equals(unit, ignoreCase = true)) {
-                                                val currentVal = weightText.replace(',', '.').toDoubleOrNull()
-                                                if (currentVal != null) {
-                                                    val converted = if (unit == "lb") {
-                                                        Math.round(currentVal * AppConstants.KG_TO_LBS * 10.0) / 10.0
-                                                    } else {
-                                                        Math.round((currentVal / AppConstants.KG_TO_LBS) * 10.0) / 10.0
-                                                    }
-                                                    weightText = converted.toString()
-                                                }
-                                                unitSuffix = unit
-                                            }
-                                        }
-                                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                                        .testTag("unit_toggle_$unit"),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = unit.uppercase(),
-                                        fontFamily = ArchivoFamily,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) ApexColors.OnGlow else ApexColors.TextSecondary
-                                    )
-                                }
-                            }
+                        PlanBuilderExerciseEditorField.MIN_REPS -> {
+                            repsMinText = value
+                            repsMinError = null
                         }
-                    }
-
-                    OutlinedTextField(
-                        value = restText,
-                        onValueChange = {
-                            restText = it
+                        PlanBuilderExerciseEditorField.MAX_REPS -> {
+                            repsMaxText = value
+                            repsMaxError = null
+                            repsMinError = null
+                        }
+                        PlanBuilderExerciseEditorField.WEIGHT -> {
+                            weightText = value
+                            weightError = null
+                        }
+                        PlanBuilderExerciseEditorField.REST -> {
+                            restText = value
                             restError = null
-                        },
-                        isError = restError != null,
-                        supportingText = restError?.let { { Text(it) } },
-                        label = { Text(stringResource(R.string.plan_builder_rest_seconds), color = ApexColors.TextSecondary, fontFamily = ArchivoFamily) },
-                        textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("exercise_rest_input"),
-                        colors = exerciseFieldColors,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
-                    )
-
-                    OutlinedTextField(
-                        value = notesText,
-                        onValueChange = { notesText = it },
-                        label = { Text(stringResource(R.string.plan_builder_optional_notes), color = ApexColors.TextSecondary, fontFamily = ArchivoFamily) },
-                        textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary, fontFamily = ArchivoFamily),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("exercise_notes_input"),
-                        colors = exerciseFieldColors,
-                        maxLines = 3
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        exNameError = null
-                        setsError = null
-                        repsMinError = null
-                        repsMaxError = null
-                        restError = null
-                        weightError = null
-
-                        val validation = validatePlanExerciseDraft(
-                            name = exName,
-                            setsText = setsText,
-                            minRepsText = repsMinText,
-                            maxRepsText = repsMaxText,
-                            weightText = weightText,
-                            weightUnit = unitSuffix,
-                            restText = restText
-                        )
-                        if (validation is PlanExerciseDraftValidation.Invalid) {
-                            val numericError = context.getString(R.string.plan_builder_numeric_values_must_be_valid)
-                            when (validation.field) {
-                                PlanExerciseDraftField.NAME -> exNameError = context.getString(
-                                    R.string.plan_builder_exercise_name_is_required
-                                )
-                                PlanExerciseDraftField.SETS -> setsError = if (
-                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
-                                ) context.getString(R.string.plan_builder_sets_range) else numericError
-                                PlanExerciseDraftField.MIN_REPS -> repsMinError = when (validation.issue) {
-                                    PlanExerciseDraftIssue.MIN_REPS_EXCEEDS_MAX -> context.getString(
-                                        R.string.plan_builder_min_reps_greater_than_max
-                                    )
-                                    PlanExerciseDraftIssue.OUT_OF_RANGE -> context.getString(
-                                        R.string.plan_builder_reps_range
-                                    )
-                                    else -> numericError
-                                }
-                                PlanExerciseDraftField.MAX_REPS -> repsMaxError = if (
-                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
-                                ) context.getString(R.string.plan_builder_reps_range) else numericError
-                                PlanExerciseDraftField.REST -> restError = if (
-                                    validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
-                                ) context.getString(R.string.plan_builder_rest_range) else numericError
-                                PlanExerciseDraftField.WEIGHT -> {
-                                    val maxWeight = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
-                                    weightError = context.getString(
-                                        R.string.plan_builder_weight_range,
-                                        maxWeight.toString(),
-                                        unitSuffix
-                                    )
-                                }
-                            }
-                            return@Button
                         }
-                        val validDraft = validation as PlanExerciseDraftValidation.Valid
+                        PlanBuilderExerciseEditorField.NOTES -> notesText = value
+                    }
+                },
+                onMuscleChange = { selectedMuscle = it },
+                onWeightUnitChange = { unit ->
+                    if (!unitSuffix.equals(unit, ignoreCase = true)) {
+                        val currentVal = weightText.replace(',', '.').toDoubleOrNull()
+                        if (currentVal != null) {
+                            val converted = if (unit == "lb") {
+                                Math.round(currentVal * AppConstants.KG_TO_LBS * 10.0) / 10.0
+                            } else {
+                                Math.round((currentVal / AppConstants.KG_TO_LBS) * 10.0) / 10.0
+                            }
+                            weightText = converted.toString()
+                        }
+                        unitSuffix = unit
+                    }
+                },
+                onSave = saveAction@{
+                    exNameError = null
+                    setsError = null
+                    repsMinError = null
+                    repsMaxError = null
+                    restError = null
+                    weightError = null
 
-                        val targetSessionId = selectedSessionIdForExercise ?: return@Button
+                    val validation = validatePlanExerciseDraft(
+                        name = exName,
+                        setsText = setsText,
+                        minRepsText = repsMinText,
+                        maxRepsText = repsMaxText,
+                        weightText = weightText,
+                        weightUnit = unitSuffix,
+                        restText = restText
+                    )
+                    if (validation is PlanExerciseDraftValidation.Invalid) {
+                        val numericError = context.getString(R.string.plan_builder_numeric_values_must_be_valid)
+                        when (validation.field) {
+                            PlanExerciseDraftField.NAME -> exNameError = context.getString(
+                                R.string.plan_builder_exercise_name_is_required
+                            )
+                            PlanExerciseDraftField.SETS -> setsError = if (
+                                validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                            ) context.getString(R.string.plan_builder_sets_range) else numericError
+                            PlanExerciseDraftField.MIN_REPS -> repsMinError = when (validation.issue) {
+                                PlanExerciseDraftIssue.MIN_REPS_EXCEEDS_MAX -> context.getString(
+                                    R.string.plan_builder_min_reps_greater_than_max
+                                )
+                                PlanExerciseDraftIssue.OUT_OF_RANGE -> context.getString(
+                                    R.string.plan_builder_reps_range
+                                )
+                                else -> numericError
+                            }
+                            PlanExerciseDraftField.MAX_REPS -> repsMaxError = if (
+                                validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                            ) context.getString(R.string.plan_builder_reps_range) else numericError
+                            PlanExerciseDraftField.REST -> restError = if (
+                                validation.issue == PlanExerciseDraftIssue.OUT_OF_RANGE
+                            ) context.getString(R.string.plan_builder_rest_range) else numericError
+                            PlanExerciseDraftField.WEIGHT -> {
+                                val maxWeight = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
+                                weightError = context.getString(
+                                    R.string.plan_builder_weight_range,
+                                    maxWeight.toString(),
+                                    unitSuffix
+                                )
+                            }
+                        }
+                        return@saveAction
+                    }
+                    val validDraft = validation as PlanExerciseDraftValidation.Valid
 
-                        if (editingExerciseId == null) {
-                            val newId = planBuilderViewModel.generateNewSessionId()
-                            val newEx = PlanExercise(
-                                id = newId,
-                                planSessionId = targetSessionId,
+                    val targetSessionId = selectedSessionIdForExercise ?: return@saveAction
+
+                    if (editingExerciseId == null) {
+                        val newId = planBuilderViewModel.generateNewSessionId()
+                        val newEx = PlanExercise(
+                            id = newId,
+                            planSessionId = targetSessionId,
+                            name = validDraft.name,
+                            muscleGroup = selectedMuscle,
+                            sets = validDraft.sets,
+                            repsMin = validDraft.minReps,
+                            repsMax = validDraft.maxReps,
+                            weight = validDraft.weightKg,
+                            weightUnit = "kg",
+                            restSeconds = validDraft.restSeconds,
+                            notes = notesText.trim()
+                        )
+                        planBuilderViewModel.addExercise(newEx)
+                    } else {
+                        val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
+                        if (exercise != null) {
+                            val updated = exercise.copy(
                                 name = validDraft.name,
                                 muscleGroup = selectedMuscle,
                                 sets = validDraft.sets,
@@ -1162,43 +977,14 @@ fun PlanBuilderScreen(
                                 restSeconds = validDraft.restSeconds,
                                 notes = notesText.trim()
                             )
-                            planBuilderViewModel.addExercise(newEx)
-                        } else {
-                            val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
-                            if (exercise != null) {
-                                val updated = exercise.copy(
-                                    name = validDraft.name,
-                                    muscleGroup = selectedMuscle,
-                                    sets = validDraft.sets,
-                                    repsMin = validDraft.minReps,
-                                    repsMax = validDraft.maxReps,
-                                    weight = validDraft.weightKg,
-                                    weightUnit = "kg",
-                                    restSeconds = validDraft.restSeconds,
-                                    notes = notesText.trim()
-                                )
-                                planBuilderViewModel.updateExercise(updated)
-                            }
+                            planBuilderViewModel.updateExercise(updated)
                         }
+                    }
 
-                        showAddExerciseDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ApexColors.Primary,
-                        contentColor = ApexColors.OnGlow
-                    ),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("save_exercise_confirm_button")
-                ) {
-                    Text(stringResource(R.string.plan_builder_save), fontFamily = ArchivoFamily, fontWeight = FontWeight.SemiBold)
+                    showAddExerciseDialog = false
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddExerciseDialog = false }) {
-                    Text(stringResource(R.string.plan_builder_cancel), fontFamily = ArchivoFamily, color = ApexColors.TextSecondary)
-                }
-            }
-        )
+            )
+        }
     }
 
     // Session Deletion Dialog
@@ -1281,3 +1067,4 @@ fun PlanBuilderScreen(
         )
     }
 }
+
