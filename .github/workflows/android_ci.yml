@@ -43,6 +43,7 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
       - name: Render Compose screenshots
+        if: always()
         run: ./gradlew :app:updateDebugScreenshotTest --no-daemon
 
       - name: Upload rendered screens
@@ -53,3 +54,4 @@ jobs:
           path: app/build/outputs/screenshotTest-results/preview/debug/rendered
           if-no-files-found: warn
           retention-days: 14
+
