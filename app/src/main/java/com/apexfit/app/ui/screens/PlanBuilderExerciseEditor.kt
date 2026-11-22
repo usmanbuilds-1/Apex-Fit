@@ -48,6 +48,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexfit.app.R
+import com.apexfit.app.data.Exercise
+import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.ui.theme.ApexIcons
 import com.apexfit.app.ui.theme.ArchivoFamily
@@ -74,6 +76,45 @@ internal data class PlanBuilderExerciseEditorForm(
     val weightError: String? = null,
     val restError: String? = null
 )
+
+/** Keeps the library picker and editor on the same production selection path. */
+@Composable
+internal fun PlanBuilderExerciseEditorHost(
+    form: PlanBuilderExerciseEditorForm,
+    isEditing: Boolean,
+    libraryState: UiState<List<Exercise>>,
+    onDismiss: () -> Unit,
+    onFieldChange: (PlanBuilderExerciseEditorField, String) -> Unit,
+    onMuscleChange: (String) -> Unit,
+    onWeightUnitChange: (String) -> Unit,
+    onExerciseSelected: (Exercise) -> Unit,
+    onSave: () -> Unit
+) {
+    var showLibraryPicker by rememberSaveable { mutableStateOf(false) }
+
+    if (showLibraryPicker) {
+        ExercisePickerDialog(
+            state = libraryState,
+            title = "Choose exercise",
+            onDismiss = { showLibraryPicker = false },
+            onSelect = { exercise ->
+                onExerciseSelected(exercise)
+                showLibraryPicker = false
+            }
+        )
+    } else {
+        PlanBuilderExerciseEditorDialog(
+            form = form,
+            isEditing = isEditing,
+            onDismiss = onDismiss,
+            onBrowseLibrary = { showLibraryPicker = true },
+            onFieldChange = onFieldChange,
+            onMuscleChange = onMuscleChange,
+            onWeightUnitChange = onWeightUnitChange,
+            onSave = onSave
+        )
+    }
+}
 
 /** Shared by the production Plan Builder and its render fixtures. */
 @Composable

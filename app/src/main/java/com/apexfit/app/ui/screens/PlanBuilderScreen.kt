@@ -748,7 +748,6 @@ fun PlanBuilderScreen(
     if (showAddExerciseDialog) {
         val exercise = editingExerciseId?.let { planBuilderViewModel.getExerciseById(it) }
         val libraryState by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
-        var showExercisePicker by rememberSaveable { mutableStateOf(false) }
         val preferredUnits by planBuilderViewModel.units.collectAsStateWithLifecycle()
         val defaultUnit = if (!exercise?.weightUnit.isNullOrBlank()) exercise!!.weightUnit else (if (preferredUnits.lowercase() in listOf("lb", "lbs")) "lb" else "kg")
         var unitSuffix by rememberSaveable { mutableStateOf(defaultUnit) }
@@ -804,28 +803,8 @@ fun PlanBuilderScreen(
             }
         }
 
-        if (showExercisePicker) {
-            ExercisePickerDialog(
-                state = libraryState, title = "Choose exercise",
-                onDismiss = { showExercisePicker = false },
-                onSelect = { match ->
-                    exName = match.name
-                    selectedMuscle = match.primaryMuscle
-                    exNameError = null
-                    showExercisePicker = false
-                    val previousRest = restText
-                    coroutineScope.launch {
-                        val suggested = planBuilderViewModel.exerciseDefaultRestSeconds(match.id)
-                        if (exName == match.name && restText == previousRest && suggested != null) {
-                            restText = suggested.toString()
-                        }
-                    }
-                }
-            )
-        }
-
-        if (!showExercisePicker) {
-            PlanBuilderExerciseEditorDialog(
+        PlanBuilderExerciseEditorHost(
+            libraryState = libraryState,
                 form = PlanBuilderExerciseEditorForm(
                     name = exName,
                     muscleGroup = selectedMuscle,
@@ -845,7 +824,6 @@ fun PlanBuilderScreen(
                 ),
                 isEditing = editingExerciseId != null,
                 onDismiss = { showAddExerciseDialog = false },
-                onBrowseLibrary = { showExercisePicker = true },
                 onFieldChange = { field, value ->
                     when (field) {
                         PlanBuilderExerciseEditorField.NAME -> {
@@ -889,6 +867,18 @@ fun PlanBuilderScreen(
                             weightText = converted.toString()
                         }
                         unitSuffix = unit
+                    }
+                },
+                onExerciseSelected = { match ->
+                    exName = match.name
+                    selectedMuscle = match.primaryMuscle
+                    exNameError = null
+                    val previousRest = restText
+                    coroutineScope.launch {
+                        val suggested = planBuilderViewModel.exerciseDefaultRestSeconds(match.id)
+                        if (exName == match.name && restText == previousRest && suggested != null) {
+                            restText = suggested.toString()
+                        }
                     }
                 },
                 onSave = saveAction@{
@@ -984,7 +974,6 @@ fun PlanBuilderScreen(
                     showAddExerciseDialog = false
                 }
             )
-        }
     }
 
     // Session Deletion Dialog
