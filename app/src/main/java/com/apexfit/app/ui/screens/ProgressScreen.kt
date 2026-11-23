@@ -4,6 +4,7 @@ import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -87,7 +88,11 @@ fun ProgressScreen(
         subScreen = "main"
     }
 
-    Crossfade(targetState = subScreen, label = "progressSubscreen") { screen ->
+    Crossfade(
+        targetState = subScreen,
+        animationSpec = tween(durationMillis = 150),
+        label = "progressSubscreen"
+    ) { screen ->
         when (screen) {
             "personal_records" -> {
                 PersonalRecordsScreen(progressViewModel = progressViewModel, onBack = { subScreen = "main" })
