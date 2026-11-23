@@ -20,7 +20,8 @@ enum class MuscleVolumePeriod {
 data class MuscleVolumeExercise(
     val name: String,
     val directSets: Int,
-    val secondarySets: Int
+    val secondarySets: Int,
+    val key: String = name
 )
 
 data class MuscleVolumeRow(val muscle: String, val exercises: List<MuscleVolumeExercise>) {
@@ -29,7 +30,7 @@ data class MuscleVolumeRow(val muscle: String, val exercises: List<MuscleVolumeE
 }
 
 object MuscleVolumeSummary {
-    private data class Counts(val name: String, var directSets: Int = 0, var secondarySets: Int = 0)
+    private data class Counts(val key: String, val name: String, var directSets: Int = 0, var secondarySets: Int = 0)
 
     fun calculate(
         sessions: List<RichTrainingSession>,
@@ -50,17 +51,17 @@ object MuscleVolumeSummary {
                 val key = exercise.id.ifBlank { exercise.name }
                 if (primary.isNotBlank()) {
                     totals.getOrPut(primary) { mutableMapOf() }
-                        .getOrPut(key) { Counts(exercise.name) }.directSets += count
+                        .getOrPut(key) { Counts(key, exercise.name) }.directSets += count
                 }
                 for (muscle in secondary.filter(String::isNotBlank)) {
                     totals.getOrPut(muscle) { mutableMapOf() }
-                        .getOrPut(key) { Counts(exercise.name) }.secondarySets += count
+                        .getOrPut(key) { Counts(key, exercise.name) }.secondarySets += count
                 }
             }
         }
         return totals.map { (muscle, byExercise) ->
             MuscleVolumeRow(muscle, byExercise.values
-                .map { MuscleVolumeExercise(it.name, it.directSets, it.secondarySets) }
+                .map { MuscleVolumeExercise(it.name, it.directSets, it.secondarySets, it.key) }
                 .sortedWith(compareByDescending<MuscleVolumeExercise> { it.directSets }.thenBy { it.name }))
         }.sortedWith(compareByDescending<MuscleVolumeRow> { it.directSets }.thenBy { it.muscle })
     }

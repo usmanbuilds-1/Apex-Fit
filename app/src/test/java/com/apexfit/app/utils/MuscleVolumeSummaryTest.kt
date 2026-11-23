@@ -36,4 +36,17 @@ class MuscleVolumeSummaryTest {
         assertEquals(1, MuscleVolumeSummary.calculate(sessions, today, MuscleVolumePeriod.WEEK).single().directSets)
         assertEquals(2, MuscleVolumeSummary.calculate(sessions, today, MuscleVolumePeriod.MONTH).single().directSets)
     }
+
+    @Test
+    fun sameNamedExercisesKeepDistinctStableKeys() {
+        val entries = listOf("custom-a", "custom-b").map { id ->
+            ExerciseLog(id, "Cable Row", "Back", listOf(ExerciseSet(weight = 20.0, reps = 10)))
+        }
+        val session = RichTrainingSession("2026-11-16", "Pull", true, exercises = entries)
+
+        val row = MuscleVolumeSummary.calculate(listOf(session), today, MuscleVolumePeriod.WEEK).single()
+
+        assertEquals(2, row.directSets)
+        assertEquals(setOf("custom-a", "custom-b"), row.exercises.map { it.key }.toSet())
+    }
 }

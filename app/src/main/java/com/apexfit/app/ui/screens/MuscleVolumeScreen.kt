@@ -127,7 +127,7 @@ internal fun MuscleVolumeContent(
                         color = ApexColors.TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
                 }
                 if (chosen == null) item { Text("No logged sets for this muscle in this period.") }
-                else items(chosen.exercises, key = null) { exercise ->
+                else items(chosen.exercises, key = { it.key }) { exercise ->
                     HorizontalDivider(color = ApexColors.BorderSubtle)
                     Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
                         Text(exercise.name, style = MaterialTheme.typography.titleMedium)

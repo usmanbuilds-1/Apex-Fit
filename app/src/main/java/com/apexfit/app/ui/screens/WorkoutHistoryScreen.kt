@@ -91,7 +91,7 @@ internal fun WorkoutHistoryDetail(
         }
         if (sets == null) item { Text("Loading logged sets…", color = ApexColors.TextSecondary) }
         else if (sets.isEmpty()) item { Text("No sets recorded.", color = ApexColors.TextSecondary) }
-        items(exercises) { group ->
+        items(exercises, key = { group -> group.first().exerciseId }) { group ->
             HorizontalDivider(color = ApexColors.BorderSubtle)
             Column(Modifier.padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(group.first().exerciseName.ifBlank { "Exercise" }, style = MaterialTheme.typography.titleMedium)
