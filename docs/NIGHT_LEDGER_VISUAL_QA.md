@@ -196,13 +196,13 @@ The final icon scan found Unicode arrow/delete glyphs in imported-plan reorder c
 
 The connected Stitch MCP is responding. `list_screens` returned 11 screens from project `14369859982852578965`, and the approved Today, Nutrition, Active Workout, Plan Builder, Settings, and Workout Complete references downloaded successfully. The current Compose Today, Nutrition, Active Workout, Plan Builder, Settings, and receipt renders were visually reviewed against those references. Plan Builder preserves reorder via its existing Move up/Move down menu actions; Settings keeps only persisted app controls; Workout Complete keeps the user's requested per-set load/repetition and actual rest detail.
 
-The Night Ledger code and screen-verification changes are in commit `38237daff6567edaa4b22f500903126ed4bca331` on `chatgpt/functional-integration-safe-20261115`. PR #33 remains open, draft, and unmerged. Exact-head GitHub Actions run `45102459119` (Android CI & APK Build, run 410) and `45102459025` (Palette regression check, run 236) both completed successfully. Android CI uploaded the debug APK, unit-test results, and rendered Compose screenshots.
+The Night Ledger code and screen-verification changes are in commit `38237daff6567edaa4b22f500903126ed4bca331`; the exact-verification record is in follow-up commit `082f1aad724a4a75b7b2e567e67d7ffd36f1c255` on `chatgpt/functional-integration-safe-20261115`. PR #33 remains open, draft, and unmerged. On final head `082f1aad724a4a75b7b2e567e67d7ffd36f1c255`, GitHub Actions run `45103181642` (Android CI & APK Build, run 411) and `45103181502` (Palette regression check, run 237) both completed successfully. Android CI uploaded the debug APK, unit-test results, and rendered Compose screenshots.
 
 On the current local working tree, serial `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:validateDebugScreenshotTest` produced 363 unit tests across 51 suites with zero failures, zero errors, and zero skips; lint and APK assembly passed. Lint reports two existing `MissingPermission` warnings at `RestTimerAlarmReceiver.kt:48` and `:66` for exact alarms. Screenshot validation rendered all 104 previews but returned 74 baseline failures: 42 image mismatches and 32 missing references. The matching/mismatching renders were not used as automatic approval to overwrite the 74 local files under `app/src/screenshotTestDebug/`; those files remain untouched. `git diff --check` passes.
 
 The first full-suite attempt ran Robolectric in parallel and failed one test while multiple tests were cleaning shared Windows temp directories. `ExerciseMediaCatalogTest.youtubeShortUrl_extractsVideoId` passed alone with `--max-workers=1`, and the full serial run then passed. This points to a Windows/Robolectric parallel temp cleanup race rather than a reproducible source failure.
 
-The remaining external verification gap is interactive Android QA: elevated ADB sees no physical device or wireless-debugging service, there is no emulator image/AVD or SDK manager available, and only 4 GB remains free on `C:`. The eight journeys, device Back/IME/system bars, touch/TalkBack, and real video playback are still unverified. The current local changes need to be committed/pushed and their new exact-head CI rerun checked before the PR gate can close.
+The remaining external verification gap is interactive Android QA: elevated ADB sees no physical device or wireless-debugging service, there is no emulator image/AVD or SDK manager available, and only 4 GB remains free on `C:`. The eight journeys, device Back/IME/system bars, touch/TalkBack, and real video playback are still unverified. The code and QA record are pushed through final head `082f1aad724a4a75b7b2e567e67d7ffd36f1c255`; its Android CI and palette checks are green. PR #33 remains draft and unmerged while those device-only checks are unavailable.
 
 ## Exit criteria
 
@@ -216,4 +216,5 @@ Close this gate only when:
 - approved Stitch comparisons are completed where references exist;
 - Android build, unit tests, lint, palette and screenshot rendering are green on the exact final PR head;
 - PR #33 remains draft until all of the above evidence exists.
+
 
