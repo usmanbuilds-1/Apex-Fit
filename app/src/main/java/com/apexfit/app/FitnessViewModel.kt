@@ -82,8 +82,14 @@ class FitnessViewModel @Inject constructor(
     val onboardingError = _onboardingError.asStateFlow()
     val trainingExperience = dataStore.experienceFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Beginner")
     val nutritionPreferences = dataStore.nutritionPreferencesFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NutritionPreferences())
-    val onboardingExerciseCatalog: StateFlow<List<Exercise>> = dao.getAllExercisesFlow()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val onboardingExerciseCatalog: StateFlow<UiState<List<Exercise>>> = dao.getAllExercisesFlow()
+        .map<List<Exercise>, UiState<List<Exercise>>> { UiState.Success(it) }
+        .onStart { emit(UiState.Loading) }
+        .catch { error ->
+            android.util.Log.e("FitnessViewModel", "Onboarding exercise library failed to load", error)
+            emit(UiState.Error("Exercise library unavailable"))
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun completeTrainingSetup(profile: OnboardingProfile? = null) {
         if (_onboardingSaving.value) return

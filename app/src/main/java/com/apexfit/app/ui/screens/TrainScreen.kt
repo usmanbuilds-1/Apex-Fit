@@ -347,6 +347,26 @@ fun WorkoutExecutionSubTab(
     val sessionRestoreFailed by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val currentExercise = exercises.getOrNull(currentIdx)
+    val currentExerciseEquipment by produceState<String?>(
+        initialValue = null,
+        currentExercise?.exerciseId,
+        currentExercise?.name
+    ) {
+        value = currentExercise?.let { scheduled ->
+            try {
+                withContext(Dispatchers.IO) {
+                    val dao = com.apexfit.app.data.AppDatabase.getDatabase(context).fitnessDao()
+                    (dao.getExerciseById(scheduled.exerciseId)
+                        ?: dao.getExerciseByName(scheduled.name))?.equipmentRequired
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
     var workoutClockNow by remember(liveSession?.startTime) {
         mutableStateOf(System.currentTimeMillis())
     }
@@ -789,7 +809,8 @@ fun WorkoutExecutionSubTab(
                             }
                             workoutExecutionViewModel.cancelOrCompleteEmptySession()
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        currentExerciseEquipment = currentExerciseEquipment
                     )
                 }
             }

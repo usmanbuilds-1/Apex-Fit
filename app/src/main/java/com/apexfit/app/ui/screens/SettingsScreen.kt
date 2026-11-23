@@ -158,7 +158,7 @@ fun SettingsScreen(
             .background(ApexColors.Canvas)
             .padding(innerPadding)
             .imePadding()
-            .padding(16.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
@@ -631,20 +631,8 @@ fun SettingsScreen(
         )
     }
 
-    Button(
-        onClick = {
-            showResetDialog = true
-        },
-        modifier = Modifier.fillMaxWidth().height(48.dp).testTag("reset_data_button"),
-        colors = ButtonDefaults.buttonColors(containerColor = if (isResetting) Color.Gray else RedAccent),
-        shape = RoundedCornerShape(10.dp),
-        enabled = !isResetting
-    ) {
-        Text(if (isResetting) "Resetting…" else "Reset app data", fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-    }
-
         Spacer(modifier = Modifier.height(8.dp))
-        SettingsSectionTitle("Data and legal")
+        SettingsSectionTitle("Data")
 
         SettingsActionRow(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -706,6 +694,23 @@ fun SettingsScreen(
                 Text("Terms of Service", fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
                 Icon(painter = painterResource(ApexIcons.ExternalLink), contentDescription = "Opens Terms of Service in browser",
                     tint = SecondaryText, modifier = Modifier.size(16.dp))
+            }
+        }
+
+        TextButton(
+            onClick = { showResetDialog = true },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("reset_data_button"),
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
+            enabled = !isResetting
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                Text(
+                    if (isResetting) "Deleting…" else "Delete local data",
+                    fontFamily = InterFamily,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = RedAccent
+                )
             }
         }
     }
@@ -771,7 +776,7 @@ internal fun SettingsDisclosureRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 64.dp)
+                .heightIn(min = 52.dp)
                 .semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }
                 .clickable(role = Role.Button, onClick = onClick)
                 .padding(vertical = 12.dp),
@@ -780,7 +785,7 @@ internal fun SettingsDisclosureRow(
             Text(
                 text = label,
                 fontFamily = InterFamily,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 color = PrimaryText,
                 modifier = Modifier.weight(1f)
             )

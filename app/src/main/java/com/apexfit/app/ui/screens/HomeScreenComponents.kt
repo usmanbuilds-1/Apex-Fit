@@ -1058,7 +1058,9 @@ internal fun LogWeightDialog(
     initialInput: String,
     units: String,
     onDismiss: () -> Unit,
-    onSave: (Double) -> Unit
+    onSave: (Double) -> Unit,
+    saveError: String? = null,
+    isSaving: Boolean = false
 ) {
     var weightInput by rememberSaveable { mutableStateOf(initialInput) }
     var weightError by rememberSaveable { mutableStateOf("") }
@@ -1072,7 +1074,7 @@ internal fun LogWeightDialog(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         containerColor = DarkCardSurface,
         title = {
             Text(
@@ -1127,10 +1129,19 @@ internal fun LogWeightDialog(
                         fontFamily = JetBrainsMonoFamily
                     )
                 }
+                saveError?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        fontFamily = JetBrainsMonoFamily
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
+                enabled = !isSaving,
                 onClick = {
                     val parsedWeight = weightInput.toDoubleOrNull()
                     when {
@@ -1138,21 +1149,22 @@ internal fun LogWeightDialog(
                         parsedWeight !in weightMin..weightMax ->
                             weightError = "Must be $weightMin–$weightMax $units"
                         else -> {
+                            weightError = ""
                             onSave(parsedWeight)
                         }
                     }
                 }
             ) {
                 Text(
-                    text = "SAVE",
+                    text = if (isSaving) "SAVING…" else "SAVE",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
-                    color = OrangeAccent
+                    color = if (isSaving) SecondaryText else OrangeAccent
                 )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(enabled = !isSaving, onClick = onDismiss) {
                 Text(
                     text = "CANCEL",
                     fontFamily = SyneFamily,

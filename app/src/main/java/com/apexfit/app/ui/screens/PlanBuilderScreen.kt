@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -184,40 +186,282 @@ internal fun PlanBuilderMetadataFields(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        OutlinedTextField(
+        PlanBuilderMetadataField(
+            label = stringResource(R.string.plan_builder_plan_name),
             value = planName,
             onValueChange = onPlanNameChange,
-            isError = planNameError != null,
-            supportingText = planNameError?.let { { Text(it) } },
-            label = { Text(stringResource(R.string.plan_builder_plan_name)) },
-            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary),
-            modifier = Modifier.fillMaxWidth().testTag("plan_name_input"),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = ApexColors.Primary,
-                unfocusedBorderColor = ApexColors.BorderSubtle,
-                focusedLabelColor = ApexColors.Primary,
-                unfocusedLabelColor = ApexColors.TextSecondary,
-                cursorColor = ApexColors.Primary
-            ),
-            singleLine = true
+            error = planNameError,
+            testTag = "plan_name_input"
         )
-        OutlinedTextField(
+        PlanBuilderGoalSelector(
             value = planGoal,
-            onValueChange = onPlanGoalChange,
-            label = { Text("Goal") },
-            textStyle = LocalTextStyle.current.copy(color = ApexColors.TextPrimary),
-            modifier = Modifier.fillMaxWidth().testTag("plan_goal_input"),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = ApexColors.Primary,
-                unfocusedBorderColor = ApexColors.BorderSubtle,
-                focusedLabelColor = ApexColors.Primary,
-                unfocusedLabelColor = ApexColors.TextSecondary,
-                cursorColor = ApexColors.Primary
-            ),
-            singleLine = true
+            onValueChange = onPlanGoalChange
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PlanBuilderGoalSelector(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    val options = remember {
+        listOf("Build muscle", "Lose fat", "Recomposition", "Maintain", "General Fitness")
+    }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Goal", style = MaterialTheme.typography.bodyMedium, color = ApexColors.TextSecondary)
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it }
+        ) {
+            TextField(
+                value = value,
+                onValueChange = {
+                    onValueChange(it)
+                    expanded = true
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor()
+                    .testTag("plan_goal_input")
+                    .border(1.dp, ApexColors.BorderSubtle, RoundedCornerShape(10.dp)),
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp),
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = ApexColors.SurfaceRaised,
+                    unfocusedContainerColor = ApexColors.SurfaceRaised,
+                    disabledContainerColor = ApexColors.SurfaceRaised,
+                    errorContainerColor = ApexColors.SurfaceRaised,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    errorIndicatorColor = Color.Transparent,
+                    cursorColor = ApexColors.Primary
+                )
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option) },
+                        onClick = {
+                            onValueChange(option)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun PlanBuilderExerciseSummary(
+    exercise: PlanExercise,
+    preferredUnits: String,
+    modifier: Modifier = Modifier
+) {
+    val isImperial = preferredUnits.lowercase() in listOf("lb", "lbs")
+    val weightLabel = if (exercise.weight > 0.0) {
+        val weight = if (isImperial) exercise.weight * AppConstants.KG_TO_LBS else exercise.weight
+        val roundedWeight = kotlin.math.round(weight * 10.0) / 10.0
+        val displayWeight = if (roundedWeight % 1.0 == 0.0) {
+            roundedWeight.toInt().toString()
+        } else {
+            roundedWeight.toString()
+        }
+        "$displayWeight ${if (isImperial) "lb" else "kg"}"
+    } else "Load not set"
+
+    Column(modifier = modifier) {
+        Text(
+            text = exercise.name,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = ApexColors.TextPrimary
+        )
+        val repRange = if (exercise.repsMin == exercise.repsMax) {
+            exercise.repsMin.toString()
+        } else {
+            "${exercise.repsMin}–${exercise.repsMax}"
+        }
+        Text(
+            text = "${exercise.sets} × $repRange · $weightLabel · ${exercise.restSeconds} sec",
+            style = MaterialTheme.typography.bodySmall,
+            color = ApexColors.TextSecondary
+        )
+        if (exercise.notes.isNotBlank()) {
+            Text(
+                text = exercise.notes,
+                style = MaterialTheme.typography.bodySmall,
+                color = ApexColors.TextTertiary,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+internal fun PlanBuilderSessionRow(
+    session: PlanSession,
+    isSelected: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onSelect: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var menuExpanded by remember(session.id) { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { selected = isSelected }
+            .clickable(role = Role.Button, onClick = onSelect)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = session.day.take(3),
+            modifier = Modifier.width(40.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary
+        )
+        Text(
+            text = session.label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+            color = ApexColors.TextPrimary,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Box {
+            TextButton(
+                onClick = { menuExpanded = true },
+                modifier = Modifier
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .testTag("session_actions_button_${session.id}")
+                    .semantics { contentDescription = "Actions for ${session.label}" },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+            ) {
+                Text("⋯", style = MaterialTheme.typography.titleLarge, color = ApexColors.TextSecondary)
+            }
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                DropdownMenuItem(
+                    text = { Text("Move up") },
+                    enabled = canMoveUp,
+                    onClick = { menuExpanded = false; onMoveUp() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Move down") },
+                    enabled = canMoveDown,
+                    onClick = { menuExpanded = false; onMoveDown() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Edit day") },
+                    onClick = { menuExpanded = false; onEdit() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete day", color = ApexColors.Alert) },
+                    onClick = { menuExpanded = false; onDelete() }
+                )
+            }
+        }
+    }
+    HorizontalDivider(color = ApexColors.BorderSubtle)
+}
+
+@Composable
+internal fun PlanBuilderExerciseRow(
+    exercise: PlanExercise,
+    preferredUnits: String,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var menuExpanded by remember(exercise.id) { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PlanBuilderExerciseSummary(
+            exercise = exercise,
+            preferredUnits = preferredUnits,
+            modifier = Modifier.weight(1f)
+        )
+        Box {
+            TextButton(
+                onClick = { menuExpanded = true },
+                modifier = Modifier
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .testTag("exercise_actions_button_${exercise.id}")
+                    .semantics { contentDescription = "Actions for ${exercise.name}" },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+            ) {
+                Text("⋯", style = MaterialTheme.typography.titleLarge, color = ApexColors.TextSecondary)
+            }
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                DropdownMenuItem(
+                    text = { Text("Edit exercise") },
+                    onClick = { menuExpanded = false; onEdit() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Remove exercise", color = ApexColors.Alert) },
+                    onClick = { menuExpanded = false; onDelete() }
+                )
+            }
+        }
+    }
+    HorizontalDivider(color = ApexColors.BorderSubtle)
+}
+
+@Composable
+private fun PlanBuilderMetadataField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    testTag: String,
+    error: String? = null
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = ApexColors.TextSecondary)
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            isError = error != null,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = ApexColors.TextPrimary),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(testTag)
+                .border(1.dp, ApexColors.BorderSubtle, RoundedCornerShape(10.dp)),
+            singleLine = true,
+            shape = RoundedCornerShape(10.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = ApexColors.SurfaceRaised,
+                unfocusedContainerColor = ApexColors.SurfaceRaised,
+                disabledContainerColor = ApexColors.SurfaceRaised,
+                errorContainerColor = ApexColors.SurfaceRaised,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+                errorIndicatorColor = Color.Transparent,
+                cursorColor = ApexColors.Primary
+            )
+        )
+        if (error != null) {
+            Text(error, style = MaterialTheme.typography.bodySmall, color = ApexColors.Alert)
+        }
     }
 }
 
@@ -261,6 +505,7 @@ fun PlanBuilderScreen(
     val coroutineScope = rememberCoroutineScope()
     val sessionsList by planBuilderViewModel.planBuilderSessions.collectAsStateWithLifecycle()
     val exercisesList by planBuilderViewModel.planBuilderExercises.collectAsStateWithLifecycle()
+    val preferredUnits by planBuilderViewModel.units.collectAsStateWithLifecycle()
     var activePlan by remember { mutableStateOf<WorkoutPlan?>(null) }
     var loading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -271,6 +516,7 @@ fun PlanBuilderScreen(
     var showAddDayDialog by rememberSaveable { mutableStateOf(false) }
     var showAddExerciseDialog by rememberSaveable { mutableStateOf(false) }
     var selectedSessionIdForExercise by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedPlanSessionId by rememberSaveable(planId) { mutableStateOf<Long?>(null) }
     var editingSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
     var sessionToDelete by rememberSaveable { mutableStateOf<PlanSession?>(null) }
@@ -379,11 +625,12 @@ fun PlanBuilderScreen(
         containerColor = DarkBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
                     Text(
                         "Plan Builder",
-                        style = MaterialTheme.typography.titleLarge,
+                        fontFamily = InterFamily,
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = ApexColors.TextPrimary
                     )
@@ -397,7 +644,7 @@ fun PlanBuilderScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = ApexColors.Canvas
                 )
             )
@@ -414,7 +661,7 @@ fun PlanBuilderScreen(
                 .padding(innerPadding)
                 .imePadding()
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (planId == 0L && sessionsList.isEmpty() && planName.isBlank()) {
                 item {
@@ -450,35 +697,19 @@ fun PlanBuilderScreen(
                 )
             }
 
-            // Training Sessions Header
+            val selectedSession = sessionsList.firstOrNull { it.id == selectedPlanSessionId }
+                ?: sessionsList.firstOrNull()
+            val selectedSessionExercises = selectedSession?.let { exercisesBySession[it.id].orEmpty() }
+                .orEmpty()
+
+            // Keep the weekly schedule together, then show exercises for the selected day.
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Days",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ApexColors.TextPrimary
-                    )
-                    TextButton(
-                        onClick = {
-                            editingSessionId = null
-                            showAddDayDialog = true
-                        },
-                        modifier = Modifier.testTag("add_day_button")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Add day", style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-                }
+                Text(
+                    "Days",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = ApexColors.TextPrimary
+                )
             }
 
             if (sessionsList.isEmpty()) {
@@ -495,212 +726,94 @@ fun PlanBuilderScreen(
                 }
             } else {
                 itemsIndexed(sessionsList, key = { _, session -> session.id }) { index, session ->
-                    val exercisesForSession = remember(exercisesList, session.id) { exercisesList.filter { it.planSessionId == session.id } }
-                    val sessionExercises = exercisesForSession
-                    
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("session_card_${session.id}"),
-                        colors = CardDefaults.cardColors(containerColor = ApexColors.Canvas),
-                        shape = RoundedCornerShape(0.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    PlanBuilderSessionRow(
+                        session = session,
+                        isSelected = session.id == selectedSession?.id,
+                        canMoveUp = index > 0,
+                        canMoveDown = index < sessionsList.lastIndex,
+                        onSelect = { selectedPlanSessionId = session.id },
+                        onMoveUp = { planBuilderViewModel.reorderSession(index, true) },
+                        onMoveDown = { planBuilderViewModel.reorderSession(index, false) },
+                        onEdit = {
+                            editingSessionId = session.id
+                            showAddDayDialog = true
+                        },
+                        onDelete = { sessionToDelete = session }
+                    )
+                }
+            }
+
+            item {
+                TextButton(
+                    onClick = {
+                        editingSessionId = null
+                        showAddDayDialog = true
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("add_day_button"),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("Add day", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+
+            if (selectedSession != null) {
+                item(key = "selected_session_${selectedSession.id}") {
+                    Text(
+                        selectedSession.label,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ApexColors.TextPrimary
+                    )
+                }
+
+                if (selectedSessionExercises.isEmpty()) {
+                    item(key = "empty_exercises_${selectedSession.id}") {
+                        Text(
+                            "No exercises yet. Add one to this day.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = ApexColors.TextSecondary,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        )
+                    }
+                } else {
+                    items(selectedSessionExercises, key = { it.id }) { exercise ->
+                        PlanBuilderExerciseRow(
+                            exercise = exercise,
+                            preferredUnits = preferredUnits,
+                            onEdit = {
+                                selectedSessionIdForExercise = selectedSession.id
+                                editingExerciseId = exercise.id
+                                showAddExerciseDialog = true
+                            },
+                            onDelete = { exerciseToDelete = exercise }
+                        )
+                    }
+                }
+
+                item(key = "add_exercise_${selectedSession.id}") {
+                    TextButton(
+                        onClick = {
+                            selectedSessionIdForExercise = selectedSession.id
+                            editingExerciseId = null
+                            showAddExerciseDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("add_exercise_button_${selectedSession.id}"),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Session Title Bar
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = session.label,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = ApexColors.TextPrimary
-                                    )
-                                    Text(
-                                        text = "${session.day} · ${sessionExercises.size} exercises",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = ApexColors.TextSecondary
-                                    )
-                                }
-
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Move Up
-                                    IconButton(
-                                        onClick = {
-                                            planBuilderViewModel.reorderSession(index, true)
-                                        },
-                                        enabled = index > 0,
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(ApexIcons.ArrowUp),
-                                            contentDescription = "Move Up",
-                                            tint = if (index > 0) ApexColors.TextPrimary else ApexColors.TextTertiary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    // Move Down
-                                    IconButton(
-                                        onClick = {
-                                            planBuilderViewModel.reorderSession(index, false)
-                                        },
-                                        enabled = index < sessionsList.size - 1,
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(ApexIcons.ArrowDown),
-                                            contentDescription = "Move Down",
-                                            tint = if (index < sessionsList.size - 1) ApexColors.TextPrimary else ApexColors.TextTertiary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    // Edit Day
-                                    IconButton(
-                                        onClick = {
-                                            editingSessionId = session.id
-                                            showAddDayDialog = true
-                                        },
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(ApexIcons.Edit),
-                                            contentDescription = "Edit Day",
-                                            tint = ApexColors.TextSecondary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    // Delete Day
-                                    IconButton(
-                                        onClick = {
-                                            sessionToDelete = session
-                                        },
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(ApexIcons.Delete),
-                                            contentDescription = "Delete Day",
-                                            tint = ApexColors.Alert,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Exercises Sub-List
-                            if (sessionExercises.isEmpty()) {
-                                Text(
-                                    "No exercises yet. Add one to this day.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = ApexColors.TextSecondary,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            } else {
-                                Column {
-                                    sessionExercises.forEachIndexed { exIndex, exercise ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = exercise.name,
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = ApexColors.TextPrimary
-                                                )
-                                                Text(
-                                                    text = "${exercise.muscleGroup} · ${exercise.sets} × ${exercise.repsMin}–${exercise.repsMax} reps · ${exercise.restSeconds}s rest",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = ApexColors.TextSecondary
-                                                )
-                                                if (exercise.notes.isNotBlank()) {
-                                                    Text(
-                                                        text = exercise.notes,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = ApexColors.TextTertiary,
-                                                        modifier = Modifier.padding(top = 2.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                IconButton(
-                                                    onClick = {
-                                                        selectedSessionIdForExercise = session.id
-                                                        editingExerciseId = exercise.id
-                                                        showAddExerciseDialog = true
-                                                    },
-                                                    modifier = Modifier.size(48.dp)
-                                                ) {
-                                                    Icon(
-                                                        painter = painterResource(ApexIcons.Edit),
-                                                        contentDescription = "Edit Exercise",
-                                                        tint = ApexColors.TextSecondary,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-
-                                                IconButton(
-                                                    onClick = {
-                                                        exerciseToDelete = exercise
-                                                    },
-                                                    modifier = Modifier.size(48.dp)
-                                                ) {
-                                                    Icon(
-                                                        painter = painterResource(ApexIcons.Close),
-                                                        contentDescription = "Delete Exercise",
-                                                        tint = ApexColors.Alert,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        if (exIndex < sessionExercises.lastIndex) {
-                                            HorizontalDivider(color = ApexColors.BorderSubtle)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Add Exercise Button
-                            TextButton(
-                                onClick = {
-                                    selectedSessionIdForExercise = session.id
-                                    editingExerciseId = null
-                                    showAddExerciseDialog = true
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("add_exercise_button_${session.id}"),
-                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Text("Add exercise", style = MaterialTheme.typography.bodyLarge)
-                                }
-                            }
+                            Icon(painterResource(ApexIcons.Add), contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Add exercise", style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }
@@ -722,15 +835,15 @@ fun PlanBuilderScreen(
             onDismiss = { showAddDayDialog = false },
             onSave = { dayLabel, selectedDayOfWeek ->
                 if (editingSessionId == null) {
-                    planBuilderViewModel.addSession(
-                        PlanSession(
-                            id = planBuilderViewModel.generateNewSessionId(),
-                            planId = activePlan?.id ?: 0L,
-                            label = dayLabel,
-                            day = selectedDayOfWeek,
-                            focus = "General"
-                        )
+                    val newSession = PlanSession(
+                        id = planBuilderViewModel.generateNewSessionId(),
+                        planId = activePlan?.id ?: 0L,
+                        label = dayLabel,
+                        day = selectedDayOfWeek,
+                        focus = "General"
                     )
+                    planBuilderViewModel.addSession(newSession)
+                    selectedPlanSessionId = newSession.id
                 } else {
                     val currentSession = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
                     if (currentSession != null) {
@@ -1001,7 +1114,10 @@ fun PlanBuilderScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        sessionToDelete?.let { planBuilderViewModel.deleteSession(it.id) }
+                        sessionToDelete?.let { deleting ->
+                            planBuilderViewModel.deleteSession(deleting.id)
+                            if (selectedPlanSessionId == deleting.id) selectedPlanSessionId = null
+                        }
                         sessionToDelete = null
                     }
                 ) {

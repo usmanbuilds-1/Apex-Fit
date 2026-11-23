@@ -31,5 +31,6 @@ object ApexIcons {
     @DrawableRes val Star = R.drawable.tabler_ic_star_outline
     @DrawableRes val Stopwatch = R.drawable.tabler_ic_stopwatch_outline
     @DrawableRes val TrendingUp = R.drawable.tabler_ic_trending_up_outline
+    @DrawableRes val Video = R.drawable.tabler_ic_video_outline
     @DrawableRes val Yoga = R.drawable.tabler_ic_yoga_outline
 }

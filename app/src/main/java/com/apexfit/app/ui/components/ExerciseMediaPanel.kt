@@ -21,6 +21,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.ExerciseMedia
 import com.apexfit.app.utils.ExerciseMediaCatalog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -40,13 +41,23 @@ fun ExerciseMediaPanel(
             media = withContext(Dispatchers.IO) {
                 ExerciseMediaCatalog.get(context, exerciseId)
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             loadFailed = true
         } finally {
             isLoaded = true
         }
     }
-    ExerciseMediaPanelContent(media, isLoaded, loadFailed, videoUnavailable, modifier) { videoUnavailable = true }
+    ExerciseMediaPanelContent(
+        media = media,
+        isLoaded = isLoaded,
+        loadFailed = loadFailed,
+        videoUnavailable = videoUnavailable,
+        modifier = modifier,
+        onVideoUnavailable = { videoUnavailable = true },
+        onRetryVideo = { videoUnavailable = false }
+    )
 }
 
 @Composable
@@ -56,7 +67,8 @@ internal fun ExerciseMediaPanelContent(
     loadFailed: Boolean,
     videoUnavailable: Boolean = false,
     modifier: Modifier = Modifier,
-    onVideoUnavailable: () -> Unit = {}
+    onVideoUnavailable: () -> Unit = {},
+    onRetryVideo: () -> Unit = {}
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -65,11 +77,19 @@ internal fun ExerciseMediaPanelContent(
         Text("Technique video", style = MaterialTheme.typography.titleMedium)
         when {
             !isLoaded -> Text("Checking for an available technique video.", color = ApexColors.TextSecondary)
-            loadFailed -> Text("Video information could not be loaded.", color = ApexColors.Alert)
+            loadFailed -> Text(
+                "Video information could not be loaded. Follow the written instructions above.",
+                color = ApexColors.Alert
+            )
             media?.youtubeVideoId == null ->
                 Text("No mapped technique video is available. Follow the written instructions.", color = ApexColors.TextSecondary)
-            videoUnavailable ->
-                Text("This video is unavailable. Check your connection and try again.", color = ApexColors.TextSecondary)
+            videoUnavailable -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("This video couldn’t load. Check your connection or follow the written instructions above.",
+                    color = ApexColors.TextSecondary)
+                TextButton(onClick = onRetryVideo, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Try again", color = ApexColors.Primary)
+                }
+            }
             else -> YouTubeTechniqueVideo(
                 videoId = media.youtubeVideoId,
                 title = media.youtubeVideoTitle,
@@ -165,7 +185,23 @@ private fun YouTubeTechniqueVideo(
                                 request: WebResourceRequest?,
                                 error: android.webkit.WebResourceError?
                             ) {
-                                if (request?.isForMainFrame == true) onUnavailable()
+                                if (request?.isForMainFrame == true) {
+                                    showPlayer = false
+                                    onUnavailable()
+                                }
+                            }
+
+                            override fun onReceivedHttpError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                errorResponse: android.webkit.WebResourceResponse?
+                            ) {
+                                if (request?.isForMainFrame == true &&
+                                    (errorResponse?.statusCode ?: 200) >= 400
+                                ) {
+                                    showPlayer = false
+                                    onUnavailable()
+                                }
                             }
 
                             override fun shouldOverrideUrlLoading(

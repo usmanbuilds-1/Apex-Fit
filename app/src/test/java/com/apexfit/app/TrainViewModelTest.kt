@@ -223,6 +223,57 @@ class TrainViewModelTest {
 
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
+
+    @Test
+    fun substituteScheduledExercisePersistsReplacementAndKeepsRepPrescription() = runTest(testDispatcher) {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val dao = testDb!!.fitnessDao()
+        val originalExercise = Exercise(
+            id = "dumbbell-lateral-raise", name = "Dumbbell Lateral Raise", category = "Dumbbell",
+            primaryMuscle = "Shoulders", equipmentRequired = "Dumbbell"
+        )
+        val replacementExercise = Exercise(
+            id = "cable-lateral-raise", name = "Cable Lateral Raise", category = "Cable",
+            primaryMuscle = "Shoulders", equipmentRequired = "Cable"
+        )
+        dao.insertExercises(listOf(originalExercise, replacementExercise))
+        dao.insertExerciseMetadata(ExerciseMetadata(exerciseId = replacementExercise.id, defaultRestSeconds = 75))
+        val planId = dao.insertWorkoutPlan(WorkoutPlan(name = "Test Plan", goal = "Gain Muscle", isActive = true))
+        val sessionId = dao.insertPlanSession(PlanSession(
+            planId = planId, label = "Upper A", day = "Monday", focus = "Shoulders"
+        ))
+        dao.insertPlanExercise(PlanExercise(
+            planSessionId = sessionId,
+            exerciseId = originalExercise.id,
+            name = originalExercise.name,
+            muscleGroup = originalExercise.primaryMuscle,
+            sets = 4,
+            repsMin = 8,
+            repsMax = 12,
+            weight = 22.5,
+            restSeconds = 120,
+            notes = "Use controlled reps."
+        ))
+        val originalRow = dao.getExercisesForSession(sessionId).single()
+        val store = DataStoreManager.getInstance(application)
+        val repository = com.apexfit.app.data.repository.FitnessRepositoryImpl(testDb!!, dao, store)
+        val viewModel = PlanBuilderViewModel(application, repository, store, dao)
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.substituteScheduledExercise(originalRow, replacementExercise))
+        val saved = dao.getExercisesForSession(sessionId).single()
+        assertEquals(replacementExercise.id, saved.exerciseId)
+        assertEquals(replacementExercise.name, saved.name)
+        assertEquals(replacementExercise.primaryMuscle, saved.muscleGroup)
+        assertEquals(4, saved.sets)
+        assertEquals(8, saved.repsMin)
+        assertEquals(12, saved.repsMax)
+        assertEquals(0.0, saved.weight, 0.0)
+        assertEquals(75, saved.restSeconds)
+        assertEquals("", saved.notes)
+        viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
+    }
+
     @Test
     fun defaultPlanDoesNotReplaceExistingPlan() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()

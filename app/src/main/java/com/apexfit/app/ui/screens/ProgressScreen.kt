@@ -376,6 +376,7 @@ fun ProgressMainTabContent(
     // previously blocked the entire page.
     var activeSubTab by rememberSaveable { mutableStateOf(0) }
     var showLogWeight by rememberSaveable { mutableStateOf(false) }
+    var isSavingWeight by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = activeSubTab != 0) { activeSubTab = 0 }
     val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
     val deloadResult by algorithmViewModel.deloadRecommendation.collectAsStateWithLifecycle()
@@ -401,18 +402,35 @@ fun ProgressMainTabContent(
     val weightHistory: List<com.apexfit.app.ui.models.UiWeightEntry> = (weightHistoryState as? UiState.Success)?.data ?: emptyList()
     val measurements: List<com.apexfit.app.ui.models.UiBodyMeasurement> = (measurementsState as? UiState.Success)?.data ?: emptyList()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
+    val weightLogError by homeViewModel.weightLogError.collectAsStateWithLifecycle()
     val lengthUnit = if (units == "kg") "cm" else "in"
+    val coroutineScope = rememberCoroutineScope()
     if (showLogWeight) {
         LogWeightDialog(initialInput = "", units = units,
             onDismiss = { showLogWeight = false },
+            saveError = weightLogError,
+            isSaving = isSavingWeight,
             onSave = { weight ->
-                homeViewModel.logWeight(weight, preferredUnit = units)
-                showLogWeight = false
+                if (!isSavingWeight) {
+                    homeViewModel.clearWeightLogError()
+                    isSavingWeight = true
+                    coroutineScope.launch {
+                        try {
+                            val saveJob = homeViewModel.logWeight(weight, preferredUnit = units)
+                                ?: return@launch
+                            saveJob.join()
+                            if (homeViewModel.weightLogError.value == null) {
+                                showLogWeight = false
+                            }
+                        } finally {
+                            isSavingWeight = false
+                        }
+                    }
+                }
             })
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
     val pendingDeletions = remember { mutableStateMapOf<Long, kotlinx.coroutines.Job>() }
 
     fun triggerPendingWeightDeletion(id: Long) {
@@ -467,7 +485,10 @@ fun ProgressMainTabContent(
             ProgressOverviewContent(
                 weightHistoryState, recordedSessions, java.time.LocalDate.parse(today), goal, units,
                 records, weeklyTarget, recovery,
-                onLogWeight = { showLogWeight = true },
+                onLogWeight = {
+                    homeViewModel.clearWeightLogError()
+                    showLogWeight = true
+                },
                 onOpenRecords = onOpenPersonalRecords,
                 onOpenHistory = onOpenWorkoutHistory,
                 onOpenMeasurements = { activeSubTab = 2 },

@@ -20,7 +20,7 @@
     <string name="train_start_current_workout_run">START CURRENT WORKOUT RUN</string>
     <string name="train_form_guide">Form Guide</string>
     <string name="train_substitute">Substitute</string>
-    <string name="train_save_failed">SAVE FAILED</string>
+    <string name="train_save_failed">Unable to save workout</string>
     <string name="train_retry_full">RETRY FULL</string>
     <string name="train_retry_partial">RETRY PARTIAL</string>
     <string name="train_cancel">CANCEL</string>

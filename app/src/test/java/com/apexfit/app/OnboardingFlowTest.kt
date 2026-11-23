@@ -2,8 +2,12 @@ package com.apexfit.app
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.OnboardingProfile
+import com.apexfit.app.ui.models.UiState
+import com.apexfit.app.ui.screens.OnboardingContent
 import com.apexfit.app.ui.screens.OnboardingScreen
+import com.apexfit.app.utils.StarterPlanBuilder
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -16,10 +20,22 @@ import org.robolectric.annotation.Config
 class OnboardingFlowTest {
     @get:Rule val compose = createComposeRule()
 
+    private val onboardingExerciseCatalog = StarterPlanBuilder.templates(2)
+        .flatMap { it.exercises }
+        .distinct()
+        .mapIndexed { index, name ->
+            Exercise(
+                id = "onboarding-$index", name = name, category = "Strength",
+                primaryMuscle = "Chest", equipmentRequired = "Dumbbell"
+            )
+        }
+
     @Test
     fun referenceFlowSavesOnlyOnFinalActionAndSupportsTwoDays() {
         var submitted: OnboardingProfile? = null
-        compose.setContent { OnboardingScreen(onComplete = { submitted = it }) }
+        compose.setContent {
+            OnboardingScreen(exerciseCatalog = onboardingExerciseCatalog, onComplete = { submitted = it })
+        }
         compose.onNodeWithTag("onboarding_welcome_next").performScrollTo().performClick()
         compose.onNodeWithText("Lose fat").assertExists()
         compose.onNodeWithText("Recomposition").assertExists()
@@ -30,9 +46,11 @@ class OnboardingFlowTest {
         compose.onNodeWithTag("onboarding_continue").performClick()
         compose.onNodeWithText("Personal details").assertIsDisplayed()
         fillProfileDetails()
+        compose.onNodeWithText("What’s your training experience?").assertExists()
         compose.onNodeWithTag("onboarding_continue").assertIsNotEnabled()
         compose.onNodeWithText("Training regularly").performScrollTo().performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
+        compose.onNodeWithText("How often do you train?").assertExists()
         compose.onNodeWithTag("onboarding_frequency_2").performClick()
         compose.onNodeWithTag("onboarding_continue").performClick()
         compose.onNodeWithText("Your plan is ready").assertIsDisplayed()
@@ -103,5 +121,27 @@ class OnboardingFlowTest {
         compose.setContent { OnboardingScreen(onExplore = { explored = true }, onComplete = { submitted = true }) }
         compose.onNodeWithTag("onboarding_explore").performScrollTo().performClick()
         compose.runOnIdle { assertTrue(explored); assertFalse(submitted) }
+    }
+
+    @Test
+    fun unavailableReadyPreviewDoesNotClaimPlanIsReady() {
+        compose.setContent {
+            OnboardingContent(
+                preferredUnits = "kg",
+                isSaving = false,
+                saveError = null,
+                onExplore = {},
+                onComplete = {},
+                initialStep = 5,
+                initialProfile = OnboardingProfile(
+                    name = "Alex", goal = "Gain Muscle", experience = "Beginner",
+                    heightCm = 175.0, weightKg = 70.0, age = 30, sex = "male", daysPerWeek = 4
+                ),
+                exerciseCatalogState = UiState.Error("Exercise library unavailable")
+            )
+        }
+        compose.onNodeWithText("Plan preview unavailable").assertExists()
+        compose.onNodeWithText("Your plan is ready").assertDoesNotExist()
+        compose.onNodeWithText("The exercise library couldn’t be loaded.", substring = true).assertExists()
     }
 }

@@ -95,6 +95,33 @@ Stitch MCP is responding: `list_screens` returned the approved screens and `down
 
 Run and report, where the environment permits, the eight flows defined in `docs/NIGHT_LEDGER_CODEX_REMAINDER.md`. Automated compilation alone is not an E2E pass. If hardware/emulator limitations block a flow, name the exact blocked step.
 
+#### Current flow evidence (2026-11-23)
+
+The local PR #33 working tree has focused unit/Compose interaction coverage for the following flow components. These checks passed, but **none of the eight full interactive journeys has been run on an Android device in this pass**.
+
+| Flow | Passing evidence in the local tree | Still required for a full flow |
+|---|---|---|
+| Normal workout, varied sets, adjusted/shortened/skipped rest, receipt | `TrainViewModelTest`, `WorkoutReceiptSummaryTest`; workout logger and receipt Compose renders | Start and complete a real session; change and skip rest; verify elapsed and recorded rest on the final receipt |
+| Manual plan create/edit/save | `PlanBuilderExerciseEditorTest` covers add/edit dialog state, picker return, and prescription retention; Plan Builder renders | Create and persist a plan, reopen it, edit and save, then verify persisted rows |
+| Text import/review/edit/save/cancel | `WorkoutTextParserTest`, importer rigorous/catalog/persistence tests; importer review/error renders | Exercise the complete review UI, change a parsed prescription, save, and cancel without changing the active plan |
+| Custom/Bro Split hero from scheduled exercises | `SessionHeroResolverTest` covers schedule-muscle categories; `HomeViewModel` resolves the scheduled plan exercises; Today renders cover contextual and no-photo states | Load a custom/imported split in the app and verify the chosen local photo follows its actual scheduled muscles, with honest fallback |
+| Exercise discovery | `ExerciseCatalogFilterTest` covers search/equipment and primary-before-secondary ordering; Search/Muscles renders exist | Search, select a muscle, apply equipment, open a result, and verify physical anatomy targets/accessibility |
+| Plan Builder Add and Swap/Substitute picker | `PlanBuilderExerciseEditorTest`, `TrainViewModelTest`, and `ExerciseDetailInteractionTest` cover picker selection, saved substitution, and retained prescription | Complete both routes through the live Plan Builder/program UI and verify saved plans after navigation |
+| All six Progress destinations | Individual destination Compose renders and `ProgressDataAggregationTest` | Navigate Overview → each destination → Back in the app; verify each destination retains its real data |
+| Insufficient readiness/weight data and 3-entry chart threshold | `ReadinessEngineTest`, `ReadinessUiMappingTest`, `FatigueEngineTest`, `HomeViewModelTest`; cold-start and 2/3-entry Progress renders | Log dated weights in the UI, verify the chart remains withheld at two and appears after the third; inspect readiness baseline through Today |
+
+The latest full local `:app:testDebugUnitTest` run passed after adding the Exercise Detail playback interaction check: 51 suites, 363 tests, 0 failures, 0 errors, 0 skipped. It includes `ExerciseDetailInteractionTest`, `TrainViewModelTest`, `WorkoutReceiptSummaryTest`, `PlanBuilderExerciseEditorTest`, `WeightLogDialogInteractionTest`, the four workout importer/parser suites, `ExerciseCatalogFilterTest`, `ProgressDataAggregationTest`, `ReadinessEngineTest`, `HomeViewModelTest`, `SessionHeroResolverTest`, `OnboardingFlowTest`, `FatigueEngineTest`, `StarterPlanBuilderTest`, `StarterPrescriptionTest`, `PlanExerciseDraftValidatorTest`, and `ReadinessUiMappingTest`.
+
+Device verification is presently unavailable: read-only `adb devices -l` failed because the ADB server could not start (`could not read ok from ADB Server`); `emulator -list-avds` returned no AVDs, and no SDK system images are installed. Do not count renders or these component tests as device E2E. Retry only after a device/AVD becomes available.
+
+#### Interaction/copy audit update (2026-11-23)
+
+Today and Progress previously dismissed Log weight immediately after starting the Room write. If that write failed, the existing `weightLogError` had no visible consumer on these migrated surfaces. Both routes now await the write, retain the dialog on failure, show the retry text, prevent repeated saves and dismissal while a save is running, and close after success. The dialog's save-error and active-save states are rendered at 390dp, including the save error at 1.3× text, and visually inspected; Robolectric Compose tests cover retry submission and disabled duplicate submit/dismiss. Screenshot validation rendered all three previews and reports missing goldens; no screenshot references were updated. The workout save error title was changed from all-caps `SAVE FAILED` to the calmer `Unable to save workout`.
+
+A targeted copy scan across migrated UI screens and string resources found no visible coercive streak/plateau or shame language in the active Today flow. The old `HomeStreakSection` helper still exists but has no call site; Today presents a neutral completed-versus-target weekly count. The full semantic copy review remains open. Set logging presents the RIR step after a completed set, skipped exercises show a snackbar, Nutrition deletions offer Undo, Plan Builder reports save errors and returns to Plans after a successful save, and weight logging now exposes save failure/retry. Continue checking rest adjustment/skip and other migrated actions on device.
+
+The current local tree passed `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug` on 2026-11-23 (`BUILD SUCCESSFUL` in 7m 17s). Parsed unit-test XML confirms 50 suites, 361 tests, 0 failures, 0 errors, and 0 skipped; the debug APK was assembled. The filtered weight-dialog screenshot task compiled and rendered all three previews, then failed comparison because no golden exists for these new states. The new preview files were visually inspected at 390dp and 1.3× text; no baseline was created or replaced. `git diff --check` passes.
+
 ## Current automated evidence
 
 - Current unpushed local Today pass is based on `be71435`. The latest isolated-source run passed `lintDebug`, `assembleDebug`, and `updateDebugScreenshotTest` (`BUILD SUCCESSFUL`, 5m 10s). The source snapshot hash matched the working tree. I inspected the fresh 390dp scheduled-pull render against the approved Stitch Today screenshot (`4451767822246429594`): the supported-row photo/crop, typography, workout hierarchy, two recent-session rows, and fixed bottom navigation fit. Readiness is labeled as an estimate, and the weekly count uses real completed sessions. Lower-body scheduled, active-session at 1.3x font, recovery/no-history, and readiness-explanation renders were also inspected. The 1.3x view scrolls; its last visible recent row continues below the viewport as expected. Physical device/system-bar/back checks remain open.
@@ -125,6 +152,57 @@ Run and report, where the environment permits, the eight flows defined in `docs/
 - Exercise Detail was compared with Stitch screen `projects/14369859982852578965/screens/de4245a961994f0c8322ed0b89edd428`. The render includes the available prescription, progression target, PR/history, and catalog alternatives. It keeps vetted text and omits unverified imagery/coaching. The screen does not reproduce the sample's unsupported technique/mistake copy; the active-workout replacement flow still needs real-device verification.
 - No Android AVD is configured in the local SDK. A physical-device run has not been performed in this pass; the evidence above is Compose screenshot rendering, not device validation.
 - A transient Maven Central HTTP 429 on an intermediate run is infrastructure noise, not evidence of a source-code failure.
+
+### Approved screen comparison pass (2026-11-23)
+
+Compared the current Nutrition, Active Workout, Plan Builder, and Settings Compose surfaces against the approved Stitch project `14369859982852578965`:
+
+| Surface | Stitch screenshot file | Compose evidence | Result |
+|---|---|---|---|
+| Nutrition | `4729257132601735158` | `NutritionScreenScreenshotTestKt/NutritionLoggedDayScreen_ec9e36e1_0.png` | Hierarchy and density are close; no production layout change needed. |
+| Active Workout | `14610053492943834953` | `WorkoutExecutionScreenshotTestKt/ActiveWorkoutNightLedger_ec9e36e1_0.png` | Hierarchy and density are close; no production layout change needed. |
+| Plan Builder | `18033046692625406900` | `ApprovedScreensComparisonScreenshotTestKt/PlanBuilderFullScreenNightLedger_9ef0561f_0.png` | Corrected the day list so all sessions appear first and the selected session's exercises appear below. Added the approved editable goal selector, tighter rows, left-aligned add actions, and compact unit-aware load formatting. Reorder, edit, delete, exercise-picker, and save actions remain wired. |
+| Settings | `11757372088000011307` | `ApprovedScreensComparisonScreenshotTestKt/SettingsFullScreenNightLedger_37224418_0.png` | Compared the shared production disclosure/action components and inspected the production route. Tightened row density, matched the reference inset, moved the destructive action below Data, and changed it to a restrained `Delete local data` text action while preserving its confirmation. The preview fixture uses those production components but is not a live ViewModel-backed route capture. |
+
+The Settings design reference includes reminder, protein-target, and separate height/distance-unit controls that have no corresponding persisted settings in the current app; they were not fabricated in the UI. The existing profile, nutrition, units, weight, export, privacy, terms, and reset behavior remains authoritative.
+
+The focused `:app:testDebugUnitTest --tests '*PlanBuilderExerciseEditorTest'` passed after these changes. The filtered screenshot task compiled and rendered both comparison previews; `validateDebugScreenshotTest` reports `ScreenshotImageNotFoundException` because no committed golden exists for these previews. The generated PNGs were inspected against the Stitch screenshots; no golden or user-owned `app/src/screenshotTestDebug/` file was created or changed. Physical-device interaction remains unverified because no device/AVD is available.
+
+### Onboarding review (2026-11-23)
+
+The rendered flow is **Welcome → Goal → Personal details → Experience → Frequency → Ready**. The five numbered setup stages begin after Welcome; there is no Nutrition Preferences stage. The Welcome render uses the existing bundled Pexels athlete photo (`welcome_barbell_deadlift_13106612.jpg`, documented in `docs/PHOTOGRAPHY.md`), and its crop, dark overlay, headline, supporting copy, and CTA remain legible at 390dp. The prior athlete image was kept.
+
+The Ready screen's `StarterPlanBuilder.preview` uses the same `templates` and `prescribe` functions as `createIfNeeded` when persisting the onboarding plan. It lists every scheduled day and allows each day to expand to the actual exercise, set, rep-range, and rest prescriptions. Starting calorie/protein targets are computed from the entered profile. Loading and missing-library states say the preview is preparing/unavailable rather than claiming a plan is ready; persistence errors retain the onboarding answers and show a retry message.
+
+`OnboardingFlowTest`, `StarterPlanBuilderTest`, and `StarterPrescriptionTest` passed. Welcome, all four setup stages, Ready collapsed/expanded, and Ready loading/unavailable were rendered and inspected from `OnboardingProgressScreenshotTestKt`. The Welcome baseline passed; the current setup/Ready previews report old-image mismatches or missing goldens in `validateDebugScreenshotTest`. These renders were inspected manually; no screenshot goldens were updated. Live system-bar, IME, Back, and full save navigation checks remain device-only and unverified.
+
+### Exercise Detail/Form Guide review (2026-11-23)
+
+Compared the rendered Exercise Detail/Form Guide with the approved Stitch screen `projects/14369859982852578965/screens/de4245a961994f0c8322ed0b89edd428` (screenshot file `8663589076463037581`). The current Compose screen keeps the real plan prescription, source instructions, PR/history, mapped video state, and local same-primary-muscle alternatives. It retains written guidance and does not add Free Exercise DB photos, generated biomechanics, or unverified start/finish imagery. Unsupported Stitch-only mistake coaching was not fabricated.
+
+`ExerciseDetailInteractionTest` passed all five Compose checks: the active-workout entry opens the current exercise; system Back dismisses the guide; the alternatives section scrolls and returns the selected exercise; offline video fallback exposes Retry; and the player path appears only after the user taps Play. `TrainViewModelTest.substituteScheduledExercisePersistsReplacementAndKeepsRepPrescription` passed; route inspection confirms selecting a Form Guide alternative opens the existing `Substitute exercise?` confirmation and persists only after Replace.
+
+Rendered and inspected `ExerciseDetailWithProgramAndHistory`, `ExerciseDetailWithoutPlanOrTrainingHistory`, `ExerciseDetailLongInstructionsLargeFont`, and the new `ExerciseDetailOfflineVideoFallback` at 390dp. Long instructions remain readable; the offline fallback message and 48dp-minimum Retry action are visible. The filtered screenshot validator ran four previews: the no-history state matched its existing baseline; the program/history baseline differs because it predates the now-visible Alternatives section; the large-font and offline previews have no goldens. Their renders were inspected, and no user-owned screenshot reference was changed.
+
+The real replacement confirmation and actual YouTube playback/network-error callback still require a device. Sandboxed `adb devices -l` cannot start the server (`could not read ok from ADB Server`). An elevated read-only ADB check starts successfully but lists no attached devices; `adb mdns services` finds no wireless-debugging service. The SDK has no configured AVD or installed system image, and no `sdkmanager` command-line tools are installed. Device interaction remains unverified.
+
+### Interaction and icon quality pass (2026-11-23)
+
+Source review confirms the workout RIR prompt appears after a logged set; rest adjustments update the visible countdown, and natural completion, manual skip, and Back all close through `closeRestTimer`, which records elapsed monotonic time on the just-completed set. The receipt totals only completed sets' recorded `restTaken` values. `RestTimerElapsedTest`, `RestTimerTest`, and `WorkoutReceiptSummaryTest` passed in the latest full unit run. Nutrition hides a pending meal immediately and offers Undo before persistence; leaving the screen commits pending deletes. Plan Builder returns to Plans after a successful save and shows a retry snackbar on failure. Import disables Save while saving, shows saving/error state, and reports success through its existing navigation callback. Full live interactions remain device QA.
+
+The final icon scan found Unicode arrow/delete glyphs in imported-plan reorder controls and a text checkmark for selected onboarding choices. These now use the bundled Tabler ArrowUp/ArrowDown/Delete/Check vectors with spoken action descriptions; IconButton retains its standard 48dp target. The importer review/error and selected onboarding-goal screens were rendered and visually inspected after the change. The filtered validator rendered 16 previews but reported 15 baseline failures: six missing goldens for new states and nine image mismatches, including legacy Progress/onboarding references. No user-owned screenshot references were changed. No `↑`, `↓`, `✓`, or `×` UI text glyph icons remain.
+
+### Current final-gate snapshot (2026-11-23)
+
+The connected Stitch MCP is responding. `list_screens` returned 11 screens from project `14369859982852578965`, and the approved Today, Nutrition, Active Workout, Plan Builder, Settings, and Workout Complete references downloaded successfully. The current Compose Today, Nutrition, Active Workout, Plan Builder, Settings, and receipt renders were visually reviewed against those references. Plan Builder preserves reorder via its existing Move up/Move down menu actions; Settings keeps only persisted app controls; Workout Complete keeps the user's requested per-set load/repetition and actual rest detail.
+
+The exact current PR head is `ffb7d03402533aac4ddc3c1ab58b147a7555fbf0` on `chatgpt/functional-integration-safe-20261115`. PR #33 remains open, draft, and unmerged. Exact-head GitHub Actions run `45065703251` (Android CI & APK Build) and `45065703243` (Palette regression check) both completed successfully.
+
+On the current local working tree, serial `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:validateDebugScreenshotTest` produced 363 unit tests across 51 suites with zero failures, zero errors, and zero skips; lint and APK assembly passed. Lint reports two existing `MissingPermission` warnings at `RestTimerAlarmReceiver.kt:48` and `:66` for exact alarms. Screenshot validation rendered all 104 previews but returned 74 baseline failures: 42 image mismatches and 32 missing references. The matching/mismatching renders were not used as automatic approval to overwrite the 74 local files under `app/src/screenshotTestDebug/`; those files remain untouched. `git diff --check` passes.
+
+The first full-suite attempt ran Robolectric in parallel and failed one test while multiple tests were cleaning shared Windows temp directories. `ExerciseMediaCatalogTest.youtubeShortUrl_extractsVideoId` passed alone with `--max-workers=1`, and the full serial run then passed. This points to a Windows/Robolectric parallel temp cleanup race rather than a reproducible source failure.
+
+The remaining external verification gap is interactive Android QA: elevated ADB sees no physical device or wireless-debugging service, there is no emulator image/AVD or SDK manager available, and only 4 GB remains free on `C:`. The eight journeys, device Back/IME/system bars, touch/TalkBack, and real video playback are still unverified. The current local changes need to be committed/pushed and their new exact-head CI rerun checked before the PR gate can close.
 
 ## Exit criteria
 

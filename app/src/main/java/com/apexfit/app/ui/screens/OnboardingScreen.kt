@@ -33,6 +33,7 @@ import com.apexfit.app.R
 import com.apexfit.app.data.OnboardingProfile
 import com.apexfit.app.data.NutritionTargets
 import com.apexfit.app.data.Exercise
+import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.ui.theme.ArchivoFamily
 import com.apexfit.app.utils.MacroEngine
@@ -67,10 +68,11 @@ fun OnboardingScreen(
     saveError: String? = null,
     onExplore: () -> Unit = {},
     onComplete: (OnboardingProfile) -> Unit,
-    exerciseCatalog: List<Exercise> = emptyList()
+    exerciseCatalog: List<Exercise> = emptyList(),
+    exerciseCatalogState: UiState<List<Exercise>> = UiState.Success(exerciseCatalog)
 ) {
     OnboardingContent(preferredUnits, isSaving, saveError, onExplore, onComplete,
-        exerciseCatalog = exerciseCatalog)
+        exerciseCatalog = exerciseCatalog, exerciseCatalogState = exerciseCatalogState)
 }
 
 @Composable
@@ -83,7 +85,8 @@ internal fun OnboardingContent(
     initialStep: Int = 0,
     initialProfile: OnboardingProfile? = null,
     exerciseCatalog: List<Exercise> = emptyList(),
-    initialExpandedSession: Int = -1
+    initialExpandedSession: Int = -1,
+    exerciseCatalogState: UiState<List<Exercise>> = UiState.Success(exerciseCatalog)
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     var step by rememberSaveable { mutableIntStateOf(initialStep) }
@@ -219,7 +222,7 @@ internal fun OnboardingContent(
                                     HorizontalDivider(color = ApexColors.BorderSubtle)
                                 }
                             }
-                            5 -> profile?.let { SetupReady(it, exerciseCatalog, initialExpandedSession) }
+                            5 -> profile?.let { SetupReady(it, exerciseCatalogState, initialExpandedSession) }
                         }
                         if (saveError != null) Text(saveError, color = Color(0xFFFFB4AB), fontFamily = SetupFont,
                             modifier = Modifier.padding(top = 16.dp).testTag("onboarding_save_error"))
@@ -331,7 +334,10 @@ private fun SetupOption(choice: SetupChoice, selected: Boolean, enabled: Boolean
                 Text(choice.description, color = SetupMuted, fontFamily = SetupFont, fontSize = 13.sp,
                     modifier = Modifier.padding(top = 3.dp))
             }
-            if (selected) Text("✓", color = SetupAccent)
+            if (selected) {
+                Icon(painterResource(ApexIcons.Check), contentDescription = null,
+                    tint = SetupAccent, modifier = Modifier.size(18.dp))
+            }
         }
         HorizontalDivider(color = ApexColors.BorderSubtle)
     }
@@ -352,11 +358,13 @@ private fun SetupButton(label: String, enabled: Boolean, saving: Boolean, modifi
 @Composable
 internal fun SetupReady(
     profile: OnboardingProfile,
-    exerciseCatalog: List<Exercise> = emptyList(),
+    exerciseCatalogState: UiState<List<Exercise>> = UiState.Success(emptyList()),
     initialExpandedSession: Int = -1
 ) {
-    val sessions = remember(profile.daysPerWeek, profile.goal, profile.experience, exerciseCatalog) {
-        StarterPlanBuilder.preview(profile.daysPerWeek, profile.goal, profile.experience, exerciseCatalog)
+    val sessions = remember(profile.daysPerWeek, profile.goal, profile.experience, exerciseCatalogState) {
+        (exerciseCatalogState as? UiState.Success)?.data?.let {
+            StarterPlanBuilder.preview(profile.daysPerWeek, profile.goal, profile.experience, it)
+        }
     }
     var expandedSession by rememberSaveable(profile.daysPerWeek) { mutableIntStateOf(initialExpandedSession) }
     val targets = remember(profile) { startingTargets(profile) }
@@ -365,7 +373,12 @@ internal fun SetupReady(
         4 -> "Upper / Lower"
         else -> "Upper / Lower + Push / Pull / Legs"
     }
-    Text("Your plan is ready", style = MaterialTheme.typography.headlineLarge, color = SetupText)
+    val title = when {
+        sessions != null -> "Your plan is ready"
+        exerciseCatalogState == UiState.Loading -> "Preparing your plan"
+        else -> "Plan preview unavailable"
+    }
+    Text(title, style = MaterialTheme.typography.headlineLarge, color = SetupText)
     Spacer(Modifier.height(14.dp))
     Text("$program · ${profile.daysPerWeek} days", style = MaterialTheme.typography.headlineSmall, color = SetupText)
     SetupBody(SetupGoals.firstOrNull { it.value == profile.goal }?.title ?: profile.goal)
@@ -375,8 +388,11 @@ internal fun SetupReady(
         Modifier.padding(top = 6.dp, bottom = 4.dp))
     if (sessions == null) {
         SetupBody(
-            if (exerciseCatalog.isEmpty()) "Loading your exercise plan…"
-            else "The exercise plan preview is unavailable right now. You can still continue; the app will prepare the plan when you finish setup.",
+            when (exerciseCatalogState) {
+                UiState.Loading -> "Loading the exercise library…"
+                is UiState.Error -> "The exercise library couldn’t be loaded. You can continue; if setup can’t prepare the plan, your answers will stay here so you can try again."
+                is UiState.Success -> "The plan preview isn’t available right now. You can continue; if setup can’t prepare the plan, your answers will stay here so you can try again."
+            },
             Modifier.padding(vertical = 12.dp)
         )
     } else {

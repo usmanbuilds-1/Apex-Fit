@@ -415,9 +415,18 @@ private fun ImportedDayCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("TRAINING DAY", color = AmberAccent, fontFamily = JetBrainsMonoFamily, fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onMoveUp) { Text("↑", color = SecondaryText, fontSize = 18.sp) }
-                IconButton(onClick = onMoveDown) { Text("↓", color = SecondaryText, fontSize = 18.sp) }
-                IconButton(onClick = onDeleteDay) { Text("×", color = ApexColors.Alert, fontSize = 22.sp) }
+                IconButton(onClick = onMoveUp) {
+                    Icon(painterResource(ApexIcons.ArrowUp), contentDescription = "Move training day up",
+                        tint = SecondaryText, modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = onMoveDown) {
+                    Icon(painterResource(ApexIcons.ArrowDown), contentDescription = "Move training day down",
+                        tint = SecondaryText, modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = onDeleteDay) {
+                    Icon(painterResource(ApexIcons.Delete), contentDescription = "Delete training day",
+                        tint = ApexColors.Alert, modifier = Modifier.size(18.dp))
+                }
             }
             OutlinedTextField(
                 value = day.label,
@@ -484,9 +493,21 @@ private fun ImportedExerciseCard(
                     Text("Source: " + exercise.sourceName, color = MutedText, fontSize = 10.sp)
                 }
             }
-            IconButton(onClick = onMoveUp) { Text("↑", color = SecondaryText, fontSize = 18.sp) }
-            IconButton(onClick = onMoveDown) { Text("↓", color = SecondaryText, fontSize = 18.sp) }
-            IconButton(onClick = onDelete) { Text("×", color = ApexColors.Alert, fontSize = 22.sp) }
+            IconButton(onClick = onMoveUp) {
+                Icon(painterResource(ApexIcons.ArrowUp),
+                    contentDescription = "Move ${exercise.selectedExerciseName ?: exercise.sourceName} up",
+                    tint = SecondaryText, modifier = Modifier.size(18.dp))
+            }
+            IconButton(onClick = onMoveDown) {
+                Icon(painterResource(ApexIcons.ArrowDown),
+                    contentDescription = "Move ${exercise.selectedExerciseName ?: exercise.sourceName} down",
+                    tint = SecondaryText, modifier = Modifier.size(18.dp))
+            }
+            IconButton(onClick = onDelete) {
+                Icon(painterResource(ApexIcons.Delete),
+                    contentDescription = "Delete ${exercise.selectedExerciseName ?: exercise.sourceName}",
+                    tint = ApexColors.Alert, modifier = Modifier.size(18.dp))
+            }
         }
 
         MatchStatus(exercise, onConfirm, onChoose, onSelectCandidate)

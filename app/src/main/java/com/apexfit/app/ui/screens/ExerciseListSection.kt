@@ -94,7 +94,8 @@ fun ExerciseListSection(
     onShowFinishEarlyDialog: () -> Unit,
     onShowExitDialog: () -> Unit,
     onCancelOrCompleteEmptySession: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    currentExerciseEquipment: String? = null
 ) {
     val isImperial = remember(preferredUnits) { preferredUnits.lowercase() in listOf("lb", "lbs") }
     val unitSuffix = if (isImperial) "lb" else "kg"
@@ -132,7 +133,7 @@ fun ExerciseListSection(
                                 contentPadding = PaddingValues(horizontal = 0.dp),
                                 modifier = Modifier.heightIn(min = 44.dp)
                             ) {
-                                Icon(painterResource(ApexIcons.Info), contentDescription = null,
+                                Icon(painterResource(ApexIcons.Video), contentDescription = null,
                                     tint = ApexColors.TextSecondary, modifier = Modifier.size(17.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("Form guide", color = ApexColors.TextSecondary, fontSize = 13.sp)
@@ -148,7 +149,11 @@ fun ExerciseListSection(
                         fontWeight = FontWeight.ExtraBold,
                         color = PrimaryText
                     )
-                    Text(ex.muscleGroup, color = ApexColors.TextSecondary, fontSize = 14.sp,
+                    Text(
+                        listOfNotNull(ex.muscleGroup.takeIf { it.isNotBlank() }, currentExerciseEquipment?.takeIf { it.isNotBlank() })
+                            .joinToString(" · "),
+                        color = ApexColors.TextSecondary,
+                        fontSize = 14.sp,
                         modifier = Modifier.padding(top = 4.dp))
                     val adjustment = volumeAdjustments[ex.exerciseId]
                     if (adjustment != null) {

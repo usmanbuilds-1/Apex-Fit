@@ -102,7 +102,7 @@ private val activeWorkoutExercises = listOf(
 )
 
 @PreviewTest
-@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
 @Composable
 fun ActiveWorkoutNightLedger() {
     val lateralRaises = listOf(
@@ -145,7 +145,8 @@ fun ActiveWorkoutNightLedger() {
                 onShowFinishEarlyDialog = {},
                 onShowExitDialog = {},
                 onCancelOrCompleteEmptySession = {},
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                currentExerciseEquipment = "Dumbbell"
             )
         }
     }

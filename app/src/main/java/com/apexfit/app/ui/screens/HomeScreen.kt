@@ -58,6 +58,7 @@ import java.time.format.DateTimeFormatter
 import java.time.LocalDate
 import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 // ─── Design System Palette Constants (Strict Anti-Slop 7/7) ─────────────────
 private val CanvasVoid     get() = ApexColors.Canvas
@@ -159,6 +160,9 @@ fun HomeScreen(
     }
 
     var showLogWeight by rememberSaveable { mutableStateOf(false) }
+    var isSavingWeight by rememberSaveable { mutableStateOf(false) }
+    val weightLogError by homeViewModel.weightLogError.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
     TodayContent(
         heroCategory = heroCategory,
         todayDate = todayDate,
@@ -182,7 +186,10 @@ fun HomeScreen(
         onOpenSettings = onOpenSettings,
         onNutrition = { onNavigateTo(2) },
         onProgress = { onNavigateTo(3) },
-        onLogWeight = { showLogWeight = true },
+        onLogWeight = {
+            homeViewModel.clearWeightLogError()
+            showLogWeight = true
+        },
         onStartWorkout = {
             if (activeSession == null) todaySession?.let(workoutExecutionViewModel::startWorkoutSession)
             fitnessViewModel.setTrainSubTab(if (activeSession != null || todaySession != null) 1 else 0)
@@ -192,9 +199,25 @@ fun HomeScreen(
     if (showLogWeight) {
         LogWeightDialog(initialInput = "", units = units,
             onDismiss = { showLogWeight = false },
+            saveError = weightLogError,
+            isSaving = isSavingWeight,
             onSave = { weight ->
-                homeViewModel.logWeight(weight, preferredUnit = units)
-                showLogWeight = false
+                if (!isSavingWeight) {
+                    homeViewModel.clearWeightLogError()
+                    isSavingWeight = true
+                    coroutineScope.launch {
+                        try {
+                            val saveJob = homeViewModel.logWeight(weight, preferredUnit = units)
+                                ?: return@launch
+                            saveJob.join()
+                            if (homeViewModel.weightLogError.value == null) {
+                                showLogWeight = false
+                            }
+                        } finally {
+                            isSavingWeight = false
+                        }
+                    }
+                }
             })
     }
 }

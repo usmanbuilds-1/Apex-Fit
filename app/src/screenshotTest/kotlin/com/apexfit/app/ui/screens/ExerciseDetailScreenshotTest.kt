@@ -9,6 +9,7 @@ import com.apexfit.app.data.PersonalRecord
 import com.apexfit.app.data.PlanExercise
 import com.apexfit.app.ui.components.ExerciseMediaPanelContent
 import com.apexfit.app.ui.theme.ApexFitTheme
+import com.apexfit.app.utils.ExerciseMedia
 import com.apexfit.app.utils.FormGuideBuilder
 
 private val lateralRaiseDetail = Exercise(
@@ -97,6 +98,46 @@ fun ExerciseDetailWithoutPlanOrTrainingHistory() {
             preferredUnits = "kg",
             onBack = {},
             mediaContent = { ExerciseMediaPanelContent(media = null, isLoaded = true, loadFailed = false) }
+        )
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 1000, locale = "en-US")
+@Composable
+fun ExerciseDetailOfflineVideoFallback() {
+    val content = FormGuideBuilder.buildFormGuide(
+        exercise = lateralRaiseDetail,
+        metadata = null,
+        sourceInstructions = listOf(
+            "Raise the dumbbells with control, stopping around shoulder height.",
+            "Lower them slowly to the starting position."
+        )
+    )
+    val unavailableVideo = ExerciseMedia(
+        sourceId = null,
+        imageUrls = emptyList(),
+        instructions = emptyList(),
+        youtubeVideoId = "qpAvhLiy50Y",
+        youtubeVideoTitle = "Technique video",
+        youtubeMatchType = "exact",
+        youtubeMatchScore = 100,
+        youtubeChannel = "DEMIC"
+    )
+    ApexFitTheme {
+        FormGuideScreenContent(
+            exercise = lateralRaiseDetail,
+            content = content,
+            preferredUnits = "kg",
+            onBack = {},
+            mediaContent = {
+                ExerciseMediaPanelContent(
+                    media = unavailableVideo,
+                    isLoaded = true,
+                    loadFailed = false,
+                    videoUnavailable = true
+                )
+            }
         )
     }
 }

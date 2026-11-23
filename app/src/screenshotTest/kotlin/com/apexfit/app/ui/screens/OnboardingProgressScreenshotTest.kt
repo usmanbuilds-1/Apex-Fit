@@ -81,8 +81,22 @@ fun StartingPlanReady() = RenderOnboarding(5)
 @Composable
 fun StartingPlanReadyExpanded() = RenderOnboarding(5, expandedSession = 0)
 
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
 @Composable
-private fun RenderOnboarding(step: Int, expandedSession: Int = -1) {
+fun StartingPlanReadyLoadingLibrary() = RenderOnboarding(5, catalogState = UiState.Loading)
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 884, locale = "en-US")
+@Composable
+fun StartingPlanReadyUnavailableLibrary() = RenderOnboarding(5, catalogState = UiState.Error("Exercise library unavailable"))
+
+@Composable
+private fun RenderOnboarding(
+    step: Int,
+    expandedSession: Int = -1,
+    catalogState: UiState<List<Exercise>> = UiState.Success(onboardingPreviewCatalog)
+) {
     ApexFitTheme {
         OnboardingContent(
             "kg", false, null, {}, {},
@@ -91,7 +105,8 @@ private fun RenderOnboarding(step: Int, expandedSession: Int = -1) {
                 name = "Alex", goal = "Gain Muscle", experience = "Beginner", daysPerWeek = 4
             ),
             exerciseCatalog = onboardingPreviewCatalog,
-            initialExpandedSession = expandedSession
+            initialExpandedSession = expandedSession,
+            exerciseCatalogState = catalogState
         )
     }
 }
