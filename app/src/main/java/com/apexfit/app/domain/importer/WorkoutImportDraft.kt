@@ -54,6 +54,24 @@ data class EditableImportedPlan(
     val schedule: List<ImportedScheduleSlot> = emptyList(),
     val selectedScheduleWeek: String? = null
 ) {
+    // Materialize exactly one explicitly selected source week. Repeated templates
+    // become separate weekday sessions; fresh keys avoid Compose identity collisions.
+    fun selectFixedWeek(week: String): EditableImportedPlan? {
+        if (selectedScheduleWeek != null) return null
+        val slots = schedule.filter { it.week.equals(week, true) }
+        if (slots.isEmpty() || slots.map { it.weekday }.distinct().size != slots.size) return null
+        val training = slots.filterNot { it.isRest }
+        if (training.isEmpty()) return null
+        val resolved = training.map { slot ->
+            val template = days.singleOrNull { it.label.equals(slot.workout, true) } ?: return null
+            template.copy(key = UUID.randomUUID().toString(), dayOfWeek = slot.weekday,
+                exercises = template.exercises.map { it.copy(key = UUID.randomUUID().toString()) })
+        }
+        // Never silently discard an imported workout template.
+        if (days.any { day -> training.none { it.workout.equals(day.label, true) } }) return null
+        return copy(days = resolved, selectedScheduleWeek = week)
+    }
+
     fun validationErrors(): List<String> = buildList {
         if (schedule.isNotEmpty() && selectedScheduleWeek == null) add("Choose which fixed week to import. Automatic multi-week rotation is not supported yet.")
         if (name.isBlank()) add("Give the plan a name.")
