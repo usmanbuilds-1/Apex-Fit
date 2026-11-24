@@ -56,5 +56,6 @@ interface FitnessRepository {
     fun getCalorieTargetFlow(): Flow<Int>
     fun getGoalFlow(): Flow<String>
     fun getCurrentWeightFlow(): Flow<Double>
+    fun getTrainingFrequencyFlow(): Flow<Int>
     suspend fun scanAndSaveWeeklyPatterns()
 }
