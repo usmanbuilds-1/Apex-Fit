@@ -50,9 +50,12 @@ data class EditableImportedPlan(
     val name: String,
     val days: List<EditableImportedDay>,
     val originalText: String,
-    val makeActive: Boolean = true
+    val makeActive: Boolean = true,
+    val schedule: List<ImportedScheduleSlot> = emptyList(),
+    val selectedScheduleWeek: String? = null
 ) {
     fun validationErrors(): List<String> = buildList {
+        if (schedule.isNotEmpty() && selectedScheduleWeek == null) add("Choose which fixed week to import. Automatic multi-week rotation is not supported yet.")
         if (name.isBlank()) add("Give the plan a name.")
         if (days.isEmpty()) add("Add at least one training day.")
         if (days.any { it.exercises.isEmpty() }) add("Every training day needs at least one exercise.")
@@ -85,7 +88,7 @@ fun ParsedImportedPlan.toEditablePlan(libraryById: Map<String, ExerciseLibraryEn
                     selectedExerciseName = exercise.matchedName,
                     muscleGroup = exercise.matchedEntryId?.let { libraryById[it]?.primaryMuscle },
                     matchConfidence = exercise.matchConfidence,
-                    matchConfirmed = exercise.matchConfidence == MatchConfidence.EXACT || exercise.matchConfidence == MatchConfidence.HIGH,
+                    matchConfirmed = !exercise.matchFlagged && (exercise.matchConfidence == MatchConfidence.EXACT || exercise.matchConfidence == MatchConfidence.HIGH),
                     candidates = exercise.candidates,
                     setsText = exercise.sets?.toString().orEmpty(),
                     repsMinText = exercise.repsMin?.toString().orEmpty(),
@@ -101,7 +104,8 @@ fun ParsedImportedPlan.toEditablePlan(libraryById: Map<String, ExerciseLibraryEn
         )
     },
     originalText = provenance.originalText,
-    makeActive = true
+    makeActive = true,
+    schedule = schedule
 )
 
 private fun formatEditableNumber(value: Double): String =
