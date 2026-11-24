@@ -1060,7 +1060,8 @@ internal fun LogWeightDialog(
     onDismiss: () -> Unit,
     onSave: (Double) -> Unit,
     saveError: String? = null,
-    isSaving: Boolean = false
+    isSaving: Boolean = false,
+    isEditing: Boolean = false
 ) {
     var weightInput by rememberSaveable { mutableStateOf(initialInput) }
     var weightError by rememberSaveable { mutableStateOf("") }
@@ -1078,7 +1079,7 @@ internal fun LogWeightDialog(
         containerColor = DarkCardSurface,
         title = {
             Text(
-                text = "Log weight",
+                text = if (isEditing) "Edit weight" else "Log weight",
                 fontFamily = SyneFamily,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 16.sp,
@@ -1088,7 +1089,7 @@ internal fun LogWeightDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Enter your current weight in $units.",
+                    text = if (isEditing) "Correct this measurement in $units." else "Add a new measurement in $units.",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 12.sp,
                     color = SecondaryText,
@@ -1156,7 +1157,7 @@ internal fun LogWeightDialog(
                 }
             ) {
                 Text(
-                    text = if (isSaving) "SAVING…" else "SAVE",
+                    text = if (isSaving) "SAVING…" else if (isEditing) "UPDATE" else "SAVE",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     color = if (isSaving) SecondaryText else OrangeAccent
