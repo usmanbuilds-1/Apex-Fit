@@ -41,4 +41,27 @@ class TodayExplanationSheetInteractionTest {
 
         assertTrue(dismissed)
     }
+
+    @Test
+    fun durationExplanationDismissesFromCloseAction() {
+        val isVisible = mutableStateOf(true)
+        var dismissed = false
+
+        compose.setContent {
+            ApexFitTheme {
+                if (isVisible.value) {
+                    WorkoutDurationExplanationDialog(estimatedMinutes = 54) {
+                        dismissed = true
+                        isVisible.value = false
+                    }
+                }
+            }
+        }
+
+        compose.onNodeWithText("Workout time estimate").assertIsDisplayed()
+        compose.onNodeWithText("Close").performClick()
+        compose.waitForIdle()
+
+        assertTrue(dismissed)
+    }
 }

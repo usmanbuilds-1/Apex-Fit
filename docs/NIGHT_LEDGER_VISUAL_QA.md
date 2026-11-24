@@ -1,12 +1,12 @@
 # APEX FIT Night Ledger — Visual QA Gate
 
-Current continuation target: PR #33 on `chatgpt/functional-integration-safe-20261115`.
+Current main includes merge commit `e0b045c17409acbdf07ce1cfaef634bd3d3b51c6`. PR #33 is merged. Release QA follow-up is tracked from `codex/night-ledger-qa-20261124`; any follow-up pull request must remain a draft.
 
-This file is the current merge gate. Older findings are retained only when they remain open.
+This file is chronological. Status statements in older dated entries describe the state at that time.
 
 ## Status
 
-**KEEP PR #33 DRAFT — do not merge to main yet.**
+**Current status: PR #33 merged; release QA is in progress on the follow-up branch.**
 
 Automated Android CI, lint, unit tests, palette checks and Compose preview rendering are necessary but do not close this gate by themselves. Final completion still requires the preserved local Codex work, real Android validation where available, and Stitch comparison for the approved references.
 
@@ -208,6 +208,10 @@ The remaining external verification gap is interactive Android QA: elevated ADB 
 
 The source audit found two migrated detail lists missing stable keys. Training Volume now carries the exercise aggregation key through its summary result (so same-named but distinct exercises remain unique) and uses it in Compose; Workout History detail uses the grouped exercise ID. A regression test verifies distinct stable keys for duplicate display names. On this working tree, serial `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug --max-workers=1 --no-daemon` passed; this source-only key change does not alter rendered pixels, so no new screenshot comparison was needed. The exact PR head and new CI result will be recorded after push.
 
+### Merged-main release QA follow-up (2026-11-24)
+
+The current QA record, including visual review evidence, dispositions for all 42 screenshot differences and 32 missing references, interaction coverage, and the owner device checklist, is in [`NIGHT_LEDGER_RELEASE_QA_2026-11-24.md`](NIGHT_LEDGER_RELEASE_QA_2026-11-24.md). PR #33 is already merged at `e0b045c17409acbdf07ce1cfaef634bd3d3b51c6`; older draft/unmerged notes above are historical.
+
 ## Exit criteria
 
 Close this gate only when:
@@ -219,6 +223,6 @@ Close this gate only when:
 - real Android validation is completed wherever the environment permits;
 - approved Stitch comparisons are completed where references exist;
 - Android build, unit tests, lint, palette and screenshot rendering are green on the exact final PR head;
-- PR #33 remains draft until all of the above evidence exists.
+- Any follow-up pull request remains draft until all of the above evidence exists.
 
 
