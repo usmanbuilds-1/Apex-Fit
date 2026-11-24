@@ -210,7 +210,7 @@ class FitnessRepositoryImpl @Inject constructor(
 
     // Keep legacy preference-based targets intact; only rotating plans use
     // their actual current-cycle training-day count.
-    private val trainingFrequencyFlow: Flow<Int> by lazy {
+    private val currentCycleFrequency: Flow<Int> by lazy {
         dao.getActivePlanFlow().flatMapLatest { plan ->
             if (plan == null || plan.cycleWeeks == 1) dataStore.weeklyWorkoutsFlow
             else combine(dao.getSessionsForPlanFlow(plan.id), todayDateFlow) { sessions, date ->
@@ -219,7 +219,7 @@ class FitnessRepositoryImpl @Inject constructor(
         }.distinctUntilChanged().flowOn(Dispatchers.IO)
     }
 
-    override fun getTrainingFrequencyFlow(): Flow<Int> = trainingFrequencyFlow
+    override fun getTrainingFrequencyFlow(): Flow<Int> = currentCycleFrequency
 
     override fun getAverageTrainingFrequencyFlow(): Flow<Int> = dao.getActivePlanFlow().flatMapLatest { plan ->
         if (plan == null || plan.cycleWeeks == 1) dataStore.weeklyWorkoutsFlow
