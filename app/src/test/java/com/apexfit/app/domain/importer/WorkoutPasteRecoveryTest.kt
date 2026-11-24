@@ -91,6 +91,29 @@ class WorkoutPasteRecoveryTest {
     }
 
     @Test
+    fun multilineLabelsKeepNumericFieldsSeparateInEveryOrder() {
+        val fields = listOf("Reps: 8-12", "Sets: 3", "Rest: 90 sec", "Weight: 25 kg", "RIR 2")
+        fun permutations(values: List<String>): List<List<String>> =
+            if (values.isEmpty()) listOf(emptyList()) else values.flatMapIndexed { i, value ->
+                permutations(values.filterIndexed { j, _ -> j != i }).map { listOf(value) + it }
+            }
+        for (order in permutations(fields)) {
+            val source = (listOf("Upper A", "Bench Press") + order + "4x10 Barbell Row").joinToString("\n")
+            val exercises = requireNotNull(parser.parse(source).plan).days.single().exercises
+            assertEquals(source, 2, exercises.size)
+            val bench = exercises.first()
+            assertEquals(source, 3, bench.sets)
+            assertEquals(source, 8, bench.repsMin)
+            assertEquals(source, 12, bench.repsMax)
+            assertEquals(source, 90, bench.restSeconds)
+            assertEquals(source, 25.0, bench.weight?.value ?: -1.0, 0.0)
+            assertEquals(source, 2, bench.rir)
+            assertEquals(source, "row", exercises.last().matchedEntryId)
+            assertEquals(source, 4, exercises.last().sets)
+        }
+    }
+
+    @Test
     fun compatibilityDigitsAndMarkdownLinksDoNotLoseExercises() {
         val source = "Monday\n- [Bench Press](https://example.com/bench) ３×８–１２\nRDL"
         val plan = requireNotNull(parser.parse(source).plan)
