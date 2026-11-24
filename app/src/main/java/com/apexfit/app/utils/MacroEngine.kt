@@ -70,7 +70,7 @@ object MacroEngine {
         heightCm: Double,
         sex: String
     ): TrainingDayTargets {
-        val safeWeeklySessions = weeklyTrainingSessions.coerceIn(1, 6)
+        val safeWeeklySessions = weeklyTrainingSessions.coerceIn(0, 7)
         val restDays = 7 - safeWeeklySessions
         val totalWeekly = weeklyCalorieTarget * 7
 
@@ -80,6 +80,8 @@ object MacroEngine {
             "recomposition" -> 150
             else -> 0
         }
+        // With no rest days or no training days there is no weekly calorie transfer.
+        if (safeWeeklySessions == 0 || safeWeeklySessions == 7) trainingBonus = 0
         var trainingDayCals = weeklyCalorieTarget + trainingBonus
         var restDayCals = if (restDays > 0) {
             ((totalWeekly - (trainingDayCals * safeWeeklySessions))
