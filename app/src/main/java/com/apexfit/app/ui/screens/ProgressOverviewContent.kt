@@ -45,11 +45,11 @@ internal fun ProgressOverviewContent(
     onOpenRecovery: () -> Unit,
     onOpenFatigue: () -> Unit
 ) {
-    val history = remember(weights) {
-        (weights as? UiState.Success)?.data.orEmpty()
-            .mapNotNull { entry -> runCatching { LocalDate.parse(entry.date) to entry }.getOrNull() }
-            .sortedWith(compareBy<Pair<LocalDate, UiWeightEntry>> { it.first }.thenBy { it.second.time })
-            .associate { it.first to it.second.weight }.toList()
+    val rawHistory = (weights as? UiState.Success)?.data.orEmpty()
+    val latest = remember(rawHistory) { rawHistory.maxWithOrNull(com.apexfit.app.utils.BodyWeightHistory.uiChronological) }
+    val history = remember(rawHistory) {
+        com.apexfit.app.utils.BodyWeightHistory.dailyUi(rawHistory)
+            .map { LocalDate.parse(it.date) to it.weight }
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -62,8 +62,9 @@ internal fun ProgressOverviewContent(
             weights is UiState.Error -> Text("Weigh-ins could not be loaded.", color = ApexColors.Alert)
             history.isEmpty() -> Text("Your first weigh-in will appear here.", color = ApexColors.TextSecondary)
             else -> {
-                Text(String.format(Locale.getDefault(), "%.1f %s", history.last().second.toDisplayWeight(units), units),
+                Text(String.format(Locale.getDefault(), "%.1f %s", (latest?.weight ?: history.last().second).toDisplayWeight(units), units),
                     style = ApexTextStyles.dataXL)
+                Text("Latest measurement · chart uses daily averages", color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                 if (history.size >= 2) {
                     val delta = history.last().second - history.first().second
                     val displayDelta = delta.toDisplayWeight(units)
