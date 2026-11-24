@@ -49,6 +49,13 @@ object WorkoutSchedule {
     fun trainingFrequency(plan: WorkoutPlan, sessions: List<PlanSession>, date: LocalDate): Int =
         weekSessions(plan, sessions, date).filter(::isTraining).mapNotNull { weekday(it.day) }.distinct().size
 
+    fun averageTrainingFrequency(plan: WorkoutPlan, sessions: List<PlanSession>): Int {
+        val length = plan.cycleWeeks.coerceIn(1, MAX_CYCLE_WEEKS)
+        val count = sessions.filter { isTraining(it) && it.cycleWeek in 1..length }
+            .mapNotNull { session -> weekday(session.day)?.let { session.cycleWeek to it } }.distinct().size
+        return kotlin.math.round(count.toDouble() / length).toInt().coerceIn(0, 7)
+    }
+
     fun validationError(plan: WorkoutPlan, sessions: List<PlanSession>): String? {
         if (plan.cycleWeeks !in 1..MAX_CYCLE_WEEKS) return "Invalid cycle length."
         if (sessions.any { it.cycleWeek !in 1..plan.cycleWeeks || (plan.cycleWeeks > 1 && weekday(it.day) == null) }) return "Invalid training day or cycle week."
