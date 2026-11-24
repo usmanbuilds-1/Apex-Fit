@@ -425,12 +425,12 @@ private fun ImportedDayCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = DarkCardSurface),
-        border = BorderStroke(1.dp, if (day.needsReview) ApexColors.Amber else BorderSubtle),
+        border = BorderStroke(1.dp, if ((!isScheduledTemplate && day.dayOfWeek == null) || day.exercises.any { it.needsReview }) ApexColors.Amber else BorderSubtle),
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("TRAINING DAY", color = AmberAccent, fontFamily = JetBrainsMonoFamily, fontSize = 10.sp)
+                Text(if (isScheduledTemplate) "WORKOUT TEMPLATE" else "TRAINING DAY", color = AmberAccent, fontFamily = JetBrainsMonoFamily, fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onMoveUp) {
                     Icon(painterResource(ApexIcons.ArrowUp), contentDescription = "Move training day up",
