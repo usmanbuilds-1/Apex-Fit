@@ -459,6 +459,7 @@ fun SettingsScreen(
             Column(modifier = Modifier.weight(1f)) {
                 OutlinedTextField(
                     value = editCurrentWeight,
+                    readOnly = true,
                     onValueChange = {
                         val filtered = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
                         editCurrentWeight = filtered
@@ -466,7 +467,7 @@ fun SettingsScreen(
                         currentWeightError = if (v != null && v !in weightMin..weightMax) "Must be $weightMin-$weightMax $units" else null
                     },
                     isError = currentWeightError != null,
-                    supportingText = currentWeightError?.let { { Text(it, color = RedAccent) } },
+                    supportingText = { Text("Log or edit weight in Progress.", color = SecondaryText) },
                     label = { Text(stringResource(R.string.settings_current_weight, units), color = SecondaryText) },
                     textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
