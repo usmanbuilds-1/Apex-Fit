@@ -317,9 +317,11 @@ internal fun WeightLogSection(
 internal fun WeightHistorySection(
     entries: List<com.apexfit.app.ui.models.UiWeightEntry>,
     units: String,
-    onDelete: (Long) -> Unit
+    onDelete: (Long) -> Unit,
+    onEdit: ((com.apexfit.app.ui.models.UiWeightEntry) -> Unit)? = null
 ) {
     if (entries.isEmpty()) return
+    var visibleCount by rememberSaveable { mutableIntStateOf(10) }
     val context = LocalContext.current
     Column(Modifier.fillMaxWidth()) {
         HorizontalDivider(color = ApexColors.BorderSubtle, modifier = Modifier.padding(bottom = 12.dp))
@@ -330,7 +332,7 @@ internal fun WeightHistorySection(
             color = ApexColors.TextSecondary,
             modifier = Modifier.padding(top = 3.dp, bottom = 4.dp)
         )
-        entries.take(10).forEachIndexed { index, entry ->
+        entries.take(visibleCount).forEachIndexed { index, entry ->
             Row(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -349,6 +351,7 @@ internal fun WeightHistorySection(
                         color = ApexColors.TextSecondary
                     )
                 }
+                if (onEdit != null) TextButton(onClick = { onEdit(entry) }) { Text("Edit") }
                 IconButton(onClick = { onDelete(entry.id) }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         painter = painterResource(ApexIcons.Delete),
@@ -358,8 +361,9 @@ internal fun WeightHistorySection(
                     )
                 }
             }
-            if (index < entries.take(10).lastIndex) HorizontalDivider(color = ApexColors.BorderSubtle)
+            if (index < entries.take(visibleCount).lastIndex) HorizontalDivider(color = ApexColors.BorderSubtle)
         }
+        if (visibleCount < entries.size) TextButton(onClick = { visibleCount += 20 }) { Text("Show more") }
     }
 }
 
@@ -381,6 +385,7 @@ fun ProgressMainTabContent(
     // previously blocked the entire page.
     var activeSubTab by rememberSaveable { mutableStateOf(0) }
     var showLogWeight by rememberSaveable { mutableStateOf(false) }
+    var editingWeightId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isSavingWeight by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = activeSubTab != 0) { activeSubTab = 0 }
     val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
@@ -411,8 +416,10 @@ fun ProgressMainTabContent(
     val lengthUnit = if (units == "kg") "cm" else "in"
     val coroutineScope = rememberCoroutineScope()
     if (showLogWeight) {
-        LogWeightDialog(initialInput = "", units = units,
-            onDismiss = { showLogWeight = false },
+        val editingEntry = weightHistory.firstOrNull { it.id == editingWeightId }
+        LogWeightDialog(initialInput = editingEntry?.let { String.format(java.util.Locale.US, "%.3f", it.weight.toDisplayWeight(units)).trimEnd('0').trimEnd('.') }.orEmpty(), units = units,
+            isEditing = editingWeightId != null,
+            onDismiss = { showLogWeight = false; editingWeightId = null },
             saveError = weightLogError,
             isSaving = isSavingWeight,
             onSave = { weight ->
@@ -421,11 +428,12 @@ fun ProgressMainTabContent(
                     isSavingWeight = true
                     coroutineScope.launch {
                         try {
-                            val saveJob = homeViewModel.logWeight(weight, preferredUnit = units)
-                                ?: return@launch
+                            val saveJob = (if (editingWeightId != null) homeViewModel.editWeightById(requireNotNull(editingWeightId), weight, units)
+                                else homeViewModel.logWeight(weight, preferredUnit = units)) ?: return@launch
                             saveJob.join()
                             if (homeViewModel.weightLogError.value == null) {
                                 showLogWeight = false
+                                editingWeightId = null
                             }
                         } finally {
                             isSavingWeight = false
@@ -442,8 +450,9 @@ fun ProgressMainTabContent(
         if (pendingDeletions.containsKey(id)) return
         val job = coroutineScope.launch {
             delay(4000)
-            homeViewModel.deleteWeightById(id)
+            homeViewModel.deleteWeightById(id).join()
             pendingDeletions.remove(id)
+            if (homeViewModel.weightLogError.value != null) snackbarHostState.showSnackbar("Couldn't delete weight. Try again.")
         }
         pendingDeletions[id] = job
         coroutineScope.launch {
@@ -551,7 +560,11 @@ fun ProgressMainTabContent(
             }
 
             if (visibleWeights.isNotEmpty()) {
-                item { WeightHistorySection(visibleWeights, units, onDelete = ::triggerPendingWeightDeletion) }
+                item { WeightHistorySection(visibleWeights, units, onDelete = ::triggerPendingWeightDeletion, onEdit = { entry ->
+                    editingWeightId = entry.id
+                    homeViewModel.clearWeightLogError()
+                    showLogWeight = true
+                }) }
             }
         } // End of activeSubTab == 2
 
