@@ -128,9 +128,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         
         val cutoff = com.apexfit.app.utils.getWindowStartDate(90)
         val dbWeights = dao.getWeightEntriesSince(cutoff)
-        val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
-            WeightEntry(date, list.map { it.weight }.average())
-        }.sortedBy { it.date }
+        val engineWeights = BodyWeightHistory.daily(dbWeights)
 
         val dbSessions = dao.getRecentCompletedSessions(cutoff)
         val dbSets = dao.getRecentExerciseSets(cutoff)
@@ -139,7 +137,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val isManual = dataStore.calorieTargetManualFlow.first()
         val manualValue = dataStore.calorieTargetValueFlow.first()
         val userGoal = dataStore.goalFlow.first()
-        val latestWeightForCoaching = engineWeights.lastOrNull()?.weight ?: dataStore.currentWeightFlow.first()
+        val latestWeightForCoaching = BodyWeightHistory.latest(dbWeights)?.weight ?: repository.getCurrentWeightFlow().first()
         val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
         
         val goalWeight = dataStore.explicitGoalWeightFlow.first()
