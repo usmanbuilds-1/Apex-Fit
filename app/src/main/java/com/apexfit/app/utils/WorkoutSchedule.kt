@@ -6,7 +6,6 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
-import java.util.Locale
 
 /** Calendar-based cycles, not completion-based. Missing slots are rest days.
  * Legacy weekly plans always use their original weekday slots.
@@ -28,7 +27,7 @@ object WorkoutSchedule {
     }
 
     fun weekday(day: String): DayOfWeek? =
-        DayOfWeek.entries.firstOrNull { it.name.equals(day.trim(), true) }
+        DayOfWeek.values().firstOrNull { it.name.equals(day.trim(), true) }
 
     fun weekSessions(plan: WorkoutPlan, sessions: List<PlanSession>, date: LocalDate): List<PlanSession> {
         val week = cycleWeek(plan, date)
@@ -44,9 +43,15 @@ object WorkoutSchedule {
             sessionForDate(plan, sessions, day)?.let { day to it }
         }
 
+    fun isTraining(session: PlanSession): Boolean =
+        !session.label.contains("Rest", ignoreCase = true) && session.focus != "Muscle Recovery & Rest"
+
+    fun trainingFrequency(plan: WorkoutPlan, sessions: List<PlanSession>, date: LocalDate): Int =
+        weekSessions(plan, sessions, date).filter(::isTraining).mapNotNull { weekday(it.day) }.distinct().size
+
     fun validationError(plan: WorkoutPlan, sessions: List<PlanSession>): String? {
         if (plan.cycleWeeks !in 1..MAX_CYCLE_WEEKS) return "Invalid cycle length."
-        if (sessions.any { it.cycleWeek !in 1..plan.cycleWeeks || weekday(it.day) == null }) return "Invalid training day or cycle week."
+        if (sessions.any { it.cycleWeek !in 1..plan.cycleWeeks || (plan.cycleWeeks > 1 && weekday(it.day) == null) }) return "Invalid training day or cycle week."
         if (plan.cycleWeeks > 1 && sessions.map { it.cycleWeek to weekday(it.day) }.distinct().size != sessions.size)
             return "Only one session can be scheduled per weekday in each cycle week."
         if (plan.cycleAnchorMonday != null &&
