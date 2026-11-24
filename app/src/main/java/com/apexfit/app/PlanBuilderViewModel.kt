@@ -70,6 +70,7 @@ class PlanBuilderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     private val calendarDate = com.apexfit.app.utils.DateTimeUtils.todayDateFlow()
         .map { java.time.LocalDate.parse(it) }
+        .flowOn(kotlinx.coroutines.Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), java.time.LocalDate.now())
     private val allCycleSessions: StateFlow<List<PlanSession>> = cachedActivePlan.flatMapLatest { plan ->
         if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
