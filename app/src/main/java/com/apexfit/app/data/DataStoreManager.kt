@@ -73,6 +73,7 @@ class DataStoreManager(context: Context) {
                 val currentW = preferences[CURRENT_WEIGHT_KEY]
                 val goalW = preferences[GOAL_WEIGHT_KEY]
                 if (currentW != null) preferences[CURRENT_WEIGHT_KEY] = currentW / AppConstants.KG_TO_LBS
+                preferences[WEIGHT_BASELINE_KEY]?.let { preferences[WEIGHT_BASELINE_KEY] = it / AppConstants.KG_TO_LBS }
                 if (goalW != null) preferences[GOAL_WEIGHT_KEY] = goalW / AppConstants.KG_TO_LBS
             }
             preferences[WEIGHTS_NORMALIZED_KEY] = true
@@ -167,7 +168,12 @@ class DataStoreManager(context: Context) {
             it[HEIGHT_KEY] = height
             it[AGE_KEY] = age
             it[SEX_KEY] = sex
-            // The settings snapshot must not overwrite a logged measurement.
+            // Initialize a profile only if no baseline/preferences have ever been recorded.
+            if (!it.contains(CURRENT_WEIGHT_KEY) && it[WEIGHT_BASELINE_RESOLVED_KEY] != true) {
+                it[CURRENT_WEIGHT_KEY] = currentWeightKg
+                it[WEIGHT_BASELINE_KEY] = currentWeightKg
+                it[WEIGHT_BASELINE_RESOLVED_KEY] = true
+            }
             it[GOAL_WEIGHT_KEY] = goalWeightKg
             it[CALORIE_TARGET_MANUAL_KEY] = manualCalories
             it[CALORIE_TARGET_VALUE_KEY] = calories
@@ -295,6 +301,7 @@ class DataStoreManager(context: Context) {
             preferences[USER_NAME_KEY] = username
             preferences[GOAL_KEY] = goal
             preferences[CURRENT_WEIGHT_KEY] = currentWeight
+            preferences[WEIGHTS_NORMALIZED_KEY] = true
             preferences[WEIGHT_BASELINE_KEY] = currentWeight
             preferences[WEIGHT_BASELINE_RESOLVED_KEY] = true
             preferences[GOAL_WEIGHT_KEY] = goalWeight
