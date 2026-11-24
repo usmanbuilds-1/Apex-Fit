@@ -145,7 +145,7 @@ internal object WorkoutPasteRecovery {
                             val prescription = buildList {
                                 if (sets.isNotBlank() && reps.isNotBlank() &&
                                     sets.matches(Regex("""\d{1,2}""")) &&
-                                    reps.matches(Regex("""(?i)(?:\d{1,3}(?:\s*-\s*\d{1,3})?|amrap|failure|to failure)"""))) {
+                                    reps.matches(Regex("""(?i)(?:\d{1,3}(?:\s*-\s*\d{1,3})?(?:\s+per\s+(?:side|leg|arm))?|amrap|failure|to failure)"""))) {
                                     add(sets + "x" + reps)
                                 } else {
                                     if (sets.isNotBlank()) add("sets: " + sets)
@@ -172,7 +172,7 @@ internal object WorkoutPasteRecovery {
                                 }
                                 if (value(Field.RPE).isNotBlank()) add("RPE " + value(Field.RPE))
                                 if (value(Field.RIR).isNotBlank()) add("RIR " + value(Field.RIR))
-                            }.joinToString(" ")
+                            }.joinToString("; ")
                             output += listOf(exercise, prescription).filter(String::isNotBlank).joinToString(" ")
                             val notes = current.columns.indices
                                 .filter { current.columns[it].field in setOf(Field.NOTE, Field.OTHER) && cells[it].isNotBlank() }
