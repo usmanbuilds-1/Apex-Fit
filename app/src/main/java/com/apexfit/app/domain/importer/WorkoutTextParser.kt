@@ -92,6 +92,10 @@ class WorkoutTextParser(
                 return@forEachIndexed
             }
 
+            if (line.startsWith("Recovery warning:")) {
+                globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, line.removePrefix("Recovery warning:").trim(), lineIndex = index)
+                return@forEachIndexed
+            }
             if (line.startsWith("Schedule heading:")) {
                 inSchedule = true
                 return@forEachIndexed
