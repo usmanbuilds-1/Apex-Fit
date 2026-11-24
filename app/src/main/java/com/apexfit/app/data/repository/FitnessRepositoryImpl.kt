@@ -438,7 +438,10 @@ class FitnessRepositoryImpl @Inject constructor(
         }
         val anchoredPlan = if (plan.cycleWeeks > 1 && plan.isActive && plan.cycleAnchorMonday == null)
             plan.copy(cycleAnchorMonday = WorkoutSchedule.monday(LocalDate.now()).toString()) else plan
-        val planId = dao.upsertWorkoutPlan(anchoredPlan)
+        val persistedPlan = if (anchoredPlan.cycleWeeks > 1) anchoredPlan.copy(
+            daysPerWeek = kotlin.math.round(sessions.size.toDouble() / anchoredPlan.cycleWeeks).toInt()
+        ) else anchoredPlan
+        val planId = dao.upsertWorkoutPlan(persistedPlan)
 
         // Step 1: delete old sessions (cascade deletes their exercises too)
         dao.deleteSessionsForPlan(planId)
