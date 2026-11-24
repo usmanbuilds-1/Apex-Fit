@@ -198,6 +198,8 @@ fun ProgramSubTab(
     val selectedDaySession by planBuilderViewModel.selectedDaySession.collectAsStateWithLifecycle()
     val exercises by planBuilderViewModel.selectedDayExercises.collectAsStateWithLifecycle()
     val sessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val cycleWeek by planBuilderViewModel.activeCycleWeek.collectAsStateWithLifecycle()
+    val currentPlan by planBuilderViewModel.activePlan.collectAsStateWithLifecycle()
     val allExercises by planBuilderViewModel.allPlanExercises.collectAsStateWithLifecycle()
     val isStarting by workoutExecutionViewModel.sessionManager.isStartingSession.collectAsStateWithLifecycle()
 
@@ -273,6 +275,8 @@ fun ProgramSubTab(
     Box(modifier = modifier.fillMaxSize()) {
         TrainProgramSchedule(
             sessionsState = sessionsState,
+            cycleWeek = cycleWeek,
+            cycleWeeks = (currentPlan as? UiState.Success)?.data?.cycleWeeks ?: 1,
             allExercises = allExercises,
             selectedDay = selectedDay,
             selectedSession = selectedDaySession,
@@ -869,7 +873,8 @@ fun NewPlansSubTab(
 ) {
     val plans by planBuilderViewModel.workoutPlans.collectAsStateWithLifecycle()
     val activePlanState by planBuilderViewModel.activePlan.collectAsStateWithLifecycle()
-    val activeSessions by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val activeSessions by planBuilderViewModel.activeAllCycleSessions.collectAsStateWithLifecycle()
+    val scheduleDate by planBuilderViewModel.activeScheduleDate.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -885,6 +890,7 @@ fun NewPlansSubTab(
         activePlan = activePlan,
         activePlanError = activePlanError,
         activeSessions = activeSessions,
+        today = scheduleDate,
         onCreatePlan = { onNavigateToPlanBuilder(0L) },
         onImportPlan = onNavigateToWorkoutImport,
         onEditPlan = onNavigateToPlanBuilder,
