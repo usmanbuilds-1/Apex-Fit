@@ -431,7 +431,7 @@ fun ProgressMainTabContent(
                             val saveJob = (if (editingWeightId != null) homeViewModel.editWeightById(requireNotNull(editingWeightId), weight, units)
                                 else homeViewModel.logWeight(weight, preferredUnit = units)) ?: return@launch
                             saveJob.join()
-                            if (homeViewModel.weightLogError.value == null) {
+                            if (!saveJob.isCancelled && homeViewModel.weightLogError.value == null) {
                                 showLogWeight = false
                                 editingWeightId = null
                             }
@@ -448,32 +448,34 @@ fun ProgressMainTabContent(
 
     fun triggerPendingWeightDeletion(id: Long) {
         if (pendingDeletions.containsKey(id)) return
-        val job = coroutineScope.launch {
-            delay(4000)
-            homeViewModel.deleteWeightById(id).join()
-            pendingDeletions.remove(id)
-            if (homeViewModel.weightLogError.value != null) snackbarHostState.showSnackbar("Couldn't delete weight. Try again.")
+        val job = coroutineScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            try {
+                val result = snackbarHostState.showSnackbar(
+                    message = "Delete weight entry?",
+                    actionLabel = "UNDO",
+                    duration = SnackbarDuration.Short
+                )
+                if (result != SnackbarResult.ActionPerformed) {
+                    val deletion = homeViewModel.deleteWeightById(id)
+                    deletion.join()
+                    if (deletion.isCancelled || homeViewModel.weightLogError.value != null) {
+                        snackbarHostState.showSnackbar("Couldn't delete weight. Try again.")
+                    }
+                }
+            } finally { pendingDeletions.remove(id) }
         }
         pendingDeletions[id] = job
-        coroutineScope.launch {
-            val result = snackbarHostState.showSnackbar(
-                message = "Weight entry deleted",
-                actionLabel = "UNDO",
-                duration = SnackbarDuration.Short
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                pendingDeletions[id]?.cancel()
-                pendingDeletions.remove(id)
-            }
-        }
+        job.start()
     }
 
     DisposableEffect(homeViewModel) {
         onDispose {
-            pendingDeletions.forEach { (id, job) -> job.cancel(); homeViewModel.deleteWeightById(id) }
+            // Leaving the page before the undo window ends cancels the pending action.
+            pendingDeletions.values.toList().forEach { it.cancel() }
             pendingDeletions.clear()
         }
     }
+
     val deletionKeys = pendingDeletions.keys.toSet()
     val filteredWeights = remember(weightHistory, deletionKeys) { weightHistory.filter { it.id !in deletionKeys } }
     val visibleWeights = filteredWeights
@@ -534,6 +536,7 @@ fun ProgressMainTabContent(
             item {
                 var inputWeight by rememberSaveable { mutableStateOf("") }
                 var weightError by remember { mutableStateOf<String?>(null) }
+                var savingInline by remember { mutableStateOf(false) }
                 WeightLogSection(
                     inputWeight = inputWeight,
                     weightError = weightError,
@@ -544,15 +547,24 @@ fun ProgressMainTabContent(
                     },
                     onSave = {
                         val weight = inputWeight.toDoubleOrNull()
-                        val minimum = if (units.lowercase() == "kg") 20.0 else 44.0
-                        val maximum = if (units.lowercase() == "kg") 300.0 else 660.0
+                        val minimum = if (units.lowercase() == "kg") 20.0 else 44.1
+                        val maximum = if (units.lowercase() == "kg") 300.0 else 661.3
                         when {
                             weight == null -> weightError = "Enter a valid number"
                             weight !in minimum..maximum -> weightError = "Must be $minimum–$maximum $units"
                             else -> {
                                 weightError = null
-                                homeViewModel.logWeight(weight, preferredUnit = units)
-                                inputWeight = ""
+                                if (!savingInline) {
+                                    savingInline = true
+                                    coroutineScope.launch {
+                                        try {
+                                            val job = homeViewModel.logWeight(weight, preferredUnit = units) ?: return@launch
+                                            job.join()
+                                            if (!job.isCancelled && homeViewModel.weightLogError.value == null) inputWeight = ""
+                                            else weightError = homeViewModel.weightLogError.value ?: "Save interrupted. Try again."
+                                        } finally { savingInline = false }
+                                    }
+                                }
                             }
                         }
                     }
