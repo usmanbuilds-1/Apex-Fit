@@ -146,7 +146,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val userHeight = dataStore.heightFlow.first()
         val userSex    = dataStore.sexFlow.first()
         val userAge    = dataStore.ageFlow.first()
-        val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.first()
+        val weeklyWorkouts = repository.getTrainingFrequencyFlow().first()
         val tdeeResult = TdeeEngine.calcAdaptiveTDEE(
             engineWeights, allNutrition, heightCm = userHeight, ageYears = userAge,
             biologicalSex = userSex, weeklyWorkouts = weeklyWorkouts,
@@ -177,7 +177,6 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         var todaySessionType: String? = null
         if (activePlan != null) {
             val sessionsPlan = dao.getSessionsForPlan(activePlan.id)
-            val todayDayString = SimpleDateFormat("EEEE", Locale.US).format(Date())
             val todaySession = WorkoutSchedule.sessionForDate(activePlan, sessionsPlan, java.time.LocalDate.now())
             if (todaySession != null) {
                 todaySessionType = todaySession.label
