@@ -159,7 +159,7 @@ class WorkoutTextParser(
                             (previous.repsMin != null && next.repsMin != null &&
                                 (previous.repsMin != next.repsMin || previous.repsMax != next.repsMax))
                         if (last.rawPrescription.isNullOrBlank() || (addsField && !conflicts && previous.repNote == null)) {
-                            last.rawPrescription = listOfNotNull(last.rawPrescription, shape.prescription).joinToString(" ")
+                            last.rawPrescription = listOfNotNull(last.rawPrescription, shape.prescription).joinToString("; ")
                         } else {
                             last.extraNotes += shape.prescription
                         }
@@ -175,7 +175,7 @@ class WorkoutTextParser(
                 is ImportLineShape.RestOnly -> {
                     val last = currentDay?.exercises?.lastOrNull()
                     if (last != null) {
-                        last.rawPrescription = listOfNotNull(last.rawPrescription, shape.text).joinToString(" ")
+                        last.rawPrescription = listOfNotNull(last.rawPrescription, shape.text).joinToString("; ")
                     } else {
                         globalWarnings += ImportWarning(
                             ImportWarning.LINE_NOT_PARSED,
