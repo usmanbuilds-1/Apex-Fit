@@ -164,7 +164,14 @@ class WorkoutImportViewModel @Inject constructor(
         }
     }
 
-    fun updateDayLabel(dayKey: String, value: String) = updateDay(dayKey) { it.copy(label = value.take(48)) }
+    fun updateDayLabel(dayKey: String, value: String) = updateDraft { draft ->
+        val old = draft.days.firstOrNull { it.key == dayKey } ?: return@updateDraft draft
+        val label = value.take(48)
+        draft.copy(days = draft.days.map { if (it.key == dayKey) it.copy(label = label) else it },
+            schedule = if (draft.usesRotation) draft.schedule.map {
+                if (!it.isRest && it.workout.equals(old.label, true)) it.copy(workout = label) else it
+            } else draft.schedule)
+    }
 
     fun updateDayWeekday(dayKey: String, value: String?) = updateDay(dayKey) { it.copy(dayOfWeek = value) }
 
