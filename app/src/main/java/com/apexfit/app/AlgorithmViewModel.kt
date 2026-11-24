@@ -176,7 +176,7 @@ class AlgorithmViewModel @Inject constructor(
     private data class SessionDerivedResults(
         val fatigueResult: com.apexfit.app.utils.FatigueResult,
         val muscleHeatmap: Map<String, HeatmapEntry>,
-        val injuryRiskSignals: List<String>,
+        val trainingPatternSignals: List<String>,
         val weeklyVolume: Map<String, Int>
     )
 
@@ -188,8 +188,8 @@ class AlgorithmViewModel @Inject constructor(
                 SessionDerivedResults(
                     fatigueResult = fatigue,
                     muscleHeatmap = com.apexfit.app.utils.FatigueEngine.calcMuscleHeatmap(sessions, days = 7),
-                    injuryRiskSignals = com.apexfit.app.utils.AlgorithmEngine.detectInjuryRiskSignals(sessions, precomputedFatigue = fatigue)
-                        .ifEmpty { listOf("Recovery indicators within normal range.") },
+                    trainingPatternSignals = com.apexfit.app.utils.AlgorithmEngine.detectTrainingPatternSignals(sessions)
+                        .ifEmpty { listOf("No unusual training patterns in recent sessions.") },
                     weeklyVolume = buildMuscleVolumes(sessions)
                 )
             }
@@ -207,7 +207,7 @@ class AlgorithmViewModel @Inject constructor(
                         chronicLoad = 0.0
                     ),
                     muscleHeatmap = emptyMap(),
-                    injuryRiskSignals = listOf("Log workouts to activate tracking."),
+                    trainingPatternSignals = listOf("Log workouts to see recent training patterns."),
                     weeklyVolume = emptyMap()
                 )
             )
@@ -225,7 +225,7 @@ class AlgorithmViewModel @Inject constructor(
                     chronicLoad = 0.0
                 ),
                 muscleHeatmap = emptyMap(),
-                injuryRiskSignals = listOf("Log workouts to activate tracking."),
+                trainingPatternSignals = listOf("Log workouts to see recent training patterns."),
                 weeklyVolume = emptyMap()
             )
         )
@@ -294,8 +294,8 @@ class AlgorithmViewModel @Inject constructor(
         .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val injuryRiskSignals: StateFlow<List<String>> = sessionDerived
-        .map { it.injuryRiskSignals }
+    val trainingPatternSignals: StateFlow<List<String>> = sessionDerived
+        .map { it.trainingPatternSignals }
         .catch { e -> android.util.Log.e("AlgorithmVM", "flow error", e); emit(emptyList()) }
         .stateIn(
             viewModelScope,

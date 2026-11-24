@@ -20,7 +20,7 @@
     <string name="train_start_current_workout_run">START CURRENT WORKOUT RUN</string>
     <string name="train_form_guide">Form Guide</string>
     <string name="train_substitute">Substitute</string>
-    <string name="train_save_failed">SAVE FAILED</string>
+    <string name="train_save_failed">Unable to save workout</string>
     <string name="train_retry_full">RETRY FULL</string>
     <string name="train_retry_partial">RETRY PARTIAL</string>
     <string name="train_cancel">CANCEL</string>
@@ -46,6 +46,7 @@
     <string name="nutrition_kcal">KCAL</string>
     <string name="nutrition_target_kcal_logged_kcal">TARGET: %1$s KCAL • LOGGED: %2$s KCAL</string>
     <string name="nutrition_log_meal">+ Log Meal</string>
+    <string name="nutrition_add_food">Add food</string>
     <string name="nutrition_no_meals_logged_yet">No meals logged yet.</string>
     <string name="nutrition_logged_at">LOGGED AT %1$s</string>
     <string name="nutrition_fmt_str_1">%1$s %2$s</string>
@@ -77,7 +78,7 @@
     <string name="nutrition_the_system_learns_your_metabol">The system learns your metabolic rate from daily weight + nutrition logs. Once you hit 14 days of history, precise targets unlock.</string>
     <string name="progress_error_loading_progress_data">Error loading progress data</string>
     <string name="progress_log_weight_index_e_g_78_5">Log weight index (e.g. 78.5)...</string>
-    <string name="progress_save_weight">SAVE WEIGHT</string>
+    <string name="progress_save_weight">Save weight</string>
     <string name="progress_undertrained">Low Load</string>
     <string name="progress_optimal">Optimal Load</string>
     <string name="progress_overreaching">High Load Warning</string>
@@ -117,6 +118,10 @@
     <string name="plan_builder_exercise_name_is_required">Exercise name is required</string>
     <string name="plan_builder_numeric_values_must_be_valid">Numeric values must be valid</string>
     <string name="plan_builder_min_reps_greater_than_max">Min reps cannot be greater than max reps</string>
+    <string name="plan_builder_sets_range">Sets must be between 1 and 99</string>
+    <string name="plan_builder_reps_range">Reps must be between 1 and 999</string>
+    <string name="plan_builder_rest_range">Rest must be between 0 and 3600 seconds</string>
+    <string name="plan_builder_weight_range">Enter a weight between 0 and %1$s %2$s</string>
     <string name="overlay_15s">-15s</string>
     <string name="overlay_15s_1">+15s</string>
     <string name="overlay_skip">SKIP</string>

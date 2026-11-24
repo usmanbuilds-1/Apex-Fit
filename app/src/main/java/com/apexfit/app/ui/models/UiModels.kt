@@ -326,7 +326,8 @@ data class UiSessionReadiness(
     val colorHex: String,
     val prediction: String,
     val recommendation: String,
-    val factors: ImmutableList<UiReadinessFactor> = persistentListOf()
+    val factors: ImmutableList<UiReadinessFactor> = persistentListOf(),
+    val confidence: String? = null
 )
 
 fun com.apexfit.app.utils.ComplianceResult.toUi(): UiComplianceResult = UiComplianceResult(
@@ -403,20 +404,20 @@ fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
 
     val factorList = mutableListOf<UiReadinessFactor>()
     factorList.add(UiReadinessFactor(
-        name = "Systemic Readiness",
+        name = "Systemic training load",
         impact = if (this.systemicReadiness >= 70) "positive" else if (this.systemicReadiness >= 50) "neutral" else "negative",
-        value = "${this.systemicReadiness}%"
+        value = readinessBand(this.systemicReadiness)
     ))
     factorList.add(UiReadinessFactor(
-        name = "Nutrition",
+        name = "Logged nutrition",
         impact = if (this.nutritionScore >= 70) "positive" else if (this.nutritionScore >= 50) "neutral" else "negative",
-        value = "${this.nutritionScore}%"
+        value = readinessBand(this.nutritionScore)
     ))
     this.muscleDetails.forEach { md ->
         factorList.add(UiReadinessFactor(
             name = "${md.muscleGroup.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }} Recovery",
             impact = if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
-            value = "${md.readinessPercent}% (${md.confidence})"
+            value = if (md.confidence == "none") "Needs more training history" else "${md.dataPoints} logged exposures"
         ))
     }
 
@@ -426,8 +427,19 @@ fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
         colorHex = this.colorHex,
         prediction = predictionText,
         recommendation = this.recommendation,
-        factors = factorList.toPersistentList()
+        factors = factorList.toPersistentList(),
+        confidence = if (this.dataConfidence == "full") {
+            "Recent muscle history is available"
+        } else {
+            "Some muscles need more training history"
+        }
     )
+}
+
+private fun readinessBand(score: Int): String = when {
+    score >= 70 -> "Higher estimate"
+    score >= 50 -> "Moderate estimate"
+    else -> "Lower estimate"
 }
 
 fun UiSessionReadiness.toData(): com.apexfit.app.utils.SessionReadiness = com.apexfit.app.utils.SessionReadiness(

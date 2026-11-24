@@ -378,7 +378,11 @@ object ReadinessFinal {
         val chronicLoad = fatigueResult.chronicLoad
 
         // i) totalCompletedSessions
-        val totalCompletedSessions = completedSessions.count { it.completed }
+        val totalCompletedSessions = completedLast30.asSequence()
+            .filter { session -> session.completed && session.exercises.any { exercise ->
+                exercise.sets.any { it.completed && !it.isWarmup && it.reps > 0 }
+            } }
+            .map { it.date }.distinct().count()
 
         val tauOverrides = mutableMapOf<String, Double>()
         for (exercise in todayExercises) {
@@ -470,13 +474,13 @@ object ReadinessFinal {
         // Cold start: fewer than 3 sessions ever -> override label/copy only, not the raw score.
         // The score is mathematically "100%" because there's no fatigue data, not because
         // we've verified they're actually recovered. Be honest about that in the UI.
-        if (totalCompletedSessions < 3) {
+        if (totalCompletedSessions < 3 || muscleDetails.isNotEmpty() && muscleDetails.all { it.confidence == "none" }) {
             finalScore = null
             return ReadinessScore(
                 overallPercent = computedScore,
                 label = "Building Baseline",
                 colorHex = "#6366F1",
-                recommendation = "Not enough training history for an estimate. Consider how you feel before training.",
+                recommendation = "More recent training history is needed for an estimate. Consider how you feel before training.",
                 muscleDetails = muscleDetails,
                 systemicReadiness = systemicScore,
                 nutritionScore = nutritionScore,

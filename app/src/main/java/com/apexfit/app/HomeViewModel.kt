@@ -44,7 +44,9 @@ class HomeViewModel @Inject constructor(
     val todayDate: StateFlow<String> = _todayDate.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        // This is a wall-clock timer, not virtual business logic. Keep its delay off
+        // Dispatchers.Main so runTest's advanceUntilIdle cannot loop through days.
+        viewModelScope.launch(Dispatchers.Default) {
             while (true) {
                 val tomorrow = java.time.LocalDate.now().plusDays(1).atStartOfDay()
                 val millis = java.time.Duration.between(java.time.LocalDateTime.now(), tomorrow).toMillis()
@@ -112,6 +114,28 @@ class HomeViewModel @Inject constructor(
 
     val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> =
         repository.todayExercisesFlow
+
+    private val exerciseLibraryFlow = dao.getAllExercisesFlow()
+
+    val todayHeroCategory: StateFlow<SessionHeroCategory> = combine(
+        todayExercisesFlow,
+        exerciseLibraryFlow
+    ) { plannedExercises, library ->
+        val byId = library.associateBy { it.id }
+        val heroExercises = plannedExercises.map { planned ->
+            val metadata = byId[planned.exerciseId]
+            SessionHeroExercise(
+                primaryMuscle = metadata?.primaryMuscle ?: planned.muscleGroup,
+                secondaryMuscles = metadata?.secondaryMuscles.orEmpty(),
+                workingSets = planned.sets.coerceAtLeast(0)
+            )
+        }
+        SessionHeroResolver.resolve(heroExercises)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        SessionHeroCategory.RECOVERY
+    )
 
     val units: StateFlow<String> = dataStore.unitsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "kg")

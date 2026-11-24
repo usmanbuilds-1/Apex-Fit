@@ -35,7 +35,7 @@ object AppConstants {
     const val MAX_HEIGHT_CM = 250.0
     const val MIN_HEIGHT_IN = 39.0
     const val MAX_HEIGHT_IN = 98.0
-    const val MIN_AGE = 13
+    const val MIN_AGE = 18
     const val MAX_AGE = 100
     const val MAX_NAME_LENGTH = 50
 }

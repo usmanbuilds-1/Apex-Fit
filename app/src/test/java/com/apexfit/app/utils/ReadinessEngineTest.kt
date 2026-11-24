@@ -27,6 +27,36 @@ class ReadinessEngineTest {
         assertEquals(score(100.0), score(200.0))
     }
 
+    @Test
+    fun unusuallyLargeTrainingLoadDoesNotBecomeAnInjuryPrediction() {
+        val muscles = listOf("Chest", "Back", "Quads", "Hamstrings", "Glutes", "Shoulders")
+        val sessions = muscles.mapIndexed { index, muscle ->
+            com.apexfit.app.data.RichTrainingSession(
+                date = getDateDaysAgo(index),
+                sessionType = "Training",
+                completed = true,
+                exercises = listOf(
+                    com.apexfit.app.data.ExerciseLog(
+                        id = "exercise-$index",
+                        name = "Exercise $index",
+                        muscleGroup = muscle,
+                        sets = List(30) {
+                            com.apexfit.app.data.ExerciseSet(
+                                weight = 1_000.0,
+                                reps = 100,
+                                rpe = 7,
+                                isWarmup = false,
+                                completed = true
+                            )
+                        }
+                    )
+                )
+            )
+        }
+
+        assertTrue(AlgorithmEngine.detectTrainingPatternSignals(sessions).isEmpty())
+    }
+
 
     @Test
     fun readinessMatchesTrainingHistoryAcrossMuscleAliases() {
@@ -132,6 +162,23 @@ class ReadinessEngineTest {
         assertNotEquals("Building Baseline", res.label)
         assertTrue(res.overallPercent in 0..100)
         assertEquals("full", res.dataConfidence)
+    }
+
+    @Test
+    fun readinessDoesNotProduceAnEstimateForUntrainedScheduledMuscles() {
+        val result = ReadinessFinal.calculate(
+            totalCompletedSessions = 10,
+            todaysMuscleGroups = listOf("chest"),
+            muscleFatigueHistory = emptyMap(),
+            muscleSessionHistory = emptyMap(),
+            systemicHistory = emptyList(),
+            systemicCapacity = 1500.0,
+            nutritionScore = 100,
+            acuteLoad = 0.0,
+            chronicLoad = 0.0
+        )
+        assertEquals("Building Baseline", result.label)
+        assertNull(result.finalScore)
     }
 
     @Test

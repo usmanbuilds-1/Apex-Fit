@@ -5,23 +5,35 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.ExperimentalTextApi
+import android.os.Build
 import androidx.compose.ui.unit.sp
 import com.apexfit.app.R
 
-val InterFamily = FontFamily(
-    Font(R.font.inter_regular, FontWeight.Normal),
-    Font(R.font.inter_medium, FontWeight.Medium),
-    Font(R.font.inter_semibold, FontWeight.SemiBold),
-    Font(R.font.inter_bold, FontWeight.Bold)
+@OptIn(ExperimentalTextApi::class)
+private fun archivoFont(weight: FontWeight): Font =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Font(
+            resId = R.font.archivo_variable,
+            weight = weight,
+            variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight))
+        )
+    } else {
+        Font(R.font.archivo_variable, weight)
+    }
+
+val ArchivoFamily = FontFamily(
+    archivoFont(FontWeight.Normal),
+    archivoFont(FontWeight.Medium),
+    archivoFont(FontWeight.SemiBold),
+    archivoFont(FontWeight.Bold)
 )
 
-val SyneFamily = FontFamily(
-    Font(R.font.syne_bold, FontWeight.Bold)
-)
-
-val JetBrainsMonoFamily = FontFamily(
-    Font(R.font.jetbrains_mono_regular, FontWeight.Normal)
-)
+// Existing screen aliases use the single Night Ledger family during migration.
+val InterFamily = ArchivoFamily
+val SyneFamily = ArchivoFamily
+val JetBrainsMonoFamily = ArchivoFamily
 
 val Typography = Typography(
     displayLarge = TextStyle(

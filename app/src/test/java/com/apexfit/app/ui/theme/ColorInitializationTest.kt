@@ -10,10 +10,10 @@ class ColorInitializationTest {
     @Test
     fun legacyAliasesRemainReadableAfterSemanticPaletteIsInitializedFirst() {
         // This order matches application startup and previously exposed the cycle.
-        assertEquals(Color(0xFF101617), ApexColors.Canvas)
-        assertEquals(Color(0xFFF3F5F3), PrimaryText)
-        assertEquals(Color(0xFFADB7B8), SecondaryText)
-        assertEquals(Color(0xFF1B2223), DarkCardSurface)
+        assertEquals(Color(0xFF101313), ApexColors.Canvas)
+        assertEquals(Color(0xFFF1F3F0), PrimaryText)
+        assertEquals(Color(0xFFADB6B0), SecondaryText)
+        assertEquals(Color(0xFF151918), DarkCardSurface)
         assertEquals(ApexColors.Primary, GreenAccent)
     }
     @Test

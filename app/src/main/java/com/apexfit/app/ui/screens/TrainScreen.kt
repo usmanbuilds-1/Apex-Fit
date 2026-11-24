@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
@@ -9,8 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -19,8 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -37,7 +37,7 @@ import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.utils.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -49,10 +49,45 @@ fun TrainTab(
     planBuilderViewModel: PlanBuilderViewModel,
     workoutExecutionViewModel: WorkoutExecutionViewModel,
     restTimerViewModel: RestTimerViewModel,
-    onNavigateToPlanBuilder: (Long) -> Unit
+    onNavigateToPlanBuilder: (Long) -> Unit,
+    onNavigateToWorkoutImport: () -> Unit
 ) {
     val subTab by fitnessViewModel.trainSubTab.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showLibrary by rememberSaveable { mutableStateOf(false) }
+    val libraryUnits by fitnessViewModel.units.collectAsStateWithLifecycle()
+    val libraryContext = LocalContext.current
+    val libraryScope = rememberCoroutineScope()
+    var libraryDetail by remember { mutableStateOf<Pair<com.apexfit.app.data.Exercise, FormGuideContent>?>(null) }
+    var libraryError by remember { mutableStateOf(false) }
+
+    if (showLibrary) {
+        val library by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
+        BackHandler {
+            if (libraryDetail != null) libraryDetail = null else showLibrary = false
+        }
+        val detail = libraryDetail
+        if (detail != null) {
+            FormGuideSheet(detail.first, detail.second, preferredUnits = libraryUnits,
+                onDismiss = { libraryDetail = null })
+        } else {
+            ExercisePicker(library, "Exercise library", onBack = { showLibrary = false }, onSelect = { exercise ->
+                libraryScope.launch {
+                    libraryDetail = runCatching {
+                        loadFormGuideData(libraryContext, exercise.name)
+                    }.getOrNull()
+                    libraryError = libraryDetail == null
+                }
+            })
+        }
+        if (libraryError) {
+            AlertDialog(onDismissRequest = { libraryError = false },
+                title = { Text("Exercise details unavailable") },
+                confirmButton = { TextButton(onClick = { libraryError = false }) { Text("Close") } })
+        }
+        return
+    }
+
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -64,21 +99,88 @@ fun TrainTab(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
-            Text("Train", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
-            ApexSegmentedControl(
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (subTab == 2) "Plans" else "Train", color = PrimaryText,
+                    fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                if (subTab != 2) {
+                    Icon(painter = painterResource(R.drawable.ic_apex_logo), contentDescription = null,
+                        tint = ApexColors.Primary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("APEX FIT", color = PrimaryText, fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                }
+            }
+            TrainSubTabControl(
                 labels = listOf("Program", "Workout", "Plans"),
                 selectedIndex = subTab,
                 onSelect = fitnessViewModel::setTrainSubTab,
-                modifier = Modifier.padding(vertical = 12.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
             when (subTab) {
-                0 -> ProgramSubTab(fitnessViewModel, planBuilderViewModel, workoutExecutionViewModel)
+                0 -> ProgramSubTab(
+                    fitnessViewModel = fitnessViewModel,
+                    planBuilderViewModel = planBuilderViewModel,
+                    workoutExecutionViewModel = workoutExecutionViewModel,
+                    onOpenLibrary = { showLibrary = true },
+                    modifier = Modifier.weight(1f)
+                )
                 1 -> WorkoutExecutionSubTab(fitnessViewModel, workoutExecutionViewModel, restTimerViewModel, snackbarHostState)
-                2 -> NewPlansSubTab(fitnessViewModel, planBuilderViewModel, onNavigateToPlanBuilder, snackbarHostState)
+                2 -> NewPlansSubTab(
+                    planBuilderViewModel = planBuilderViewModel,
+                    onNavigateToPlanBuilder = onNavigateToPlanBuilder,
+                    onNavigateToWorkoutImport = onNavigateToWorkoutImport,
+                    snackbarHostState = snackbarHostState,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
+    }
+}
+
+@Composable
+internal fun TrainSubTabControl(
+    labels: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        val density = LocalDensity.current
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            labels.forEachIndexed { index, label ->
+                val isSelected = index == selectedIndex
+                var labelWidthPx by remember(label) { mutableIntStateOf(0) }
+                Column(
+                    modifier = Modifier
+                        .semantics { selected = isSelected }
+                        .clickable(role = Role.Tab) { onSelect(index) }
+                        .heightIn(min = 48.dp),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        label,
+                        color = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary,
+                        fontSize = 16.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(top = 10.dp),
+                        onTextLayout = { labelWidthPx = it.size.width }
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    if (isSelected) {
+                        Box(
+                            Modifier.width(with(density) { labelWidthPx.toDp() })
+                                .height(2.dp).background(ApexColors.Primary)
+                        )
+                    }
+                }
+            }
+        }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
     }
 }
 
@@ -86,335 +188,136 @@ fun TrainTab(
 fun ProgramSubTab(
     fitnessViewModel: FitnessViewModel,
     planBuilderViewModel: PlanBuilderViewModel,
-    workoutExecutionViewModel: WorkoutExecutionViewModel
+    workoutExecutionViewModel: WorkoutExecutionViewModel,
+    onOpenLibrary: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val selectedDay by planBuilderViewModel.selectedDayOfWeek.collectAsStateWithLifecycle()
-    val selectedDaySessionRaw by planBuilderViewModel.selectedDaySession.collectAsStateWithLifecycle()
+    val selectedDaySession by planBuilderViewModel.selectedDaySession.collectAsStateWithLifecycle()
     val exercises by planBuilderViewModel.selectedDayExercises.collectAsStateWithLifecycle()
-
-    val sessionManager = workoutExecutionViewModel.sessionManager
-    val isStarting by sessionManager.isStartingSession.collectAsStateWithLifecycle()
-
-    val selectedDaySession = selectedDaySessionRaw
-
-    val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    val sessionsState by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
+    val allExercises by planBuilderViewModel.allPlanExercises.collectAsStateWithLifecycle()
+    val isStarting by workoutExecutionViewModel.sessionManager.isStartingSession.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
-    var substJob: Job? by remember { mutableStateOf(null) }
-    val substitutionList by planBuilderViewModel.substitutionList.collectAsStateWithLifecycle()
-    val activeSubstIndex by planBuilderViewModel.activeSubstIndex.collectAsStateWithLifecycle()
-
+    var swapExercise by remember { mutableStateOf<com.apexfit.app.data.PlanExercise?>(null) }
+    var pendingSwap by remember { mutableStateOf<com.apexfit.app.data.PlanExercise?>(null) }
+    var replacement by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
+    var swapMessage by remember { mutableStateOf<String?>(null) }
     var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var formGuideContent by remember { mutableStateOf<FormGuideContent?>(null) }
+    var formGuidePlanExercise by remember { mutableStateOf<com.apexfit.app.data.PlanExercise?>(null) }
 
-    val onOpenFormGuide: (String) -> Unit = remember(scope, context) {
-        { exerciseName ->
+    val onOpenFormGuide: (com.apexfit.app.data.PlanExercise) -> Unit = remember(scope, context, units) {
+        { planExercise ->
             scope.launch {
-                loadFormGuideData(context, exerciseName)?.let { (exercise, content) ->
+                loadFormGuideData(context, planExercise.name, planExercise)?.let { (exercise, content) ->
                     formGuideExercise = exercise
                     formGuideContent = content
+                    formGuidePlanExercise = planExercise
                 }
             }
         }
     }
 
-    val onSelectSubstitution: (Int, String, String) -> Unit = remember(scope, planBuilderViewModel) {
-        { index, muscleGroup, exerciseName ->
-            planBuilderViewModel.selectSubstIndex(index)
-            substJob?.cancel()
-            substJob = scope.launch {
-                val suggestions = planBuilderViewModel.getSubstitutionSuggestions(muscleGroup, exerciseName)
-                planBuilderViewModel.setSubstitutionList(suggestions)
+    val swap = swapExercise
+    if (swap != null) {
+        val library by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
+        ExercisePickerDialog(
+            state = library,
+            title = "Substitute exercise",
+            initialMuscle = swap.muscleGroup,
+            excludeId = swap.exerciseId,
+            onDismiss = { swapExercise = null },
+            onSelect = {
+                replacement = it
+                swapExercise = null
+                pendingSwap = swap
             }
-        }
+        )
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Horizontal Day Picker Chips
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(daysOfWeek, key = { it }) { day ->
-                    val isSelected = selectedDay.equals(day, ignoreCase = true)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) ApexColors.Primary else DarkCardSurface)
-                            .border(
-                                BorderStroke(1.dp, if (isSelected) ApexColors.Primary else BorderSubtle),
-                                RoundedCornerShape(14.dp)
-                            )
-                            .semantics { selected = isSelected }
-                            .clickable(role = Role.Tab) { planBuilderViewModel.selectDay(day) }
-                            .heightIn(min = 48.dp)
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = day.substring(0, 3).uppercase(),
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) ApexColors.OnGlow else SecondaryText
-                        )
+    val selectedReplacement = replacement
+    val original = pendingSwap
+    if (selectedReplacement != null && original != null) {
+        AlertDialog(
+            onDismissRequest = { replacement = null },
+            title = { Text("Substitute exercise?") },
+            text = {
+                Text("Replace " + original.name + " with " + selectedReplacement.name +
+                    ". The new exercise starts with load calibration.")
+            },
+            dismissButton = { TextButton(onClick = { replacement = null }) { Text("Cancel") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    replacement = null
+                    scope.launch {
+                        val updated = planBuilderViewModel.substituteScheduledExercise(original, selectedReplacement)
+                        swapMessage = if (updated) "Exercise updated" else "The exercise could not be updated."
                     }
-                }
+                }) { Text("Replace") }
             }
+        )
+    }
 
-            Spacer(modifier = Modifier.height(8.dp))
+    swapMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { swapMessage = null },
+            title = { Text(message) },
+            confirmButton = { TextButton(onClick = { swapMessage = null }) { Text("Close") } }
+        )
+    }
 
-            if (selectedDaySession == null) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("No workout scheduled for $selectedDay", color = PrimaryText,
-                        fontFamily = InterFamily, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Choose another day or explore your plans.", color = SecondaryText,
-                        fontFamily = InterFamily, fontSize = 14.sp)
-                    TextButton(onClick = { fitnessViewModel.setTrainSubTab(2) }) {
-                        Text("Browse or create a plan", color = ApexColors.Primary)
-                    }
+    Box(modifier = modifier.fillMaxSize()) {
+        TrainProgramSchedule(
+            sessionsState = sessionsState,
+            allExercises = allExercises,
+            selectedDay = selectedDay,
+            selectedSession = selectedDaySession,
+            selectedExercises = exercises,
+            preferredUnits = units,
+            isStarting = isStarting,
+            onSelectDay = planBuilderViewModel::selectDay,
+            onStartSession = { session ->
+                if (!isStarting) {
+                    workoutExecutionViewModel.startWorkoutSession(session)
+                    fitnessViewModel.setTrainSubTab(1)
                 }
-            } else {
-                val isImperial = remember(units) { units.lowercase() in listOf("lb", "lbs") }
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Focus Card first
-                    item {
-                        PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "CURRENT SESSION PARAMETERS",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AmberAccent
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = selectedDaySession.label,
-                                fontFamily = SyneFamily,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = PrimaryText
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = selectedDaySession.focus,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 12.sp,
-                                color = SecondaryText
-                            )
+            },
+            onOpenPlans = { fitnessViewModel.setTrainSubTab(2) },
+            onOpenLibrary = onOpenLibrary,
+            onOpenFormGuide = onOpenFormGuide,
+            onSubstituteExercise = { swapExercise = it },
+            modifier = Modifier.fillMaxSize()
+        )
 
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Fast Warmup Checklist preview
-                            Text(
-                                text = "Warmup",
-                                fontFamily = SyneFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryText
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "✓ 5 Mins light cardio + Shoulder cuff activations + Barbell sets",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                color = MutedText
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Button(
-                                onClick = {
-                                    if (!isStarting) {
-                                        workoutExecutionViewModel.startWorkoutSession(selectedDaySession)
-                                        fitnessViewModel.setTrainSubTab(1)
-                                    }
-                                },
-                                enabled = !isStarting,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    stringResource(R.string.train_start_current_workout_run),
-                                    fontFamily = SyneFamily,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ApexColors.OnGlow
-                                )
-                            }
-                        }
-                    }
-
-                    // Exercises list
-                    itemsIndexed(exercises, key = { _, ex -> ex.id }) { index, ex ->
-                        var isExpanded by rememberSaveable { mutableStateOf(false) }
-                        val displayWeight = if (isImperial) (ex.weight * AppConstants.KG_TO_LBS).let { Math.round(it * 10.0) / 10.0 } else ex.weight
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(DarkCardSurface)
-                                .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-                                .clickable(role = Role.Button) { isExpanded = !isExpanded }
-                                .padding(16.dp)
-                        ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = ex.name,
-                                            fontFamily = SyneFamily,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = PrimaryText
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "${ex.sets} Sets x ${ex.repsMin}-${ex.repsMax} Reps • $displayWeight $units",
-                                            fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 11.sp,
-                                            color = AmberAccent
-                                        )
-                                    }
-                                    Icon(
-                                        painter = painterResource(if (isExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more),
-                                        contentDescription = "Expand details",
-                                        tint = SecondaryText
-                                    )
-                                }
-
-                                if (isExpanded) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(1.dp)
-                                            .background(BorderSubtle)
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    Text(
-                                        text = "Rest Target Interval: ${ex.restSeconds} Seconds",
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 11.sp,
-                                        color = SecondaryText
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = ex.notes,
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 11.sp,
-                                        color = MutedText,
-                                        lineHeight = 16.sp
-                                    )
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        // Form Guide button
-                                        Button(
-                                            onClick = { onOpenFormGuide(ex.name) },
-                                            colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(stringResource(R.string.train_form_guide), fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
-                                        }
-
-                                        // Replace Exercise button suggestion
-                                        Button(
-                                            onClick = { onSelectSubstitution(index, ex.muscleGroup, ex.name) },
-                                            colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(stringResource(R.string.train_substitute), fontFamily = SyneFamily, fontSize = 11.sp, color = AmberAccent)
-                                        }
-                                    }
-
-                                    // If substitution recommendations loaded for this particular index
-                                    if (activeSubstIndex == index && substitutionList.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(DarkRaised)
-                                                .padding(10.dp),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                text = "Suggested Substitutions",
-                                                fontFamily = SyneFamily,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = AmberAccent
-                                            )
-
-                                            substitutionList.forEach { p ->
-                                                Column {
-                                                    Text(
-                                                        text = "• ${p.first}",
-                                                        fontFamily = SyneFamily,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = PrimaryText
-                                                    )
-                                                    Text(
-                                                        text = p.second,
-                                                        fontFamily = JetBrainsMonoFamily,
-                                                        fontSize = 11.sp,
-                                                        color = SecondaryText,
-                                                        lineHeight = 14.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-                }
-            } // end if-else
-        } // end Column
-
-        if (formGuideExercise != null && formGuideContent != null) {
-            val exercise = formGuideExercise ?: return@Box
-            val content = formGuideContent ?: return@Box
+        val guideExercise = formGuideExercise
+        val guideContent = formGuideContent
+        if (guideExercise != null && guideContent != null) {
             FormGuideSheet(
-                exercise = exercise,
-                content = content,
+                exercise = guideExercise,
+                content = guideContent,
+                preferredUnits = units,
                 onDismiss = {
                     formGuideExercise = null
                     formGuideContent = null
+                    formGuidePlanExercise = null
+                },
+                onSelectAlternative = { selected ->
+                    val originalExercise = formGuidePlanExercise
+                    if (originalExercise != null) {
+                        formGuideExercise = null
+                        formGuideContent = null
+                        formGuidePlanExercise = null
+                        replacement = selected
+                        pendingSwap = originalExercise
+                    }
                 }
             )
         }
-    } // end Box
+    }
 }
 
 @Composable
@@ -432,12 +335,50 @@ fun WorkoutExecutionSubTab(
     val warmupComp by workoutExecutionViewModel.warmupCompleted.collectAsStateWithLifecycle()
     val lastWeights by workoutExecutionViewModel.lastWeights.collectAsStateWithLifecycle()
     val weightContextLines by workoutExecutionViewModel.weightContextLines.collectAsStateWithLifecycle()
+    val liveSession by workoutExecutionViewModel.sessionManager.activeSession.collectAsStateWithLifecycle()
+    val volumeAdjustments = remember(liveSession) {
+        liveSession?.exercises.orEmpty().mapNotNull { exercise ->
+            exercise.volumeAdjustment?.let { exercise.exerciseId to it }
+        }.toMap()
+    }
     val preferredUnits by workoutExecutionViewModel.units.collectAsStateWithLifecycle()
     val saveError by workoutExecutionViewModel.saveError.collectAsStateWithLifecycle()
     val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
     val sessionRestoreFailed by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val currentExercise = exercises.getOrNull(currentIdx)
+    val currentExerciseEquipment by produceState<String?>(
+        initialValue = null,
+        currentExercise?.exerciseId,
+        currentExercise?.name
+    ) {
+        value = currentExercise?.let { scheduled ->
+            try {
+                withContext(Dispatchers.IO) {
+                    val dao = com.apexfit.app.data.AppDatabase.getDatabase(context).fitnessDao()
+                    (dao.getExerciseById(scheduled.exerciseId)
+                        ?: dao.getExerciseByName(scheduled.name))?.equipmentRequired
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+    var workoutClockNow by remember(liveSession?.startTime) {
+        mutableStateOf(System.currentTimeMillis())
+    }
+
+    LaunchedEffect(liveSession?.startTime) {
+        if (liveSession != null) {
+            while (true) {
+                workoutClockNow = System.currentTimeMillis()
+                delay(1_000L)
+            }
+        }
+    }
 
     LaunchedEffect(sessionRestoreFailed) {
         if (sessionRestoreFailed) {
@@ -456,10 +397,10 @@ fun WorkoutExecutionSubTab(
 
     var formGuideExercise by remember { mutableStateOf<com.apexfit.app.data.Exercise?>(null) }
     var formGuideContent by remember { mutableStateOf<FormGuideContent?>(null) }
-    val onOpenFormGuide: (String) -> Unit = remember(scope, context) {
-        { exerciseName ->
+    val onOpenFormGuide: (com.apexfit.app.data.PlanExercise) -> Unit = remember(scope, context, preferredUnits) {
+        { planExercise ->
             scope.launch {
-                loadFormGuideData(context, exerciseName)?.let { (exercise, content) ->
+                loadFormGuideData(context, planExercise.name, planExercise)?.let { (exercise, content) ->
                     formGuideExercise = exercise
                     formGuideContent = content
                 }
@@ -555,7 +496,7 @@ fun WorkoutExecutionSubTab(
             onDismissRequest = { showFinishEarlyDialog = false },
             title = {
                 Text(
-                    text = "FINISH WORKOUT EARLY?",
+                    text = "Finish workout early?",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -572,7 +513,7 @@ fun WorkoutExecutionSubTab(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "RATE YOUR WORKOUT FEEL (1-5):",
+                        text = "HOW DID IT FEEL? (1–5)",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -607,11 +548,11 @@ fun WorkoutExecutionSubTab(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = when (selectedFeelRating) {
-                            1 -> "1 - Extremely fatigued / bad"
-                            2 -> "2 - Tired / poor feel"
-                            3 -> "3 - Average / neutral"
-                            4 -> "4 - Energetic / strong feel"
-                            else -> "5 - Beast mode / excellent!"
+                            1 -> "1 · Very fatigued"
+                            2 -> "2 · Tired"
+                            3 -> "3 · Typical"
+                            4 -> "4 · Energetic"
+                            else -> "5 · Very good"
                         },
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
@@ -627,7 +568,7 @@ fun WorkoutExecutionSubTab(
                     }
                 ) {
                     Text(
-                        text = "YES, FINISH & SAVE",
+                        text = "SAVE AND FINISH",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         color = GreenAccent,
@@ -640,7 +581,7 @@ fun WorkoutExecutionSubTab(
                     onClick = { showFinishEarlyDialog = false }
                 ) {
                     Text(
-                        text = "CANCEL",
+                        text = "BACK TO WORKOUT",
                         fontFamily = SyneFamily,
                         color = MutedText,
                         fontSize = 11.sp
@@ -659,7 +600,7 @@ fun WorkoutExecutionSubTab(
             onDismissRequest = { showNormalFinishFeelDialog = false },
             title = {
                 Text(
-                    text = "CONGRATULATIONS!",
+                    text = "Finish workout?",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -669,14 +610,14 @@ fun WorkoutExecutionSubTab(
             text = {
                 Column {
                     Text(
-                        text = "Incredible job completing your athletic workout session today! Let's rate how your body felt:",
+                        text = "Save the completed sets in this session and rate how the workout felt.",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
                         color = SecondaryText
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "RATE YOUR WORKOUT FEEL (1-5):",
+                        text = "HOW DID IT FEEL? (1–5)",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -711,11 +652,11 @@ fun WorkoutExecutionSubTab(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = when (selectedFeelRating) {
-                            1 -> "1 - Extremely fatigued / bad"
-                            2 -> "2 - Tired / poor feel"
-                            3 -> "3 - Average / neutral"
-                            4 -> "4 - Energetic / strong feel"
-                            else -> "5 - Beast mode / excellent!"
+                            1 -> "1 · Very fatigued"
+                            2 -> "2 · Tired"
+                            3 -> "3 · Typical"
+                            4 -> "4 · Energetic"
+                            else -> "5 · Very good"
                         },
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
@@ -731,7 +672,7 @@ fun WorkoutExecutionSubTab(
                     }
                 ) {
                     Text(
-                        text = "SAVE LOG & COMPLETE",
+                        text = "SAVE AND FINISH",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         color = GreenAccent,
@@ -744,7 +685,7 @@ fun WorkoutExecutionSubTab(
                     onClick = { showNormalFinishFeelDialog = false }
                 ) {
                     Text(
-                        text = "BACK",
+                        text = "BACK TO WORKOUT",
                         fontFamily = SyneFamily,
                         color = MutedText,
                         fontSize = 11.sp
@@ -771,7 +712,7 @@ fun WorkoutExecutionSubTab(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            imageVector = Icons.Filled.PlayArrow,
+                            painter = painterResource(ApexIcons.Play),
                             contentDescription = "Inactive",
                             tint = MutedText,
                             modifier = Modifier.size(48.dp)
@@ -799,53 +740,79 @@ fun WorkoutExecutionSubTab(
                     }
                 }
             } else {
-                ExerciseListSection(
-                    exercises = exercises,
-                    currentIdx = currentIdx,
-                    loggedSets = loggedSets,
-                    effectiveSetsMap = effectiveSetsMap,
-                    warmupComp = warmupComp,
-                    lastWeights = lastWeights,
-                    weightContextLines = weightContextLines,
-                    preferredUnits = preferredUnits,
-                    showRirOverlay = showRirOverlay,
-                    onOpenFormGuide = onOpenFormGuide,
-                    onToggleWarmupItem = { workoutExecutionViewModel.toggleWarmupItem(it) },
-                    onLogSetState = { exId, sIdx, w, r, rpe, comp, restTaken ->
-                        workoutExecutionViewModel.logWorkoutSetState(
-                            exerciseId = exId,
-                            setIndex = sIdx,
-                            weight = w,
-                            reps = r,
-                            rpe = rpe,
-                            completed = comp,
-                            restTakenSeconds = restTaken
-                        )
-                    },
-                    onCompleteSet = { exId, exName, muscleGroup, sIdx, w, r, totalSets, rpe ->
-                        workoutExecutionViewModel.completeSetWithRpe(exId, exName, muscleGroup, sIdx, w, r, totalSets, rpe) {
-                            restTimerViewModel.triggerRestTimer(rpe, exName, muscleGroup, r, sIdx, totalSets,
-                                workoutExecutionViewModel.currentExerciseIdx.value, exId)
-                        }
-                    },
-                    onAddCustomLogSet = { workoutExecutionViewModel.addCustomLogSet(it) },
-                    onNextExercise = { workoutExecutionViewModel.nextExercise() },
-                    onSkipExercise = { ex ->
-                        workoutExecutionViewModel.skipExercise()
-                        scope.launch {
-                            snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
-                        }
-                    },
-                    onShowNormalFinishFeelDialog = { showNormalFinishFeelDialog = true },
-                    onShowFinishEarlyDialog = { showFinishEarlyDialog = true },
-                    onShowExitDialog = { showExitDialog = true },
-                    onCancelOrCompleteEmptySession = {
-                        if (!workoutExecutionViewModel.hasCompletedSets) {
-                            restTimerViewModel.cancelRestTimer()
-                        }
-                        workoutExecutionViewModel.cancelOrCompleteEmptySession()
-                    }
-                )
+                Column(Modifier.fillMaxSize()) {
+                    val elapsedSeconds = ((workoutClockNow - (liveSession?.startTime ?: workoutClockNow))
+                        .coerceAtLeast(0L) / 1_000L).toInt()
+                    val elapsedTime = String.format(
+                        java.util.Locale.US,
+                        "%02d:%02d",
+                        elapsedSeconds / 60,
+                        elapsedSeconds % 60
+                    )
+                    WorkoutExecutionHeader(
+                        sessionLabel = activeSession?.label ?: liveSession?.sessionType.orEmpty(),
+                        elapsedTime = elapsedTime,
+                        onBack = { showExitDialog = true },
+                        onFinish = { showNormalFinishFeelDialog = true }
+                    )
+                    ExerciseListSection(
+                        exercises = exercises,
+                        currentIdx = currentIdx,
+                        loggedSets = loggedSets,
+                        effectiveSetsMap = effectiveSetsMap,
+                        warmupComp = warmupComp,
+                        lastWeights = lastWeights,
+                        weightContextLines = weightContextLines,
+                        volumeAdjustments = volumeAdjustments,
+                        onUndoVolumeAdjustment = workoutExecutionViewModel.sessionManager::undoSetVolumeAdjustment,
+                        preferredUnits = preferredUnits,
+                        showRirOverlay = showRirOverlay,
+                        onOpenFormGuide = onOpenFormGuide,
+                        onToggleWarmupItem = { workoutExecutionViewModel.toggleWarmupItem(it) },
+                        onLogSetState = { exId, sIdx, w, r, rpe, comp, restTaken ->
+                            workoutExecutionViewModel.logWorkoutSetState(
+                                exerciseId = exId,
+                                setIndex = sIdx,
+                                weight = w,
+                                reps = r,
+                                rpe = rpe,
+                                completed = comp,
+                                restTakenSeconds = restTaken
+                            )
+                        },
+                        onCompleteSet = { exId, exName, muscleGroup, sIdx, w, r, totalSets, _ ->
+                            restTimerViewModel.clearClosedRestTimerContext()
+                            workoutExecutionViewModel.openRirSelector(
+                                exerciseId = exId,
+                                exerciseName = exName,
+                                muscleGroup = muscleGroup,
+                                setIndex = sIdx,
+                                weight = w,
+                                reps = r,
+                                totalSets = totalSets
+                            )
+                        },
+                        onAddCustomLogSet = { workoutExecutionViewModel.addCustomLogSet(it) },
+                        onNextExercise = { workoutExecutionViewModel.nextExercise() },
+                        onSkipExercise = { ex ->
+                            workoutExecutionViewModel.skipExercise()
+                            scope.launch {
+                                snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
+                            }
+                        },
+                        onShowNormalFinishFeelDialog = { showNormalFinishFeelDialog = true },
+                        onShowFinishEarlyDialog = { showFinishEarlyDialog = true },
+                        onShowExitDialog = { showExitDialog = true },
+                        onCancelOrCompleteEmptySession = {
+                            if (!workoutExecutionViewModel.hasCompletedSets) {
+                                restTimerViewModel.cancelRestTimer()
+                            }
+                            workoutExecutionViewModel.cancelOrCompleteEmptySession()
+                        },
+                        modifier = Modifier.weight(1f),
+                        currentExerciseEquipment = currentExerciseEquipment
+                    )
+                }
             }
 
             if (formGuideExercise != null && formGuideContent != null) {
@@ -855,6 +822,7 @@ fun WorkoutExecutionSubTab(
                     FormGuideSheet(
                         exercise = exercise,
                         content = content,
+                        preferredUnits = preferredUnits,
                         onDismiss = {
                             formGuideExercise = null
                             formGuideContent = null
@@ -868,7 +836,8 @@ fun WorkoutExecutionSubTab(
 
 private suspend fun loadFormGuideData(
     context: android.content.Context,
-    exerciseName: String
+    exerciseName: String,
+    prescription: com.apexfit.app.data.PlanExercise? = null
 ): Pair<com.apexfit.app.data.Exercise, FormGuideContent>? = withContext(Dispatchers.IO) {
     val dao = com.apexfit.app.data.AppDatabase.getDatabase(context).fitnessDao()
     val slug = exerciseNameToSlug(exerciseName)
@@ -876,161 +845,55 @@ private suspend fun loadFormGuideData(
         ?: return@withContext null
     val metadata = dao.getMetadataForExercise(exercise.id)
     val sourceInstructions = ExerciseMediaCatalog.get(context, exercise.id)?.instructions.orEmpty()
+    val recentHistory = dao.getRecentExerciseHistoryForGuide(exercise.id)
+    val personalRecords = dao.getPRsForExercise(exercise.id)
+    val exerciseCatalog = dao.getAllExercises()
     exercise to FormGuideBuilder.buildFormGuide(
         exercise = exercise,
         metadata = metadata,
-        sourceInstructions = sourceInstructions
+        sourceInstructions = sourceInstructions,
+        prescription = prescription,
+        recentHistory = recentHistory,
+        personalRecords = personalRecords,
+        exerciseCatalog = exerciseCatalog
     )
 }
 
 @Composable
 fun NewPlansSubTab(
-    fitnessViewModel: FitnessViewModel,
     planBuilderViewModel: PlanBuilderViewModel,
     onNavigateToPlanBuilder: (Long) -> Unit,
-    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
+    onNavigateToWorkoutImport: () -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    modifier: Modifier = Modifier
 ) {
     val plans by planBuilderViewModel.workoutPlans.collectAsStateWithLifecycle()
     val activePlanState by planBuilderViewModel.activePlan.collectAsStateWithLifecycle()
+    val activeSessions by planBuilderViewModel.activePlanSessions.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     if (activePlanState is UiState.Loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = OrangeAccent)
-        }
+        PlansLoadingState(modifier)
         return
     }
 
-    val activePlan: com.apexfit.app.data.WorkoutPlan? = (activePlanState as? UiState.Success)?.data
-    val context = LocalContext.current
-
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        item {
-            Button(
-                onClick = { onNavigateToPlanBuilder(0L) },
-                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("build_custom_plan_button")
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        tint = ApexColors.OnGlow,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        stringResource(R.string.train_build_custom_workout_plan),
-                        fontFamily = InterFamily,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = ApexColors.OnGlow
-                    )
-                }
+    val activePlan = (activePlanState as? UiState.Success)?.data
+    val activePlanError = (activePlanState as? UiState.Error)?.message
+    PlansSubTabContent(
+        plans = plans,
+        activePlan = activePlan,
+        activePlanError = activePlanError,
+        activeSessions = activeSessions,
+        onCreatePlan = { onNavigateToPlanBuilder(0L) },
+        onImportPlan = onNavigateToWorkoutImport,
+        onEditPlan = onNavigateToPlanBuilder,
+        onActivatePlan = { plan ->
+            planBuilderViewModel.activatePlan(plan.id)
+            scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.train_plan_activated))
             }
-        }
-
-        // List of athletic directories
-        item {
-            Text(
-                text = "Your plans",
-                fontFamily = InterFamily,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = PrimaryText
-            )
-        }
-
-        if (plans.isEmpty()) {
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("No plans yet", color = PrimaryText, fontFamily = InterFamily,
-                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Create a plan to organize your training days and exercises.",
-                        color = SecondaryText, fontFamily = InterFamily, fontSize = 14.sp)
-                }
-            }
-        }
-
-        items(plans, key = { it.id }) { plan ->
-            val isActive = activePlan?.id == plan.id
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(DarkCardSurface)
-                    .border(BorderStroke(1.dp, if (isActive) ApexColors.Primary else BorderSubtle), RoundedCornerShape(12.dp))
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = plan.name,
-                                fontFamily = SyneFamily,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryText
-                            )
-                            if (isActive) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(ApexColors.VictorySoft)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(stringResource(R.string.train_active), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Target Goal: ${plan.goal}",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = SecondaryText
-                        )
-                    }
-
-                    TextButton(onClick = { onNavigateToPlanBuilder(plan.id) }) {
-                        Text("Edit", color = ApexColors.Primary)
-                    }
-                    if (!isActive) {
-                        Button(
-                            onClick = {
-                                planBuilderViewModel.activatePlan(plan.id)
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(context.getString(R.string.train_plan_activated))
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(stringResource(R.string.train_activate), fontFamily = SyneFamily, fontSize = 11.sp, color = PrimaryText)
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-    }
+        },
+        modifier = modifier
+    )
 }

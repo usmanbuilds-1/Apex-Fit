@@ -8,6 +8,7 @@ import androidx.room.withTransaction
 import com.apexfit.app.data.*
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.ui.models.UiState
+import com.apexfit.app.utils.ExerciseCatalogFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -143,6 +144,37 @@ class PlanBuilderViewModel @Inject constructor(
         planBuilderExercises.value = planBuilderExercises.value.map { if (it.id == exercise.id) exercise else it }
     }
 
+    suspend fun substituteScheduledExercise(original: PlanExercise, replacement: Exercise): Boolean =
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                db.withTransaction {
+                    val current = dao.getExercisesForSession(original.planSessionId)
+                        .firstOrNull { it.id == original.id && it.exerciseId == original.exerciseId }
+                        ?: return@withTransaction false
+                    val target = dao.getExerciseById(replacement.id)?.takeIf { it.isDeleted == 0 }
+                        ?: return@withTransaction false
+                    val rest = dao.getMetadataForExercise(target.id)?.defaultRestSeconds
+                        ?.takeIf { it > 0 } ?: current.restSeconds
+                    dao.updatePlanExercise(current.copy(
+                        exerciseId = target.id, name = target.name, muscleGroup = target.primaryMuscle,
+                        weight = 0.0, restSeconds = rest, notes = ""
+                    ))
+                    val session = selectedDaySession.value?.takeIf { it.id == current.planSessionId }
+                    if (session != null) {
+                        val focus = dao.getExercisesForSession(session.id)
+                            .map { it.muscleGroup }.distinct().joinToString(", ")
+                        dao.updatePlanSession(session.copy(focus = focus))
+                    }
+                    true
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("PlanBuilderViewModel", "Unable to substitute exercise", e)
+                false
+            }
+        }
+
     fun deleteExercise(exerciseId: Long) {
         planBuilderExercises.value = planBuilderExercises.value.filter { it.id != exerciseId }
     }
@@ -219,19 +251,24 @@ class PlanBuilderViewModel @Inject constructor(
         val muscleGroup = pattern
         val exerciseName = currentEx
         val exercises = (exerciseLibrary.value as? UiState.Success)?.data ?: return emptyList()
-        val equipment = equipmentAvailable.value.split(",").map { it.trim().lowercase() }
-        return exercises
-            .filter { ex ->
-                ex.primaryMuscle.equals(muscleGroup, ignoreCase = true) &&
-                ex.name != exerciseName &&
-                (equipment.isEmpty() || equipment.any { e ->
-                    ex.equipmentRequired.lowercase().contains(e) ||
-                    ex.category.lowercase().contains(e)
-                })
-            }
-            .sortedBy { it.name }
+        val equipment = equipmentAvailable.value
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+
+        return ExerciseCatalogFilter.filter(
+            exercises = exercises,
+            equipment = equipment,
+            muscle = muscleGroup,
+            includeSecondaryMuscleMatches = false
+        )
+            .asSequence()
+            .map { it.exercise }
+            .filterNot { it.name == exerciseName }
             .take(5)
             .map { it.name to "Alternative targeting ${it.primaryMuscle} (${it.equipmentRequired})." }
+            .toList()
     }
 
     suspend fun loadPlanForEditing(id: Long): Triple<WorkoutPlan, List<PlanSession>, List<PlanExercise>> {

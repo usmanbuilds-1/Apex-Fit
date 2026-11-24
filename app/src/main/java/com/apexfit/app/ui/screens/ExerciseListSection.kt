@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -8,9 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -19,13 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexfit.app.R
@@ -37,6 +36,41 @@ import com.apexfit.app.utils.AppConstants
 import kotlin.math.roundToInt
 
 @Composable
+internal fun WorkoutExecutionHeader(
+    sessionLabel: String,
+    elapsedTime: String,
+    onBack: () -> Unit,
+    onFinish: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth().background(ApexColors.Canvas)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Exit workout",
+                    tint = ApexColors.TextPrimary)
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(sessionLabel, color = ApexColors.TextPrimary, fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(elapsedTime, color = ApexColors.TextSecondary, fontSize = 13.sp)
+            }
+            Box(modifier = Modifier.widthIn(min = 68.dp), contentAlignment = Alignment.CenterEnd) {
+                TextButton(onClick = onFinish, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("Finish", color = ApexColors.TextSecondary, fontSize = 14.sp)
+                }
+            }
+        }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+    }
+}
+
+@Composable
 fun ExerciseListSection(
     exercises: List<PlanExercise>,
     currentIdx: Int,
@@ -45,9 +79,11 @@ fun ExerciseListSection(
     warmupComp: Map<String, Boolean>,
     lastWeights: Map<String, Double>,
     weightContextLines: Map<String, String>,
+    volumeAdjustments: Map<String, com.apexfit.app.utils.SetVolumeAdjustment>,
+    onUndoVolumeAdjustment: (String) -> Boolean,
     preferredUnits: String,
     showRirOverlay: Boolean,
-    onOpenFormGuide: (String) -> Unit,
+    onOpenFormGuide: (PlanExercise) -> Unit,
     onToggleWarmupItem: (String) -> Unit,
     onLogSetState: (exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int, completed: Boolean, restTakenSeconds: Int) -> Unit,
     onCompleteSet: (exerciseId: String, exerciseName: String, muscleGroup: String, setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int) -> Unit,
@@ -57,62 +93,28 @@ fun ExerciseListSection(
     onShowNormalFinishFeelDialog: () -> Unit,
     onShowFinishEarlyDialog: () -> Unit,
     onShowExitDialog: () -> Unit,
-    onCancelOrCompleteEmptySession: () -> Unit
+    onCancelOrCompleteEmptySession: () -> Unit,
+    modifier: Modifier = Modifier,
+    currentExerciseEquipment: String? = null
 ) {
     val isImperial = remember(preferredUnits) { preferredUnits.lowercase() in listOf("lb", "lbs") }
     val unitSuffix = if (isImperial) "lb" else "kg"
     val warmupList = remember(warmupComp) { warmupComp.toList() }
+    val currentExerciseId = exercises.getOrNull(currentIdx)?.exerciseId
+    var showPlateCalc by rememberSaveable(currentExerciseId) { mutableStateOf(false) }
+    var showMore by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.fillMaxSize()
+        modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp)
     ) {
-        // Warmup checklist card
-        item {
-            PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Warm up",
-                    fontFamily = InterFamily,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = PrimaryText,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-        }
-        items(warmupList, key = { it.first }) { (item, comp) ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { selected = comp }
-                    .clickable(role = Role.Checkbox) { onToggleWarmupItem(item) }
-                    .padding(vertical = 4.dp)
-            ) {
-                Checkbox(
-                    checked = comp,
-                    onCheckedChange = { onToggleWarmupItem(item) },
-                    colors = CheckboxDefaults.colors(checkedColor = AmberAccent, uncheckedColor = MutedText)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = item,
-                    fontFamily = InterFamily,
-                    fontSize = 14.sp,
-                    color = if (comp) SecondaryText else PrimaryText,
-                    textDecoration = if (comp) TextDecoration.LineThrough else TextDecoration.None
-                )
-            }
-        }
-
         // Current Exercise Layout
         if (currentIdx < exercises.size) {
             val ex = exercises[currentIdx]
             val setsList = loggedSets[ex.exerciseId] ?: emptyList()
+            val activeSetIndex = setsList.indexOfFirst { !it.completed && !it.isWarmup }
 
             item {
-                val displayWeight = if (isImperial) (ex.weight * AppConstants.KG_TO_LBS).let { Math.round(it * 10.0) / 10.0 } else ex.weight
-                var showPlateCalc by rememberSaveable { mutableStateOf(false) }
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -120,36 +122,23 @@ fun ExerciseListSection(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "EXERCISE ${currentIdx + 1} OF ${exercises.size}",
+                            text = "Exercise ${currentIdx + 1} of ${exercises.size}",
                             fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = MutedText
+                            fontSize = 14.sp,
+                            color = ApexColors.TextSecondary
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(DarkRaised)
-                                    .clickable(role = Role.Button) { showPlateCalc = !showPlateCalc }
-                                    .heightIn(min = 48.dp)
-                                    .padding(horizontal = 12.dp, vertical = 12.dp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(
+                                onClick = { onOpenFormGuide(ex) },
+                                contentPadding = PaddingValues(horizontal = 0.dp),
+                                modifier = Modifier.heightIn(min = 44.dp)
                             ) {
-                                Text(stringResource(R.string.train_plate_calc), fontFamily = InterFamily, fontSize = 13.sp, color = ApexColors.Primary)
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(DarkRaised)
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text(ex.muscleGroup.uppercase(), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
+                                Icon(painterResource(ApexIcons.Video), contentDescription = null,
+                                    tint = ApexColors.TextSecondary, modifier = Modifier.size(17.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Form guide", color = ApexColors.TextSecondary, fontSize = 13.sp)
                             }
                         }
-                    }
-
-                    if (showPlateCalc) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        PlateCalculatorCard(initialWeight = displayWeight, units = unitSuffix)
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -160,179 +149,179 @@ fun ExerciseListSection(
                         fontWeight = FontWeight.ExtraBold,
                         color = PrimaryText
                     )
+                    Text(
+                        listOfNotNull(ex.muscleGroup.takeIf { it.isNotBlank() }, currentExerciseEquipment?.takeIf { it.isNotBlank() })
+                            .joinToString(" · "),
+                        color = ApexColors.TextSecondary,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 4.dp))
+                    val adjustment = volumeAdjustments[ex.exerciseId]
+                    if (adjustment != null) {
+                        var showVolumeReason by rememberSaveable(ex.exerciseId) { mutableStateOf(false) }
+                        Text("${adjustment.baseSets} → ${adjustment.adjustedSets} sets",
+                            color = ApexColors.Primary, style = MaterialTheme.typography.titleMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { showVolumeReason = true }) { Text("Why?") }
+                            TextButton(
+                                enabled = loggedSets[ex.exerciseId].orEmpty().let { sets ->
+                                    sets.size == adjustment.adjustedSets && sets.none { it.completed || it.isWarmup }
+                                },
+                                onClick = { onUndoVolumeAdjustment(ex.exerciseId) }
+                            ) { Text("Undo") }
+                        }
+                        if (showVolumeReason) {
+                            AlertDialog(
+                                onDismissRequest = { showVolumeReason = false },
+                                title = { Text("Today's set target") },
+                                text = { Text(adjustment.reason) },
+                                confirmButton = {
+                                    TextButton(onClick = { showVolumeReason = false }) { Text("Done") }
+                                }
+                            )
+                        }
+                    }
+
                     val contextLine = weightContextLines[ex.exerciseId] ?: ""
                     if (contextLine.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = contextLine,
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = AmberAccent
+                            fontSize = 12.sp,
+                            color = ApexColors.TextSecondary
                         )
                     }
 
-                    TextButton(
-                        onClick = { onOpenFormGuide(ex.name) },
-                        contentPadding = PaddingValues(horizontal = 0.dp),
-                        modifier = Modifier.heightIn(min = 44.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Info,
-                            contentDescription = null,
-                            tint = ApexColors.Primary,
-                            modifier = Modifier.size(17.dp)
-                        )
-                        Spacer(modifier = Modifier.width(7.dp))
-                        Text(
-                            text = "Form guide",
-                            fontFamily = InterFamily,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = PrimaryText
-                        )
-                    }
                 }
             }
 
-            val currEffSetsData = effectiveSetsMap[ex.exerciseId]
-            if (currEffSetsData != null) {
-                item {
-                    val nextSetIndex = setsList.indexOfFirst { !it.completed }
-                    val currentSetNum = if (nextSetIndex != -1) nextSetIndex + 1 else setsList.size
-                    val totalSetsNum = setsList.size
-                    val lastCompletedSetObj = setsList.lastOrNull { it.completed }
-                    val lastSetWeight = lastCompletedSetObj?.weight ?: 0.0
-                    val lastSetReps = lastCompletedSetObj?.reps ?: 0
-
-                    RealTimeEffectiveSetsCard(
-                        exName = ex.name,
-                        effData = currEffSetsData,
-                        currentSetNum = currentSetNum,
-                        totalSetsNum = totalSetsNum,
-                        lastSetWeight = lastSetWeight,
-                        lastSetReps = lastSetReps,
-                        units = preferredUnits
+            if (activeSetIndex >= 0) {
+                item(key = "active-set-${ex.exerciseId}-${setsList[activeSetIndex].id}") {
+                    SetLoggingRow(
+                        ex = ex,
+                        sIdx = activeSetIndex,
+                        setObj = setsList[activeSetIndex],
+                        totalSets = setsList.size,
+                        preferredUnits = preferredUnits,
+                        unitSuffix = unitSuffix,
+                        isImperial = isImperial,
+                        lastWeights = lastWeights,
+                        weightContextLines = weightContextLines,
+                        showRirOverlay = showRirOverlay,
+                        onLogSetState = onLogSetState,
+                        onCompleteSet = onCompleteSet,
+                        nightLedgerPresentation = true,
+                        previousSet = setsList.take(activeSetIndex).lastOrNull { it.completed && !it.isWarmup },
+                        displaySetNumber = setsList.take(activeSetIndex).count { !it.isWarmup } + 1,
+                        displayTotalSets = setsList.count { !it.isWarmup }
                     )
                 }
-            }
-
-            // Row of sets logger inputs
-            items(setsList.size, key = { setsList[it].id }) { sIdx ->
-                val setObj = setsList[sIdx]
-                SetLoggingRow(
-                    ex = ex,
-                    sIdx = sIdx,
-                    setObj = setObj,
-                    totalSets = setsList.size,
-                    preferredUnits = preferredUnits,
-                    unitSuffix = unitSuffix,
-                    isImperial = isImperial,
-                    lastWeights = lastWeights,
-                    weightContextLines = weightContextLines,
-                    showRirOverlay = showRirOverlay,
-                    onLogSetState = onLogSetState,
-                    onCompleteSet = onCompleteSet
-                )
-            }
-
-            // Add extra sets CTA row
-            item {
-                val canAddSet = setsList.size < 20
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
+            } else {
+                item(key = "all-sets-logged-${ex.exerciseId}") {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text("All planned sets logged", color = ApexColors.TextPrimary,
+                            fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text("${setsList.count { it.completed && !it.isWarmup }} of ${setsList.count { !it.isWarmup }} sets completed",
+                            color = ApexColors.TextSecondary, fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 4.dp))
                         Button(
                             onClick = {
-                                if (canAddSet) {
-                                    onAddCustomLogSet(ex.exerciseId)
-                                }
-                            },
-                            enabled = canAddSet,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (canAddSet) DarkCardSurface else DarkCardSurface.copy(alpha = 0.5f)
-                            ),
-                            border = BorderStroke(1.dp, if (canAddSet) BorderSubtle else BorderSubtle.copy(alpha = 0.3f)),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                stringResource(R.string.train_add_extra_set),
-                                fontFamily = InterFamily,
-                                fontSize = 13.sp,
-                                color = if (canAddSet) PrimaryText else MutedText
-                            )
-                        }
-
-                        Button(
-                            onClick = {
-                                if (currentIdx == exercises.size - 1) {
-                                    onShowNormalFinishFeelDialog()
-                                } else {
-                                    onNextExercise()
-                                }
+                                if (currentIdx == exercises.lastIndex) onShowNormalFinishFeelDialog() else onNextExercise()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(top = 8.dp)
                         ) {
-                            Text(
-                                text = if (currentIdx == exercises.size - 1) "Finish workout" else "Next exercise",
-                                fontFamily = InterFamily,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = ApexColors.OnGlow
-                            )
+                            Text(if (currentIdx == exercises.lastIndex) "Finish workout" else "Next exercise",
+                                color = ApexColors.OnGlow, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
+                }
+            }
 
-                    if (setsList.size >= 20) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Sets: 1–20",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = RedAccent,
-                            modifier = Modifier.testTag("sets_error_msg")
-                        )
-                    }
+            item {
+                TrainingRail(
+                    exercises = exercises,
+                    currentIdx = currentIdx,
+                    loggedSets = loggedSets,
+                    preferredUnits = preferredUnits,
+                    showAll = showMore
+                )
+            }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedButton(
-                        onClick = {
-                            if (currentIdx == exercises.size - 1) {
-                                onShowNormalFinishFeelDialog()
-                            } else {
-                                onSkipExercise(ex)
+            item {
+                TextButton(onClick = { showMore = !showMore }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(if (showMore) "Less  ▴" else "More  ▾", color = ApexColors.TextSecondary, fontSize = 14.sp)
+                }
+                if (showMore) {
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { showPlateCalc = !showPlateCalc },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Text(if (showPlateCalc) "Hide plate calculator" else stringResource(R.string.train_plate_calc),
+                                color = ApexColors.TextSecondary)
+                        }
+                        if (showPlateCalc) {
+                            val displayWeight = if (isImperial) (ex.weight * AppConstants.KG_TO_LBS).let { Math.round(it * 10.0) / 10.0 } else ex.weight
+                            PlateCalculatorCard(initialWeight = displayWeight, units = unitSuffix)
+                        }
+                        if (warmupList.isNotEmpty()) {
+                            Text("Warm up", color = ApexColors.TextSecondary, fontSize = 13.sp,
+                                modifier = Modifier.padding(top = 8.dp))
+                            warmupList.forEach { (warmup, completed) ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth().semantics { selected = completed }
+                                        .clickable(role = Role.Checkbox) { onToggleWarmupItem(warmup) }
+                                        .heightIn(min = 48.dp)
+                                ) {
+                                    Checkbox(checked = completed, onCheckedChange = { onToggleWarmupItem(warmup) },
+                                        colors = CheckboxDefaults.colors(checkedColor = ApexColors.Primary,
+                                            uncheckedColor = ApexColors.TextTertiary))
+                                    Text(warmup, color = if (completed) ApexColors.TextSecondary else ApexColors.TextPrimary,
+                                        textDecoration = if (completed) TextDecoration.LineThrough else TextDecoration.None)
+                                }
                             }
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .testTag("skip_exercise_button")
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_skip_next),
-                            contentDescription = "Skip Exercise",
-                            tint = AmberAccent,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Skip this exercise",
-                            fontFamily = InterFamily,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = PrimaryText
-                        )
+                        }
+                        setsList.forEachIndexed { setIndex, set ->
+                            if (set.completed || set.isWarmup) {
+                                SetLoggingRow(
+                                    ex = ex, sIdx = setIndex, setObj = set, totalSets = setsList.size,
+                                    preferredUnits = preferredUnits, unitSuffix = unitSuffix, isImperial = isImperial,
+                                    lastWeights = lastWeights, weightContextLines = weightContextLines,
+                                    showRirOverlay = showRirOverlay, onLogSetState = onLogSetState,
+                                    onCompleteSet = onCompleteSet
+                                )
+                            }
+                        }
+                        effectiveSetsMap[ex.exerciseId]?.let { effData ->
+                            val last = setsList.lastOrNull { it.completed }
+                            RealTimeEffectiveSetsCard(ex.name, effData,
+                                (activeSetIndex + 1).coerceAtLeast(1), setsList.size,
+                                last?.weight ?: 0.0, last?.reps ?: 0, preferredUnits)
+                        }
+                        val canAddSet = setsList.size < 20
+                        OutlinedButton(
+                            onClick = { onAddCustomLogSet(ex.exerciseId) }, enabled = canAddSet,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexColors.TextPrimary),
+                            border = BorderStroke(1.dp, ApexColors.BorderSubtle)
+                        ) { Text(stringResource(R.string.train_add_extra_set)) }
+                        if (!canAddSet) Text("Sets: 1–20", color = RedAccent,
+                            modifier = Modifier.testTag("sets_error_msg"))
+                        OutlinedButton(
+                            onClick = { onSkipExercise(ex) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("skip_exercise_button"),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexColors.TextSecondary),
+                            border = BorderStroke(1.dp, ApexColors.BorderSubtle)
+                        ) { Text("Skip this exercise") }
+                        TextButton(onClick = onShowFinishEarlyDialog, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Text(stringResource(R.string.train_finish_workout_early_save_prog), color = ApexColors.TextSecondary)
+                        }
+                        TextButton(onClick = onShowExitDialog, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Text(stringResource(R.string.train_cancel_current_workout_run), color = ApexColors.TextSecondary)
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
 
@@ -360,45 +349,82 @@ fun ExerciseListSection(
                             color = ApexColors.OnGlow
                         )
                     }
-                } else {
-                    Button(
-                        onClick = onShowFinishEarlyDialog,
-                        colors = ButtonDefaults.buttonColors(containerColor = ApexColors.VictorySoft),
-                        border = BorderStroke(1.dp, ApexColors.Victory),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .testTag("finish_early_button")
-                    ) {
-                        Text(
-                            stringResource(R.string.train_finish_workout_early_save_prog),
-                            fontFamily = SyneFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ApexColors.Victory
-                        )
-                    }
-                }
-                Button(
-                    onClick = onShowExitDialog,
-                    colors = ButtonDefaults.buttonColors(containerColor = ApexColors.AlertSoft),
-                    border = BorderStroke(1.dp, ApexColors.Alert),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                ) {
-                    Text(
-                        stringResource(R.string.train_cancel_current_workout_run),
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ApexColors.Alert
-                    )
                 }
             }
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun TrainingRail(
+    exercises: List<PlanExercise>,
+    currentIdx: Int,
+    loggedSets: Map<String, List<UiExerciseSet>>,
+    preferredUnits: String,
+    showAll: Boolean
+) {
+    val isImperial = preferredUnits.lowercase() in listOf("lb", "lbs")
+    val upcomingExercises = exercises.drop(currentIdx)
+    val visibleCount = if (showAll) upcomingExercises.size else minOf(4, upcomingExercises.size)
+    val unit = if (isImperial) "lb" else "kg"
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Workout sequence", color = ApexColors.TextSecondary, fontSize = 13.sp,
+            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+        upcomingExercises.take(visibleCount).forEachIndexed { offset, exercise ->
+            val index = currentIdx + offset
+            val sets = loggedSets[exercise.exerciseId].orEmpty()
+            val complete = sets.isNotEmpty() && sets.all { it.completed }
+            val isCurrent = index == currentIdx
+            val marker = when {
+                isCurrent -> "•"
+                complete -> "✓"
+                else -> "○"
+            }
+            val markerColor = when {
+                isCurrent -> ApexColors.Primary
+                complete -> ApexColors.Victory
+                else -> ApexColors.TextTertiary
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(marker, color = markerColor, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(16.dp).padding(top = 1.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(exercise.name, color = if (isCurrent) ApexColors.TextPrimary else ApexColors.TextSecondary,
+                        fontSize = 14.sp, fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium)
+                    if (isCurrent && sets.isNotEmpty()) {
+                        sets.forEachIndexed { setIndex, set ->
+                            val setMarker = when {
+                                set.completed -> "✓"
+                                setIndex == sets.indexOfFirst { !it.completed && !it.isWarmup } -> "•"
+                                else -> "○"
+                            }
+                            val detail = when {
+                                set.completed -> "Set ${setIndex + 1} · ${set.weight} $unit × ${set.reps}"
+                                setIndex == sets.indexOfFirst { !it.completed && !it.isWarmup } -> "Set ${setIndex + 1} (current)"
+                                else -> "Set ${setIndex + 1} · Target ${exercise.repsMin}–${exercise.repsMax}"
+                            }
+                            Text("$setMarker  $detail", color = if (set.completed || setIndex == sets.indexOfFirst { !it.completed && !it.isWarmup })
+                                ApexColors.TextSecondary else ApexColors.TextTertiary, fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 5.dp))
+                        }
+                    } else {
+                        val loadKg = exercise.weight
+                        val load = if (loadKg <= 0.0) "Load not set" else {
+                            val displayed = if (isImperial) loadKg * AppConstants.KG_TO_LBS else loadKg
+                            "${(displayed * 10.0).roundToInt() / 10.0} $unit"
+                        }
+                        Text("${exercise.sets} sets · $load", color = ApexColors.TextTertiary,
+                            fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
         }
     }
 }
@@ -496,7 +522,7 @@ fun RealTimeEffectiveSetsCard(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (effData.lastSetRPE == 8) {
-                                Icon(Icons.Filled.Star, contentDescription = "Sweet Spot", tint = AmberAccent, modifier = Modifier.size(14.dp))
+                                Icon(painterResource(ApexIcons.Star), contentDescription = "Sweet Spot", tint = AmberAccent, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                             }
                             Text(

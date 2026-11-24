@@ -2,13 +2,14 @@
 
 Apex Fit keeps workout/session data local in Room. Exercise media is deliberately separate so adding or removing images/videos never requires a database migration.
 
-## Free Exercise DB images and instructions
+## Free Exercise DB data and instructions
 
 - Source: https://github.com/yuhonas/free-exercise-db
-- License: Unlicense / public-domain dedication.
-- `app/src/main/assets/exercise_media.json` maps every bundled Apex Fit exercise ID to the upstream exercise, image paths, and source instructions.
-- Images are loaded from the upstream raw GitHub repository only when the form guide is opened, then cached by Coil.
-- The workout logger itself never preloads image or video media.
+- The repository data is published under the Unlicense, but the upstream project owner has explicitly said the origin/royalty status of the bundled exercise images is unknown.
+- `app/src/main/assets/exercise_media.json` may retain upstream source IDs, image-path metadata, and source instructions for mapping/provenance, but Apex Fit does **not** construct, fetch, display, bundle, or claim rights to those image files in production.
+- Written exercise instructions remain available independently of image media.
+- Only a separately verified START/FINISH image pair with documented commercial-use rights may be added to a production exercise detail screen.
+- Image-rights reference: https://github.com/yuhonas/free-exercise-db/issues/2
 
 ## YouTube Shorts / videos
 

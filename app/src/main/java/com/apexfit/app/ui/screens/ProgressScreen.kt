@@ -1,22 +1,21 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
@@ -34,16 +33,15 @@ import com.apexfit.app.HomeViewModel
 import com.apexfit.app.ui.theme.*
 import com.apexfit.app.ui.models.UiBodyMeasurement
 import com.apexfit.app.ui.models.UiDeloadResult
+import com.apexfit.app.ui.models.UiFatigueResult
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.times
 import com.apexfit.app.ui.components.ApexSegmentedControl
 import com.apexfit.app.ui.components.MuscleHeatmapCanvas
@@ -52,6 +50,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
@@ -59,6 +58,20 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 val AccentSecondary = com.apexfit.app.ui.theme.OrangeAccent // Orange accent for visual hierarchy
+
+@Composable
+internal fun ProgressHeader(modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(painterResource(R.drawable.ic_apex_chevron), contentDescription = null,
+                tint = ApexColors.Primary, modifier = Modifier.size(18.dp))
+            Text("APEX FIT", color = PrimaryText, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 1.6.sp)
+        }
+    }
+}
 
 @Composable
 fun ProgressScreen(
@@ -75,7 +88,11 @@ fun ProgressScreen(
         subScreen = "main"
     }
 
-    Crossfade(targetState = subScreen, label = "progressSubscreen") { screen ->
+    Crossfade(
+        targetState = subScreen,
+        animationSpec = tween(durationMillis = 150),
+        label = "progressSubscreen"
+    ) { screen ->
         when (screen) {
             "personal_records" -> {
                 PersonalRecordsScreen(progressViewModel = progressViewModel, onBack = { subScreen = "main" })
@@ -83,6 +100,7 @@ fun ProgressScreen(
             "workout_history" -> {
                 WorkoutHistoryScreen(progressViewModel = progressViewModel, onBack = { subScreen = "main" })
             }
+            "muscle_volume" -> MuscleVolumeScreen(homeViewModel, onBack = { subScreen = "main" })
             "muscle_recovery" -> {
                 MuscleRecoveryScreen(
                     progressViewModel = progressViewModel,
@@ -105,6 +123,7 @@ fun ProgressScreen(
                     progressViewModel = progressViewModel,
                     homeViewModel = homeViewModel,
                     onOpenMuscleRecovery = { subScreen = "muscle_recovery" },
+                    onOpenMuscleVolume = { subScreen = "muscle_volume" },
                     onOpenWorkoutHistory = { subScreen = "workout_history" },
                     onOpenPersonalRecords = { subScreen = "personal_records" },
                     onOpenMeasurementDetail = { part ->
@@ -124,254 +143,50 @@ fun DeloadCard(
 ) {
     if (deloadResult.urgency.equals("none", ignoreCase = true) || deloadResult.urgency.isEmpty()) return
 
-    androidx.compose.material3.Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = DarkRaised,
-        border = BorderStroke(1.dp, AmberAccent.copy(alpha = 0.5f)),
-        modifier = modifier.fillMaxWidth()
+    Column(
+        modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            // Amber left accent bar
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(ApexColors.Primary)
-            )
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-                    .fillMaxWidth()
-            ) {
-                Text(
-                    text = "DELOAD RECOMMENDED",
-                    fontFamily = SyneFamily,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = AmberAccent,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = deloadResult.recommendation,
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 12.sp,
-                    color = SecondaryText
-                )
-                if (deloadResult.protocol.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    deloadResult.protocol.forEach { action ->
-                        Row(
-                            verticalAlignment = Alignment.Top,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        ) {
-                            Text(
-                                text = "→ ",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 12.sp,
-                                color = AmberAccent
-                            )
-                            Text(
-                                text = action,
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 12.sp,
-                                color = PrimaryText
-                            )
-                        }
-                    }
-                }
-            }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Deload recommended", style = MaterialTheme.typography.titleMedium)
+        Text(deloadResult.recommendation, color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
+        deloadResult.protocol.forEach { action ->
+            Text(action, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
 
 @Composable
-fun MonthlyVolumeRadarChart(
-    volumeMap: Map<String, Int>,
-    onSeeRecoveryClick: () -> Unit
+internal fun FatigueDeloadContent(
+    fatigue: UiFatigueResult,
+    deload: UiDeloadResult,
+    onOpenRecovery: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkCardSurface)
-            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(16.dp))
-            .padding(16.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Muscle Volume",
-                        fontFamily = SyneFamily,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryText
-                    )
-                    Text(
-                        text = "Sets per muscle group (last 30 days)",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 11.sp,
-                        color = SecondaryText
-                    )
-                }
-                IconButton(
-                    onClick = onSeeRecoveryClick,
-                    modifier = Modifier.background(DarkRaised, RoundedCornerShape(8.dp))
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_shield),
-                        contentDescription = "View Recovery",
-                        tint = AmberAccent,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            val axes = listOf("Chest", "Back", "Delts", "Legs", "Arms")
-            val chestVal = volumeMap["chest"] ?: 0
-            val backVal = volumeMap["back"] ?: 0
-            val deltsVal = (volumeMap["front delts"] ?: 0) + (volumeMap["side delts"] ?: 0) + (volumeMap["rear delts"] ?: 0)
-            val legsVal = (volumeMap["quadriceps"] ?: 0) + (volumeMap["hamstrings"] ?: 0) + (volumeMap["glutes"] ?: 0) + (volumeMap["calves"] ?: 0)
-            val armsVal = (volumeMap["biceps"] ?: 0) + (volumeMap["triceps"] ?: 0)
-            val vals = listOf(chestVal, backVal, deltsVal, legsVal, armsVal)
-
-            val maxVal = (vals.maxOrNull() ?: 0).coerceAtLeast(10).toFloat()
-
-            val hasData = vals.any { it > 0 }
-            if (!hasData) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("No training data yet", fontSize = 16.sp, color = MutedText)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Log a workout to see your muscle volume distribution", fontSize = 12.sp, color = MutedText)
-                }
-            } else {
-                val currentMaxVal by remember(vals) {
-                    derivedStateOf { (vals.maxOrNull() ?: 0).coerceAtLeast(10).toFloat() }
-                }
-                val density = androidx.compose.ui.platform.LocalDensity.current
-                val size = with(density) { Size(160.dp.toPx(), 160.dp.toPx()) }
-
-                val gridPaths = remember(currentMaxVal, size) {
-                    // Build the 3 static pentagon grid paths here
-                    listOf(
-                        buildPentagonPath(size, currentMaxVal * 0.33f, currentMaxVal),
-                        buildPentagonPath(size, currentMaxVal * 0.66f, currentMaxVal), 
-                        buildPentagonPath(size, currentMaxVal, currentMaxVal)
-                    )
-                }
-                val dataPath = remember(vals, size, currentMaxVal) {
-                    buildDataPentagonPath(vals, size, currentMaxVal)
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(
-                        modifier = Modifier
-                            .size(160.dp)
-                            .semantics {
-                                val description = axes.mapIndexed { i, axis ->
-                                    "$axis: ${vals[i]} sets"
-                                }.joinToString(", ")
-                                contentDescription = "Muscle volume radar chart. $description"
-                            }
-                    ) {
-                        val center = Offset(size.width / 2, size.height / 2)
-                        val r = size.minDimension / 2 - 20.dp.toPx()
-
-                        // Draw grid concentric pentagons
-                        gridPaths.forEach { path ->
-                            drawPath(
-                                path = path,
-                                color = BorderSubtle.copy(alpha = 0.4f),
-                                style = Stroke(width = 1.dp.toPx())
-                            )
-                        }
-
-                        // Draw axes lines from center to outer points
-                        for (i in 0 until 5) {
-                            val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-                            val x = center.x + r * cos(angle).toFloat()
-                            val y = center.y + r * sin(angle).toFloat()
-                            drawLine(
-                                color = BorderSubtle.copy(alpha = 0.4f),
-                                start = center,
-                                end = Offset(x, y),
-                                strokeWidth = 1.dp.toPx()
-                            )
-                        }
-
-                        // Plot active data path
-                        if (maxVal > 0) {
-                            // Drawing filled path with alpha
-                            drawPath(
-                                path = dataPath,
-                                color = AccentSecondary.copy(alpha = 0.25f)
-                            )
-                            // Outer path stroke line
-                            drawPath(
-                                path = dataPath,
-                                color = AccentSecondary,
-                                style = Stroke(width = 2.dp.toPx())
-                            )
-                        }
-                    }
-
-                    // Superimpose Label texts nicely spaced around outer edge
-                    for (i in 0 until 5) {
-                        val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-                        val xOffset = (80 * cos(angle)).toFloat().dp
-                        val yOffset = (80 * sin(angle)).toFloat().dp
-
-                        Box(
-                            modifier = Modifier
-                                .offset(x = xOffset, y = yOffset)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(DarkBackground.copy(alpha = 0.7f))
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "${axes[i]}: ${vals[i]}s",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (vals[i] > 0) AccentSecondary else MutedText
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Footer CTA button
-            Button(
-                onClick = onSeeRecoveryClick,
-                colors = ButtonDefaults.buttonColors(containerColor = DarkRaised),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "View Recovery Map",
-                    fontFamily = SyneFamily,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AmberAccent
-                )
-            }
+        Text("Fatigue & deload", color = PrimaryText, style = MaterialTheme.typography.headlineSmall)
+        if (fatigue.ratio == null) {
+            Text(
+                "More logged training is needed to summarize current load.",
+                color = SecondaryText,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        } else {
+            Text(fatigue.statusLabel, color = PrimaryText, style = MaterialTheme.typography.titleLarge)
+            Text(fatigue.recommendation, color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text(
+            "Training-load estimates can guide adjustments. Consider how you feel today.",
+            color = SecondaryText,
+            style = MaterialTheme.typography.bodySmall
+        )
+        if (!deload.urgency.equals("none", ignoreCase = true) && deload.urgency.isNotBlank()) {
+            DeloadCard(deloadResult = deload)
+        }
+        TextButton(onClick = onOpenRecovery) {
+            Text("View muscle recovery")
         }
     }
 }
@@ -388,112 +203,162 @@ fun BodyMeasurementsTrackerPanel(
     lengthUnit: String,
     onPartClick: (String) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkCardSurface)
-            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(16.dp))
-            .padding(16.dp)
-    ) {
-        Column {
-            Text(
-                text = "Body Measurements",
-                fontFamily = SyneFamily,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryText
-            )
-            Text(
-                text = "Tap a measurement to log or view trends",
-                fontFamily = JetBrainsMonoFamily,
-                fontSize = 11.sp,
-                color = SecondaryText,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+    Column(Modifier.fillMaxWidth()) {
+        Text("Measurements", style = MaterialTheme.typography.titleLarge, color = PrimaryText)
+        Text(
+            "Log a body area to see its measurement history.",
+            color = SecondaryText,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+        )
 
-            val standardParts = listOf("Chest", "Biceps", "Waist", "Thighs", "Calves", "Shoulders")
-            val latestMeasurements = remember(measurements) { buildLatestMeasurementsMap(measurements) }
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                standardParts.forEach { part ->
-                    val latest = latestMeasurements[part.lowercase()]
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DarkRaised)
-                            .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
-                            .clickable { onPartClick(part) }
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(AccentSecondary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                val iconRes = when (part) {
-                                    "Chest" -> R.drawable.ic_accessibility
-                                    "Biceps" -> R.drawable.ic_fitness_center
-                                    "Waist" -> R.drawable.ic_line_weight
-                                    "Thighs" -> R.drawable.ic_directions_run
-                                    "Calves" -> R.drawable.ic_directions_walk
-                                    else -> R.drawable.ic_accessibility_new
-                                }
-                                Icon(
-                                    painter = painterResource(iconRes),
-                                    contentDescription = part,
-                                    tint = AccentSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = part.uppercase(),
-                                    fontFamily = SyneFamily,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryText
-                                )
-                                Text(
-                                    text = if (latest != null) "Last logged: ${latest.date}" else "No custom log recorded",
-                                    fontFamily = JetBrainsMonoFamily,
-                                    fontSize = 11.sp,
-                                    color = MutedText
-                                )
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val displayValue = if (latest != null) {
-                                if (lengthUnit == "in") latest.value / 2.54 else latest.value
-                            } else 0.0
-                            val formattedValue = String.format(java.util.Locale.US, "%.1f", displayValue)
-                            Text(
-                                text = if (latest != null) "$formattedValue $lengthUnit" else "-- --",
-                                fontFamily = JetBrainsMonoFamily,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (latest != null) AmberAccent else MutedText
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                painter = painterResource(R.drawable.ic_chevron_right),
-                                contentDescription = "Detail",
-                                tint = MutedText,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+        val standardParts = listOf("Chest", "Biceps", "Waist", "Thighs", "Calves", "Shoulders")
+        val latestMeasurements = remember(measurements) { buildLatestMeasurementsMap(measurements) }
+        standardParts.forEachIndexed { index, part ->
+            val latest = latestMeasurements[part.lowercase()]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .clickable(role = Role.Button, onClickLabel = "Log or view $part measurements") {
+                        onPartClick(part)
                     }
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(part, color = PrimaryText, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = latest?.let {
+                            "Last logged ${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(it.date)}"
+                        } ?: "No measurement logged",
+                        color = MutedText,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                val displayValue = latest?.let {
+                    if (lengthUnit == "in") it.value / 2.54 else it.value
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = displayValue?.let { String.format(java.util.Locale.US, "%.1f %s", it, lengthUnit) } ?: "Log",
+                        color = if (displayValue != null) PrimaryText else SecondaryText,
+                        style = if (displayValue != null) ApexTextStyles.dataMedium else MaterialTheme.typography.bodyMedium
+                    )
+                    Text("›", color = SecondaryText, style = MaterialTheme.typography.titleLarge)
                 }
             }
+            if (index < standardParts.lastIndex) HorizontalDivider(color = ApexColors.BorderSubtle)
+        }
+    }
+}
+
+@Composable
+internal fun WeightLogSection(
+    inputWeight: String,
+    weightError: String?,
+    units: String,
+    onInputWeightChange: (String) -> Unit,
+    onSave: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Log weight", style = MaterialTheme.typography.titleMedium, color = ApexColors.TextPrimary)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = inputWeight,
+                onValueChange = onInputWeightChange,
+                label = { Text("Weight ($units)") },
+                isError = weightError != null,
+                supportingText = weightError?.let { { Text(it, color = ApexColors.Alert) } },
+                placeholder = {
+                    Text(
+                        stringResource(R.string.progress_log_weight_index_e_g_78_5),
+                        color = ApexColors.TextTertiary
+                    )
+                },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f).testTag("log_weight_input"),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = ApexColors.SurfaceSunken,
+                    unfocusedContainerColor = ApexColors.SurfaceSunken,
+                    errorContainerColor = ApexColors.SurfaceSunken,
+                    focusedTextColor = ApexColors.TextPrimary,
+                    unfocusedTextColor = ApexColors.TextPrimary,
+                    errorTextColor = ApexColors.TextPrimary,
+                    focusedIndicatorColor = if (weightError != null) ApexColors.Alert else ApexColors.Primary,
+                    unfocusedIndicatorColor = if (weightError != null) ApexColors.Alert else ApexColors.BorderSubtle,
+                    errorIndicatorColor = ApexColors.Alert,
+                    errorLabelColor = ApexColors.Alert,
+                    focusedSupportingTextColor = ApexColors.Alert,
+                    unfocusedSupportingTextColor = ApexColors.Alert
+                )
+            )
+            Button(
+                onClick = onSave,
+                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.testTag("log_weight_button")
+            ) {
+                Text(stringResource(R.string.progress_save_weight), color = ApexColors.OnGlow)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun WeightHistorySection(
+    entries: List<com.apexfit.app.ui.models.UiWeightEntry>,
+    units: String,
+    onDelete: (Long) -> Unit
+) {
+    if (entries.isEmpty()) return
+    val context = LocalContext.current
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = ApexColors.BorderSubtle, modifier = Modifier.padding(bottom = 12.dp))
+        Text("Weight history", style = MaterialTheme.typography.titleMedium, color = ApexColors.TextPrimary)
+        Text(
+            "Your recent weigh-ins.",
+            style = MaterialTheme.typography.bodySmall,
+            color = ApexColors.TextSecondary,
+            modifier = Modifier.padding(top = 3.dp, bottom = 4.dp)
+        )
+        entries.take(10).forEachIndexed { index, entry ->
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "${entry.weight.toDisplayWeight(units)} $units",
+                        style = ApexTextStyles.dataMedium,
+                        color = ApexColors.TextPrimary
+                    )
+                    Text(
+                        "${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(entry.date)}" +
+                            if (entry.time.isNotEmpty()) " · ${com.apexfit.app.utils.formatTimeForDisplay(context, entry.time)}" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ApexColors.TextSecondary
+                    )
+                }
+                IconButton(onClick = { onDelete(entry.id) }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        painter = painterResource(ApexIcons.Delete),
+                        contentDescription = "Delete weight entry",
+                        tint = ApexColors.TextTertiary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            if (index < entries.take(10).lastIndex) HorizontalDivider(color = ApexColors.BorderSubtle)
         }
     }
 }
@@ -506,6 +371,7 @@ fun ProgressMainTabContent(
     progressViewModel: ProgressViewModel,
     homeViewModel: HomeViewModel,
     onOpenMuscleRecovery: () -> Unit,
+    onOpenMuscleVolume: () -> Unit,
     onOpenWorkoutHistory: () -> Unit,
     onOpenPersonalRecords: () -> Unit,
     onOpenMeasurementDetail: (String) -> Unit
@@ -514,25 +380,24 @@ fun ProgressMainTabContent(
     // all three queries on every visit to Progress, and an unrelated Loading state
     // previously blocked the entire page.
     var activeSubTab by rememberSaveable { mutableStateOf(0) }
+    var showLogWeight by rememberSaveable { mutableStateOf(false) }
+    var isSavingWeight by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = activeSubTab != 0) { activeSubTab = 0 }
     val fatigueInfo by algorithmViewModel.fatigueResult.collectAsStateWithLifecycle()
     val deloadResult by algorithmViewModel.deloadRecommendation.collectAsStateWithLifecycle()
-    val muscleVolumeMap by algorithmViewModel.muscleVolumes.collectAsStateWithLifecycle()
+    val records by progressViewModel.personalRecords.collectAsStateWithLifecycle()
+    val recovery by progressViewModel.muscleRecoveryStatuses.collectAsStateWithLifecycle()
+    val weeklyTarget by fitnessViewModel.weeklyWorkouts.collectAsStateWithLifecycle()
+    val today by homeViewModel.todayDate.collectAsStateWithLifecycle()
+    val goal by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val recordedSessions by homeViewModel.completedSessions.collectAsStateWithLifecycle(initialValue = emptyList())
-    val recentCompletedSessions = remember(recordedSessions) {
-        recordedSessions.filter { it.completed }.sortedByDescending { it.date }.take(5)
-    }
     val weightHistoryState: UiState<List<com.apexfit.app.ui.models.UiWeightEntry>> =
-        if (activeSubTab == 2) homeViewModel.weightHistory.collectAsStateWithLifecycle().value
+        if (activeSubTab != 1) homeViewModel.weightHistory.collectAsStateWithLifecycle().value
         else UiState.Success(emptyList())
     val measurementsState: UiState<List<com.apexfit.app.ui.models.UiBodyMeasurement>> =
         if (activeSubTab == 2) progressViewModel.allBodyMeasurements.collectAsStateWithLifecycle().value
         else UiState.Success(emptyList())
-    val monthlyMuscleVolumesState: UiState<Map<String, Int>> =
-        if (activeSubTab == 1) progressViewModel.monthlyMuscleVolumes.collectAsStateWithLifecycle().value
-        else UiState.Success(emptyMap())
-
     val visibleDataStates: List<UiState<*>> = when (activeSubTab) {
-        1 -> listOf(monthlyMuscleVolumesState)
         2 -> listOf(weightHistoryState, measurementsState)
         else -> emptyList()
     }
@@ -541,12 +406,36 @@ fun ProgressMainTabContent(
 
     val weightHistory: List<com.apexfit.app.ui.models.UiWeightEntry> = (weightHistoryState as? UiState.Success)?.data ?: emptyList()
     val measurements: List<com.apexfit.app.ui.models.UiBodyMeasurement> = (measurementsState as? UiState.Success)?.data ?: emptyList()
-    val monthlyMuscleVolumes: Map<String, Int> = (monthlyMuscleVolumesState as? UiState.Success)?.data ?: emptyMap()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
+    val weightLogError by homeViewModel.weightLogError.collectAsStateWithLifecycle()
     val lengthUnit = if (units == "kg") "cm" else "in"
+    val coroutineScope = rememberCoroutineScope()
+    if (showLogWeight) {
+        LogWeightDialog(initialInput = "", units = units,
+            onDismiss = { showLogWeight = false },
+            saveError = weightLogError,
+            isSaving = isSavingWeight,
+            onSave = { weight ->
+                if (!isSavingWeight) {
+                    homeViewModel.clearWeightLogError()
+                    isSavingWeight = true
+                    coroutineScope.launch {
+                        try {
+                            val saveJob = homeViewModel.logWeight(weight, preferredUnit = units)
+                                ?: return@launch
+                            saveJob.join()
+                            if (homeViewModel.weightLogError.value == null) {
+                                showLogWeight = false
+                            }
+                        } finally {
+                            isSavingWeight = false
+                        }
+                    }
+                }
+            })
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
     val pendingDeletions = remember { mutableStateMapOf<Long, kotlinx.coroutines.Job>() }
 
     fun triggerPendingWeightDeletion(id: Long) {
@@ -592,14 +481,25 @@ fun ProgressMainTabContent(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
         item {
-            Text("Progress", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp))
+            ProgressHeader(Modifier.padding(top = 16.dp))
         }
-        item {
-            ApexSegmentedControl(
-                labels = listOf("Muscle volume", "Recovery", "Body"),
-                selectedIndex = activeSubTab,
-                onSelect = { activeSubTab = it }
+        if (activeSubTab != 0) item {
+            TextButton(onClick = { activeSubTab = 0 }) { Text("Back to Progress") }
+        }
+        if (activeSubTab == 0) item {
+            ProgressOverviewContent(
+                weightHistoryState, recordedSessions, java.time.LocalDate.parse(today), goal, units,
+                records, weeklyTarget, recovery,
+                onLogWeight = {
+                    homeViewModel.clearWeightLogError()
+                    showLogWeight = true
+                },
+                onOpenRecords = onOpenPersonalRecords,
+                onOpenHistory = onOpenWorkoutHistory,
+                onOpenMeasurements = { activeSubTab = 2 },
+                onOpenVolume = onOpenMuscleVolume,
+                onOpenRecovery = onOpenMuscleRecovery,
+                onOpenFatigue = { activeSubTab = 1 }
             )
         }
 
@@ -620,319 +520,51 @@ fun ProgressMainTabContent(
             }
         }
 
-        item {
-            Column(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                    .background(ApexColors.Surface).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text("Training history", color = PrimaryText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    TextButton(onClick = onOpenWorkoutHistory) { Text("View all") }
-                }
-                TextButton(onClick = onOpenPersonalRecords) { Text("Personal records") }
-                if (recentCompletedSessions.isEmpty()) {
-                    Text("Complete a workout to see its duration here.", color = SecondaryText, fontSize = 14.sp)
-                } else {
-                    recentCompletedSessions.forEach { session ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(session.sessionType.ifBlank { "Workout" }, color = PrimaryText, fontSize = 15.sp)
-                                Text(session.date, color = SecondaryText, fontSize = 12.sp)
-                            }
-                            Text(if (session.durationMinutes > 0) "${session.durationMinutes} min" else "Duration unavailable",
-                                color = SecondaryText, fontSize = 13.sp)
-                        }
-                    }
-                }
-            }
-        }
-
         // Category 2: BODY METRICS
         if (activeSubTab == 2 && !isSectionLoading && !isSectionError) {
-            // Quick Body weight log text field
             item {
                 var inputWeight by rememberSaveable { mutableStateOf("") }
                 var weightError by remember { mutableStateOf<String?>(null) }
-
-                PremiumCard(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
-                    Text(
-                        text = "Weight Log",
-                        fontFamily = SyneFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AmberAccent,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = inputWeight,
-                            onValueChange = {
-                                inputWeight = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                WeightLogSection(
+                    inputWeight = inputWeight,
+                    weightError = weightError,
+                    units = units,
+                    onInputWeightChange = { value ->
+                        inputWeight = value.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.')
+                        weightError = null
+                    },
+                    onSave = {
+                        val weight = inputWeight.toDoubleOrNull()
+                        val minimum = if (units.lowercase() == "kg") 20.0 else 44.0
+                        val maximum = if (units.lowercase() == "kg") 300.0 else 660.0
+                        when {
+                            weight == null -> weightError = "Enter a valid number"
+                            weight !in minimum..maximum -> weightError = "Must be $minimum–$maximum $units"
+                            else -> {
                                 weightError = null
-                            },
-                            isError = weightError != null,
-                            supportingText = weightError?.let { { Text(it, color = RedAccent) } },
-                            placeholder = { Text(stringResource(R.string.progress_log_weight_index_e_g_78_5), color = MutedText, fontSize = 11.sp) },
-                            textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(1f).testTag("log_weight_input"),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = DarkRaised,
-                                unfocusedContainerColor = DarkRaised,
-                                focusedIndicatorColor = if (weightError != null) RedAccent else AmberAccent,
-                                unfocusedIndicatorColor = if (weightError != null) RedAccent else BorderSubtle
-                            )
-                        )
-
-                        Button(
-                            onClick = {
-                                val w = inputWeight.toDoubleOrNull()
-                                val weightMin = if (units.lowercase() == "kg") 20.0 else 44.0
-                                val weightMax = if (units.lowercase() == "kg") 300.0 else 660.0
-                                when {
-                                    w == null ->
-                                        weightError = "Enter a valid number"
-                                    w !in weightMin..weightMax ->
-                                        weightError = "Must be $weightMin–$weightMax $units"
-                                    else -> {
-                                        weightError = null
-                                        homeViewModel.logWeight(w, preferredUnit = units)
-                                        inputWeight = ""
-                                    }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.testTag("log_weight_button")
-                        ) {
-                            Text(stringResource(R.string.progress_save_weight), fontFamily = SyneFamily, fontSize = 11.sp, color = ApexColors.OnGlow)
-                         }
-                    }
-                }
-            }
-
-            // Weight log entries history
-            if (visibleWeights.isNotEmpty()) {
-                item {
-                    PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "WEIGHT REGISTRY LOGS",
-                            fontFamily = SyneFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SecondaryText,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        Text(
-                            text = "Tracked for each day entered with system local time auto picked.",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 11.sp,
-                            color = MutedText,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
-
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            visibleWeights.take(10).forEach { entry ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(DarkCardSurface)
-                                        .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = "${entry.weight.toDisplayWeight(units)} $units",
-                                            fontFamily = JetBrainsMonoFamily,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = PrimaryText
-                                        )
-                                            Text(
-                                                text = "Logged: ${entry.date}${if (entry.time.isNotEmpty()) " • ${com.apexfit.app.utils.formatTimeForDisplay(LocalContext.current, entry.time)}" else ""}",
-                                                fontFamily = JetBrainsMonoFamily,
-                                                fontSize = 11.sp,
-                                                color = SecondaryText
-                                            )
-                                    }
-                                    IconButton(
-                                        onClick = { triggerPendingWeightDeletion(entry.id) },
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Delete,
-                                            contentDescription = "Delete weight entry",
-                                            tint = MutedText,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
+                                homeViewModel.logWeight(weight, preferredUnit = units)
+                                inputWeight = ""
                             }
                         }
                     }
-                }
+                )
+            }
+
+            if (visibleWeights.isNotEmpty()) {
+                item { WeightHistorySection(visibleWeights, units, onDelete = ::triggerPendingWeightDeletion) }
             }
         } // End of activeSubTab == 2
 
         // Category 1: BIO RECOVERY
         if (activeSubTab == 1 && !isSectionLoading && !isSectionError) {
-            // Showcase 1: Semicircular Fatigue Needle gauge drawn with Canvas
             item {
-                val needleAnimState = remember { Animatable(0f) }
-                // Gauge is needle progress (0f to 1f) corresponding to Fatigue zones
-                // Let's bind needleAnimState to fatigue ratios (optimal around index 0.5)
-                LaunchedEffect(fatigueInfo) {
-                    val ratio = (fatigueInfo.ratio ?: 0.0).toFloat().coerceIn(0f, 2f)
-                    val targetProgress = ratio / 2.0f // mapped 0f to 1f
-                    needleAnimState.animateTo(
-                        targetValue = targetProgress,
-                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 280f)
-                    )
-                }
-
-                PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Fatigue Index",
-                        fontFamily = SyneFamily,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryText,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(130.dp),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Canvas(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .semantics {
-                                    contentDescription = "Fatigue gauge showing ${fatigueInfo.ratio ?: "unknown"} ratio, status: ${fatigueInfo.statusLabel}"
-                                }
-                        ) {
-                            val strokeW = 14.dp.toPx()
-                            val diameter = size.minDimension * 0.95f
-                            val radius = diameter / 2
-                            val centerPt = Offset(size.width / 2, size.height - 10.dp.toPx())
-
-                            // Zones color slices
-                            // Semicircle starts at 180 degrees index extending 180 deg
-                            // Part A: Undertraining Blue (180deg to 225deg)
-                            drawArc(
-                                color = BlueAccent,
-                                startAngle = 180f,
-                                sweepAngle = 45f,
-                                useCenter = false,
-                                topLeft = Offset(centerPt.x - radius, centerPt.y - radius),
-                                size = Size(diameter, diameter),
-                                style = Stroke(width = strokeW, cap = StrokeCap.Butt)
-                            )
-                            // Part B: Optimal Green (225deg to 270deg)
-                            drawArc(
-                                color = GreenAccent,
-                                startAngle = 225f,
-                                sweepAngle = 45f,
-                                useCenter = false,
-                                topLeft = Offset(centerPt.x - radius, centerPt.y - radius),
-                                size = Size(diameter, diameter),
-                                style = Stroke(width = strokeW, cap = StrokeCap.Butt)
-                            )
-                            // Part C: Pushing Hard Amber (270deg to 315deg)
-                            drawArc(
-                                color = AmberAccent,
-                                startAngle = 270f,
-                                sweepAngle = 45f,
-                                useCenter = false,
-                                topLeft = Offset(centerPt.x - radius, centerPt.y - radius),
-                                size = Size(diameter, diameter),
-                                style = Stroke(width = strokeW, cap = StrokeCap.Butt)
-                            )
-                            // Part D: Overreaching Red (315deg to 360deg)
-                            drawArc(
-                                color = RedAccent,
-                                startAngle = 315f,
-                                sweepAngle = 45f,
-                                useCenter = false,
-                                topLeft = Offset(centerPt.x - radius, centerPt.y - radius),
-                                size = Size(diameter, diameter),
-                                style = Stroke(width = strokeW, cap = StrokeCap.Butt)
-                            )
-
-                            // Draw Needle Line extending outwards from centerPt
-                            // angle in radians = dynamic needle anim state mapped 180f to 360f
-                            val needleAngleDeg = 180f + (needleAnimState.value * 180f)
-                            val needleRad = Math.toRadians(needleAngleDeg.toDouble())
-                            val needleLen = radius * 0.85
-                            val endX = centerPt.x + (cos(needleRad) * needleLen).toFloat()
-                            val endY = centerPt.y + (sin(needleRad) * needleLen).toFloat()
-
-                            drawLine(
-                                color = PrimaryText,
-                                start = centerPt,
-                                end = Offset(endX, endY),
-                                strokeWidth = 3.dp.toPx(),
-                                cap = StrokeCap.Round
-                            )
-
-                            // Center hub pin
-                            drawCircle(color = DarkBackground, radius = 8.dp.toPx(), center = centerPt)
-                            drawCircle(color = AmberAccent, radius = 5.dp.toPx(), center = centerPt)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.progress_undertrained), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = BlueAccent)
-                        Text(stringResource(R.string.progress_optimal), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = GreenAccent)
-                        Text(stringResource(R.string.progress_overreaching), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = RedAccent)
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(BorderSubtle))
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "FATIGUE RATIO INDEX IS ${String.format(java.util.Locale.US, "%.2f", fatigueInfo.ratio ?: 0.0)} (${fatigueInfo.statusLabel})",
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryText
-                    )
-                    Text(
-                        text = fatigueInfo.recommendation,
-                        fontFamily = JetBrainsMonoFamily,
-                        fontSize = 11.sp,
-                        color = SecondaryText
-                    )
-                }
-            }
-
-            if (deloadResult.urgency != "none") {
-                item {
-                    DeloadCard(deloadResult = deloadResult)
-                }
-            }
-
-            // Radar Spider Chart & diagnostic focus trigger
-            item {
-                MonthlyVolumeRadarChart(
-                    volumeMap = monthlyMuscleVolumes,
-                    onSeeRecoveryClick = onOpenMuscleRecovery
+                FatigueDeloadContent(
+                    fatigue = fatigueInfo,
+                    deload = deloadResult,
+                    onOpenRecovery = onOpenMuscleRecovery
                 )
             }
+
         } // End of activeSubTab == 1
 
         // Category 2 Continued: BODY METRICS - Part 2 (Measurements)
@@ -947,94 +579,7 @@ fun ProgressMainTabContent(
             }
         }
 
-        // Category 0: FIBER INDEX
-        if (activeSubTab == 0) {
-            // Live Real-Time Hypertrophy Analytics Summary Row (UX Optimization)
-            item {
-                val totalSets = muscleVolumeMap.values.sum()
-                val activeMuscles = muscleVolumeMap.values.count { it > 0 }
-                val upperKeys = listOf(
-                    "chest", "back", "front delts", "side delts", "rear delts",
-                    "biceps", "triceps", "forearms", "trapezius", "neck",
-                    "rotator cuff", "serratus anterior"
-                )
-                val lowerKeys = listOf(
-                    "quadriceps", "hamstrings", "glutes", "calves",
-                    "hip abductors", "hip adductors", "tibialis anterior"
-                )
-                val balanceText = when {
-                    activeMuscles == 0 -> "No data yet"
-                    else -> {
-                        val upperSets = upperKeys.sumOf { muscleVolumeMap[it] ?: 0 }
-                        val lowerSets = lowerKeys.sumOf { muscleVolumeMap[it] ?: 0 }
-                        when {
-                            upperSets.toDouble() > lowerSets * 1.5 -> "Upper Focus"
-                            lowerSets.toDouble() > upperSets * 1.5 -> "Lower Focus"
-                            else -> "Balanced"
-                        }
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                        .background(ApexColors.Surface).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("This week", color = PrimaryText, fontFamily = InterFamily,
-                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    ProgressSummaryRow("Volume", "$totalSets sets")
-                    ProgressSummaryRow("Active muscles", "$activeMuscles / 23")
-                    ProgressSummaryRow("Balance", balanceText)
-                }
-            }
         }
     }
-}
-}
-
-@Composable
-private fun ProgressSummaryRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f), color = SecondaryText,
-            fontFamily = InterFamily, fontSize = 14.sp)
-        Text(value, color = PrimaryText, fontFamily = InterFamily, fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
-    }
-}
-
-private fun buildPentagonPath(size: Size, scale: Float, currentMaxVal: Float = 10f): Path {
-    val center = Offset(size.width / 2, size.height / 2)
-    val r = size.minDimension / 2 - (size.minDimension * 0.125f)
-    val level = if (scale > 1.0f && currentMaxVal > 0f) {
-        (scale / currentMaxVal).coerceIn(0f, 1f)
-    } else {
-        scale.coerceIn(0f, 1f)
-    }
-    val path = Path()
-    for (i in 0 until 5) {
-        val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-        val x = center.x + r * level * cos(angle).toFloat()
-        val y = center.y + r * level * sin(angle).toFloat()
-        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-    }
-    path.close()
-    return path
-}
-
-private fun buildDataPentagonPath(vals: List<Int>, size: Size, maxVal: Float): Path {
-    val dataPath = Path()
-    if (maxVal <= 0f) return dataPath
-    val center = Offset(size.width / 2, size.height / 2)
-    val r = size.minDimension / 2 - (size.minDimension * 0.125f)
-    for (i in 0 until 5) {
-        val angle = -Math.PI / 2 + (i * 2 * Math.PI / 5)
-        val normalizedVal = if (i < vals.size) (vals[i].toFloat() / maxVal).coerceAtMost(1.0f) else 0f
-        val x = center.x + r * normalizedVal * cos(angle).toFloat()
-        val y = center.y + r * normalizedVal * sin(angle).toFloat()
-        if (i == 0) dataPath.moveTo(x, y) else dataPath.lineTo(x, y)
-    }
-    dataPath.close()
-    return dataPath
 }
 

@@ -1,6 +1,5 @@
 package com.apexfit.app.utils
 
-import kotlin.math.roundToInt
 
 @JvmInline value class WeightKg(val value: Double)
 @JvmInline value class WeightLbs(val value: Double)
@@ -43,59 +42,6 @@ object ProgressionEngine {
             
             else -> "isolation"
         }
-    }
-
-    // Round to nearest 2.5 for simplicity (2.5, 5, 7.5, 10, 12.5, etc.)
-    fun Double.roundToNearest2_5(): Double {
-        return (this / 2.5).roundToInt() * 2.5
-    }
-
-    fun calculateBeginnerStartingWeight(
-        exerciseType: String,
-        userBodyWeightKg: WeightKg,
-        userHeightCm: Double,
-        preferredUnits: String = "lbs"
-    ): Double = calculateBeginnerStartingWeight(
-        exerciseType = exerciseType,
-        userBodyWeightKg = userBodyWeightKg.value,
-        userHeightCm = userHeightCm,
-        preferredUnits = preferredUnits
-    )
-
-    fun calculateBeginnerStartingWeight(
-        exerciseType: String,  // "compound_upper", "compound_lower", "isolation"
-        userBodyWeightKg: Double,
-        userHeightCm: Double,  // for lever arm adjustment
-        preferredUnits: String = "lbs"
-    ): Double {
-        
-        val baseMultiplier = when(exerciseType) {
-            "compound_upper" -> 0.35    // Barbell bench: 128 × 0.35 = 44.8 lbs
-            "compound_lower" -> 0.40    // Barbell squat: 128 × 0.40 = 51.2 lbs
-            "dumbbell_upper" -> 0.12    // DB chest press: 128 × 0.12 = 15.4 lbs per DB
-            "dumbbell_lower" -> 0.15    // DB goblet squat: 128 × 0.15 = 19.2 lbs
-            "isolation" -> 0.08         // Bicep curl: 128 × 0.08 = 10.2 lbs
-            else -> 0.10
-        }
-        
-        val effectiveBodyWeight = userBodyWeightKg.coerceAtLeast(40.0)
-        var startWeight = effectiveBodyWeight * baseMultiplier
-        
-        // Adjust for height (tall = longer ROM = harder)
-        if (userHeightCm > 185) {  // Taller than 6'1"
-            startWeight *= 0.90  // Reduce by 10%
-        } else if (userHeightCm < 170) {  // Shorter than 5'7"
-            startWeight *= 1.10  // Increase by 10%
-        }
-        
-        // Round to nearest 2.5 of the preferred unit to maintain accuracy
-        val result = if (preferredUnits.lowercase() in listOf("lb", "lbs")) {
-            (startWeight * AppConstants.KG_TO_LBS).roundToNearest2_5() / AppConstants.KG_TO_LBS
-        } else {
-            startWeight.roundToNearest2_5()
-        }
-        
-        return if (preferredUnits.lowercase() in listOf("lb", "lbs")) result * AppConstants.KG_TO_LBS else result
     }
 
 enum class OutcomeType { SUCCESS, PROGRESSING, STALLED, PLATEAU }

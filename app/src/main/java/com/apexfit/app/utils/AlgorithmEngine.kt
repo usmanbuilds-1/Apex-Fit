@@ -110,12 +110,10 @@ object AlgorithmEngine {
         return effectiveSets
     }
 
-    // ── LOAD / RECOVERY SIGNALS ───────────────────────────────
-    // These are training-load heuristics, not validated individual injury predictions.
-    fun detectInjuryRiskSignals(
-        trainingLog: List<TrainingSession>,
-        precomputedFatigue: FatigueResult? = null
-    ): List<String> {
+    // ── OBSERVED TRAINING PATTERNS ────────────────────────────
+    // These are descriptive recent-session patterns, not injury predictions.
+    // Workload ratios stay in the separate fatigue view and never create these signals.
+    fun detectTrainingPatternSignals(trainingLog: List<TrainingSession>): List<String> {
         val signals = mutableListOf<String>()
         val recent = trainingLog.filter { it.completed }.sortedByDescending { it.date }.take(6)
 
@@ -124,9 +122,6 @@ object AlgorithmEngine {
         }.map { it.date }.distinct().count()
         
         if (highRPEDays >= 4) signals.add("High intensity clustering — heavy RPE sets performed on $highRPEDays distinct days recently")
-
-        val fatigue = precomputedFatigue ?: FatigueEngine.calcFatigueToFitnessRatio(trainingLog)
-        if ((fatigue.ratio ?: 0.0) >= 1.5) signals.add("Recent training load is high relative to your previous 3-week baseline — consider an easier week")
 
         val muscleDays = mutableMapOf<String, MutableSet<String>>()
         val cutoff = getWindowStartDate(7)

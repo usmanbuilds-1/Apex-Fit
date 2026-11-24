@@ -2,53 +2,54 @@ package com.apexfit.app.utils
 
 import com.apexfit.app.data.Exercise
 import com.apexfit.app.data.ExerciseMetadata
+import com.apexfit.app.data.LastSetWithDate
+import com.apexfit.app.data.PersonalRecord
+import com.apexfit.app.data.PlanExercise
 
 data class FormGuideContent(
-    val setup: String,
-    val execution: String,
-    val commonMistake: String,
+    val sourceNote: String?,
     val muscleNote: String,
-    val instructions: List<String> = emptyList()
+    val instructions: List<String> = emptyList(),
+    val prescription: PlanExercise? = null,
+    val recentHistory: List<LastSetWithDate> = emptyList(),
+    val personalRecords: List<PersonalRecord> = emptyList(),
+    val alternativeExercises: List<Exercise> = emptyList()
 )
 
 object FormGuideBuilder {
     fun buildFormGuide(
         exercise: Exercise,
         metadata: ExerciseMetadata?,
-        sourceInstructions: List<String> = emptyList()
+        sourceInstructions: List<String> = emptyList(),
+        prescription: PlanExercise? = null,
+        recentHistory: List<LastSetWithDate> = emptyList(),
+        personalRecords: List<PersonalRecord> = emptyList(),
+        exerciseCatalog: List<Exercise> = emptyList()
     ): FormGuideContent {
-        val forceType = metadata?.forceType ?: "movement"
         val instructions = sourceInstructions
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .ifEmpty { parseNumberedInstructions(metadata?.notes) }
 
-        val setup =
-            "For this ${exercise.category.lowercase()} exercise utilizing a $forceType pattern, ensure a stable base and proper bracing before initiating the movement."
-
-        val execution =
-            "Drive the $forceType motion deliberately, focusing on contracting the ${exercise.primaryMuscle.lowercase()} throughout the entire range of motion."
-
-        val mistakeBase =
-            "Avoid using excessive momentum or compromising your posture. Control the eccentric (yielding) phase."
-        val commonMistake = if (instructions.isEmpty() && !metadata?.notes.isNullOrBlank()) {
-            "$mistakeBase Note: ${metadata?.notes}"
-        } else {
-            mistakeBase
-        }
-
-        val secondary = if (exercise.secondaryMuscles.isNotEmpty()) {
-            "Secondary engagers include: ${exercise.secondaryMuscles.joinToString(", ")}."
-        } else {
-            "This is a highly isolated movement."
-        }
-
+        val sourceNote = metadata?.notes?.trim()?.takeIf { instructions.isEmpty() && it.isNotEmpty() }
+        val secondary = exercise.secondaryMuscles.takeIf { it.isNotEmpty() }
+            ?.joinToString(", ", prefix = " Secondary: ", postfix = ".").orEmpty()
         return FormGuideContent(
-            setup = setup,
-            execution = execution,
-            commonMistake = commonMistake,
-            muscleNote = "Primary target: ${exercise.primaryMuscle}. $secondary",
-            instructions = instructions
+            sourceNote = sourceNote,
+            muscleNote = "Primary: ${exercise.primaryMuscle}.$secondary",
+            instructions = instructions,
+            prescription = prescription,
+            recentHistory = recentHistory,
+            personalRecords = personalRecords,
+            alternativeExercises = ExerciseCatalogFilter.filter(
+                exercises = exerciseCatalog,
+                muscle = exercise.primaryMuscle,
+                includeSecondaryMuscleMatches = false
+            ).asSequence()
+                .map { it.exercise }
+                .filterNot { it.id == exercise.id }
+                .take(2)
+                .toList()
         )
     }
 

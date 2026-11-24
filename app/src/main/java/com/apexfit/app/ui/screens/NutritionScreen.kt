@@ -1,4 +1,6 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.ui.theme.ApexIcons
+import androidx.compose.ui.res.painterResource
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,10 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.apexfit.app.ui.models.UiState
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.apexfit.app.R
 import androidx.compose.ui.Modifier
@@ -36,6 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,14 +69,14 @@ fun NutritionScreen(
     val loggedMealsState by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
     
     if (loggedMealsState is UiState.Loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = GreenAccent)
+        Box(Modifier.fillMaxSize().background(ApexColors.Canvas), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = ApexColors.Primary)
         }
         return
     }
     if (loggedMealsState is UiState.Error) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.nutrition_error_loading_meals), color = Color.White)
+        Box(Modifier.fillMaxSize().background(ApexColors.Canvas), contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.nutrition_error_loading_meals), color = ApexColors.TextSecondary)
         }
         return
     }
@@ -209,175 +207,49 @@ fun NutritionScreen(
     }
 
     Scaffold(
-        containerColor = DarkBackground,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        containerColor = ApexColors.Canvas,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        bottomBar = {
+            NutritionAddFoodBar(onAddFood = { showAddFoodModal = true })
+        }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .imePadding()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
         item {
-            Text("Nutrition", color = PrimaryText, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp))
+            NutritionHeader(
+                date = selectedDate,
+                onPreviousDay = { nutritionViewModel.changeNutritionDate(-1) },
+                onNextDay = { if (selectedDate != todayDateStr) nutritionViewModel.changeNutritionDate(1) },
+                canGoForward = selectedDate != todayDateStr,
+                modifier = Modifier.padding(top = 12.dp)
+            )
         }
-        // Date picker swiping bar
+
         item {
-            val todayDateString = todayDateStr
-            val isToday = remember(selectedDate, todayDateString) {
-                selectedDate == todayDateString
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { nutritionViewModel.changeNutritionDate(-1) }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev Day", tint = PrimaryText)
-                }
-                Text(
-                    text = selectedDate,
-                    fontFamily = JetBrainsMonoFamily,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryText
+            NutritionDailySummary(
+                calories = loggedCalories,
+                target = calorieTarget.takeIf { hasCalorieTarget },
+                trainingDay = isTodayTrainingDay,
+                macros = listOf(
+                    "Protein" to "${loggedProtein.roundToInt()}${if (hasCalorieTarget) " / $targetProtein" else ""} g",
+                    "Carbs" to "${loggedCarbs.roundToInt()}${if (hasCalorieTarget) " / $targetCarbs" else ""} g",
+                    "Fat" to "${loggedFat.roundToInt()}${if (hasCalorieTarget) " / $targetFat" else ""} g"
                 )
-                IconButton(
-                    onClick = { if (!isToday) nutritionViewModel.changeNutritionDate(1) },
-                    enabled = !isToday
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Next Day",
-                        tint = if (isToday) SecondaryText else PrimaryText
-                    )
-                }
-            }
-        }
-
-        // Calorie and macro overview card
-        item {
-            val ringColor = remember(userGoal, loggedCalories, calorieTarget) {
-                when {
-                    userGoal == "Lose Fat" -> {
-                        if (loggedCalories <= calorieTarget * 1.05) GreenAccent
-                        else if (loggedCalories <= calorieTarget * 1.15) ApexColors.Amber // Amber
-                        else RedAccent
-                    }
-                    userGoal == "Gain Muscle" -> {
-                        if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) GreenAccent
-                        else if (loggedCalories < calorieTarget * 0.85) RedAccent // Under-eating on gain
-                        else ApexColors.Amber // Significantly over
-                    }
-                    userGoal.lowercase().contains("maintain") -> {
-                        if (loggedCalories >= calorieTarget * 0.95 && loggedCalories <= calorieTarget * 1.05) GreenAccent
-                        else if (loggedCalories >= calorieTarget * 0.85 && loggedCalories <= calorieTarget * 1.15) ApexColors.Amber
-                        else RedAccent
-                    }
-                    else -> if (loggedCalories >= calorieTarget) GreenAccent else OrangeAccent
-                }
-            }
-
-            PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Nutrition",
-                        fontFamily = SyneFamily,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SecondaryText
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = if (isTodayTrainingDay) AmberAccent.copy(alpha = 0.15f) else BlueAccent.copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            text = if (isTodayTrainingDay) "TRAINING DAY TARGET" else "REST DAY TARGET",
-                            fontFamily = JetBrainsMonoFamily,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isTodayTrainingDay) AmberAccent else BlueAccent,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Small circular ring
-                    Box(
-                        modifier = Modifier
-                            .size(80.dp)
-                            .drawBehind {
-                                drawCircle(BorderSubtle, size.minDimension / 2, style = Stroke(6.dp.toPx()))
-                                val progress = if (hasCalorieTarget) (loggedCalories.toFloat() / calorieTarget.toFloat()).coerceIn(0f, 1f) else 0f
-                                
-                                drawArc(
-                                    color = ringColor,
-                                    startAngle = -90f,
-                                    sweepAngle = progress * 360f,
-                                    useCenter = false,
-                                    style = Stroke(6.dp.toPx(), cap = StrokeCap.Round)
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (hasCalorieTarget) stringResource(R.string.nutrition_fmt_str, (loggedCalories * 100 / calorieTarget).coerceIn(0, 100)) else "—", fontFamily = InterFamily, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-                            Text(if (hasCalorieTarget) "of target" else "kcal", fontFamily = InterFamily, fontSize = 11.sp, color = SecondaryText)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(if (hasCalorieTarget) stringResource(R.string.nutrition_target_kcal_logged_kcal, calorieTarget, loggedCalories) else "$loggedCalories kcal logged · Set a target in Settings", fontFamily = InterFamily, fontSize = 13.sp, color = PrimaryText)
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            MacroStatMini(label = "Protein", value = "${loggedProtein.roundToInt()}${if (hasCalorieTarget) " / $targetProtein" else ""} g", color = ApexColors.Primary)
-                            MacroStatMini(label = "Carbs", value = "${loggedCarbs.roundToInt()}${if (hasCalorieTarget) " / $targetCarbs" else ""} g", color = BlueAccent)
-                            MacroStatMini(label = "Fat", value = "${loggedFat.roundToInt()}${if (hasCalorieTarget) " / $targetFat" else ""} g", color = RedAccent)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Add food triggers Grid
-        item {
-            Button(
-                onClick = { showAddFoodModal = true },
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .testTag("add_nutrition_button")
-            ) {
-                Text(stringResource(R.string.nutrition_log_meal), fontFamily = InterFamily, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ApexColors.OnGlow)
-            }
+            )
         }
 
         // Meals details lists
         item {
             Text(
-                text = if (selectedDate == todayDateStr) "Today's meals" else "Meals for $selectedDate",
-                fontFamily = InterFamily,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = PrimaryText
+                text = if (selectedDate == todayDateStr) "Today's meals" else "Meals for ${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(selectedDate)}",
+                style = MaterialTheme.typography.titleLarge,
+                color = ApexColors.TextPrimary
             )
         }
 
@@ -386,10 +258,10 @@ fun NutritionScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(80.dp),
+                        .heightIn(min = 80.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(stringResource(R.string.nutrition_no_meals_logged_yet), fontFamily = InterFamily, fontSize = 14.sp, color = SecondaryText)
+                    Text(stringResource(R.string.nutrition_no_meals_logged_yet), color = ApexColors.TextSecondary)
                 }
             }
         } else {
@@ -410,72 +282,45 @@ fun NutritionScreen(
 
                 SwipeToDismissBox(
                     state = dismissState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp)),
+                    modifier = Modifier.fillMaxWidth(),
                     backgroundContent = {
                         val color = when (dismissState.targetValue) {
-                            SwipeToDismissBoxValue.EndToStart -> RedAccent.copy(alpha = 0.8f)
-                            SwipeToDismissBoxValue.StartToEnd -> RedAccent.copy(alpha = 0.8f)
+                            SwipeToDismissBoxValue.EndToStart -> ApexColors.Alert.copy(alpha = 0.8f)
+                            SwipeToDismissBoxValue.StartToEnd -> ApexColors.Alert.copy(alpha = 0.8f)
                             SwipeToDismissBoxValue.Settled -> Color.Transparent
                         }
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .clip(RoundedCornerShape(10.dp))
                                 .background(color)
                                 .padding(horizontal = 20.dp),
                             contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Delete,
+                                painter = painterResource(ApexIcons.Delete),
                                 contentDescription = "Delete",
                                 tint = Color.White
                             )
                         }
                     },
                     content = {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(DarkCardSurface)
-                                .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(10.dp))
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(stringResource(R.string.nutrition_logged_at, com.apexfit.app.utils.formatTimeForDisplay(LocalContext.current, meal.time)), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = AmberAccent)
-                                    Text(meal.name.ifEmpty { "Logged Meal" }, fontFamily = SyneFamily, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
-                                    Text(
-                                        text = "${meal.calories} kcal • P: ${meal.protein.roundToInt()}g C: ${meal.carbs.roundToInt()}g F: ${meal.fat.roundToInt()}g",
-                                        fontFamily = JetBrainsMonoFamily,
-                                        fontSize = 11.sp,
-                                        color = SecondaryText
-                                    )
-                                }
-                                IconButton(onClick = { triggerPendingDeletion(meal) }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete entry", tint = MutedText)
-                                }
-                            }
-                        }
+                        NutritionMealRow(
+                            meal = meal,
+                            onDelete = { triggerPendingDeletion(meal) }
+                        )
                     }
                 )
             }
         }
 
         item {
-            PremiumCard(modifier = Modifier.fillMaxWidth()) {
-                Text("YOUR FOOD PREFERENCES", color = PrimaryText, fontFamily = InterFamily, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
+            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                HorizontalDivider(color = ApexColors.BorderSubtle)
+                Text("Food preferences", style = MaterialTheme.typography.titleMedium, color = ApexColors.TextPrimary)
                 Text("${foodPreferences.protein} · ${foodPreferences.restrictions} · ${foodPreferences.budget}",
-                    color = SecondaryText, fontFamily = InterFamily, fontSize = 13.sp)
-                Text("Supplement preference: ${foodPreferences.supplements}", color = SecondaryText,
-                    fontFamily = InterFamily, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                Text("Supplement preference: ${foodPreferences.supplements}", color = ApexColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -511,11 +356,222 @@ fun NutritionScreen(
 }
 
 @Composable
-fun MacroStatMini(label: String, value: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(stringResource(R.string.nutrition_fmt_str_1, label, value), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = SecondaryText)
+internal fun NutritionHeader(
+    date: String,
+    onPreviousDay: () -> Unit,
+    onNextDay: () -> Unit,
+    canGoForward: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Nutrition",
+                color = ApexColors.TextPrimary,
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(
+                    painterResource(R.drawable.ic_apex_chevron),
+                    contentDescription = null,
+                    tint = ApexColors.Primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    "APEX FIT",
+                    color = ApexColors.TextPrimary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                formatNutritionDate(date),
+                color = ApexColors.TextSecondary,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onPreviousDay, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
+                    Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Previous day", tint = ApexColors.TextSecondary)
+                }
+                IconButton(
+                    onClick = onNextDay,
+                    enabled = canGoForward,
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                ) {
+                    Icon(
+                        painterResource(ApexIcons.ArrowRight),
+                        contentDescription = "Next day",
+                        tint = if (canGoForward) ApexColors.TextSecondary else ApexColors.TextTertiary
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatNutritionDate(dateIso: String): String {
+    val date = runCatching { java.time.LocalDate.parse(dateIso) }.getOrNull()
+        ?: return com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(dateIso)
+    val locale = java.util.Locale.getDefault()
+    val weekday = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, locale)
+    val month = date.month.getDisplayName(java.time.format.TextStyle.FULL, locale)
+    return "$weekday, ${date.dayOfMonth} $month"
+}
+
+@Composable
+internal fun NutritionAddFoodBar(onAddFood: () -> Unit) {
+    Column(Modifier.fillMaxWidth().background(ApexColors.Canvas)) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Button(
+            onClick = onAddFood,
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = ApexColors.Primary,
+                contentColor = ApexColors.OnGlow
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .heightIn(min = 56.dp)
+                .testTag("add_nutrition_button")
+        ) {
+            Text(stringResource(R.string.nutrition_add_food), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+internal fun NutritionMealRow(
+    meal: com.apexfit.app.ui.models.UiNutritionEntry,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    meal.name.ifEmpty { "Logged Meal" },
+                    color = ApexColors.TextPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    com.apexfit.app.utils.formatTimeForDisplay(context, meal.time),
+                    color = ApexColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    "${meal.calories} kcal",
+                    color = ApexColors.TextPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "P ${meal.protein.roundToInt()} · C ${meal.carbs.roundToInt()} · F ${meal.fat.roundToInt()} g",
+                    color = ApexColors.TextSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            IconButton(onClick = onDelete, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
+                Icon(
+                    painterResource(ApexIcons.Delete),
+                    contentDescription = "Delete ${meal.name.ifEmpty { "meal" }}",
+                    tint = ApexColors.TextSecondary
+                )
+            }
+        }
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+    }
+}
+
+@Composable
+internal fun NutritionDailySummary(
+    calories: Int,
+    target: Int?,
+    trainingDay: Boolean,
+    macros: List<Pair<String, String>>
+) {
+    val numbers = java.text.NumberFormat.getIntegerInstance()
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Row(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(numbers.format(calories), style = ApexTextStyles.dataXL, color = ApexColors.TextPrimary)
+                Text(
+                    if (target == null) "kcal" else "/ ${numbers.format(target)} kcal",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = ApexColors.TextSecondary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+            val remaining = target?.minus(calories)
+            if (remaining != null) {
+                Text(
+                    when {
+                        remaining > 0 -> "${numbers.format(remaining)} remaining"
+                        remaining < 0 -> "${numbers.format(-remaining)} over"
+                        else -> "Target reached"
+                    },
+                    color = ApexColors.TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+        }
+        if (target != null && target > 0) {
+            LinearProgressIndicator(
+                progress = { (calories.toFloat() / target).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(6.dp),
+                color = ApexColors.Primary,
+                trackColor = ApexColors.SurfaceRaised
+            )
+            Text(
+                if (trainingDay) "Training day target" else "Rest day target",
+                color = ApexColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+        } else {
+            Text("Set a calorie target in Settings.", color = ApexColors.TextSecondary)
+        }
+        macros.forEachIndexed { index, (name, value) ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(name, color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodyLarge)
+                Text(value, color = ApexColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"))
+            }
+            if (index != macros.lastIndex) HorizontalDivider(color = ApexColors.BorderSubtle)
+        }
     }
 }
 
@@ -549,8 +605,15 @@ fun AddFoodSheet(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.nutrition_log_food_intake), fontFamily = SyneFamily, fontWeight = FontWeight.Bold) },
-        containerColor = DarkCardSurface,
+        title = {
+            Text(
+                stringResource(R.string.nutrition_log_food_intake),
+                color = ApexColors.TextPrimary,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        containerColor = ApexColors.Surface,
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -559,25 +622,24 @@ fun AddFoodSheet(
                 Text(
                     text = run {
                         val fmt = remember { java.time.format.DateTimeFormatter.ofPattern("HH:mm") }
-                        "STATUS: Auto-tracking local time (${java.time.LocalTime.now().format(fmt)})"
+                        "Logged at ${java.time.LocalTime.now().format(fmt)}"
                     },
-                    fontFamily = JetBrainsMonoFamily,
                     fontSize = 11.sp,
-                    color = AmberAccent,
+                    color = ApexColors.TextSecondary,
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
 
                 OutlinedTextField(
                     value = querySearch,
                     onValueChange = { querySearch = it },
-                    label = { Text(stringResource(R.string.nutrition_ingredient_or_food_name), color = SecondaryText) },
-                    textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                    label = { Text(stringResource(R.string.nutrition_ingredient_or_food_name), color = ApexColors.TextSecondary) },
+                    textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                     modifier = Modifier.fillMaxWidth().testTag("add_food_name_input"),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = DarkRaised,
-                        unfocusedContainerColor = DarkRaised,
-                        focusedIndicatorColor = AmberAccent,
-                        unfocusedIndicatorColor = BorderSubtle
+                        focusedContainerColor = ApexColors.SurfaceRaised,
+                        unfocusedContainerColor = ApexColors.SurfaceRaised,
+                        focusedIndicatorColor = ApexColors.Primary,
+                        unfocusedIndicatorColor = ApexColors.BorderSubtle
                     )
                 )
 
@@ -603,15 +665,15 @@ fun AddFoodSheet(
                             inputCal = finalStr
                             calError = error
                         },
-                        label = { Text(stringResource(R.string.nutrition_calories), color = SecondaryText, fontSize = 11.sp) },
-                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        label = { Text(stringResource(R.string.nutrition_calories), color = ApexColors.TextSecondary, fontSize = 11.sp) },
+                        textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f).testTag("add_food_calories_input"),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = DarkRaised,
-                            unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = if (calError.isNotEmpty()) RedAccent else AmberAccent,
-                            unfocusedIndicatorColor = if (calError.isNotEmpty()) RedAccent else BorderSubtle
+                            focusedContainerColor = ApexColors.SurfaceRaised,
+                            unfocusedContainerColor = ApexColors.SurfaceRaised,
+                            focusedIndicatorColor = if (calError.isNotEmpty()) ApexColors.Alert else ApexColors.Primary,
+                            unfocusedIndicatorColor = if (calError.isNotEmpty()) ApexColors.Alert else ApexColors.BorderSubtle
                         )
                     )
                     OutlinedTextField(
@@ -637,15 +699,15 @@ fun AddFoodSheet(
                             inputProt = clean
                             protError = error
                         },
-                        label = { Text(stringResource(R.string.nutrition_protein_g), color = SecondaryText, fontSize = 11.sp) },
-                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        label = { Text(stringResource(R.string.nutrition_protein_g), color = ApexColors.TextSecondary, fontSize = 11.sp) },
+                        textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_protein_input"),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = DarkRaised,
-                            unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = if (protError.isNotEmpty()) RedAccent else AmberAccent,
-                            unfocusedIndicatorColor = if (protError.isNotEmpty()) RedAccent else BorderSubtle
+                            focusedContainerColor = ApexColors.SurfaceRaised,
+                            unfocusedContainerColor = ApexColors.SurfaceRaised,
+                            focusedIndicatorColor = if (protError.isNotEmpty()) ApexColors.Alert else ApexColors.Primary,
+                            unfocusedIndicatorColor = if (protError.isNotEmpty()) ApexColors.Alert else ApexColors.BorderSubtle
                         )
                     )
                 }
@@ -674,15 +736,15 @@ fun AddFoodSheet(
                             inputCarb = clean
                             carbError = error
                         },
-                        label = { Text(stringResource(R.string.nutrition_carbs_g), color = SecondaryText, fontSize = 11.sp) },
-                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        label = { Text(stringResource(R.string.nutrition_carbs_g), color = ApexColors.TextSecondary, fontSize = 11.sp) },
+                        textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_carbs_input"),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = DarkRaised,
-                            unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = if (carbError.isNotEmpty()) RedAccent else AmberAccent,
-                            unfocusedIndicatorColor = if (carbError.isNotEmpty()) RedAccent else BorderSubtle
+                            focusedContainerColor = ApexColors.SurfaceRaised,
+                            unfocusedContainerColor = ApexColors.SurfaceRaised,
+                            focusedIndicatorColor = if (carbError.isNotEmpty()) ApexColors.Alert else ApexColors.Primary,
+                            unfocusedIndicatorColor = if (carbError.isNotEmpty()) ApexColors.Alert else ApexColors.BorderSubtle
                         )
                     )
                     OutlinedTextField(
@@ -708,20 +770,20 @@ fun AddFoodSheet(
                             inputFat = clean
                             fatError = error
                         },
-                        label = { Text(stringResource(R.string.nutrition_fat_g), color = SecondaryText, fontSize = 11.sp) },
-                        textStyle = TextStyle(color = PrimaryText, fontFamily = JetBrainsMonoFamily),
+                        label = { Text(stringResource(R.string.nutrition_fat_g), color = ApexColors.TextSecondary, fontSize = 11.sp) },
+                        textStyle = TextStyle(color = ApexColors.TextPrimary, fontFamily = JetBrainsMonoFamily),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f).testTag("add_food_fat_input"),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = DarkRaised,
-                            unfocusedContainerColor = DarkRaised,
-                            focusedIndicatorColor = if (fatError.isNotEmpty()) RedAccent else AmberAccent,
-                            unfocusedIndicatorColor = if (fatError.isNotEmpty()) RedAccent else BorderSubtle
+                            focusedContainerColor = ApexColors.SurfaceRaised,
+                            unfocusedContainerColor = ApexColors.SurfaceRaised,
+                            focusedIndicatorColor = if (fatError.isNotEmpty()) ApexColors.Alert else ApexColors.Primary,
+                            unfocusedIndicatorColor = if (fatError.isNotEmpty()) ApexColors.Alert else ApexColors.BorderSubtle
                         )
                     )
                 }
 
-                Text(stringResource(R.string.nutrition_quick_add), fontFamily = SyneFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmberAccent)
+                Text(stringResource(R.string.nutrition_quick_add), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = ApexColors.TextPrimary)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -734,11 +796,11 @@ fun AddFoodSheet(
                             calError = if (newVal == 5000) "Calories: 0–5000" else ""
                         },
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
+                        border = BorderStroke(1.dp, ApexColors.BorderSubtle),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexColors.Primary),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text(stringResource(R.string.nutrition_100_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_100_kcal), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = ApexColors.TextPrimary)
                     }
 
                     OutlinedButton(
@@ -749,11 +811,11 @@ fun AddFoodSheet(
                             protError = if (newVal == 500.0) "Protein: 0–500g" else ""
                         },
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
+                        border = BorderStroke(1.dp, ApexColors.BorderSubtle),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexColors.Primary),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text(stringResource(R.string.nutrition_10g_prot), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_10g_prot), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = ApexColors.TextPrimary)
                     }
 
                     OutlinedButton(
@@ -764,11 +826,11 @@ fun AddFoodSheet(
                             carbError = if (newVal == 1000.0) "Carbs: 0–1000g" else ""
                         },
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
+                        border = BorderStroke(1.dp, ApexColors.BorderSubtle),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexColors.Primary),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text(stringResource(R.string.nutrition_10g_carbs), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_10g_carbs), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = ApexColors.TextPrimary)
                     }
 
                     OutlinedButton(
@@ -779,11 +841,11 @@ fun AddFoodSheet(
                             fatError = if (newVal == 500.0) "Fat: 0–500g" else ""
                         },
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, BorderSubtle),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberAccent),
+                        border = BorderStroke(1.dp, ApexColors.BorderSubtle),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexColors.Primary),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Text(stringResource(R.string.nutrition_5g_fat), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = PrimaryText)
+                        Text(stringResource(R.string.nutrition_5g_fat), fontFamily = JetBrainsMonoFamily, fontSize = 11.sp, color = ApexColors.TextPrimary)
                     }
                 }
 
@@ -793,7 +855,7 @@ fun AddFoodSheet(
                         text = errors.first(),
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
-                        color = RedAccent,
+                        color = ApexColors.Alert,
                         modifier = Modifier.testTag("nutrition_error_msg")
                     )
                 }
@@ -803,7 +865,7 @@ fun AddFoodSheet(
                         text = "Total exceeds 5000 cal",
                         fontFamily = JetBrainsMonoFamily,
                         fontSize = 11.sp,
-                        color = RedAccent,
+                        color = ApexColors.Alert,
                         modifier = Modifier.testTag("nutrition_warn_msg")
                     )
                 }
@@ -824,20 +886,19 @@ fun AddFoodSheet(
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = ApexColors.Primary,
-                    disabledContainerColor = DarkRaised.copy(alpha = 0.5f)
+                    disabledContainerColor = ApexColors.SurfaceRaised.copy(alpha = 0.5f)
                 )
             ) {
                 Text(
                     text = "LOG MEAL",
-                    fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
-                    color = if (isMealValid) ApexColors.OnGlow else MutedText
+                    color = if (isMealValid) ApexColors.OnGlow else ApexColors.TextTertiary
                 )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.nutrition_cancel), color = SecondaryText)
+                Text(stringResource(R.string.nutrition_cancel), color = ApexColors.TextSecondary)
             }
         }
     )
@@ -852,7 +913,8 @@ fun AdaptiveCalorieTargetCard(
 ) {
     var showAcceptDialog by rememberSaveable { mutableStateOf(false) }
 
-    PremiumCard(modifier = modifier.fillMaxWidth()) {
+    Column(modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -860,15 +922,14 @@ fun AdaptiveCalorieTargetCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.nutrition_adaptive_calorie_target),
-                    fontFamily = SyneFamily,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SecondaryText
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = ApexColors.TextPrimary
                 )
                 Icon(
-                    painter = painterResource(R.drawable.ic_trending_up),
+                    painter = painterResource(ApexIcons.TrendingUp),
                     contentDescription = "Adaptive",
-                    tint = OrangeAccent,
+                    tint = ApexColors.Primary,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -901,12 +962,12 @@ fun AdaptiveCalorieTargetCard(
                         Text(stringResource(R.string.nutrition_suggested_target_for_kcal, goalLabel, targetCals),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = PrimaryText
+                            color = ApexColors.TextPrimary
                         )
                         Text(stringResource(R.string.nutrition_based_on_tdeeresult_weightchan, tdeeResult.weightChangeKg, tdeeResult.avgCalories),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = SecondaryText,
+                            color = ApexColors.TextSecondary,
                             lineHeight = 14.sp
                         )
 
@@ -918,8 +979,7 @@ fun AdaptiveCalorieTargetCard(
                             colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary)
                         ) {
                             Text(stringResource(R.string.nutrition_accept_target),
-                                fontFamily = SyneFamily,
-                                fontSize = 11.sp,
+                                style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = ApexColors.TextPrimary
                             )
@@ -954,7 +1014,7 @@ fun AdaptiveCalorieTargetCard(
                         Text(stringResource(R.string.nutrition_estimated_burn_kcal, tdeeResult.tdee ?: tdeeResult.avgCalories),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = PrimaryText,
+                            color = ApexColors.TextPrimary,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(stringResource(R.string.nutrition_accuracy_improving_keep_loggin),
@@ -966,7 +1026,7 @@ fun AdaptiveCalorieTargetCard(
                         Text(stringResource(R.string.nutrition_you_have_4_6_days_of_data_a_pr),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = SecondaryText,
+                            color = ApexColors.TextSecondary,
                             lineHeight = 14.sp
                         )
                     }
@@ -978,7 +1038,7 @@ fun AdaptiveCalorieTargetCard(
                         Text(stringResource(R.string.nutrition_calculating_your_personal_tdee),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = PrimaryText,
+                            color = ApexColors.TextPrimary,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(stringResource(R.string.nutrition_log_7_more_days_to_activate_ad),
@@ -990,13 +1050,15 @@ fun AdaptiveCalorieTargetCard(
                         Text(stringResource(R.string.nutrition_the_system_learns_your_metabol),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
-                            color = SecondaryText,
+                            color = ApexColors.TextSecondary,
                             lineHeight = 14.sp
                         )
                     }
                 }
             }
         }
+        Spacer(Modifier.height(12.dp))
+        HorizontalDivider(color = ApexColors.BorderSubtle)
     }
 }
 
@@ -1028,20 +1090,23 @@ fun ProteinTimingCard(todayEntries: List<com.apexfit.app.ui.models.UiNutritionEn
         else                    -> "Good protein distribution today"
     }
 
-    PremiumCard(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Spacer(Modifier.height(4.dp))
         Text(
-            text = "PROTEIN TIMING & DISTRIBUTION",
-            fontFamily = SyneFamily,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = PrimaryText,
+            text = "Protein timing",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = ApexColors.TextPrimary,
             modifier = Modifier.padding(bottom = 6.dp)
         )
         Text(
             text = tip,
-            fontFamily = JetBrainsMonoFamily,
-            fontSize = 11.sp,
-            color = SecondaryText,
+            style = MaterialTheme.typography.bodyMedium,
+            color = ApexColors.TextSecondary,
             modifier = Modifier.padding(bottom = 14.dp)
         )
 
@@ -1050,18 +1115,20 @@ fun ProteinTimingCard(todayEntries: List<com.apexfit.app.ui.models.UiNutritionEn
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text("06:00-12:00", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = MutedText)
-                Text("${preWorkoutProtein.roundToInt()}g", fontFamily = SyneFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+                Text("06:00–12:00", style = MaterialTheme.typography.labelSmall, color = ApexColors.TextTertiary)
+                Text("${preWorkoutProtein.roundToInt()} g", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = ApexColors.TextPrimary)
             }
             Column {
-                Text("12:00-16:00", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = MutedText)
-                Text("${postWorkoutProtein.roundToInt()}g", fontFamily = SyneFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+                Text("12:00–16:00", style = MaterialTheme.typography.labelSmall, color = ApexColors.TextTertiary)
+                Text("${postWorkoutProtein.roundToInt()} g", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = ApexColors.TextPrimary)
             }
             Column {
-                Text("20:00+", fontFamily = JetBrainsMonoFamily, fontSize = 10.sp, color = MutedText)
-                Text("${eveningProtein.roundToInt()}g", fontFamily = SyneFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PrimaryText)
+                Text("20:00+", style = MaterialTheme.typography.labelSmall, color = ApexColors.TextTertiary)
+                Text("${eveningProtein.roundToInt()} g", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = ApexColors.TextPrimary)
             }
         }
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider(color = ApexColors.BorderSubtle)
     }
 }
 

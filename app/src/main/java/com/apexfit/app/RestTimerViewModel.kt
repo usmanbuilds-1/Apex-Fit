@@ -17,6 +17,9 @@ import javax.inject.Inject
 internal fun remainingRestSeconds(deadline: Long, now: Long): Int =
     ((deadline - now).coerceAtLeast(0L) + 999L).div(1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
+internal fun elapsedRestSeconds(startedAt: Long, now: Long): Int =
+    ((now - startedAt).coerceAtLeast(0L) / 1_000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+
 @HiltViewModel
 class RestTimerViewModel @Inject constructor(
     application: Application,
@@ -28,6 +31,7 @@ class RestTimerViewModel @Inject constructor(
     private var restDeadline = 0L
     private var restExerciseName = "Rest"
     private var restSetPointer: Pair<String, Int>? = null
+    private var restAdjustmentSeconds = 0
 
     // Rest Timer State
     private val _restTimerSeconds = MutableStateFlow(0)
@@ -55,6 +59,8 @@ class RestTimerViewModel @Inject constructor(
         reps: Int,
         setIndex: Int,
         totalSets: Int,
+        weight: Double? = null,
+        units: String = "kg",
         currentExerciseIdx: Int = 0,
         completedExerciseId: String? = null
     ) {
@@ -62,8 +68,13 @@ class RestTimerViewModel @Inject constructor(
         val exerciseId = completedExerciseId?.takeIf { it.isNotBlank() }
             ?: com.apexfit.app.utils.exerciseNameToSlug(exerciseName)
         val restSeconds = sessionManager.calculateRestTimeSeconds(exerciseId, exerciseType, rpe)
+        restAdjustmentSeconds = 0
 
-        _restTimerLastSetContext.value = "Last set: $reps reps @ RPE $rpe"
+        _restTimerLastSetContext.value = if (weight != null) {
+            "Last set: $weight $units × $reps reps · RPE $rpe"
+        } else {
+            "Last set: $reps reps @ RPE $rpe"
+        }
 
         val activeExercises = sessionManager.activeSession.value?.exercises ?: emptyList()
         restSetPointer = activeExercises.firstOrNull { it.exerciseId == exerciseId }?.let { it.exerciseId to setIndex }
@@ -74,10 +85,10 @@ class RestTimerViewModel @Inject constructor(
         val completedExercise = activeExercises.getOrNull(exerciseIndex)
         val nextIncomplete = completedExercise?.sets?.indexOfFirst { !it.completed } ?: -1
         val nextPreview = when {
-            nextIncomplete >= 0 -> "$exerciseName (set ${nextIncomplete + 1}/${completedExercise!!.sets.size})"
+            nextIncomplete >= 0 -> nextSetSummary(completedExercise!!, nextIncomplete)
             exerciseIndex >= 0 && exerciseIndex + 1 < activeExercises.size -> {
                 val next = activeExercises[exerciseIndex + 1]
-                "${next.exerciseName} (set 1/${next.sets.size})"
+                nextSetSummary(next, 0)
             }
             else -> "Review workout"
         }
@@ -99,6 +110,18 @@ class RestTimerViewModel @Inject constructor(
 
         // Start local coroutine countdown
         startLocalTimer()
+    }
+
+    private fun nextSetSummary(exercise: com.apexfit.app.data.ActiveExercise, setIndex: Int): String {
+        val set = exercise.sets.getOrNull(setIndex) ?: return "${exercise.exerciseName} · Set ${setIndex + 1}"
+        val load = if (set.weight > 0.0) {
+            val weightText = if (set.weight % 1.0 == 0.0) set.weight.toLong().toString() else set.weight.toString()
+            "$weightText ${set.weightUnit}"
+        } else "Load not set"
+        val repRange = if ((exercise.targetRepsMin ?: 0) > 0 && (exercise.targetRepsMax ?: 0) > 0) {
+            "${exercise.targetRepsMin}–${exercise.targetRepsMax}"
+        } else set.reps.toString()
+        return "${exercise.exerciseName} · Set ${setIndex + 1} of ${exercise.sets.size} · $load × $repRange"
     }
 
     private fun startLocalTimer() {
@@ -131,6 +154,7 @@ class RestTimerViewModel @Inject constructor(
         val now = SystemClock.elapsedRealtime()
         val remaining = remainingRestSeconds(restDeadline, now)
         val newSeconds = (remaining + secs).coerceAtLeast(0)
+        restAdjustmentSeconds += newSeconds - remaining
         _restTimerTotal.value = (_restTimerTotal.value + newSeconds - remaining).coerceAtLeast(1)
         _restTimerSeconds.value = newSeconds
         restDeadline = now + newSeconds * 1000L
@@ -151,6 +175,47 @@ class RestTimerViewModel @Inject constructor(
         startLocalTimer()
     }
 
+    fun clearClosedRestTimerContext() {
+        if (_isRestTimerActive.value) return
+        _restTimerSeconds.value = 0
+        _restTimerTotal.value = 0
+        _restTimerLastSetContext.value = ""
+        _restTimerNextSetPreview.value = ""
+    }
+
+    fun updateRestTimerForRpe(
+        rpe: Int,
+        exerciseName: String,
+        muscleGroup: String,
+        exerciseId: String,
+        weight: Double,
+        units: String,
+        reps: Int
+    ) {
+        _restTimerLastSetContext.value = "Last set: $weight $units × $reps reps · RPE $rpe"
+        if (!_isRestTimerActive.value) return
+        val now = SystemClock.elapsedRealtime()
+        val elapsed = elapsedRestSeconds(restStartedAt, now)
+        val exerciseType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(exerciseName, muscleGroup)
+        val baseSeconds = sessionManager.calculateRestTimeSeconds(exerciseId, exerciseType, rpe)
+        val newTotal = (baseSeconds + restAdjustmentSeconds).coerceAtLeast(1)
+        val newRemaining = (newTotal - elapsed).coerceAtLeast(0)
+        _restTimerTotal.value = newTotal
+        _restTimerSeconds.value = newRemaining
+        restDeadline = now + newRemaining * 1000L
+        if (newRemaining == 0) {
+            closeRestTimer()
+            return
+        }
+        val triggerAtMillis = System.currentTimeMillis() + newRemaining * 1000L
+        com.apexfit.app.utils.RestTimerAlarmReceiver.scheduleAlarm(
+            context = getApplication(),
+            triggerAtMillis = triggerAtMillis,
+            exerciseName = restExerciseName
+        )
+        startLocalTimer()
+    }
+
     fun closeRestTimer(lastCompletedSetPointer: Pair<String, Int>? = null) {
         if (!_isRestTimerActive.value) return
         _isRestTimerActive.value = false
@@ -159,10 +224,11 @@ class RestTimerViewModel @Inject constructor(
         // Commit the elapsed rest time to the last completed set
         val pointer = lastCompletedSetPointer ?: restSetPointer ?: findLastCompletedSetPointer()
         pointer?.let { (exId, sIdx) ->
-            val elapsed = ((SystemClock.elapsedRealtime() - restStartedAt).coerceAtLeast(0L) / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            val elapsed = elapsedRestSeconds(restStartedAt, SystemClock.elapsedRealtime())
             sessionManager.commitRestTaken(exId, sIdx, elapsed)
         }
         restSetPointer = null
+        restAdjustmentSeconds = 0
         sessionManager.resetRestSeconds()
         // Cancel the pending alarm — user dismissed the timer manually
         com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())

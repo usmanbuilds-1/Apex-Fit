@@ -44,7 +44,7 @@ object CoachingWorkers {
 class DelayedNotificationWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         var title = inputData.getString("title") ?: "Apex Fit Update"
-        var body = inputData.getString("body") ?: "Open your coach file to view updates."
+        var body = inputData.getString("body") ?: "Open Apex Fit to view updates."
         val id = inputData.getString("id") ?: "apex_notification"
         val today = com.apexfit.app.utils.getTodayDateString()
         if (id == "midday_protein") {
@@ -53,12 +53,14 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
             val proteinTarget = inputData.getInt("protein_target", 0)
             if (proteinTarget > 0) {
                 if (todayProtein >= proteinTarget * 0.30) return Result.success()
-                val remaining = (proteinTarget - todayProtein).coerceAtLeast(0.0)
-                title = "Only ${todayProtein.toInt()}g protein by noon"
-                body = "You need ${remaining.toInt()}g more today. Front-load some protein now."
+                title = "Protein progress"
+                body = "You've logged ${todayProtein.toInt()}g of ${proteinTarget}g today. If useful, plan a protein-rich meal later."
             }
         }
-        if (id == "streak_at_risk") {
+        // Drop any legacy scheduled streak-pressure notification rather than showing it.
+        if (id == "streak_at_risk") return Result.success()
+
+        if (id == "evening_nutrition_reminder") {
             val dao = buildDao(applicationContext)
             val hasLoggedToday = dao.getNutritionForDate(today).isNotEmpty()
             if (hasLoggedToday) return Result.success()
@@ -69,7 +71,7 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
 
         val destination = when (id) {
             "weekly_report", "plateau_confirmed" -> "progress"
-            "streak_at_risk" -> "train"
+            "evening_nutrition_reminder" -> "nutrition"
             "midday_protein" -> "nutrition"
             else -> "home"
         }
@@ -95,7 +97,7 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
         val stableNotifId = mapOf(  
             "morning_readiness" to 2001,  
             "midday_protein" to 2002,  
-            "evening_coaching" to 2003,  
+            "evening_nutrition_reminder" to 2003,  
             "weekly_report" to 2004  
         )  
         notificationManager.notify(stableNotifId[id] ?: id.hashCode(), notification)
@@ -202,10 +204,10 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         if (plateau.isPlateaued && plateau.severity == "confirmed") {
             allTriggers.add(NotificationEngine.NotificationTrigger(
                 id = "plateau_confirmed",
-                title = "Weight plateau confirmed — 14 days",
-                body = "Your trend weight has not moved despite consistent logging. Your coach has a specific intervention ready.",
+                title = "Weight trend has been flat for 14 days",
+                body = "Review your progress data and suggested next steps when convenient.",
                 triggerHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
-                priority = "urgent"
+                priority = "default"
             ))
         }
 
