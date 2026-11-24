@@ -210,7 +210,7 @@ fun HomeScreen(
                             val saveJob = homeViewModel.logWeight(weight, preferredUnit = units)
                                 ?: return@launch
                             saveJob.join()
-                            if (homeViewModel.weightLogError.value == null) {
+                            if (!saveJob.isCancelled && homeViewModel.weightLogError.value == null) {
                                 showLogWeight = false
                             }
                         } finally {
