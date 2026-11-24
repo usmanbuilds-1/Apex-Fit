@@ -182,6 +182,9 @@ interface FitnessDao {
     @Query("UPDATE workout_programs SET isActive = 1 WHERE id = :planId")
     suspend fun activatePlan(planId: Long)
 
+    @Query("UPDATE workout_programs SET cycle_anchor_monday = :anchor WHERE id = :planId AND cycle_weeks > 1 AND cycle_anchor_monday IS NULL")
+    suspend fun initializeCycleAnchor(planId: Long, anchor: String)
+
 
 
     @Query("DELETE FROM workout_programs")
