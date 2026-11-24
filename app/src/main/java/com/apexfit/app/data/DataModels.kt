@@ -203,7 +203,9 @@ data class WorkoutPlan(
     @ColumnInfo(name = "is_template", defaultValue = "0") val isTemplate: Int? = 0,
     @ColumnInfo(name = "source", defaultValue = "'manual'") val source: String? = "manual",
     @ColumnInfo(name = "import_raw_text") val importRawText: String? = null,
-    @ColumnInfo(name = "activated_at") val activatedAt: Long? = null
+    @ColumnInfo(name = "activated_at") val activatedAt: Long? = null,
+    @ColumnInfo(name = "cycle_weeks", defaultValue = "1") val cycleWeeks: Int = 1,
+    @ColumnInfo(name = "cycle_anchor_monday") val cycleAnchorMonday: String? = null
 )
 
 @Entity(
@@ -223,7 +225,8 @@ data class PlanSession(
     val planId: Long,
     val label: String, // e.g., "Upper A"
     val day: String, // e.g., "Monday"
-    val focus: String // Muscle group description
+    val focus: String, // Muscle group description
+    @ColumnInfo(name = "cycle_week", defaultValue = "1") val cycleWeek: Int = 1
 )
 
 @Entity(
