@@ -129,14 +129,17 @@ internal object WorkoutPasteRecovery {
     }
 
     private fun splitInline(line: String): List<String> {
-        val parts = line.split(Regex("""[;,]\s*"""))
-        if (parts.size == 1 || WorkoutExerciseLineParser.parse(parts.first()) !is ImportLineShape.FullExercise) return listOf(line)
-        val result = mutableListOf(parts.first().trim())
-        for (part in parts.drop(1)) {
-            val text = part.trim()
+        val delimiters = Regex("""[;,]\s*""").findAll(line).toList()
+        if (delimiters.isEmpty()) return listOf(line)
+        val first = line.substring(0, delimiters.first().range.first).trim()
+        if (WorkoutExerciseLineParser.parse(first) !is ImportLineShape.FullExercise) return listOf(line)
+        val result = mutableListOf(first)
+        for ((index, delimiter) in delimiters.withIndex()) {
+            val end = delimiters.getOrNull(index + 1)?.range?.first ?: line.length
+            val text = line.substring(delimiter.range.last + 1, end).trim()
             val shape = WorkoutExerciseLineParser.parse(text)
             if (shape is ImportLineShape.FullExercise && shape.name.length <= 90) result += text
-            else result[result.lastIndex] = result.last() + "; " + text
+            else result[result.lastIndex] = result.last() + delimiter.value + text
         }
         return result
     }
