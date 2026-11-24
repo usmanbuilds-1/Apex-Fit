@@ -178,7 +178,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         if (activePlan != null) {
             val sessionsPlan = dao.getSessionsForPlan(activePlan.id)
             val todayDayString = SimpleDateFormat("EEEE", Locale.US).format(Date())
-            val todaySession = sessionsPlan.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+            val todaySession = WorkoutSchedule.sessionForDate(activePlan, sessionsPlan, java.time.LocalDate.now())
             if (todaySession != null) {
                 todaySessionType = todaySession.label
             }
