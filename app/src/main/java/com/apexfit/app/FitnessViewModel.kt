@@ -31,7 +31,7 @@ class FitnessViewModel @Inject constructor(
     )
 
     suspend fun loadSettingsSnapshot(): SettingsSnapshot {
-        val current = dataStore.currentWeightFlow.first()
+        val current = repository.getCurrentWeightFlow().first()
         val explicitGoal = dataStore.explicitGoalWeightFlow.first()
         return SettingsSnapshot(
             dataStore.usernameFlow.first(), dataStore.goalFlow.first(),
@@ -48,7 +48,7 @@ class FitnessViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val username = dataStore.usernameFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val goal = dataStore.goalFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Gain Muscle")
-    val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
+    val currentWeight = repository.getCurrentWeightFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
     val goalWeight = combine(dataStore.explicitGoalWeightFlow, currentWeight) { explicit, current ->
         explicit ?: current
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
@@ -170,13 +170,13 @@ class FitnessViewModel @Inject constructor(
     fun setGoalWeight(value: Double, preferredUnit: String = "kg") {
         viewModelScope.launch {
             val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / AppConstants.KG_TO_LBS else value
-            dataStore.saveWeight(currentWeight.value, valueKg)
+            dataStore.saveGoalWeight(valueKg)
         }
     }
 
     fun setProfileWeights(current: Double, goal: Double, preferredUnit: String) {
         val divisor = if (preferredUnit.lowercase() in listOf("lb", "lbs")) AppConstants.KG_TO_LBS else 1.0
-        viewModelScope.launch { dataStore.saveWeight(current / divisor, goal / divisor) }
+        viewModelScope.launch { dataStore.saveGoalWeight(goal / divisor) }
     }
 
     suspend fun saveSettings(
@@ -190,13 +190,6 @@ class FitnessViewModel @Inject constructor(
             height, age, sex, currentWeight / divisor, goalWeight / divisor,
             manualCalories, if (manualCalories) calories else 0
         )
-    }
-
-    fun setBodyWeight(value: Double, preferredUnit: String = "kg") {
-        viewModelScope.launch {
-            val valueKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) value / AppConstants.KG_TO_LBS else value
-            dataStore.saveWeight(valueKg, goalWeight.value)
-        }
     }
 
     // Database wipes CTA

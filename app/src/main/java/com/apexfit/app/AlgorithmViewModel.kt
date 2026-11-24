@@ -96,7 +96,7 @@ class AlgorithmViewModel @Inject constructor(
             dataStore.ageFlow,
             dataStore.sexFlow,
             repository.getAverageTrainingFrequencyFlow(),
-            dataStore.currentWeightFlow
+            repository.getCurrentWeightFlow()
         ) { height, age, sex, workouts, weight ->
             AlgorithmBioProfile(height, age, sex, workouts, weight)
         }

@@ -56,7 +56,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun logWeight_coercesWeightToMinimum() = runTest(testDispatcher) {
+    fun logWeight_rejectsInvalidWeight() = runTest(testDispatcher) {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val db = testDb!!
         val dao = db.fitnessDao()
@@ -70,10 +70,8 @@ class HomeViewModelTest {
         assertNotNull("logWeight job should not be null", job)
         job?.join()
 
-        val entries = dao.getWeightEntries()
-        assertFalse("Weight entries should not be empty", entries.isEmpty())
-        val entry = entries.first()
-        assertEquals("Weight should be coerced to 20.0 kg (minimum limit)", 20.0, entry.weight, 0.001)
+        assertTrue("Invalid weight must not create a measurement", dao.getWeightEntries().isEmpty())
+        assertNotNull(viewModel.weightLogError.value)
 
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
@@ -94,7 +92,7 @@ class HomeViewModelTest {
         assertEquals(
             "Backfilling yesterday must not replace today's current weight",
             80.0,
-            dataStore.currentWeightFlow.first(),
+            repository.getCurrentWeightFlow().first(),
             0.001
         )
 
@@ -104,11 +102,42 @@ class HomeViewModelTest {
         assertEquals(
             "Deleting the newest entry should fall back to the next newest logged weight",
             70.0,
-            dataStore.currentWeightFlow.first(),
+            repository.getCurrentWeightFlow().first(),
             0.001
         )
 
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
+    }
+
+
+    @Test
+    fun multipleSameDaySavesAndEditsPreserveEveryMeasurement() = runTest(testDispatcher) {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val db = testDb!!
+        val dao = db.fitnessDao()
+        val store = DataStoreManager.getInstance(app)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+        val vm = HomeViewModel(app, repo, store, dao)
+        val date = com.apexfit.app.utils.getTodayDateString()
+        try {
+            vm.logWeight(61.0, date)?.join()
+            vm.logWeight(62.0, date)?.join()
+            vm.logWeight(63.0 * com.apexfit.app.utils.AppConstants.KG_TO_LBS, date, "lb")?.join()
+            val entries = dao.getWeightEntries()
+            assertEquals(3, entries.size)
+            assertEquals(63.0, repo.getCurrentWeightFlow().first(), 0.00001)
+            val newest = entries.first()
+            vm.editWeightById(newest.id, 64.0)?.join()
+            assertEquals(3, dao.getWeightEntries().size)
+            assertEquals(newest.time, dao.getWeightEntryById(newest.id)?.time)
+            assertEquals(64.0, repo.getCurrentWeightFlow().first(), 0.00001)
+            vm.deleteWeightById(newest.id).join()
+            assertEquals(2, dao.getWeightEntries().size)
+            assertEquals(62.0, repo.getCurrentWeightFlow().first(), 0.00001)
+            vm.logWeight(Double.NaN)?.join()
+            vm.logWeight(Double.POSITIVE_INFINITY)?.join()
+            assertEquals(2, dao.getWeightEntries().size)
+        } finally { vm.viewModelScope.coroutineContext[Job]?.cancelChildren() }
     }
 
 }

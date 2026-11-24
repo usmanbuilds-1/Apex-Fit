@@ -18,12 +18,8 @@ object AlgorithmEngine {
         }
         if (log.isEmpty()) return emptyList()
 
-        val dailyAveraged = log
-            .groupBy { it.date }
-            .map { (date, entries) ->
-                WeightEntry(date = date, weight = entries.map { it.weight }.average())
-            }
-            .sortedBy { it.date }
+        val dailyAveraged = BodyWeightHistory.daily(log)
+        if (dailyAveraged.isEmpty()) return emptyList()
 
         val result = mutableListOf<TrendPoint>()
         val dailyAlpha = 2.0 / 15.0

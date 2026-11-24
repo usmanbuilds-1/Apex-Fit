@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.*
 import com.apexfit.app.ui.models.UiComplianceResult
 import com.apexfit.app.ui.models.UiSessionReadiness
 import com.apexfit.app.ui.models.toUi
+import com.apexfit.app.utils.BodyWeightHistory
 import com.apexfit.app.utils.AlgorithmEngine
 import com.apexfit.app.utils.WorkoutSchedule
 import com.apexfit.app.utils.ComplianceEngine
@@ -95,7 +96,7 @@ class FitnessRepositoryImpl @Inject constructor(
         ) { height, age, sex, weekly, goalWeight ->
             BioProfile(height, age, sex, weekly, goalWeight, com.apexfit.app.UserDefaults.WEIGHT_KG)
         }
-        .combine(dataStore.currentWeightFlow) { profile, weight -> profile.copy(currentWeightKg = weight) }
+        .combine(getCurrentWeightFlow()) { profile, weight -> profile.copy(currentWeightKg = weight) }
         .distinctUntilChanged()
         .stateIn(appScope, SharingStarted.WhileSubscribed(5_000), BioProfile.DEFAULT)
     }
@@ -135,7 +136,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val weightEntriesFlow: StateFlow<List<WeightEntry>> by lazy {
-        dao.getWeightEntriesSinceFlow(getWindowStartDate(90))
+        todayDateFlow.flatMapLatest { date -> dao.getWeightEntriesSinceFlow(LocalDate.parse(date).minusDays(89).toString()) }
             .flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
@@ -168,7 +169,7 @@ class FitnessRepositoryImpl @Inject constructor(
             nutritionEntriesFlow,
             todayContextFlow,
             sharedTargetsFlow,
-            dataStore.currentWeightFlow
+            getCurrentWeightFlow()
         ) { sessions, nutritionList, todayContext, targets, weight ->
             try {
                 if (sessions.isEmpty()) {
@@ -269,7 +270,7 @@ class FitnessRepositoryImpl @Inject constructor(
             val todayDate           = values[8] as String
             val currentWeekFrequency = values[9] as Int
 
-            val latestWeight = weights.maxByOrNull { it.date }?.weight
+            val latestWeight = BodyWeightHistory.latest(weights)?.weight
                 ?: bio.currentWeightKg
             val calories: Int = if (isManual) {
                 manualCals
@@ -415,7 +416,20 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override suspend fun logWeightEntry(entry: WeightEntry) {
+        require(BodyWeightHistory.valid(entry) && entry.unit == "kg") { "Invalid body weight" }
+        dataStore.resolveWeightBaseline(dao.getWeightEntries(limit = 1).isNotEmpty())
         dao.insertWeightEntry(entry)
+    }
+
+    override suspend fun editWeightEntry(id: Long, weightKg: Double): Boolean {
+        require(weightKg.isFinite() && weightKg in com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG..com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG)
+        dataStore.resolveWeightBaseline(dao.getWeightEntries(limit = 1).isNotEmpty())
+        return dao.updateWeightById(id, weightKg) == 1
+    }
+
+    override suspend fun removeWeightEntry(id: Long) {
+        dataStore.resolveWeightBaseline(dao.getWeightEntries(limit = 1).isNotEmpty())
+        dao.deleteWeightEntryById(id)
     }
 
     override suspend fun logNutritionEntry(entry: NutritionEntry) {
@@ -513,8 +527,7 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override fun getWeightHistory(): Flow<List<WeightEntry>> {
-        val cutoffDate = LocalDate.now().minusDays(89).toString()
-        return dao.getWeightEntriesFromFlow(cutoffDate)
+        return dao.observeAllWeightEntries().flowOn(Dispatchers.IO)
     }
 
     override fun getNutritionEntries(date: String): Flow<List<NutritionEntry>> {
@@ -618,16 +631,16 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override fun getCurrentWeightFlow(): Flow<Double> {
-        return dataStore.currentWeightFlow
+        return combine(dao.observeAllWeightEntries(), dataStore.weightBaselineFlow) { entries, fallback ->
+            BodyWeightHistory.latest(entries)?.weight ?: fallback ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+        }.distinctUntilChanged().flowOn(Dispatchers.IO)
     }
 
     override suspend fun scanAndSaveWeeklyPatterns() {
         val cutoffDate = getWindowStartDate(90)
 
         val dbWeights = dao.getWeightEntriesSince(cutoffDate)
-        val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
-            com.apexfit.app.utils.WeightEntry(date, list.map { it.weight }.average())
-        }.sortedBy { it.date }
+        val engineWeights = BodyWeightHistory.daily(dbWeights)
         
         val dbNutrition = dao.getNutritionEntriesSince(cutoffDate)
         val engineNutrition = dbNutrition.groupBy { it.date }.map { (date, list) ->
@@ -653,7 +666,7 @@ class FitnessRepositoryImpl @Inject constructor(
             )
         }
         
-        val latestWeight = engineWeights.lastOrNull()?.weight ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+        val latestWeight = BodyWeightHistory.latest(dbWeights)?.weight ?: getCurrentWeightFlow().first()
         val proteinTarget = (latestWeight * com.apexfit.app.UserDefaults.PROTEIN_PER_KG)
             .coerceIn(100.0, 250.0)
 
