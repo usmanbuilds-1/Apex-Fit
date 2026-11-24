@@ -248,4 +248,58 @@ class WorkoutImporterPersistenceTest {
             db.close()
         }
     }
+
+    @Test
+    fun rotatingPlanPersistsAllSlotsAndActivationAnchorWithoutRecreatingHistory() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val dao = db.fitnessDao()
+            dao.insertExercises(listOf(Exercise(id = "bench", name = "Bench Press", category = "Barbell", primaryMuscle = "Chest", equipmentRequired = "Barbell")))
+            val previous = dao.insertWorkoutPlan(WorkoutPlan(name = "Previous", goal = "General", isActive = true))
+            val repo = FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
+            val sessions = (1..2).flatMap { week ->
+                listOf("Monday", "Wednesday", "Friday").mapIndexed { index, day ->
+                    PlanSession(id = -(week * 10L + index), planId = 0,
+                        label = if ((week + index) % 2 == 1) "A" else "B",
+                        day = day, focus = "Chest", cycleWeek = week)
+                }
+            }
+            val exercises = sessions.map { session ->
+                PlanExercise(planSessionId = session.id, exerciseId = "bench", name = "Bench Press",
+                    muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12,
+                    weight = 20.0, weightUnit = "kg", restSeconds = 90, notes = "")
+            }
+            repo.updateWorkoutPlan(WorkoutPlan(name = "Rotating", goal = "General", isActive = true, cycleWeeks = 2), sessions, exercises)
+            val saved = requireNotNull(dao.getActivePlan())
+            assertEquals("Rotating", saved.name)
+            assertEquals(2, saved.cycleWeeks)
+            assertEquals(3, saved.daysPerWeek)
+            val anchor = java.time.LocalDate.parse(requireNotNull(saved.cycleAnchorMonday))
+            assertEquals(java.time.DayOfWeek.MONDAY, anchor.dayOfWeek)
+            val rows = dao.getSessionsForPlan(saved.id)
+            assertEquals(6, rows.size)
+            assertEquals(6, rows.map { it.id }.distinct().size)
+            assertEquals(6, rows.sumOf { dao.getExercisesForSession(it.id).size })
+            assertEquals("A", com.apexfit.app.utils.WorkoutSchedule.sessionForDate(saved, rows, anchor)?.label)
+            assertEquals("B", com.apexfit.app.utils.WorkoutSchedule.sessionForDate(saved, rows, anchor.plusWeeks(1))?.label)
+            assertFalse(dao.getAllPlans().single { it.id == previous }.isActive)
+
+            // A malformed rotation must fail before replacing the active plan.
+            try {
+                repo.updateWorkoutPlan(WorkoutPlan(name = "Invalid", goal = "General", isActive = true, cycleWeeks = 2),
+                    sessions + sessions.first().copy(id = -1000), exercises)
+                fail("Expected duplicate cycle slot to be rejected")
+            } catch (_: IllegalArgumentException) { }
+            assertEquals(saved.id, dao.getActivePlan()?.id)
+            assertEquals(6, dao.getSessionsForPlan(saved.id).size)
+
+            dao.deactivateAllPlans()
+            dao.activatePlan(previous)
+            dao.deactivateAllPlans()
+            dao.initializeCycleAnchor(saved.id, anchor.plusWeeks(8).toString())
+            dao.activatePlan(saved.id)
+            assertEquals(anchor.toString(), dao.getActivePlan()?.cycleAnchorMonday)
+        } finally { db.close() }
+    }
 }
