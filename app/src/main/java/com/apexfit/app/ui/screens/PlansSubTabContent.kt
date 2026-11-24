@@ -109,7 +109,7 @@ internal fun PlansSubTabContent(
                         ) {
                             Text("Next", color = ApexColors.TextSecondary, fontSize = 14.sp)
                             Spacer(Modifier.weight(1f))
-                            Text(nextSessionLabel(activeSessions, today), color = ApexColors.TextPrimary,
+                            Text(nextSessionLabel(activePlan, activeSessions, today), color = ApexColors.TextPrimary,
                                 fontSize = 14.sp, fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
@@ -206,10 +206,11 @@ internal fun PlansLoadingState(modifier: Modifier = Modifier) {
 private fun frequencyLabel(plan: WorkoutPlan, sessions: UiState<List<PlanSession>>): String? {
     val days = plan.daysPerWeek?.takeIf { it > 0 }
         ?: ((sessions as? UiState.Success)?.data?.map { it.day.lowercase() }?.distinct()?.size?.takeIf { it > 0 })
+    if (plan.cycleWeeks > 1) return "${plan.cycleWeeks}-week rotation"
     return days?.let { "$it days / week" }
 }
 
-private fun nextSessionLabel(state: UiState<List<PlanSession>>, todayDate: LocalDate): String = when (state) {
+private fun nextSessionLabel(plan: WorkoutPlan, state: UiState<List<PlanSession>>, todayDate: LocalDate): String = when (state) {
     UiState.Loading -> "Schedule loading"
     is UiState.Error -> "Schedule unavailable"
     is UiState.Success -> {
@@ -217,12 +218,8 @@ private fun nextSessionLabel(state: UiState<List<PlanSession>>, todayDate: Local
         if (sessions.isEmpty()) {
             "No sessions scheduled"
         } else {
-            val today = todayDate.dayOfWeek.value - 1
-            val next = (0..6).firstNotNullOfOrNull { offset ->
-                val day = planWeekdays[(today + offset) % planWeekdays.size]
-                sessions.firstOrNull { it.day.equals(day, ignoreCase = true) }?.let { day to it }
-            }
-            next?.let { (day, session) -> "${session.label} · $day" } ?: "No upcoming session"
+            val next = com.apexfit.app.utils.WorkoutSchedule.nextSession(plan, sessions, todayDate)
+            next?.let { (date, session) -> "${session.label} · ${date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH)}" } ?: "No upcoming session"
         }
     }
 }
