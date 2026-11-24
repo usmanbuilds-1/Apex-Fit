@@ -275,7 +275,7 @@ class WorkoutTextParser(
         } else parsedDays
         if (schedule.isNotEmpty()) {
             globalWarnings.add(0, ImportWarning(ImportWarning.LINE_NOT_PARSED,
-                "Weekly schedule recovered. Select a fixed week to save; automatic multi-week rotation is not supported yet.", ImportWarningSeverity.WARNING))
+                "Weekly schedule recovered. Review the workout templates and the repeating schedule before saving.", ImportWarningSeverity.WARNING))
         }
         return WorkoutImportParseResult(
             plan = ParsedImportedPlan(
