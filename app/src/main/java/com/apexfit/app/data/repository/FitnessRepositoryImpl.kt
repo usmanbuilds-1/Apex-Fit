@@ -14,6 +14,7 @@ import com.apexfit.app.ui.models.UiComplianceResult
 import com.apexfit.app.ui.models.UiSessionReadiness
 import com.apexfit.app.ui.models.toUi
 import com.apexfit.app.utils.AlgorithmEngine
+import com.apexfit.app.utils.WorkoutSchedule
 import com.apexfit.app.utils.ComplianceEngine
 import com.apexfit.app.utils.MacroEngine
 import com.apexfit.app.utils.TdeeEngine
@@ -218,8 +219,9 @@ class FitnessRepositoryImpl @Inject constructor(
 
         val activePlanSessionsFlow: Flow<List<PlanSession>> =
             activePlanFlow.flatMapLatest { plan ->
-                if (plan != null) dao.getSessionsForPlanFlow(plan.id)
-                else flowOf(emptyList())
+                if (plan != null) combine(dao.getSessionsForPlanFlow(plan.id), todayDateFlow) { sessions, date ->
+                    WorkoutSchedule.weekSessions(plan, sessions, LocalDate.parse(date))
+                } else flowOf(emptyList())
             }
 
         @Suppress("UNCHECKED_CAST")
@@ -274,7 +276,7 @@ class FitnessRepositoryImpl @Inject constructor(
 
             val cycled = MacroEngine.calcCycledTargets(
                 weeklyCalorieTarget    = calories,
-                weeklyTrainingSessions = bio.weeklyWorkouts,
+                weeklyTrainingSessions = planSessions.size.takeIf { it > 0 } ?: bio.weeklyWorkouts,
                 goal                   = goal,
                 bodyWeightKg           = latestWeight,
                 heightCm               = bio.heightCm,
@@ -283,6 +285,7 @@ class FitnessRepositoryImpl @Inject constructor(
 
             val todayDayString = java.time.LocalDate.parse(todayDate).format(DAY_OF_WEEK_FORMAT)
             val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+            val weeklySessions = planSessions.size.takeIf { it > 0 } ?: bio.weeklyWorkouts
             val isPlannedTraining = todayPlanned != null &&
                 !todayPlanned.label.contains("Rest", ignoreCase = true) &&
                 todayPlanned.focus != "Muscle Recovery & Rest"
@@ -311,7 +314,7 @@ class FitnessRepositoryImpl @Inject constructor(
             sessions.flatMapLatest { sessionList ->
                 todayDateFlow.flatMapLatest { todayDate ->
                     val todayDayString = java.time.LocalDate.parse(todayDate).format(DAY_OF_WEEK_FORMAT)
-                    val todaySession = sessionList.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+                    val todaySession = plan?.let { WorkoutSchedule.sessionForDate(it, sessionList, LocalDate.parse(todayDate)) }
                     if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
                 }
             }
@@ -418,10 +421,13 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override suspend fun updateWorkoutPlan(plan: WorkoutPlan, sessions: List<PlanSession>, exercises: List<PlanExercise>) = db.withTransaction {
+        require(WorkoutSchedule.validationError(plan, sessions) == null) { WorkoutSchedule.validationError(plan, sessions).orEmpty() }
         if (plan.isActive) {
             dao.deactivateAllPlans()
         }
-        val planId = dao.upsertWorkoutPlan(plan)
+        val anchoredPlan = if (plan.cycleWeeks > 1 && plan.isActive && plan.cycleAnchorMonday == null)
+            plan.copy(cycleAnchorMonday = WorkoutSchedule.monday(LocalDate.now()).toString()) else plan
+        val planId = dao.upsertWorkoutPlan(anchoredPlan)
 
         // Step 1: delete old sessions (cascade deletes their exercises too)
         dao.deleteSessionsForPlan(planId)
