@@ -84,6 +84,16 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            all {
+                // Robolectric fetches Android framework jars at test runtime,
+                // outside Gradle's normal dependency cache. Use Google's Maven
+                // Central mirror to avoid throttling on the direct Central URL.
+                it.systemProperty(
+                    "robolectric.dependency.repo.url",
+                    "https://maven-central.storage-download.googleapis.com/maven2/"
+                )
+                it.systemProperty("robolectric.dependency.repo.id", "MavenCentralGoogleMirror")
+            }
         }
     }
 
