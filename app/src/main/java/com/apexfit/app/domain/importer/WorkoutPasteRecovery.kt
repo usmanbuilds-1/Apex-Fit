@@ -107,6 +107,7 @@ internal object WorkoutPasteRecovery {
             val line = normalize(raw.replace(Regex("""\s+[•●▪]\s+"""), "; "))
             if (line.startsWith("Recovery warning:")) { output += line; continue }
             if (line.isBlank()) {
+                if (scheduleColumns != null) output += "Schedule end:"
                 output += ""
                 table = null
                 activeDay = null
@@ -224,6 +225,7 @@ internal object WorkoutPasteRecovery {
             }
             table = null
             activeDay = null
+            if (scheduleColumns != null) output += "Schedule end:"
             scheduleColumns = null
             if (line.matches(Regex("""(?i)^(?:weekly|training|workout)\s+schedule\s*:?$"""))) {
                 output += "Schedule heading: " + line
