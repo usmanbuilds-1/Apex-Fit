@@ -74,6 +74,7 @@ internal object WorkoutPasteRecovery {
         val output = mutableListOf<String>()
         var table: Table? = null
         var activeDay: String? = null
+        var scheduleColumns: List<String>? = null
         val customDays = linkedMapOf<String, Int>()
         for (raw in restoreFragmentedTables(lines, normalize)) {
             val line = normalize(raw.replace(Regex("""\s+[•●▪]\s+"""), "; "))
@@ -81,6 +82,7 @@ internal object WorkoutPasteRecovery {
                 output += ""
                 table = null
                 activeDay = null
+                scheduleColumns = null
                 continue
             }
             val delimiter = when {
@@ -92,6 +94,26 @@ internal object WorkoutPasteRecovery {
             val cells = delimiter?.let { cells(raw, it).map(normalize) }
             if (cells != null && delimiter != null) {
                 val columns = cells.map(::column)
+                if (columns.firstOrNull()?.field == Field.DAY && cells.size >= 2 &&
+                    cells.drop(1).all { scheduleWeek.matches(it) }) {
+                    scheduleColumns = cells.drop(1)
+                    table = null
+                    continue
+                }
+                val schedule = scheduleColumns
+                if (schedule != null) {
+                    if (cells.all { it.matches(Regex("""[:\- ]*""")) }) continue
+                    if (cells.size == schedule.size + 1) {
+                        val weekday = WorkoutDayDetector.detect(cells.first())?.dayOfWeek
+                        if (weekday != null) {
+                            // Internal marker; consumed by the parser, never interpreted as exercise.
+                            output += "Schedule row: " + (listOf(weekday) + schedule.zip(cells.drop(1)).map { (week, workout) -> "$week=$workout" }).joinToString(" | ")
+                            continue
+                        }
+                    }
+                    output += "Schedule unresolved: " + line
+                    continue
+                }
                 if (columns.count { it.field == Field.EXERCISE } == 1 &&
                     columns.any { it.field in setOf(Field.SETS, Field.REPS, Field.PRESCRIPTION) }) {
                     table = Table(delimiter, columns)
@@ -174,6 +196,11 @@ internal object WorkoutPasteRecovery {
             }
             table = null
             activeDay = null
+            scheduleColumns = null
+            if (line.matches(Regex("""(?i)^(?:weekly|training|workout)\s+schedule\s*:?$"""))) {
+                output += "Schedule heading: " + line
+                continue
+            }
             val colon = line.indexOf(':')
             val heading = if (colon > 0) line.substring(0, colon).trim() else ""
             val tail = if (colon > 0) line.substring(colon + 1).trim() else ""
