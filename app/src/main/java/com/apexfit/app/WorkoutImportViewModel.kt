@@ -154,6 +154,16 @@ class WorkoutImportViewModel @Inject constructor(
 
     fun updateMakeActive(value: Boolean) = updateDraft { it.copy(makeActive = value) }
 
+    fun selectFixedScheduleWeek(week: String) {
+        val draft = _uiState.value.draft ?: return
+        val selected = draft.selectFixedWeek(week)
+        if (selected == null) {
+            _uiState.value = _uiState.value.copy(errorMessage = "The selected week does not match every workout template. Check the labels and schedule.")
+        } else {
+            _uiState.value = _uiState.value.copy(draft = selected, errorMessage = null, validationErrors = emptyList())
+        }
+    }
+
     fun updateDayLabel(dayKey: String, value: String) = updateDay(dayKey) { it.copy(label = value.take(48)) }
 
     fun updateDayWeekday(dayKey: String, value: String?) = updateDay(dayKey) { it.copy(dayOfWeek = value) }
