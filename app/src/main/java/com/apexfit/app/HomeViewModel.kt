@@ -281,7 +281,7 @@ class HomeViewModel @Inject constructor(
             try {  
                 val cutoff90 = com.apexfit.app.utils.getWindowStartDate(90)
                 val cutoff365 = com.apexfit.app.utils.getWindowStartDate(365)
-                val weights = dao.getWeightEntriesSince(cutoff90)  
+                val weights = dao.observeAllWeightEntries().first()  
                 val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
                 val sessions = dao.getAllTrainingSessions()  
                 val exerciseSets = dao.getRecentExerciseSets(cutoff365)
@@ -335,8 +335,6 @@ class HomeViewModel @Inject constructor(
         return com.apexfit.app.utils.DateTimeUtils.todayDateString()
     }
 
-    private fun getCurrentLocalTimeString(): String =
-        java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
 
     public override fun onCleared() {
         super.onCleared()
