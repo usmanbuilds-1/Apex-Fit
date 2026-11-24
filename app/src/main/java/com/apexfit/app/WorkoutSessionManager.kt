@@ -204,7 +204,7 @@ class WorkoutSessionManager(
             val nutritionLogDeferred = async { repository.getAllNutritionEntriesFlow().firstOrNull() ?: emptyList() }
             val calorieTargetDeferred = async { repository.getCalorieTargetFlow().firstOrNull() ?: com.apexfit.app.UserDefaults.CALORIES }
             val userGoalDeferred = async { repository.getGoalFlow().firstOrNull() ?: "Maintain Weight" }
-            val weeklyWorkoutsDeferred = async { dataStore.weeklyWorkoutsFlow.first() }
+            val weeklyWorkoutsDeferred = async { repository.getTrainingFrequencyFlow().first() }
 
             val nutritionLog = nutritionLogDeferred.await()
             val calorieTarget = calorieTargetDeferred.await()
