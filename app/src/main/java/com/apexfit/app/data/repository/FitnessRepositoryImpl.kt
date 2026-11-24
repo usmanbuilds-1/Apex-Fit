@@ -396,15 +396,20 @@ class FitnessRepositoryImpl @Inject constructor(
 
     override suspend fun logWeightEntry(entry: WeightEntry) {
         require(BodyWeightHistory.valid(entry) && entry.unit == "kg") { "Invalid body weight" }
+        dataStore.resolveWeightBaseline(dao.getWeightEntries(limit = 1).isNotEmpty())
         dao.insertWeightEntry(entry)
     }
 
     override suspend fun editWeightEntry(id: Long, weightKg: Double): Boolean {
         require(weightKg.isFinite() && weightKg in com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG..com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG)
+        dataStore.resolveWeightBaseline(dao.getWeightEntries(limit = 1).isNotEmpty())
         return dao.updateWeightById(id, weightKg) == 1
     }
 
-    override suspend fun removeWeightEntry(id: Long) { dao.deleteWeightEntryById(id) }
+    override suspend fun removeWeightEntry(id: Long) {
+        dataStore.resolveWeightBaseline(dao.getWeightEntries(limit = 1).isNotEmpty())
+        dao.deleteWeightEntryById(id)
+    }
 
     override suspend fun logNutritionEntry(entry: NutritionEntry) {
         dao.insertNutritionEntry(entry)
@@ -599,8 +604,8 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override fun getCurrentWeightFlow(): Flow<Double> {
-        return combine(dao.observeAllWeightEntries(), dataStore.currentWeightFlow) { entries, fallback ->
-            BodyWeightHistory.latest(entries)?.weight ?: fallback
+        return combine(dao.observeAllWeightEntries(), dataStore.weightBaselineFlow) { entries, fallback ->
+            BodyWeightHistory.latest(entries)?.weight ?: fallback ?: com.apexfit.app.UserDefaults.WEIGHT_KG
         }.distinctUntilChanged().flowOn(Dispatchers.IO)
     }
 
