@@ -357,7 +357,7 @@ internal fun WorkoutImportReviewScreen(
             state.parseWarnings.forEach { warning ->
                 item { ImportNotice(warning, false) }
             }
-            state.validationErrors.drop(1).take(3).forEach { warning ->
+            state.validationErrors.drop(1).forEach { warning ->
                 item { ImportNotice(warning, true) }
             }
 
