@@ -41,7 +41,13 @@ internal object WorkoutTextNormalizer {
             }
         }.trim()
 
-        return NormalizedWorkoutText(original, output, truncated)
+        if (output.length > MAX_INPUT_CHARS) truncated = true
+        val safeOutput = if (output.length <= MAX_INPUT_CHARS) output else {
+            val cut = output.take(MAX_INPUT_CHARS)
+            val lastBreak = cut.lastIndexOf('\n')
+            if (lastBreak > MAX_INPUT_CHARS / 2) cut.substring(0, lastBreak) else cut
+        }
+        return NormalizedWorkoutText(original, safeOutput, truncated)
     }
 
     private fun normalizeLine(raw: String): String {
@@ -173,7 +179,7 @@ internal object WorkoutExerciseLineParser {
     private val groupRegex = Regex("""(?i)^\s*(?:superset|super\s*set|circuit|ss)\s*([a-e])?\s*[: -]?\s*$""")
     private val groupPrefixRegex = Regex("""^\s*([A-Ea-e])\d{1,2}\s*[.): -]?\s+(.+)$""")
     private val restOnlyRegex = Regex(
-        """(?i)^\s*(?:rest\b.*|\d{1,3}\s*(?:s|sec|secs|second|seconds|min|mins|minute|minutes)\b.*)$"""
+        """(?i)^\s*(?:(?:rest|load|weight|rpe|rir)\b.*|@\s*.*|\d{1,6}(?:\.\d+)?\s*(?:kg|kgs|lb|lbs)\b.*|\d{1,3}\s*(?:s|sec|secs|second|seconds|min|mins|minute|minutes)\b.*)$"""
     )
     private val coreStartRegex = Regex(
         """(?i)(?:\b\d{1,2}\s*x\s*(?:\d{1,3}|amrap|max(?:\s+reps?)?|(?:to\s+)?failure)|\b\d{1,3}\s+(?:sets?|reps?)\b|\b(?:sets?|reps?)\s*[:=]?\s*\d{1,3}\b|\b\d{1,3}\s*-\s*\d{1,3}\s+reps?\b)"""
@@ -249,6 +255,7 @@ internal object WorkoutPrescriptionParser {
     private val setsFixed = Regex("""(?i)\b(\d{1,2})\s+sets?\s*(?:x|of)?\s*(\d{1,3})\s*(?:reps?)?\b""")
     private val labeledSets = Regex("""(?i)\b(?:sets?\s*[:=]?\s*(\d{1,2})\b|(\d{1,2})\s+sets?\b)""")
     private val labeledReps = Regex("""(?i)\b(?:reps?\s*[:=]?\s*(\d{1,3})(?:\s*-\s*(\d{1,3}))?\b|(\d{1,3})(?:\s*-\s*(\d{1,3}))?\s+reps?\b)""")
+    private val sequenceCore = Regex("""(?i)\b(\d{1,2})\s*(?:x|sets?\s*(?:x|of)?)\s*(\d{1,3}(?:\s*,\s*\d{1,3}){2,})(?:\s+reps?)?\b(?!\s*(?:kg|lb|lbs|kgs|sec|min)\b)""")
     private val durationCore = Regex("""(?i)\b(\d{1,2})\s*(?:x|sets?\s*(?:x|of)?)\s*(\d{1,3}(?:\s*-\s*\d{1,3})?)\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\b(?!\s*rest\b)""")
     private val setsFailure = Regex("""(?i)\b(\d{1,2})\s+sets?\s*(?:x|of)?\s*(?:to\s+)?failure\b""")
 
@@ -302,7 +309,13 @@ internal object WorkoutPrescriptionParser {
         var target = ImportRepTarget.FIXED
         var repNote: String? = null
 
-        val duration = durationCore.find(remaining)
+        val sequence = sequenceCore.find(remaining)
+        if (sequence != null) {
+            sets = sequence.groupValues[1].toIntOrNull()
+            repNote = "Source per-set rep sequence: " + sequence.groupValues[2] + ". Choose a numeric target before saving."
+            remaining = removeMatch(remaining, sequence)
+        }
+        val duration = if (sequence == null) durationCore.find(remaining) else null
         if (duration != null) {
             sets = duration.groupValues[1].toIntOrNull()
             repNote = "Source timed target: " + duration.value
@@ -315,7 +328,7 @@ internal object WorkoutPrescriptionParser {
         val rangeX = rangeCore.find(remaining)
         val fixedSets = setsFixed.find(remaining)
         val fixedX = fixedCore.find(remaining)
-        val coreMatch = if (duration != null) null else semantic ?: failureSets ?: rangeSets ?: rangeX ?: fixedSets ?: fixedX
+        val coreMatch = if (duration != null || sequence != null) null else semantic ?: failureSets ?: rangeSets ?: rangeX ?: fixedSets ?: fixedX
 
         if (coreMatch != null) {
             when (coreMatch) {
@@ -346,7 +359,7 @@ internal object WorkoutPrescriptionParser {
             remaining = removeMatch(remaining, coreMatch)
         }
 
-        if (coreMatch == null && duration == null) {
+        if (coreMatch == null && duration == null && sequence == null) {
             labeledSets.find(remaining)?.let {
                 sets = it.groupValues.drop(1).firstOrNull(String::isNotBlank)?.toIntOrNull()
                 remaining = removeMatch(remaining, it)
@@ -360,8 +373,8 @@ internal object WorkoutPrescriptionParser {
             }
         }
         // Invalid prescriptions must stay visible, never silently become usable values.
-        if (sets != null && sets !in 1..99 || repsMin != null && repsMin !in 1..999 ||
-            repsMax != null && repsMax !in 1..999 ||
+        if (sets?.let { it !in 1..99 } == true || repsMin?.let { it !in 1..999 } == true ||
+            repsMax?.let { it !in 1..999 } == true ||
             (repsMin != null && repsMax != null && repsMin!! > repsMax!!)) {
             repNote = "Invalid source target: " + text
             sets = sets?.takeIf { it in 1..99 }
