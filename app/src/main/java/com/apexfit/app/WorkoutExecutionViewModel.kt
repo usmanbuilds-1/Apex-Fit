@@ -34,7 +34,7 @@ class WorkoutExecutionViewModel @Inject constructor(
     private val isCommitting = java.util.concurrent.atomic.AtomicBoolean(false)
 
     // User weight from preferences for relative calculations
-    val currentWeight = dataStore.currentWeightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
+    val currentWeight = repository.getCurrentWeightFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.WEIGHT_KG)
     val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.HEIGHT_CM)
     val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "kg")
 
