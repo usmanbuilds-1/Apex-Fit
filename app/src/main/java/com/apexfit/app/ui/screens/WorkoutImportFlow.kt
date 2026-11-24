@@ -65,6 +65,7 @@ fun WorkoutImportFlow(
                 onUpdatePlanName = viewModel::updatePlanName,
                 onUpdatePlanGoal = viewModel::updatePlanGoal,
                 onUpdateMakeActive = viewModel::updateMakeActive,
+                onSelectFixedWeek = viewModel::selectFixedScheduleWeek,
                 onAddDay = viewModel::addDay,
                 onAddExercise = viewModel::addExercise,
                 onSelectExercise = viewModel::selectExercise,
@@ -89,6 +90,7 @@ internal data class WorkoutImportReviewActions(
     val onUpdatePlanName: (String) -> Unit = {},
     val onUpdatePlanGoal: (String) -> Unit = {},
     val onUpdateMakeActive: (Boolean) -> Unit = {},
+    val onSelectFixedWeek: (String) -> Unit = {},
     val onAddDay: () -> Unit = {},
     val onAddExercise: (dayKey: String, exerciseId: String) -> Unit = { _, _ -> },
     val onSelectExercise: (dayKey: String, exerciseKey: String, exerciseId: String) -> Unit = { _, _, _ -> },
@@ -339,7 +341,24 @@ internal fun WorkoutImportReviewScreen(
                 }
             }
             state.errorMessage?.let { item { ImportNotice(it, true) } }
-            state.parseWarnings.take(4).forEach { warning ->
+            if (draft.schedule.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Recovered schedule", color = PrimaryText, fontWeight = FontWeight.SemiBold)
+                        Text("Apex Fit currently repeats one fixed week. Choose a week explicitly; the original schedule remains in your source text.", color = MutedText, fontSize = 12.sp)
+                        draft.schedule.groupBy { it.week }.forEach { (week, slots) ->
+                            Text(week, color = PrimaryText, fontWeight = FontWeight.SemiBold)
+                            slots.forEach { slot -> Text(slot.weekday + " · " + slot.workout, color = SecondaryText, fontSize = 12.sp) }
+                            if (draft.selectedScheduleWeek == null) {
+                                OutlinedButton(onClick = { actions.onSelectFixedWeek(week) }) { Text("Import $week as fixed weekly plan") }
+                            } else if (draft.selectedScheduleWeek == week) {
+                                Text("Selected fixed week", color = PrimaryText, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+            state.parseWarnings.forEach { warning ->
                 item { ImportNotice(warning, false) }
             }
             state.validationErrors.drop(1).take(3).forEach { warning ->
