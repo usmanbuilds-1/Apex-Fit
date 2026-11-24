@@ -287,7 +287,8 @@ class WorkoutImportViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(isSaving = true, errorMessage = null, validationErrors = emptyList())
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val selectedIds = draft.days.flatMap { it.exercises }
+                val scheduledDays = requireNotNull(draft.scheduledDays())
+                val selectedIds = scheduledDays.flatMap { it.second.exercises }
                     .mapNotNull { it.selectedExerciseId }
                     .distinct()
                 val metadataById = dao.getMetadataForExercises(selectedIds).associateBy(ExerciseMetadata::exerciseId)
@@ -296,25 +297,27 @@ class WorkoutImportViewModel @Inject constructor(
                     name = draft.name.trim(),
                     goal = planGoal,
                     isActive = draft.makeActive,
-                    daysPerWeek = draft.days.size,
+                    daysPerWeek = kotlin.math.round(scheduledDays.size.toDouble() / draft.cycleWeeks).toInt().coerceAtLeast(1),
+                    cycleWeeks = draft.cycleWeeks,
                     isTemplate = 0,
                     source = "text_import",
                     importRawText = draft.originalText.take(WorkoutTextNormalizer.MAX_INPUT_CHARS)
                 )
 
-                val temporarySessionIds = draft.days.indices.associateWith { index -> -(index + 1L) }
-                val sessions = draft.days.mapIndexed { index, day ->
+                val temporarySessionIds = scheduledDays.indices.associateWith { index -> -(index + 1L) }
+                val sessions = scheduledDays.mapIndexed { index, (week, day) ->
                     val muscles = day.exercises.mapNotNull { it.muscleGroup }.distinct()
                     PlanSession(
                         id = temporarySessionIds.getValue(index),
                         planId = 0,
                         label = day.label.trim().ifBlank { day.dayOfWeek ?: "Workout ${index + 1}" },
                         day = requireNotNull(day.dayOfWeek),
+                        cycleWeek = week,
                         focus = if (muscles.isEmpty()) "General" else muscles.joinToString(", ")
                     )
                 }
 
-                val exercises = draft.days.flatMapIndexed { dayIndex, day ->
+                val exercises = scheduledDays.flatMapIndexed { dayIndex, (_, day) ->
                     val temporarySessionId = temporarySessionIds.getValue(dayIndex)
                     day.exercises.map { exercise ->
                         val exerciseId = requireNotNull(exercise.selectedExerciseId)
