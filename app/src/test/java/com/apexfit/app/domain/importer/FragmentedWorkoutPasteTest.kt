@@ -28,7 +28,7 @@ class FragmentedWorkoutPasteTest {
         "Monday", "Workout A", "Workout B", "Tuesday", "Rest", "Rest",
         "Wednesday", "Workout B", "Workout A", "Thursday", "Rest", "Rest",
         "Friday", "Workout A", "Workout B", "Saturday", "Rest", "Rest", "Sunday", "Rest", "Rest")
-    private fun source(): String =
+    internal fun source(): String =
         fragmented(listOf("Exercise", "Sets", "Reps") + workoutA) +
         "\n\n## **Workout B**\n\n" +
         fragmented(listOf("Exercise", "Sets", "Reps") + workoutB) +
