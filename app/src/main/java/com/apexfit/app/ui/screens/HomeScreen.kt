@@ -150,7 +150,7 @@ fun HomeScreen(
 
     val weightEntries = remember(weightHistoryState) {
         when (val s = weightHistoryState) {
-            is UiState.Success -> s.data.sortedWith(compareBy<UiWeightEntry> { it.date }.thenBy { it.time }).takeLast(7)
+            is UiState.Success -> s.data.sortedWith(com.apexfit.app.utils.BodyWeightHistory.uiChronological)
             else -> emptyList()
         }
     }
@@ -624,7 +624,8 @@ private fun TodayMacroRow(label: String, logged: Int, target: Int) {
 @Composable
 private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, units: String,
     userGoal: String, onView: () -> Unit) {
-    val history = entries.sortedWith(compareBy<UiWeightEntry> { it.date }.thenBy { it.time })
+    val history = com.apexfit.app.utils.BodyWeightHistory.dailyUi(entries).takeLast(7)
+    val latest = entries.maxWithOrNull(com.apexfit.app.utils.BodyWeightHistory.uiChronological)
     val imperial = units.lowercase() in listOf("lb", "lbs")
     val multiplier = if (imperial) com.apexfit.app.utils.AppConstants.KG_TO_LBS else 1.0
     val unit = if (imperial) "lb" else "kg"
@@ -641,13 +642,13 @@ private fun WeightTrendCard(modifier: Modifier, entries: List<UiWeightEntry>, un
             Text("Your logged weight will appear here.", color = TextMuted, fontSize = 13.sp)
         } else {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(String.format(Locale.getDefault(), "%.1f %s", history.last().weight * multiplier, unit),
+                Text(String.format(Locale.getDefault(), "%.1f %s", (latest?.weight ?: history.last().weight) * multiplier, unit),
                     color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 if (history.size > 1) {
                     val change = (history.last().weight - history.first().weight) * multiplier
-                    Text(String.format(Locale.getDefault(), "%+.1f %s across these weigh-ins", change, unit),
+                    Text(String.format(Locale.getDefault(), "%+.1f %s across daily averages", change, unit),
                         color = TextMuted, fontSize = 13.sp)
-                } else Text("One weigh-in recorded.", color = TextMuted, fontSize = 13.sp)
+                } else Text("One measurement day recorded.", color = TextMuted, fontSize = 13.sp)
             }
 
             val datedWeighIns = history.map { it.date }.distinct().size
