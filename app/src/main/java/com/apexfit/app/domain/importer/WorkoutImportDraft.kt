@@ -72,14 +72,41 @@ data class EditableImportedPlan(
         return copy(days = resolved, selectedScheduleWeek = week)
     }
 
+    val usesRotation: Boolean get() = schedule.isNotEmpty() && selectedScheduleWeek == null
+
+    val cycleWeeks: Int get() = if (usesRotation) schedule.mapNotNull { weekNumber(it.week) }.maxOrNull() ?: 1 else 1
+
+    private fun weekNumber(value: String): Int? = Regex("""(?i)^week\s*([1-9]\d?)$""").matchEntire(value.trim())?.groupValues?.get(1)?.toIntOrNull()
+
+    /** Materialize reviewed templates only when saving, so one correction applies to all occurrences. */
+    fun scheduledDays(): List<Pair<Int, EditableImportedDay>>? {
+        if (!usesRotation) return days.map { 1 to it }
+        val numbers = schedule.map { weekNumber(it.week) ?: return null }
+        if (cycleWeeks !in 1..12 || numbers.toSet() != (1..cycleWeeks).toSet()) return null
+        val canonical = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        val slots = schedule.mapIndexed { i, slot ->
+            val day = canonical.firstOrNull { it.equals(slot.weekday, true) } ?: return null
+            Triple(numbers[i], day, slot)
+        }
+        if (slots.map { it.first to it.second }.distinct().size != slots.size) return null
+        // Missing rows are ambiguous, not implicit rest, when importing an explicit weekly table.
+        if ((1..cycleWeeks).any { week -> slots.count { it.first == week } != 7 }) return null
+        val training = slots.filterNot { it.third.isRest }.sortedWith(compareBy({ it.first }, { canonical.indexOf(it.second) }))
+        if (training.isEmpty() || days.any { day -> training.none { it.third.workout.equals(day.label, true) } }) return null
+        return training.map { (week, weekday, slot) ->
+            val template = days.singleOrNull { it.label.equals(slot.workout, true) } ?: return null
+            week to template.copy(dayOfWeek = weekday)
+        }
+    }
+
     fun validationErrors(): List<String> = buildList {
-        if (schedule.isNotEmpty() && selectedScheduleWeek == null) add("Choose which fixed week to import. Automatic multi-week rotation is not supported yet.")
+        if (usesRotation && scheduledDays() == null) add("Check the recovered schedule: every week needs seven unique weekdays and every training slot must match a workout template.")
         if (name.isBlank()) add("Give the plan a name.")
         if (days.isEmpty()) add("Add at least one training day.")
         if (days.any { it.exercises.isEmpty() }) add("Every training day needs at least one exercise.")
-        if (days.any { it.dayOfWeek == null }) add("Choose a weekday for every training day.")
+        if (!usesRotation && days.any { it.dayOfWeek == null }) add("Choose a weekday for every training day.")
         val selectedDays = days.mapNotNull { it.dayOfWeek }
-        if (selectedDays.size != selectedDays.distinct().size) add("Each imported training day needs a different weekday.")
+        if (!usesRotation && selectedDays.size != selectedDays.distinct().size) add("Each imported training day needs a different weekday.")
         if (days.flatMap { it.exercises }.any { it.selectedExerciseId == null }) add("Resolve every exercise before saving.")
         if (days.flatMap { it.exercises }.any { !it.matchConfirmed }) add("Confirm every suggested exercise match before saving.")
         if (days.flatMap { it.exercises }.any { it.sets == null }) add("Enter valid sets for every exercise.")
