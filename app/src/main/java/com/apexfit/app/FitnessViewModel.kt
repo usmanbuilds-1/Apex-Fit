@@ -57,7 +57,7 @@ class FitnessViewModel @Inject constructor(
     val userHeight = dataStore.heightFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.HEIGHT_CM)
     val userAge = dataStore.ageFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.apexfit.app.UserDefaults.AGE_YEARS)
     val userSex = dataStore.sexFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "male")
-    val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 3)
+    val weeklyWorkouts = repository.getTrainingFrequencyFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 3)
 
     val userBioProfile: StateFlow<UserBioProfile> = combine(
         userHeight, userAge, userSex, weeklyWorkouts, goalWeight
