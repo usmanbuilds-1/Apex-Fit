@@ -34,6 +34,8 @@ class WorkoutTextParser(
         }
 
         val globalWarnings = mutableListOf<ImportWarning>()
+        val schedule = mutableListOf<ImportedScheduleSlot>()
+        var inSchedule = false
         if (normalized.truncated) {
             globalWarnings += ImportWarning(
                 ImportWarning.INPUT_TOO_LARGE,
@@ -53,7 +55,17 @@ class WorkoutTextParser(
         var groupCounter = 0
         var sawStructuredDay = false
         val matchCache = mutableMapOf<String, WorkoutExerciseMatcher.Match>()
-        fun matchName(name: String): WorkoutExerciseMatcher.Match = matchCache.getOrPut(name) { matcher.match(name) }
+        fun matchName(name: String): WorkoutExerciseMatcher.Match = matchCache.getOrPut(name) {
+            val alternatives = name.split(Regex("""\s+/\s+|\s+or\s+""", RegexOption.IGNORE_CASE))
+            if (alternatives.size <= 1) matcher.match(name)
+            else {
+                val matches = alternatives.map(matcher::match)
+                val choices = matches.flatMap { match ->
+                    match.candidates + listOfNotNull(match.entry?.let { ExerciseCandidate(it, match.confidence, match.score, true) })
+                }.distinctBy { it.entry.id }
+                WorkoutExerciseMatcher.Match(null, MatchConfidence.UNRESOLVED, true, 0, choices)
+            }
+        }
         val ignoredTitleLine = lines.indexOfFirst { it.trim() == inferredName.trim() }
 
         fun ensureDay(lineIndex: Int): DraftDay {
@@ -77,6 +89,27 @@ class WorkoutTextParser(
             val line = rawLine.trim()
             if (line.isBlank()) {
                 activeGroupTag = null
+                return@forEachIndexed
+            }
+
+            if (line.startsWith("Schedule heading:")) {
+                inSchedule = true
+                return@forEachIndexed
+            }
+            if (line.startsWith("Schedule row:")) {
+                inSchedule = true
+                val fields = line.removePrefix("Schedule row:").trim().split(" | ")
+                val weekday = fields.firstOrNull().orEmpty()
+                fields.drop(1).forEach { field ->
+                    val week = field.substringBefore('=').trim()
+                    val workout = field.substringAfter('=', "").trim()
+                    if (week.isNotBlank() && workout.isNotBlank()) schedule += ImportedScheduleSlot(weekday, week, workout)
+                    else globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, "Incomplete schedule cell: $field", lineIndex = index)
+                }
+                return@forEachIndexed
+            }
+            if (line.startsWith("Schedule unresolved:") || inSchedule) {
+                globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, "Schedule text requires review: " + line.take(140), lineIndex = index)
                 return@forEachIndexed
             }
 
@@ -222,11 +255,23 @@ class WorkoutTextParser(
             )
         }
 
+        val referenced = schedule.filterNot { it.isRest }.map { it.workout }.distinctBy { it.lowercase() }
+        val unmatched = referenced.filter { label -> parsedDays.none { it.label.equals(label, true) } }
+        val unnamed = parsedDays.filter { it.label == "Workout 1" && it.dayOfWeek == null }
+        val resolvedDays = if (unnamed.size == 1 && unmatched.size == 1 && parsedDays.size > 1) {
+            globalWarnings += ImportWarning(ImportWarning.NO_DAYS_FOUND, "Inferred missing workout label: " + unmatched.single() + ". Check before saving.")
+            parsedDays.map { if (it === unnamed.single()) it.copy(label = unmatched.single()) else it }
+        } else parsedDays
+        if (schedule.isNotEmpty()) {
+            globalWarnings.add(0, ImportWarning(ImportWarning.LINE_NOT_PARSED,
+                "Weekly schedule recovered. Select a fixed week to save; automatic multi-week rotation is not supported yet.", ImportWarningSeverity.WARNING))
+        }
         return WorkoutImportParseResult(
             plan = ParsedImportedPlan(
                 name = inferredName.take(80).ifBlank { "Imported Plan" },
                 nameInferred = nameInferred,
-                days = parsedDays,
+                days = resolvedDays,
+                schedule = schedule.distinct(),
                 warnings = globalWarnings,
                 provenance = WorkoutImportProvenance(
                     originalText = normalized.originalText.take(WorkoutTextNormalizer.MAX_INPUT_CHARS),
