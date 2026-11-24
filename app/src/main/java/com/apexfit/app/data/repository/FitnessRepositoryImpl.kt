@@ -90,7 +90,7 @@ class FitnessRepositoryImpl @Inject constructor(
             dataStore.heightFlow,
             dataStore.ageFlow,
             dataStore.sexFlow,
-            dataStore.weeklyWorkoutsFlow,
+            getTrainingFrequencyFlow(),
             dataStore.explicitGoalWeightFlow
         ) { height, age, sex, weekly, goalWeight ->
             BioProfile(height, age, sex, weekly, goalWeight, com.apexfit.app.UserDefaults.WEIGHT_KG)
@@ -208,6 +208,19 @@ class FitnessRepositoryImpl @Inject constructor(
         )
     }
 
+    // Keep legacy preference-based targets intact; only rotating plans use
+    // their actual current-cycle training-day count.
+    private val trainingFrequencyFlow: Flow<Int> by lazy {
+        dao.getActivePlanFlow().flatMapLatest { plan ->
+            if (plan == null || plan.cycleWeeks == 1) dataStore.weeklyWorkoutsFlow
+            else combine(dao.getSessionsForPlanFlow(plan.id), todayDateFlow) { sessions, date ->
+                WorkoutSchedule.trainingFrequency(plan, sessions, LocalDate.parse(date))
+            }
+        }.distinctUntilChanged().flowOn(Dispatchers.IO)
+    }
+
+    override fun getTrainingFrequencyFlow(): Flow<Int> = trainingFrequencyFlow
+
     override val sharedTargetsFlow: Flow<NutritionTargets> by lazy {
         val weightFlow = dao.getWeightEntriesSinceFlow(getWindowStartDate(90))
             .flowOn(Dispatchers.IO)
@@ -276,7 +289,7 @@ class FitnessRepositoryImpl @Inject constructor(
 
             val cycled = MacroEngine.calcCycledTargets(
                 weeklyCalorieTarget    = calories,
-                weeklyTrainingSessions = planSessions.size.takeIf { it > 0 } ?: bio.weeklyWorkouts,
+                weeklyTrainingSessions = bio.weeklyWorkouts,
                 goal                   = goal,
                 bodyWeightKg           = latestWeight,
                 heightCm               = bio.heightCm,
@@ -285,7 +298,6 @@ class FitnessRepositoryImpl @Inject constructor(
 
             val todayDayString = java.time.LocalDate.parse(todayDate).format(DAY_OF_WEEK_FORMAT)
             val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-            val weeklySessions = planSessions.size.takeIf { it > 0 } ?: bio.weeklyWorkouts
             val isPlannedTraining = todayPlanned != null &&
                 !todayPlanned.label.contains("Rest", ignoreCase = true) &&
                 todayPlanned.focus != "Muscle Recovery & Rest"
@@ -313,7 +325,6 @@ class FitnessRepositoryImpl @Inject constructor(
             val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
             sessions.flatMapLatest { sessionList ->
                 todayDateFlow.flatMapLatest { todayDate ->
-                    val todayDayString = java.time.LocalDate.parse(todayDate).format(DAY_OF_WEEK_FORMAT)
                     val todaySession = plan?.let { WorkoutSchedule.sessionForDate(it, sessionList, LocalDate.parse(todayDate)) }
                     if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
                 }
