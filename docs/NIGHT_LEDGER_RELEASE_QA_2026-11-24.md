@@ -71,7 +71,7 @@ Every render below was present in the generated preview set and inspected in the
 - `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug --max-workers=1 --no-daemon` — **BUILD SUCCESSFUL** on this QA revision. No unit-test failure was reported. Debug APK assembled at `app/build/outputs/apk/debug/app-debug.apk`.
 - `:app:testDebugUnitTest --tests com.apexfit.app.ui.theme.ColorInitializationTest --max-workers=1 --no-daemon` — **BUILD SUCCESSFUL**; both palette initialization tests passed.
 - Lint completed successfully with 142 warnings and 4 hints in the generated report; the two MissingPermission warnings are the exact-alarm checks in `RestTimerAlarmReceiver.kt`. Other warnings were not expanded into unrelated cleanup.
-- `git diff --check` — passed.
+- `git -c core.whitespace=cr-at-eol diff --check` — passed; this handles the existing CRLF line endings in the updated visual-QA ledger.
 - `:app:validateDebugScreenshotTest` — rendering succeeded, golden validation is **not green** (30 match, 42 intentional-difference dispositions, 32 missing-reference dispositions), as detailed above.
 - [Merged-main Android CI run 45320383411](https://github.com/usmanbuilds-1/Apex-Fit/actions/runs/45320383411) completed successfully on `e0b045c17409acbdf07ce1cfaef634bd3d3b51c6`; its Compose render artifact is [14888145605](https://github.com/usmanbuilds-1/Apex-Fit/actions/runs/45320383411).
 - The merged-main installable debug APK is available as [artifact 14887064032](https://github.com/usmanbuilds-1/Apex-Fit/actions/runs/45320383411/artifacts/14887064032) until 2026-12-08. This QA checkout also assembled `app/build/outputs/apk/debug/app-debug.apk`.
