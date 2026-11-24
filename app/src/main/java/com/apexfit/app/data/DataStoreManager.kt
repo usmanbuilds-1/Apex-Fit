@@ -32,6 +32,8 @@ class DataStoreManager(context: Context) {
         val USER_NAME_KEY = stringPreferencesKey("username")
         val GOAL_KEY = stringPreferencesKey("goal")
         val CURRENT_WEIGHT_KEY = doublePreferencesKey("current_weight")
+        private val WEIGHT_BASELINE_KEY = doublePreferencesKey("weight_profile_baseline_kg")
+        private val WEIGHT_BASELINE_RESOLVED_KEY = booleanPreferencesKey("weight_profile_baseline_resolved_v1")
         val GOAL_WEIGHT_KEY = doublePreferencesKey("goal_weight")
         val UNITS_KEY = stringPreferencesKey("units") // "kg" or "lbs"
         val CALORIE_TARGET_MANUAL_KEY = booleanPreferencesKey("calorie_target_manual")
@@ -111,6 +113,8 @@ class DataStoreManager(context: Context) {
                 it[WEEKLY_WORKOUTS_KEY] = profile.daysPerWeek
                 it[USER_NAME_KEY] = profile.name.trim()
                 it[CURRENT_WEIGHT_KEY] = profile.weightKg
+                it[WEIGHT_BASELINE_KEY] = profile.weightKg
+                it[WEIGHT_BASELINE_RESOLVED_KEY] = true
                 it[HEIGHT_KEY] = profile.heightCm
                 it[AGE_KEY] = profile.age
                 it[SEX_KEY] = profile.sex
@@ -129,6 +133,8 @@ class DataStoreManager(context: Context) {
             it[USER_NAME_KEY] = profile.name.trim()
             it[GOAL_KEY] = profile.goal
             it[CURRENT_WEIGHT_KEY] = profile.weightKg
+                it[WEIGHT_BASELINE_KEY] = profile.weightKg
+                it[WEIGHT_BASELINE_RESOLVED_KEY] = true
             val startingGoalWeight = profile.targetWeightKg
             if (startingGoalWeight == null) it.remove(GOAL_WEIGHT_KEY)
             else it[GOAL_WEIGHT_KEY] = startingGoalWeight
@@ -161,7 +167,7 @@ class DataStoreManager(context: Context) {
             it[HEIGHT_KEY] = height
             it[AGE_KEY] = age
             it[SEX_KEY] = sex
-            it[CURRENT_WEIGHT_KEY] = currentWeightKg
+            // The settings snapshot must not overwrite a logged measurement.
             it[GOAL_WEIGHT_KEY] = goalWeightKg
             it[CALORIE_TARGET_MANUAL_KEY] = manualCalories
             it[CALORIE_TARGET_VALUE_KEY] = calories
@@ -199,6 +205,21 @@ class DataStoreManager(context: Context) {
     val currentWeightFlow: Flow<Double> = context.dataStore.data.map { preferences ->
         preferences[CURRENT_WEIGHT_KEY] ?: com.apexfit.app.UserDefaults.WEIGHT_KG
     }.distinctUntilChanged()
+
+    // Legacy installations may have a cached measurement in current_weight.
+    // When history exists, do not promote that cache to an onboarding baseline.
+    val weightBaselineFlow: Flow<Double?> = context.dataStore.data.map { prefs ->
+        prefs[WEIGHT_BASELINE_KEY] ?: if (prefs[WEIGHT_BASELINE_RESOLVED_KEY] == true) null else prefs[CURRENT_WEIGHT_KEY]
+    }.distinctUntilChanged()
+
+    suspend fun resolveWeightBaseline(hasHistory: Boolean) {
+        context.dataStore.edit { prefs ->
+            if (prefs[WEIGHT_BASELINE_RESOLVED_KEY] != true) {
+                if (!hasHistory) prefs[CURRENT_WEIGHT_KEY]?.let { prefs[WEIGHT_BASELINE_KEY] = it }
+                prefs[WEIGHT_BASELINE_RESOLVED_KEY] = true
+            }
+        }
+    }
 
     val explicitGoalWeightFlow: Flow<Double?> = context.dataStore.data.map { preferences ->
         preferences[GOAL_WEIGHT_KEY]
@@ -274,6 +295,8 @@ class DataStoreManager(context: Context) {
             preferences[USER_NAME_KEY] = username
             preferences[GOAL_KEY] = goal
             preferences[CURRENT_WEIGHT_KEY] = currentWeight
+            preferences[WEIGHT_BASELINE_KEY] = currentWeight
+            preferences[WEIGHT_BASELINE_RESOLVED_KEY] = true
             preferences[GOAL_WEIGHT_KEY] = goalWeight
              preferences[ONBOARDED_KEY] = true
             preferences[HEIGHT_KEY] = height
@@ -313,6 +336,10 @@ class DataStoreManager(context: Context) {
         context.dataStore.edit { preferences ->
             preferences[CURRENT_WEIGHT_KEY] = current
         }
+    }
+
+    suspend fun saveGoalWeight(goal: Double) {
+        context.dataStore.edit { preferences -> preferences[GOAL_WEIGHT_KEY] = goal }
     }
 
     suspend fun saveWeight(current: Double, goal: Double) {
