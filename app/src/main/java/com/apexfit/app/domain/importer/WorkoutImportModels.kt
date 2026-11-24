@@ -97,12 +97,17 @@ data class WorkoutImportProvenance(
     val importedAtEpochMs: Long
 )
 
+data class ImportedScheduleSlot(val weekday: String, val week: String, val workout: String) {
+    val isRest: Boolean get() = workout.trim().lowercase() in setOf("rest", "rest day", "off", "off day", "-")
+}
+
 data class ParsedImportedPlan(
     val name: String,
     val nameInferred: Boolean,
     val days: List<ParsedImportedDay>,
     val warnings: List<ImportWarning>,
-    val provenance: WorkoutImportProvenance
+    val provenance: WorkoutImportProvenance,
+    val schedule: List<ImportedScheduleSlot> = emptyList()
 )
 
 data class WorkoutImportParseResult(
