@@ -56,13 +56,17 @@ internal fun PlanBuilderDayDialog(
     isEditing: Boolean,
     onDismiss: () -> Unit,
     onSave: (label: String, dayOfWeek: String) -> Unit,
-    initialValidationError: String? = null
+    initialValidationError: String? = null,
+    initialCycleWeek: Int = 1,
+    cycleWeeks: Int = 1,
+    onSaveWithCycle: ((String, String, Int) -> Unit)? = null
 ) {
     var dayLabel by rememberSaveable(isEditing, initialLabel) { mutableStateOf(initialLabel) }
     var dayLabelError by rememberSaveable(isEditing, initialLabel) { mutableStateOf(initialValidationError) }
     var selectedDayOfWeek by rememberSaveable(isEditing, initialDayOfWeek) {
         mutableStateOf(initialDayOfWeek)
     }
+    var selectedCycleWeek by rememberSaveable(initialCycleWeek, cycleWeeks) { mutableStateOf(initialCycleWeek.coerceIn(1, cycleWeeks.coerceAtLeast(1))) }
     val requiredLabelError = stringResource(R.string.plan_builder_session_name_is_required)
     val daysOfWeek = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -107,6 +111,16 @@ internal fun PlanBuilderDayDialog(
                     singleLine = true
                 )
 
+                if (cycleWeeks > 1) {
+                    Text("Cycle week", color = SecondaryText)
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                        (1..cycleWeeks).forEach { week ->
+                            TextButton(onClick = { selectedCycleWeek = week }) {
+                                Text("Week $week", color = if (week == selectedCycleWeek) ApexColors.Primary else SecondaryText)
+                            }
+                        }
+                    }
+                }
                 Text(
                     stringResource(R.string.plan_builder_day_of_the_week),
                     fontFamily = SyneFamily,
@@ -154,7 +168,8 @@ internal fun PlanBuilderDayDialog(
                         dayLabelError = requiredLabelError
                     } else {
                         dayLabelError = null
-                        onSave(dayLabel.trim(), selectedDayOfWeek)
+                        if (onSaveWithCycle != null) onSaveWithCycle(dayLabel.trim(), selectedDayOfWeek, selectedCycleWeek)
+                        else onSave(dayLabel.trim(), selectedDayOfWeek)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
@@ -319,7 +334,8 @@ internal fun PlanBuilderSessionRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    cycleWeeks: Int = 1
 ) {
     var menuExpanded by remember(session.id) { mutableStateOf(false) }
 
@@ -332,8 +348,8 @@ internal fun PlanBuilderSessionRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = session.day.take(3),
-            modifier = Modifier.width(40.dp),
+            text = if (cycleWeeks > 1) "W${session.cycleWeek} · ${session.day.take(3)}" else session.day.take(3),
+            modifier = Modifier.width(if (cycleWeeks > 1) 76.dp else 40.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = if (isSelected) ApexColors.Primary else ApexColors.TextSecondary
         )
@@ -705,7 +721,7 @@ fun PlanBuilderScreen(
             // Keep the weekly schedule together, then show exercises for the selected day.
             item {
                 Text(
-                    "Days",
+                    if ((activePlan?.cycleWeeks ?: 1) > 1) "${activePlan?.cycleWeeks}-week rotation" else "Days",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = ApexColors.TextPrimary
@@ -728,6 +744,7 @@ fun PlanBuilderScreen(
                 itemsIndexed(sessionsList, key = { _, session -> session.id }) { index, session ->
                     PlanBuilderSessionRow(
                         session = session,
+                        cycleWeeks = activePlan?.cycleWeeks ?: 1,
                         isSelected = session.id == selectedSession?.id,
                         canMoveUp = index > 0,
                         canMoveDown = index < sessionsList.lastIndex,
@@ -831,16 +848,26 @@ fun PlanBuilderScreen(
         PlanBuilderDayDialog(
             initialLabel = session?.label.orEmpty(),
             initialDayOfWeek = session?.day.orEmpty().ifBlank { "Monday" },
+            initialCycleWeek = session?.cycleWeek ?: 1,
+            cycleWeeks = activePlan?.cycleWeeks ?: 1,
             isEditing = editingSessionId != null,
             onDismiss = { showAddDayDialog = false },
-            onSave = { dayLabel, selectedDayOfWeek ->
+            onSave = { _, _ -> },
+            onSaveWithCycle = { dayLabel, selectedDayOfWeek, selectedCycleWeek ->
+                val duplicate = (activePlan?.cycleWeeks ?: 1) > 1 && sessionsList.any {
+                    it.id != editingSessionId && it.cycleWeek == selectedCycleWeek && it.day.equals(selectedDayOfWeek, true)
+                }
+                if (duplicate) {
+                    coroutineScope.launch { snackbarHostState.showSnackbar("That weekday is already scheduled in this cycle week.") }
+                } else {
                 if (editingSessionId == null) {
                     val newSession = PlanSession(
                         id = planBuilderViewModel.generateNewSessionId(),
                         planId = activePlan?.id ?: 0L,
                         label = dayLabel,
                         day = selectedDayOfWeek,
-                        focus = "General"
+                        focus = "General",
+                        cycleWeek = selectedCycleWeek
                     )
                     planBuilderViewModel.addSession(newSession)
                     selectedPlanSessionId = newSession.id
@@ -848,11 +875,12 @@ fun PlanBuilderScreen(
                     val currentSession = editingSessionId?.let { planBuilderViewModel.getSessionById(it) }
                     if (currentSession != null) {
                         planBuilderViewModel.updateSession(
-                            currentSession.copy(label = dayLabel, day = selectedDayOfWeek)
+                            currentSession.copy(label = dayLabel, day = selectedDayOfWeek, cycleWeek = selectedCycleWeek)
                         )
                     }
                 }
                 showAddDayDialog = false
+                }
             }
         )
     }
