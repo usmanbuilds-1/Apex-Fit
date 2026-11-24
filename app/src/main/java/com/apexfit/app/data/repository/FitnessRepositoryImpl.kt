@@ -90,7 +90,7 @@ class FitnessRepositoryImpl @Inject constructor(
             dataStore.heightFlow,
             dataStore.ageFlow,
             dataStore.sexFlow,
-            getTrainingFrequencyFlow(),
+            getAverageTrainingFrequencyFlow(),
             dataStore.explicitGoalWeightFlow
         ) { height, age, sex, weekly, goalWeight ->
             BioProfile(height, age, sex, weekly, goalWeight, com.apexfit.app.UserDefaults.WEIGHT_KG)
@@ -221,6 +221,11 @@ class FitnessRepositoryImpl @Inject constructor(
 
     override fun getTrainingFrequencyFlow(): Flow<Int> = trainingFrequencyFlow
 
+    override fun getAverageTrainingFrequencyFlow(): Flow<Int> = dao.getActivePlanFlow().flatMapLatest { plan ->
+        if (plan == null || plan.cycleWeeks == 1) dataStore.weeklyWorkoutsFlow
+        else dao.getSessionsForPlanFlow(plan.id).map { sessions -> WorkoutSchedule.averageTrainingFrequency(plan, sessions) }
+    }.distinctUntilChanged().flowOn(Dispatchers.IO)
+
     override val sharedTargetsFlow: Flow<NutritionTargets> by lazy {
         val weightFlow = dao.getWeightEntriesSinceFlow(getWindowStartDate(90))
             .flowOn(Dispatchers.IO)
@@ -247,7 +252,8 @@ class FitnessRepositoryImpl @Inject constructor(
             activePlanSessionsFlow,
             bioProfileFlow,
             nutritionEntriesFlow,
-            todayDateFlow
+            todayDateFlow,
+            getTrainingFrequencyFlow()
         ) { values ->
             val isManual            = values[0] as Boolean
             val manualCals          = values[1] as Int
@@ -261,6 +267,7 @@ class FitnessRepositoryImpl @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             val nutrition           = values[7] as List<NutritionEntry>
             val todayDate           = values[8] as String
+            val currentWeekFrequency = values[9] as Int
 
             val latestWeight = weights.maxByOrNull { it.date }?.weight
                 ?: bio.currentWeightKg
@@ -289,7 +296,7 @@ class FitnessRepositoryImpl @Inject constructor(
 
             val cycled = MacroEngine.calcCycledTargets(
                 weeklyCalorieTarget    = calories,
-                weeklyTrainingSessions = bio.weeklyWorkouts,
+                weeklyTrainingSessions = currentWeekFrequency,
                 goal                   = goal,
                 bodyWeightKg           = latestWeight,
                 heightCm               = bio.heightCm,
@@ -313,7 +320,7 @@ class FitnessRepositoryImpl @Inject constructor(
                 protein                = todayProtein,
                 carbs                  = todayCarbs,
                 fat                    = todayFat,
-                weeklyTrainingSessions = bio.weeklyWorkouts
+                weeklyTrainingSessions = currentWeekFrequency
             )
         }.combine(dataStore.hasBodyDetailsFlow) { targets, ready ->
             if (ready) targets else NutritionTargets(0, 0, 0, 0)
