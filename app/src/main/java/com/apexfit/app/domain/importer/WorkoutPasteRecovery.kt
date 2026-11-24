@@ -36,6 +36,7 @@ internal object WorkoutPasteRecovery {
         }
         var i = 0
         while (i < lines.size) {
+            if (!emptyCell.matches(lines[i])) { output += lines[i++]; continue }
             val first = cellAt(i)
             if (first == null) { output += lines[i++]; continue }
             val values = mutableListOf(first.first)
@@ -58,10 +59,36 @@ internal object WorkoutPasteRecovery {
                 fun row(cells: List<String>): String = cells.joinToString(" | ", "| ", " |") { it.replace("|", " / ") }
                 output += row(headers)
                 output += row(List(width) { "---" })
-                for (chunk in values.drop(width).chunked(width)) {
-                    if (chunk.size == width) output += row(chunk)
-                    else output += "Note: Incomplete pasted table row: " + chunk.joinToString(" / ")
+                val exerciseIndex = headers.indexOfFirst { column(it).field == Field.EXERCISE }
+                val setsIndex = headers.indexOfFirst { column(it).field == Field.SETS }
+                val repsIndex = headers.indexOfFirst { column(it).field == Field.REPS }
+                fun validRow(chunk: List<String>): Boolean {
+                    if (chunk.size != width) return false
+                    if (isSchedule) return WorkoutDayDetector.detect(chunk.first())?.dayOfWeek != null
+                    return chunk[exerciseIndex].any(Char::isLetter) &&
+                        column(chunk[exerciseIndex]).field == Field.OTHER &&
+                        chunk[setsIndex].matches(Regex("""(?i)\d{1,3}(?:\s+sets?)?""")) &&
+                        chunk[repsIndex].matches(Regex("""(?i)(?:\d{1,3}.*|amrap|failure|to failure|max(?: reps?)?)"""))
                 }
+                var cellIndex = width
+                val unaligned = mutableListOf<String>()
+                fun flushUnaligned() {
+                    if (unaligned.isNotEmpty()) {
+                        output += "Recovery warning: Unaligned table cells: " + unaligned.joinToString(" / ").take(1000)
+                        unaligned.clear()
+                    }
+                }
+                while (cellIndex < values.size) {
+                    val chunk = values.subList(cellIndex, minOf(cellIndex + width, values.size))
+                    if (validRow(chunk)) {
+                        flushUnaligned()
+                        output += row(chunk)
+                        cellIndex += width
+                    } else {
+                        unaligned += values[cellIndex++]
+                    }
+                }
+                flushUnaligned()
             } else {
                 output += lines.subList(i, cursor)
             }
@@ -78,6 +105,7 @@ internal object WorkoutPasteRecovery {
         val customDays = linkedMapOf<String, Int>()
         for (raw in restoreFragmentedTables(lines, normalize)) {
             val line = normalize(raw.replace(Regex("""\s+[•●▪]\s+"""), "; "))
+            if (line.startsWith("Recovery warning:")) { output += line; continue }
             if (line.isBlank()) {
                 output += ""
                 table = null
