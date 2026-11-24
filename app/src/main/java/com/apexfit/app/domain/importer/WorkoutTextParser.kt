@@ -96,6 +96,10 @@ class WorkoutTextParser(
                 globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, line.removePrefix("Recovery warning:").trim(), lineIndex = index)
                 return@forEachIndexed
             }
+            if (line == "Schedule end:") {
+                inSchedule = false
+                return@forEachIndexed
+            }
             if (line.startsWith("Schedule heading:")) {
                 inSchedule = true
                 return@forEachIndexed
@@ -111,6 +115,9 @@ class WorkoutTextParser(
                     else globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, "Incomplete schedule cell: $field", lineIndex = index)
                 }
                 return@forEachIndexed
+            }
+            if (inSchedule && WorkoutDayDetector.detect(line)?.let { it.dayOfWeek == null && !it.label.startsWith("rest", true) } == true) {
+                inSchedule = false
             }
             if (line.startsWith("Schedule unresolved:") || inSchedule) {
                 globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, "Schedule text requires review: " + line.take(140), lineIndex = index)
