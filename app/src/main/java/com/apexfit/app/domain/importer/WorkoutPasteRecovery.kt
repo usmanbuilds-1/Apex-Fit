@@ -10,12 +10,72 @@ internal object WorkoutPasteRecovery {
     private data class Column(val field: Field, val label: String)
     private data class Table(val delimiter: Char, val columns: List<Column>)
 
+    // Some rich-text clipboard serializers emit a separate empty Markdown table
+    // before EACH cell. Only reconstruct a run with explicit, recognizable headers.
+    // Ordinary one-column tables and bare unlabeled numbers remain untouched.
+    private val emptyCell = Regex("""^\s*\|\s*\|\s*$""")
+    private val separatorCell = Regex("""^\s*\|\s*:?-+:?\s*\|\s*$""")
+    private val scheduleWeek = Regex("""(?i)^week\s*[1-9]\d?$""")
+
+    internal fun restoreFragmentedTables(lines: List<String>, normalize: (String) -> String): List<String> {
+        val output = mutableListOf<String>()
+        fun skipBlank(from: Int): Int {
+            var i = from
+            while (i < lines.size && lines[i].isBlank()) i++
+            return i
+        }
+        fun cellAt(from: Int): Pair<String, Int>? {
+            val first = skipBlank(from)
+            if (first >= lines.size || !emptyCell.matches(lines[first])) return null
+            val second = skipBlank(first + 1)
+            if (second >= lines.size || !separatorCell.matches(lines[second])) return null
+            val third = skipBlank(second + 1)
+            if (third >= lines.size || lines[third].trimStart().startsWith("#") ||
+                emptyCell.matches(lines[third]) || separatorCell.matches(lines[third])) return null
+            return normalize(lines[third]) to (third + 1)
+        }
+        var i = 0
+        while (i < lines.size) {
+            val first = cellAt(i)
+            if (first == null) { output += lines[i++]; continue }
+            val values = mutableListOf(first.first)
+            var cursor = first.second
+            while (true) {
+                val cell = cellAt(cursor) ?: break
+                values += cell.first
+                cursor = cell.second
+            }
+            val headers = values.takeWhile { value ->
+                column(value).field != Field.OTHER || scheduleWeek.matches(value)
+            }
+            val isExerciseTable = headers.count { column(it).field == Field.EXERCISE } == 1 &&
+                headers.any { column(it).field == Field.SETS } && headers.any { column(it).field == Field.REPS }
+            val isSchedule = headers.firstOrNull()?.let { column(it).field == Field.DAY } == true &&
+                headers.drop(1).isNotEmpty() && headers.drop(1).all { scheduleWeek.matches(it) }
+            val width = headers.size
+            if ((isExerciseTable || isSchedule) && width in 2..12 && values.size > width) {
+                // Keep explicit column order; never shift a truncated final row.
+                fun row(cells: List<String>): String = cells.joinToString(" | ", "| ", " |") { it.replace("|", " / ") }
+                output += row(headers)
+                output += row(List(width) { "---" })
+                for (chunk in values.drop(width).chunked(width)) {
+                    if (chunk.size == width) output += row(chunk)
+                    else output += "Note: Incomplete pasted table row: " + chunk.joinToString(" / ")
+                }
+            } else {
+                output += lines.subList(i, cursor)
+            }
+            i = cursor
+        }
+        return output
+    }
+
     fun expand(lines: List<String>, normalize: (String) -> String): List<String> {
         val output = mutableListOf<String>()
         var table: Table? = null
         var activeDay: String? = null
         val customDays = linkedMapOf<String, Int>()
-        for (raw in lines) {
+        for (raw in restoreFragmentedTables(lines, normalize)) {
             val line = normalize(raw.replace(Regex("""\s+[•●▪]\s+"""), "; "))
             if (line.isBlank()) {
                 output += ""
