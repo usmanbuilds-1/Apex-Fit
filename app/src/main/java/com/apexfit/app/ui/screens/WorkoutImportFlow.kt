@@ -345,15 +345,11 @@ internal fun WorkoutImportReviewScreen(
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Recovered schedule", color = PrimaryText, fontWeight = FontWeight.SemiBold)
-                        Text("Apex Fit currently repeats one fixed week. Choose a week explicitly; the original schedule remains in your source text.", color = MutedText, fontSize = 12.sp)
+                        Text("This schedule repeats automatically. Week 1 starts on the Monday of the week you first activate this plan. Edit each template once; it applies to all its scheduled occurrences.", color = MutedText, fontSize = 12.sp)
                         draft.schedule.groupBy { it.week }.forEach { (week, slots) ->
                             Text(week, color = PrimaryText, fontWeight = FontWeight.SemiBold)
                             slots.forEach { slot -> Text(slot.weekday + " · " + slot.workout, color = SecondaryText, fontSize = 12.sp) }
-                            if (draft.selectedScheduleWeek == null) {
-                                OutlinedButton(onClick = { actions.onSelectFixedWeek(week) }) { Text("Import $week as fixed weekly plan") }
-                            } else if (draft.selectedScheduleWeek == week) {
-                                Text("Selected fixed week", color = PrimaryText, fontSize = 12.sp)
-                            }
+
                         }
                     }
                 }
@@ -368,6 +364,7 @@ internal fun WorkoutImportReviewScreen(
             items(draft.days, key = { it.key }) { day ->
                 ImportedDayCard(
                     day = day,
+                    isScheduledTemplate = draft.usesRotation,
                     onLabel = { actions.onUpdateDayLabel(day.key, it) },
                     onWeekday = { actions.onUpdateDayWeekday(day.key, it) },
                     onMoveUp = { actions.onMoveDay(day.key, -1) },
@@ -411,6 +408,7 @@ internal fun WorkoutImportReviewScreen(
 @Composable
 private fun ImportedDayCard(
     day: EditableImportedDay,
+    isScheduledTemplate: Boolean = false,
     onLabel: (String) -> Unit,
     onWeekday: (String?) -> Unit,
     onMoveUp: () -> Unit,
@@ -455,7 +453,8 @@ private fun ImportedDayCard(
                 singleLine = true,
                 colors = importFieldColors()
             )
-            WeekdayPicker(day.dayOfWeek, onWeekday)
+            if (!isScheduledTemplate) WeekdayPicker(day.dayOfWeek, onWeekday)
+            else Text("Weekdays assigned by recovered schedule", color = MutedText, fontSize = 11.sp)
 
             day.exercises.forEach { exercise ->
                 ImportedExerciseCard(
