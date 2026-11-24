@@ -717,6 +717,9 @@ fun HomeWeightChartCard(
 
     var selectedFilter by rememberSaveable { mutableStateOf("7D") }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
+    var savingWeight by remember { mutableStateOf(false) }
+    val weightError by homeViewModel.weightLogError.collectAsStateWithLifecycle()
+    val weightScope = rememberCoroutineScope()
     var weightInput by rememberSaveable { mutableStateOf("") }
 
     val onWeightCardClick = remember(onNavigateTo) { { onNavigateTo(3) } }
@@ -1027,9 +1030,19 @@ fun HomeWeightChartCard(
             initialInput = weightInput,
             units = units,
             onDismiss = { showWeightDialog = false },
+            isSaving = savingWeight,
+            saveError = weightError,
             onSave = { parsedWeight ->
-                homeViewModel.logWeight(parsedWeight, preferredUnit = units)
-                showWeightDialog = false
+                if (!savingWeight) {
+                    savingWeight = true
+                    weightScope.launch {
+                        try {
+                            val job = homeViewModel.logWeight(parsedWeight, preferredUnit = units) ?: return@launch
+                            job.join()
+                            if (!job.isCancelled && homeViewModel.weightLogError.value == null) showWeightDialog = false
+                        } finally { savingWeight = false }
+                    }
+                }
             }
         )
     }
@@ -1065,8 +1078,8 @@ internal fun LogWeightDialog(
 ) {
     var weightInput by rememberSaveable { mutableStateOf(initialInput) }
     var weightError by rememberSaveable { mutableStateOf("") }
-    val weightMin = if (units.lowercase() == "kg") 20.0 else 44.0
-    val weightMax = if (units.lowercase() == "kg") 300.0 else 660.0
+    val weightMin = if (units.lowercase() == "kg") 20.0 else 44.1
+    val weightMax = if (units.lowercase() == "kg") 300.0 else 661.3
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
