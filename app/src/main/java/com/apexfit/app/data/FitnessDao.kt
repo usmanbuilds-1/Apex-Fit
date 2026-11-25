@@ -14,17 +14,26 @@ import kotlinx.coroutines.flow.Flow
 interface FitnessDao {
 
     // Weight Entry Queries
-    @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC")
+    @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC, time DESC, id DESC")
     fun getWeightEntriesFromFlow(cutoffDate: String): Flow<List<WeightEntry>>
 
-    @Query("SELECT * FROM body_weights WHERE date >= :since ORDER BY date DESC, time DESC")
+    @Query("SELECT * FROM body_weights WHERE date >= :since ORDER BY date DESC, time DESC, id DESC")
     fun getWeightEntriesSinceFlow(since: String): Flow<List<WeightEntry>>
 
-    @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC")
+    @Query("SELECT * FROM body_weights WHERE date >= :cutoffDate ORDER BY date DESC, time DESC, id DESC")
     suspend fun getWeightEntriesSince(cutoffDate: String): List<WeightEntry>
 
-    @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC LIMIT :limit")
+    @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC, id DESC LIMIT :limit")
     suspend fun getWeightEntries(limit: Int = 365): List<WeightEntry>
+
+    @Query("SELECT * FROM body_weights ORDER BY date DESC, time DESC, id DESC")
+    fun observeAllWeightEntries(): Flow<List<WeightEntry>>
+
+    @Query("SELECT * FROM body_weights WHERE id = :id LIMIT 1")
+    suspend fun getWeightEntryById(id: Long): WeightEntry?
+
+    @Query("UPDATE body_weights SET weight = :weightKg, unit = 'kg' WHERE id = :id")
+    suspend fun updateWeightById(id: Long, weightKg: Double): Int
 
     @Insert
     suspend fun insertWeightEntry(entry: WeightEntry)
@@ -181,6 +190,9 @@ interface FitnessDao {
 
     @Query("UPDATE workout_programs SET isActive = 1 WHERE id = :planId")
     suspend fun activatePlan(planId: Long)
+
+    @Query("UPDATE workout_programs SET cycle_anchor_monday = :anchor WHERE id = :planId AND cycle_weeks > 1 AND cycle_anchor_monday IS NULL")
+    suspend fun initializeCycleAnchor(planId: Long, anchor: String)
 
 
 

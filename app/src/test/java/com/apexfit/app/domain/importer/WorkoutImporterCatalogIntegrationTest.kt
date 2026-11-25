@@ -161,4 +161,21 @@ class WorkoutImporterCatalogIntegrationTest {
             }
         }
     }
+    @Test
+    fun fragmentedUserWorkoutResolvesOnlyRealCatalogIdsAndRetainsAllRows() {
+        val library = productionLibrary()
+        val known = library.map { it.id }.toSet()
+        val source = FragmentedWorkoutPasteTest().source()
+        val plan = requireNotNull(WorkoutTextParser(library).parse(source).plan)
+        assertEquals(listOf("Workout A", "Workout B"), plan.days.map { it.label })
+        assertEquals(10, plan.days.sumOf { it.exercises.size })
+        assertEquals(14, plan.schedule.size)
+        val exercises = plan.days.flatMap { it.exercises }
+        assertTrue(exercises.all { it.sets != null && it.repsMin != null && it.repsMax != null })
+        assertNull(exercises.first().matchedEntryId)
+        assertTrue(exercises.first().needsReview)
+        assertTrue(exercises.all { it.matchedEntryId == null || it.matchedEntryId in known })
+        assertTrue(exercises.flatMap { it.candidates }.all { it.entry.id in known })
+        assertEquals(source, plan.provenance.originalText)
+    }
 }

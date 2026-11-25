@@ -473,4 +473,58 @@ class MigrationTest {
         )
         migratedDb.close()
     }
+
+    @Test
+    fun migrate27To28PreservesExistingPlanExerciseAndWeightHistory() {
+        val old = helper.createDatabase(TEST_DB, 27)
+        old.execSQL("INSERT INTO exercises (id, name, category, primary_muscle, secondary_muscles, equipment_required, created_at) VALUES ('bench-press', 'Bench Press', 'Barbell', 'Chest', '[]', 'Barbell', 1000)")
+        old.execSQL("INSERT INTO workout_programs (id, name, goal, isActive, createdAt) VALUES (1, 'Legacy weekly plan', 'Strength', 1, 1000)")
+        old.execSQL("INSERT INTO plan_sessions (id, planId, label, day, focus) VALUES (10, 1, 'Upper', 'Monday', 'Chest')")
+        old.execSQL("INSERT INTO plan_exercises (id, planSessionId, exerciseId, name, muscleGroup, sets, repsMin, repsMax, weight, weight_unit, restSeconds, notes) VALUES (100, 10, 'bench-press', 'Bench Press', 'Chest', 3, 8, 12, 80.0, 'kg', 90, 'keep')")
+        old.execSQL("INSERT INTO body_weights (id, date, time, weight, unit) VALUES (11, '2026-11-24', '07:00', 61.0, 'kg'), (12, '2026-11-24', '08:00', 62.0, 'kg')")
+        old.close()
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 28, true, AppDatabase.MIGRATION_27_28)
+        migrated.query("SELECT cycle_weeks, cycle_anchor_monday, name, isActive FROM workout_programs WHERE id=1").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(1, it.getInt(0))
+            assertTrue(it.isNull(1))
+            assertEquals("Legacy weekly plan", it.getString(2))
+            assertEquals(1, it.getInt(3))
+        }
+        migrated.query("SELECT day, cycle_week FROM plan_sessions WHERE id=10").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("Monday", it.getString(0))
+            assertEquals(1, it.getInt(1))
+        }
+        migrated.query("SELECT exerciseId, weight, notes FROM plan_exercises WHERE id=100").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("bench-press", it.getString(0))
+            assertEquals(80.0, it.getDouble(1), 0.0)
+            assertEquals("keep", it.getString(2))
+        }
+        migrated.query("SELECT COUNT(*) FROM body_weights WHERE id IN (11,12)").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(2, it.getInt(0))
+        }
+        migrated.query("PRAGMA foreign_key_check").use { assertEquals(0, it.count) }
+        migrated.close()
+    }
+
+    @Test
+    fun migrateAll8To28() {
+        helper.createDatabase(TEST_DB, 8).close()
+        helper.runMigrationsAndValidate(
+            TEST_DB, 28, true,
+            AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
+            AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
+            AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14,
+            AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16,
+            AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18,
+            AppDatabase.MIGRATION_18_19, AppDatabase.MIGRATION_19_20,
+            AppDatabase.MIGRATION_20_21, AppDatabase.MIGRATION_21_22,
+            AppDatabase.MIGRATION_22_23, AppDatabase.MIGRATION_23_24,
+            AppDatabase.MIGRATION_24_25, AppDatabase.MIGRATION_25_26,
+            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28
+        ).close()
+    }
 }

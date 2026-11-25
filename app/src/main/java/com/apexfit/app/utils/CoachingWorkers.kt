@@ -128,9 +128,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         
         val cutoff = com.apexfit.app.utils.getWindowStartDate(90)
         val dbWeights = dao.getWeightEntriesSince(cutoff)
-        val engineWeights = dbWeights.groupBy { it.date }.map { (date, list) ->
-            WeightEntry(date, list.map { it.weight }.average())
-        }.sortedBy { it.date }
+        val engineWeights = BodyWeightHistory.daily(dbWeights)
 
         val dbSessions = dao.getRecentCompletedSessions(cutoff)
         val dbSets = dao.getRecentExerciseSets(cutoff)
@@ -139,17 +137,18 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val isManual = dataStore.calorieTargetManualFlow.first()
         val manualValue = dataStore.calorieTargetValueFlow.first()
         val userGoal = dataStore.goalFlow.first()
-        val latestWeightForCoaching = engineWeights.lastOrNull()?.weight ?: dataStore.currentWeightFlow.first()
+        val latestWeightForCoaching = BodyWeightHistory.latest(dbWeights)?.weight ?: repository.getCurrentWeightFlow().first()
         val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
         
         val goalWeight = dataStore.explicitGoalWeightFlow.first()
         val userHeight = dataStore.heightFlow.first()
         val userSex    = dataStore.sexFlow.first()
         val userAge    = dataStore.ageFlow.first()
-        val weeklyWorkouts = dataStore.weeklyWorkoutsFlow.first()
+        val weeklyWorkouts = repository.getTrainingFrequencyFlow().first()
+        val averageWorkouts = repository.getAverageTrainingFrequencyFlow().first()
         val tdeeResult = TdeeEngine.calcAdaptiveTDEE(
             engineWeights, allNutrition, heightCm = userHeight, ageYears = userAge,
-            biologicalSex = userSex, weeklyWorkouts = weeklyWorkouts,
+            biologicalSex = userSex, weeklyWorkouts = averageWorkouts,
             fallbackWeightKg = latestWeightForCoaching
         )
         val suggestedCal = TdeeEngine.suggestCaloricTarget(
@@ -177,8 +176,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         var todaySessionType: String? = null
         if (activePlan != null) {
             val sessionsPlan = dao.getSessionsForPlan(activePlan.id)
-            val todayDayString = SimpleDateFormat("EEEE", Locale.US).format(Date())
-            val todaySession = sessionsPlan.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+            val todaySession = WorkoutSchedule.sessionForDate(activePlan, sessionsPlan, java.time.LocalDate.now())
             if (todaySession != null) {
                 todaySessionType = todaySession.label
             }

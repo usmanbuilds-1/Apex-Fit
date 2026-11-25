@@ -68,9 +68,24 @@ class PlanBuilderViewModel @Inject constructor(
     // Fix D-L7: Cached single-subscription flow at ViewModel level
     private val cachedActivePlan: StateFlow<WorkoutPlan?> = repository.getActivePlan()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-    private val cachedActivePlanSessions: StateFlow<List<PlanSession>> = cachedActivePlan.flatMapLatest { plan ->
+    private val calendarDate = com.apexfit.app.utils.DateTimeUtils.todayDateFlow()
+        .map { java.time.LocalDate.parse(it) }
+        .flowOn(kotlinx.coroutines.Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), java.time.LocalDate.now())
+    private val allCycleSessions: StateFlow<List<PlanSession>> = cachedActivePlan.flatMapLatest { plan ->
         if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val cachedActivePlanSessions: StateFlow<List<PlanSession>> = combine(cachedActivePlan, allCycleSessions, calendarDate) { plan, sessions, date ->
+        if (plan == null) emptyList() else com.apexfit.app.utils.WorkoutSchedule.weekSessions(plan, sessions.filter { it.planId == plan.id }, date)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val activeCycleWeek = combine(cachedActivePlan, calendarDate) { plan, date ->
+        plan?.let { com.apexfit.app.utils.WorkoutSchedule.cycleWeek(it, date) } ?: 1
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1)
+    val activeScheduleDate = calendarDate
+    val activeAllCycleSessions = combine(cachedActivePlan, allCycleSessions) { plan, sessions ->
+        UiState.Success(if (plan == null) emptyList() else sessions.filter { it.planId == plan.id }) as UiState<List<PlanSession>>
+    }.catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     val activePlan: StateFlow<UiState<WorkoutPlan?>> = cachedActivePlan
         .map { UiState.Success(it) as UiState<WorkoutPlan?> }
@@ -288,7 +303,9 @@ class PlanBuilderViewModel @Inject constructor(
         // AUDIT FIX (BUG-V4-009): wrap in a transaction so deactivate + activate
         // are atomic — a crash between the two calls cannot leave all plans inactive.
         db.withTransaction {
+            if (dao.getAllPlans().none { it.id == planId }) return@withTransaction
             dao.deactivateAllPlans()
+            dao.initializeCycleAnchor(planId, com.apexfit.app.utils.WorkoutSchedule.monday(java.time.LocalDate.now()).toString())
             dao.activatePlan(planId)
         }
     }

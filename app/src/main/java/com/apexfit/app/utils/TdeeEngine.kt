@@ -19,8 +19,7 @@ object TdeeEngine {
         weeklyWorkouts: Int = 4,
         fallbackWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG
     ): TDEEResult {
-        val latestWeight = weightLog
-            .maxWithOrNull(compareBy<WeightEntry> { it.date }.thenBy { it.time })
+        val latestWeight = BodyWeightHistory.latest(weightLog)
             ?.weight
             ?: fallbackWeightKg
         
@@ -46,8 +45,8 @@ object TdeeEngine {
         val cutoff = getWindowStartDate(windowDays)
         val today = getCurrentDate()
         val recentWeight = weightLog
-            .filter { it.date in cutoff..today }
-            .sortedWith(compareBy<WeightEntry> { it.date }.thenBy { it.time })
+            .filter { it.date in cutoff..today && BodyWeightHistory.valid(it) }
+            .sortedWith(BodyWeightHistory.chronological)
         val recentNutrition = nutritionLog.filter { it.date in cutoff..today }
         val recentWeightDays = recentWeight.map { it.date }.distinct().size
         val recentNutritionDays = recentNutrition.map { it.date }.distinct().size

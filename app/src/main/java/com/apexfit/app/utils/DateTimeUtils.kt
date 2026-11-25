@@ -127,7 +127,7 @@ fun getDaysBetweenClamped(lastDate: String, today: String): Int {
 fun formatTimeForDisplay(context: android.content.Context, timeStr: String): String {
     if (timeStr.isEmpty()) return ""
     return try {
-        val localTime = LocalTime.parse(timeStr, DateTimeFormatter.ofPattern("HH:mm", Locale.US))
+        val localTime = LocalTime.parse(timeStr, DateTimeFormatter.ISO_LOCAL_TIME)
         val date = Date.from(localTime.atDate(LocalDate.now()).atZone(ZoneId.systemDefault()).toInstant())
         android.text.format.DateFormat.getTimeFormat(context).format(date)
     } catch (e: Exception) {

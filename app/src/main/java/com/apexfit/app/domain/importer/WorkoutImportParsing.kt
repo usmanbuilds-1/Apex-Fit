@@ -10,18 +10,24 @@ internal object WorkoutTextNormalizer {
     const val MAX_INPUT_CHARS = 100_000
 
     fun normalize(original: String): NormalizedWorkoutText {
-        val truncated = original.length > MAX_INPUT_CHARS
+        var truncated = original.length > MAX_INPUT_CHARS
         val bounded = if (!truncated) original else {
             val cut = original.take(MAX_INPUT_CHARS)
             val lastBreak = cut.lastIndexOf('\n')
             if (lastBreak > MAX_INPUT_CHARS / 2) cut.substring(0, lastBreak) else cut
         }
 
-        val lines = bounded
+        val compatibilityText = java.text.Normalizer.normalize(bounded, java.text.Normalizer.Form.NFKC)
+        if (compatibilityText.length > MAX_INPUT_CHARS) truncated = true
+        val rawLines = compatibilityText.take(MAX_INPUT_CHARS)
             .replace("\r\n", "\n")
             .replace('\r', '\n')
             .split('\n')
-            .map(::normalizeLine)
+            .map { line ->
+                if (line.length > 4096) truncated = true
+                line.take(4096)
+            }
+        val lines = WorkoutPasteRecovery.expand(rawLines, ::normalizeLine)
 
         val output = buildString {
             var previousBlank = true
@@ -35,7 +41,13 @@ internal object WorkoutTextNormalizer {
             }
         }.trim()
 
-        return NormalizedWorkoutText(original, output, truncated)
+        if (output.length > MAX_INPUT_CHARS) truncated = true
+        val safeOutput = if (output.length <= MAX_INPUT_CHARS) output else {
+            val cut = output.take(MAX_INPUT_CHARS)
+            val lastBreak = cut.lastIndexOf('\n')
+            if (lastBreak > MAX_INPUT_CHARS / 2) cut.substring(0, lastBreak) else cut
+        }
+        return NormalizedWorkoutText(original, safeOutput, truncated)
     }
 
     private fun normalizeLine(raw: String): String {
@@ -46,6 +58,11 @@ internal object WorkoutTextNormalizer {
             .replace("\u200D", "")
             .replace('×', 'x')
             .replace('✕', 'x')
+            .replace('✖', 'x')
+            .replace('∙', 'x')
+            .replace('⁃', '-')
+            .replace('▪', '-')
+            .replace('●', '-')
             .replace('⨯', 'x')
             .replace('–', '-')
             .replace('—', '-')
@@ -56,6 +73,10 @@ internal object WorkoutTextNormalizer {
             .replace('•', '-')
 
         line = line.replace("**", "").replace("__", "").replace("`", "")
+        line = line.replace(Regex("""\[([^\]\n]{1,100})\]\(https?://[^)\s]{1,500}\)"""), "$1")
+        if (!line.trimStart().startsWith("http", ignoreCase = true)) {
+            line = line.replace(Regex("""(?i)\s+https?://\S+"""), " ")
+        }
         line = line.replace(Regex("""^\s{0,3}#{1,6}\s+"""), "")
         line = line.replace(Regex("""^\s*>\s?"""), "")
         line = line.replace(Regex("""^\s*[-*+]\s+(?=\D)"""), "")
@@ -91,7 +112,7 @@ internal object WorkoutDayDetector {
         """(?i)^day\s*(\d{1,2}|one|two|three|four|five|six|seven)\b\s*[-:]?\s*(.*)$"""
     )
     private val structuredRegex = Regex(
-        """(?i)^(?:workout\s+[a-e0-9]+|upper(?:\s+[a-e0-9]+)?|lower(?:\s+[a-e0-9]+)?|push(?:\s+day)?|pull(?:\s+day)?|legs?(?:\s+day)?|full\s*body(?:\s+day)?|chest\s*[+&/]\s*back|back\s*[+&/]\s*chest|shoulders?(?:\s+day)?|arms?(?:\s+day)?)\s*[: -]?$"""
+        """(?i)^(?:workout\s+[a-e0-9]+|upper(?:\s+[a-e0-9]+)?|lower(?:\s+[a-e0-9]+)?|push(?:\s+(?:day|[a-e0-9]+))?|pull(?:\s+(?:day|[a-e0-9]+))?|legs?(?:\s+(?:day|[a-e0-9]+))?|full\s*body(?:\s+(?:day|[a-e0-9]+))?|rest(?:\s+day)?|chest(?:\s+day)?|back(?:\s+day)?|chest\s*[+&/]\s*triceps?|back\s*[+&/]\s*biceps?|chest\s*[+&/]\s*back|back\s*[+&/]\s*chest|shoulders?(?:\s+day)?|arms?(?:\s+day)?)\s*[: -]?$"""
     )
     private val explicitNameRegex = Regex(
         """(?i)^\s*(?:plan\s*name|routine|program|programme)\s*[:=]\s*(.+)$"""
@@ -158,10 +179,10 @@ internal object WorkoutExerciseLineParser {
     private val groupRegex = Regex("""(?i)^\s*(?:superset|super\s*set|circuit|ss)\s*([a-e])?\s*[: -]?\s*$""")
     private val groupPrefixRegex = Regex("""^\s*([A-Ea-e])\d{1,2}\s*[.): -]?\s+(.+)$""")
     private val restOnlyRegex = Regex(
-        """(?i)^\s*(?:rest\b.*|\d{1,3}\s*(?:s|sec|secs|second|seconds|min|mins|minute|minutes)\b.*)$"""
+        """(?i)^\s*(?:(?:rest|load|weight|rpe|rir)\b.*|@\s*.*|\d{1,6}(?:\.\d+)?\s*(?:kg|kgs|lb|lbs)\b.*|\d{1,3}\s*(?:s|sec|secs|second|seconds|min|mins|minute|minutes)\b.*)$"""
     )
     private val coreStartRegex = Regex(
-        """(?i)(?:\d{1,2}\s*x\s*(?:\d{1,3}|amrap|max(?:\s+reps?)?|(?:to\s+)?failure)|\d{1,2}\s+sets?\b)"""
+        """(?i)(?:\b\d{1,2}\s*x\s*(?:\d{1,3}|amrap|max(?:\s+reps?)?|(?:to\s+)?failure)|\b\d{1,3}\s+(?:sets?|reps?)\b|\b(?:sets?|reps?)\s*[:=]?\s*\d{1,3}\b|\b\d{1,3}\s*-\s*\d{1,3}\s+reps?\b)"""
     )
 
     fun parse(line: String): ImportLineShape {
@@ -187,7 +208,7 @@ internal object WorkoutExerciseLineParser {
             if (match.range.first == 0) return ImportLineShape.PrescriptionOnly(working)
             val name = working.substring(0, match.range.first)
                 .trim()
-                .trimEnd('-', ':', ',')
+                .trimEnd('-', ':', ',', '(', '[')
                 .trim()
             if (name.length >= 2 && name.any(Char::isLetter)) {
                 return ImportLineShape.FullExercise(name, working.substring(match.range.first).trim(), group)
@@ -232,6 +253,10 @@ internal object WorkoutPrescriptionParser {
         """(?i)\b(\d{1,2})\s+sets?\s*(?:x|of)?\s*(\d{1,3})\s*-\s*(\d{1,3})\s*(?:reps?)?\b(?!\s*(?:s|sec|secs|second|seconds|min|mins|minute|minutes)\b)"""
     )
     private val setsFixed = Regex("""(?i)\b(\d{1,2})\s+sets?\s*(?:x|of)?\s*(\d{1,3})\s*(?:reps?)?\b""")
+    private val labeledSets = Regex("""(?i)\b(?:sets?\s*[:=]?\s*(\d{1,2})\b|(\d{1,2})\s+sets?\b)""")
+    private val labeledReps = Regex("""(?i)\b(?:reps?\s*[:=]?\s*(\d{1,3})(?:\s*-\s*(\d{1,3}))?\b|(\d{1,3})(?:\s*-\s*(\d{1,3}))?\s+reps?\b)""")
+    private val sequenceCore = Regex("""(?i)\b(\d{1,2})\s*(?:x|sets?\s*(?:x|of)?)\s*(\d{1,3}(?:\s*,\s*\d{1,3}){2,})(?:\s+reps?)?\b(?!\s*(?:kg|lb|lbs|kgs|sec|min)\b)""")
+    private val durationCore = Regex("""(?i)\b(\d{1,2})\s*(?:x|sets?\s*(?:x|of)?)\s*(\d{1,3}(?:\s*-\s*\d{1,3})?)\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\b(?!\s*rest\b)""")
     private val setsFailure = Regex("""(?i)\b(\d{1,2})\s+sets?\s*(?:x|of)?\s*(?:to\s+)?failure\b""")
 
     private val rpeRegex = Regex("""(?i)(?:@\s*)?\bRPE\s*([0-9]+(?:\.[0-9]+)?)\b""")
@@ -247,7 +272,7 @@ internal object WorkoutPrescriptionParser {
     private val bareRestRegex = Regex(
         """(?i)^\s*(\d{1,3})(?:\s*-\s*(\d{1,3}))?\s*(s|sec|secs|second|seconds|min|mins|minute|minutes)\s*$"""
     )
-    private val weightRegex = Regex("""(?i)\b(\d+(?:\.\d+)?)\s*(kg|kgs|lb|lbs)\b""")
+    private val weightRegex = Regex("""(?i)(?<![\w.\-])(\d{1,6}(?:\.\d{1,4})?)\s*(kg|kgs|lb|lbs)\b""")
 
     fun hasSetRepCore(text: String): Boolean =
         semanticCore.containsMatchIn(text) || rangeCore.containsMatchIn(text) || fixedCore.containsMatchIn(text) ||
@@ -259,14 +284,14 @@ internal object WorkoutPrescriptionParser {
         var rpe: Double? = null
         rpeRegex.find(remaining)?.let {
             rpe = it.groupValues[1].toDoubleOrNull()?.takeIf { value -> value in 1.0..10.0 }
-            remaining = removeMatch(remaining, it)
+            if (rpe != null) remaining = removeMatch(remaining, it)
         }
 
         var rir: Int? = null
         (rirAfterRegex.find(remaining) ?: rirBeforeRegex.find(remaining))?.let {
             val number = it.groupValues.drop(1).firstOrNull(String::isNotBlank)?.toIntOrNull()
             rir = number?.takeIf { value -> value in 0..10 }
-            remaining = removeMatch(remaining, it)
+            if (rir != null) remaining = removeMatch(remaining, it)
         }
 
         var weight: ParsedImportWeight? = null
@@ -284,13 +309,26 @@ internal object WorkoutPrescriptionParser {
         var target = ImportRepTarget.FIXED
         var repNote: String? = null
 
+        val sequence = sequenceCore.find(remaining)
+        if (sequence != null) {
+            sets = sequence.groupValues[1].toIntOrNull()
+            repNote = "Source per-set rep sequence: " + sequence.groupValues[2] + ". Choose a numeric target before saving."
+            remaining = removeMatch(remaining, sequence)
+        }
+        val duration = if (sequence == null) durationCore.find(remaining) else null
+        if (duration != null) {
+            sets = duration.groupValues[1].toIntOrNull()
+            repNote = "Source timed target: " + duration.value
+            remaining = removeMatch(remaining, duration)
+        }
+
         val semantic = semanticCore.find(remaining)
         val failureSets = setsFailure.find(remaining)
         val rangeSets = setsRange.find(remaining)
         val rangeX = rangeCore.find(remaining)
         val fixedSets = setsFixed.find(remaining)
         val fixedX = fixedCore.find(remaining)
-        val coreMatch = semantic ?: failureSets ?: rangeSets ?: rangeX ?: fixedSets ?: fixedX
+        val coreMatch = if (duration != null || sequence != null) null else semantic ?: failureSets ?: rangeSets ?: rangeX ?: fixedSets ?: fixedX
 
         if (coreMatch != null) {
             when (coreMatch) {
@@ -321,6 +359,29 @@ internal object WorkoutPrescriptionParser {
             remaining = removeMatch(remaining, coreMatch)
         }
 
+        if (coreMatch == null && duration == null && sequence == null) {
+            labeledSets.find(remaining)?.let {
+                sets = it.groupValues.drop(1).firstOrNull(String::isNotBlank)?.toIntOrNull()
+                remaining = removeMatch(remaining, it)
+            }
+            labeledReps.find(remaining)?.let {
+                val before = it.groupValues[1].isNotBlank()
+                repsMin = it.groupValues[if (before) 1 else 3].toIntOrNull()
+                repsMax = it.groupValues[if (before) 2 else 4].toIntOrNull() ?: repsMin
+                target = if (repsMin == repsMax) ImportRepTarget.FIXED else ImportRepTarget.RANGE
+                remaining = removeMatch(remaining, it)
+            }
+        }
+        // Invalid prescriptions must stay visible, never silently become usable values.
+        if (sets?.let { it !in 1..99 } == true || repsMin?.let { it !in 1..999 } == true ||
+            repsMax?.let { it !in 1..999 } == true ||
+            (repsMin != null && repsMax != null && repsMin!! > repsMax!!)) {
+            repNote = "Invalid source target: " + text
+            sets = sets?.takeIf { it in 1..99 }
+            repsMin = null
+            repsMax = null
+        }
+
         var restSeconds: Int? = null
         var restNote: String? = null
         (restRegex.find(remaining) ?: restAfterRegex.find(remaining) ?: bareRestRegex.find(remaining))?.let { match ->
@@ -328,8 +389,9 @@ internal object WorkoutPrescriptionParser {
             val high = match.groupValues.getOrNull(2)?.takeIf(String::isNotBlank)?.toIntOrNull()
             val unit = match.groupValues.getOrNull(3).orEmpty().lowercase()
             val multiplier = if (unit.startsWith("m")) 60 else 1
-            restSeconds = low?.times(multiplier)
-            if (high != null && low != null) restNote = "Source rest range: ${low * multiplier}-${high * multiplier} sec"
+            restSeconds = low?.times(multiplier)?.takeIf { it in 0..3600 }
+            if (restSeconds == null) restNote = "Invalid source rest: " + match.value
+            if (high != null && low != null && restSeconds != null) restNote = "Source rest range: ${low * multiplier}-${high * multiplier} sec"
             remaining = removeMatch(remaining, match)
         }
 

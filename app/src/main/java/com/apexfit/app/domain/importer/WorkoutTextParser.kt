@@ -34,10 +34,12 @@ class WorkoutTextParser(
         }
 
         val globalWarnings = mutableListOf<ImportWarning>()
+        val schedule = mutableListOf<ImportedScheduleSlot>()
+        var inSchedule = false
         if (normalized.truncated) {
             globalWarnings += ImportWarning(
                 ImportWarning.INPUT_TOO_LARGE,
-                "Only the first ${WorkoutTextNormalizer.MAX_INPUT_CHARS} characters were parsed.",
+                "The paste exceeded safe parsing limits. Some source text was not parsed; review the original.",
                 ImportWarningSeverity.WARNING
             )
         }
@@ -52,6 +54,18 @@ class WorkoutTextParser(
         var activeGroupTag: String? = null
         var groupCounter = 0
         var sawStructuredDay = false
+        val matchCache = mutableMapOf<String, WorkoutExerciseMatcher.Match>()
+        fun matchName(name: String): WorkoutExerciseMatcher.Match = matchCache.getOrPut(name) {
+            val alternatives = name.split(Regex("""\s+/\s+|\s+or\s+""", RegexOption.IGNORE_CASE))
+            if (alternatives.size <= 1) matcher.match(name)
+            else {
+                val matches = alternatives.map(matcher::match)
+                val choices = matches.flatMap { match ->
+                    match.candidates + listOfNotNull(match.entry?.let { ExerciseCandidate(it, match.confidence, match.score, true) })
+                }.distinctBy { it.entry.id }
+                WorkoutExerciseMatcher.Match(null, MatchConfidence.UNRESOLVED, true, 0, choices)
+            }
+        }
         val ignoredTitleLine = lines.indexOfFirst { it.trim() == inferredName.trim() }
 
         fun ensureDay(lineIndex: Int): DraftDay {
@@ -78,13 +92,53 @@ class WorkoutTextParser(
                 return@forEachIndexed
             }
 
+            if (line.startsWith("Recovery warning:")) {
+                globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, line.removePrefix("Recovery warning:").trim(), lineIndex = index)
+                return@forEachIndexed
+            }
+            if (line == "Schedule end:") {
+                inSchedule = false
+                return@forEachIndexed
+            }
+            if (line.startsWith("Schedule heading:")) {
+                inSchedule = true
+                return@forEachIndexed
+            }
+            if (line.startsWith("Schedule row:")) {
+                inSchedule = true
+                val fields = line.removePrefix("Schedule row:").trim().split(" | ")
+                val weekday = fields.firstOrNull().orEmpty()
+                fields.drop(1).forEach { field ->
+                    val week = field.substringBefore('=').trim()
+                    val workout = field.substringAfter('=', "").trim()
+                    if (week.isNotBlank() && workout.isNotBlank()) schedule += ImportedScheduleSlot(weekday, week, workout)
+                    else globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, "Incomplete schedule cell: $field", lineIndex = index)
+                }
+                return@forEachIndexed
+            }
+            if (inSchedule && WorkoutDayDetector.detect(line)?.let { it.dayOfWeek == null && !it.label.startsWith("rest", true) } == true) {
+                inSchedule = false
+            }
+            if (line.startsWith("Schedule unresolved:") || inSchedule) {
+                globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, "Schedule text requires review: " + line.take(140), lineIndex = index)
+                return@forEachIndexed
+            }
+
             if (WorkoutDayDetector.explicitPlanName(line) != null) return@forEachIndexed
             if (index == ignoredTitleLine && looksLikePlanTitle(line)) return@forEachIndexed
 
+            if (line.startsWith("Note:", ignoreCase = true) || line.startsWith("Notes:", ignoreCase = true)) {
+                val last = currentDay?.exercises?.lastOrNull()
+                if (last != null) last.extraNotes += line.substringAfter(':').trim()
+                else globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED, line.take(160), ImportWarningSeverity.INFO, index)
+                return@forEachIndexed
+            }
+
             WorkoutDayDetector.detect(line)?.let { heading ->
                 sawStructuredDay = true
-                val day = DraftDay(heading = heading, lineIndex = index)
-                days += day
+                // Repeated explicit day labels (e.g. interleaved spreadsheet rows) belong together.
+                val day = days.firstOrNull { it.heading == heading }
+                    ?: DraftDay(heading = heading, lineIndex = index).also { days += it }
                 currentDay = day
                 activeGroupTag = null
                 return@forEachIndexed
@@ -108,9 +162,9 @@ class WorkoutTextParser(
                 }
                 is ImportLineShape.NameOnly -> {
                     val day = currentDay
-                    if (day == null && looksLikePlanTitle(shape.name)) return@forEachIndexed
+                    val libraryMatch = matchName(shape.name)
+                    if (day == null && looksLikePlanTitle(shape.name) && libraryMatch.confidence != MatchConfidence.EXACT) return@forEachIndexed
                     val targetDay = ensureDay(index)
-                    val libraryMatch = matcher.match(shape.name)
                     val likelyExercise = libraryMatch.entry != null || libraryMatch.candidates.isNotEmpty() ||
                         WorkoutExerciseMatcher.tokens(shape.name).any { token -> token in EXERCISE_HINT_TOKENS }
                     if (likelyExercise && shape.name.length <= 90) {
@@ -132,11 +186,27 @@ class WorkoutTextParser(
                     }
                 }
                 is ImportLineShape.PrescriptionOnly -> {
+                    // Accept "3x8 Bench Press" only when the suffix is a confident catalog match.
+                    val prefix = PREFIX_PRESCRIPTION.matchEntire(shape.prescription)
+                    val prefixName = prefix?.groupValues?.get(2)?.trim().orEmpty()
+                    if (prefix != null && matchName(prefixName).confidence == MatchConfidence.EXACT) {
+                        ensureDay(index).exercises += DraftExercise(prefixName, prefix.groupValues[1], index, activeGroupTag)
+                        return@forEachIndexed
+                    }
                     val last = currentDay?.exercises?.lastOrNull()
-                    if (last != null && last.rawPrescription.isNullOrBlank()) {
-                        last.rawPrescription = shape.prescription
-                    } else if (last != null) {
-                        last.extraNotes += shape.prescription
+                    if (last != null) {
+                        val previous = WorkoutPrescriptionParser.parse(last.rawPrescription.orEmpty())
+                        val next = WorkoutPrescriptionParser.parse(shape.prescription)
+                        val addsField = (previous.sets == null && next.sets != null) ||
+                            (previous.repsMin == null && next.repsMin != null)
+                        val conflicts = (previous.sets != null && next.sets != null && previous.sets != next.sets) ||
+                            (previous.repsMin != null && next.repsMin != null &&
+                                (previous.repsMin != next.repsMin || previous.repsMax != next.repsMax))
+                        if (last.rawPrescription.isNullOrBlank() || (addsField && !conflicts && previous.repNote == null)) {
+                            last.rawPrescription = listOfNotNull(last.rawPrescription, shape.prescription).joinToString("; ")
+                        } else {
+                            last.extraNotes += shape.prescription
+                        }
                     } else {
                         globalWarnings += ImportWarning(
                             ImportWarning.LINE_NOT_PARSED,
@@ -149,7 +219,7 @@ class WorkoutTextParser(
                 is ImportLineShape.RestOnly -> {
                     val last = currentDay?.exercises?.lastOrNull()
                     if (last != null) {
-                        last.rawPrescription = listOfNotNull(last.rawPrescription, shape.text).joinToString(" ")
+                        last.rawPrescription = listOfNotNull(last.rawPrescription, shape.text).joinToString("; ")
                     } else {
                         globalWarnings += ImportWarning(
                             ImportWarning.LINE_NOT_PARSED,
@@ -159,7 +229,10 @@ class WorkoutTextParser(
                         )
                     }
                 }
-                is ImportLineShape.Other -> Unit
+                is ImportLineShape.Other -> {
+                    globalWarnings += ImportWarning(ImportWarning.LINE_NOT_PARSED,
+                        "Unparsed source text: " + shape.text.take(100), ImportWarningSeverity.INFO, index)
+                }
             }
         }
 
@@ -188,16 +261,28 @@ class WorkoutTextParser(
                 label = day.heading.label,
                 dayOfWeek = day.heading.dayOfWeek,
                 focus = day.heading.focus,
-                exercises = day.exercises.map(::parseExercise),
+                exercises = day.exercises.map { parseExercise(it, matchName(it.rawName)) },
                 lineIndex = day.lineIndex
             )
         }
 
+        val referenced = schedule.filterNot { it.isRest }.map { it.workout }.distinctBy { it.lowercase() }
+        val unmatched = referenced.filter { label -> parsedDays.none { it.label.equals(label, true) } }
+        val unnamed = parsedDays.filter { it.label == "Workout 1" && it.dayOfWeek == null }
+        val resolvedDays = if (unnamed.size == 1 && unmatched.size == 1 && parsedDays.size > 1) {
+            globalWarnings += ImportWarning(ImportWarning.NO_DAYS_FOUND, "Inferred missing workout label: " + unmatched.single() + ". Check before saving.")
+            parsedDays.map { if (it === unnamed.single()) it.copy(label = unmatched.single()) else it }
+        } else parsedDays
+        if (schedule.isNotEmpty()) {
+            globalWarnings.add(0, ImportWarning(ImportWarning.LINE_NOT_PARSED,
+                "Weekly schedule recovered. Review the workout templates and the repeating schedule before saving.", ImportWarningSeverity.WARNING))
+        }
         return WorkoutImportParseResult(
             plan = ParsedImportedPlan(
                 name = inferredName.take(80).ifBlank { "Imported Plan" },
                 nameInferred = nameInferred,
-                days = parsedDays,
+                days = resolvedDays,
+                schedule = schedule.distinct(),
                 warnings = globalWarnings,
                 provenance = WorkoutImportProvenance(
                     originalText = normalized.originalText.take(WorkoutTextNormalizer.MAX_INPUT_CHARS),
@@ -208,9 +293,8 @@ class WorkoutTextParser(
         )
     }
 
-    private fun parseExercise(draft: DraftExercise): ParsedImportedExercise {
+    private fun parseExercise(draft: DraftExercise, match: WorkoutExerciseMatcher.Match): ParsedImportedExercise {
         val prescription = WorkoutPrescriptionParser.parse(draft.rawPrescription.orEmpty())
-        val match = matcher.match(draft.rawName)
         val warnings = mutableListOf<ImportWarning>()
 
         when (match.confidence) {
@@ -305,7 +389,7 @@ class WorkoutTextParser(
         return lines.take(firstHeading.coerceAtMost(6)).asSequence()
             .map { it.trim() }
             .filter { it.isNotBlank() && !WorkoutImportNoiseFilter.isNoise(it) }
-            .firstOrNull(::looksLikePlanTitle)
+            .firstOrNull { looksLikePlanTitle(it) && matcher.match(it).confidence != MatchConfidence.EXACT }
     }
 
     private fun looksLikePlanTitle(line: String): Boolean {
@@ -319,6 +403,7 @@ class WorkoutTextParser(
         if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()
 
     companion object {
+        private val PREFIX_PRESCRIPTION = Regex("""(?i)^(\d{1,2}\s*x\s*(?:\d{1,3}(?:\s*-\s*\d{1,3})?|amrap|failure))\s*[:\-]?\s+([A-Za-z][A-Za-z0-9 ()\-]{1,80})$""")
         private val PLAN_TITLE_HINT = Regex(
             """(?i)\b(?:workout|routine|program|programme|split|ppl|phul|phat|5x5|upper\s+lower|push\s+pull\s+legs|reddit)\b"""
         )

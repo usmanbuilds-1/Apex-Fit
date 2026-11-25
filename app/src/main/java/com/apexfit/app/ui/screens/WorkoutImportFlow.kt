@@ -65,6 +65,7 @@ fun WorkoutImportFlow(
                 onUpdatePlanName = viewModel::updatePlanName,
                 onUpdatePlanGoal = viewModel::updatePlanGoal,
                 onUpdateMakeActive = viewModel::updateMakeActive,
+                onSelectFixedWeek = viewModel::selectFixedScheduleWeek,
                 onAddDay = viewModel::addDay,
                 onAddExercise = viewModel::addExercise,
                 onSelectExercise = viewModel::selectExercise,
@@ -89,6 +90,7 @@ internal data class WorkoutImportReviewActions(
     val onUpdatePlanName: (String) -> Unit = {},
     val onUpdatePlanGoal: (String) -> Unit = {},
     val onUpdateMakeActive: (Boolean) -> Unit = {},
+    val onSelectFixedWeek: (String) -> Unit = {},
     val onAddDay: () -> Unit = {},
     val onAddExercise: (dayKey: String, exerciseId: String) -> Unit = { _, _ -> },
     val onSelectExercise: (dayKey: String, exerciseKey: String, exerciseId: String) -> Unit = { _, _, _ -> },
@@ -339,16 +341,30 @@ internal fun WorkoutImportReviewScreen(
                 }
             }
             state.errorMessage?.let { item { ImportNotice(it, true) } }
-            state.parseWarnings.take(4).forEach { warning ->
+            if (draft.schedule.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Recovered schedule", color = PrimaryText, fontWeight = FontWeight.SemiBold)
+                        Text("This schedule repeats automatically. Week 1 starts on the Monday of the week you first activate this plan. Edit each template once; it applies to all its scheduled occurrences.", color = MutedText, fontSize = 12.sp)
+                        draft.schedule.groupBy { it.week }.forEach { (week, slots) ->
+                            Text(week, color = PrimaryText, fontWeight = FontWeight.SemiBold)
+                            slots.forEach { slot -> Text(slot.weekday + " · " + slot.workout, color = SecondaryText, fontSize = 12.sp) }
+
+                        }
+                    }
+                }
+            }
+            state.parseWarnings.forEach { warning ->
                 item { ImportNotice(warning, false) }
             }
-            state.validationErrors.drop(1).take(3).forEach { warning ->
+            state.validationErrors.drop(1).forEach { warning ->
                 item { ImportNotice(warning, true) }
             }
 
             items(draft.days, key = { it.key }) { day ->
                 ImportedDayCard(
                     day = day,
+                    isScheduledTemplate = draft.usesRotation,
                     onLabel = { actions.onUpdateDayLabel(day.key, it) },
                     onWeekday = { actions.onUpdateDayWeekday(day.key, it) },
                     onMoveUp = { actions.onMoveDay(day.key, -1) },
@@ -392,6 +408,7 @@ internal fun WorkoutImportReviewScreen(
 @Composable
 private fun ImportedDayCard(
     day: EditableImportedDay,
+    isScheduledTemplate: Boolean = false,
     onLabel: (String) -> Unit,
     onWeekday: (String?) -> Unit,
     onMoveUp: () -> Unit,
@@ -408,12 +425,12 @@ private fun ImportedDayCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = DarkCardSurface),
-        border = BorderStroke(1.dp, if (day.needsReview) ApexColors.Amber else BorderSubtle),
+        border = BorderStroke(1.dp, if ((!isScheduledTemplate && day.dayOfWeek == null) || day.exercises.any { it.needsReview }) ApexColors.Amber else BorderSubtle),
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("TRAINING DAY", color = AmberAccent, fontFamily = JetBrainsMonoFamily, fontSize = 10.sp)
+                Text(if (isScheduledTemplate) "WORKOUT TEMPLATE" else "TRAINING DAY", color = AmberAccent, fontFamily = JetBrainsMonoFamily, fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onMoveUp) {
                     Icon(painterResource(ApexIcons.ArrowUp), contentDescription = "Move training day up",
@@ -436,7 +453,8 @@ private fun ImportedDayCard(
                 singleLine = true,
                 colors = importFieldColors()
             )
-            WeekdayPicker(day.dayOfWeek, onWeekday)
+            if (!isScheduledTemplate) WeekdayPicker(day.dayOfWeek, onWeekday)
+            else Text("Weekdays assigned by recovered schedule", color = MutedText, fontSize = 11.sp)
 
             day.exercises.forEach { exercise ->
                 ImportedExerciseCard(

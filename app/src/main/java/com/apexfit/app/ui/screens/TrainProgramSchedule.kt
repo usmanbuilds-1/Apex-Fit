@@ -63,7 +63,9 @@ internal fun TrainProgramSchedule(
     onOpenLibrary: () -> Unit,
     onOpenFormGuide: (PlanExercise) -> Unit,
     onSubstituteExercise: (PlanExercise) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cycleWeek: Int = 1,
+    cycleWeeks: Int = 1
 ) {
     when (sessionsState) {
         UiState.Loading -> Column(
@@ -85,7 +87,7 @@ internal fun TrainProgramSchedule(
         }
         is UiState.Success -> {
             val sessions = sessionsState.data
-            if (sessions.isEmpty()) {
+            if (sessions.isEmpty() && cycleWeeks == 1) {
                 Column(modifier.fillMaxSize().padding(top = 24.dp)) {
                     Text("No weekly schedule", color = ApexColors.TextPrimary,
                         fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
@@ -108,7 +110,7 @@ internal fun TrainProgramSchedule(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Weekly schedule", color = ApexColors.TextPrimary,
+                            Text(if (cycleWeeks > 1) "Week $cycleWeek of $cycleWeeks" else "Weekly schedule", color = ApexColors.TextPrimary,
                                 fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                             TextButton(onClick = onOpenLibrary, modifier = Modifier.heightIn(min = 44.dp)) {
                                 Text("Exercise library", color = ApexColors.TextSecondary, fontSize = 13.sp)

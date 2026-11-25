@@ -88,7 +88,7 @@ class HomeViewModel @Inject constructor(
         .map { entries -> entries.map { it.toUi() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val currentWeight: Flow<Double> = dataStore.currentWeightFlow
+    val currentWeight: Flow<Double> = repository.getCurrentWeightFlow()
     val calorieTargetFlow: Flow<Int> = dataStore.calorieTargetValueFlow
 
     data class TodayMacros(val calories: Int, val protein: Int, val carbs: Int, val fat: Int)
@@ -210,23 +210,26 @@ class HomeViewModel @Inject constructor(
     val streakResult: StateFlow<com.apexfit.app.utils.StreakResult> =
         repository.streakResultFlow
 
-    fun logWeight(weight: Double, date: String = getTodayDateString(), preferredUnit: String = "kg"): kotlinx.coroutines.Job? {
+    private fun canonicalWeight(weight: Double, preferredUnit: String): Double {
+        val kg = when (preferredUnit.lowercase()) {
+            "kg" -> weight
+            "lb", "lbs" -> weight / AppConstants.KG_TO_LBS
+            else -> throw IllegalArgumentException("Unknown weight unit")
+        }
+        require(kg.isFinite() && kg in AppConstants.MIN_WEIGHT_KG..AppConstants.MAX_WEIGHT_KG)
+        return kg
+    }
+
+    private fun saveWeightAction(action: suspend () -> Unit): kotlinx.coroutines.Job? {
         if (!_isLoggingWeight.compareAndSet(false, true)) return null
-        val weightKg = if (preferredUnit.lowercase() in listOf("lb", "lbs")) weight / AppConstants.KG_TO_LBS else weight
-        val safeWeightKg = weightKg.coerceIn(
-            com.apexfit.app.utils.AppConstants.MIN_WEIGHT_KG,
-            com.apexfit.app.utils.AppConstants.MAX_WEIGHT_KG
-        )
         return viewModelScope.launch {
             try {
                 _weightLogError.value = null
-                val timeStr = try { getCurrentLocalTimeString() } catch (e: Exception) { "12:00" }
-                dao.insertWeightEntry(WeightEntry(date = date, time = timeStr, weight = safeWeightKg, unit = "kg"))
-                // Keep the profile weight aligned to the newest dated entry.
-                // A historical backfill must not overwrite a newer current weight.
-                syncCurrentWeightFromHistory()
+                action()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (e: IllegalArgumentException) {
+                _weightLogError.value = "Enter a valid weight and date."
             } catch (e: Exception) {
                 _weightLogError.value = "Failed to save weight. Please try again."
             } finally {
@@ -235,20 +238,33 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun deleteWeightById(id: Long): kotlinx.coroutines.Job =
-        viewModelScope.launch {
-            dao.deleteWeightEntryById(id)
-            syncCurrentWeightFromHistory()
-        }
-
-    private suspend fun syncCurrentWeightFromHistory() {
-        val latest = dao.getWeightEntries(limit = 1).firstOrNull() ?: return
-        try {
-            dataStore.saveCurrentWeight(latest.weight)
-        } catch (e: Exception) {
-            android.util.Log.w("HomeViewModel", "Could not sync current profile weight", e)
+    fun logWeight(weight: Double, date: String? = null, preferredUnit: String = "kg"): kotlinx.coroutines.Job? {
+        val now = java.time.ZonedDateTime.now()
+        return saveWeightAction {
+            val localDate = date ?: now.toLocalDate().toString()
+            require(!java.time.LocalDate.parse(localDate).isAfter(now.toLocalDate()))
+            val time = now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSS", java.util.Locale.US))
+            repository.logWeightEntry(WeightEntry(date = localDate, time = time, weight = canonicalWeight(weight, preferredUnit), unit = "kg"))
         }
     }
+
+    fun editWeightById(id: Long, weight: Double, preferredUnit: String = "kg"): kotlinx.coroutines.Job? =
+        saveWeightAction {
+            check(repository.editWeightEntry(id, canonicalWeight(weight, preferredUnit))) { "Weight no longer exists" }
+        }
+
+    fun deleteWeightById(id: Long): kotlinx.coroutines.Job =
+        viewModelScope.launch {
+            try {
+                _weightLogError.value = null
+                repository.removeWeightEntry(id)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _weightLogError.value = "Failed to delete weight. Please try again."
+            }
+        }
+
 
     private fun csvEscape(value: String): String {
         val escaped = value.replace("\"", "\"\"")
@@ -265,7 +281,7 @@ class HomeViewModel @Inject constructor(
             try {  
                 val cutoff90 = com.apexfit.app.utils.getWindowStartDate(90)
                 val cutoff365 = com.apexfit.app.utils.getWindowStartDate(365)
-                val weights = dao.getWeightEntriesSince(cutoff90)  
+                val weights = dao.observeAllWeightEntries().first()  
                 val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
                 val sessions = dao.getAllTrainingSessions()  
                 val exerciseSets = dao.getRecentExerciseSets(cutoff365)
@@ -319,8 +335,6 @@ class HomeViewModel @Inject constructor(
         return com.apexfit.app.utils.DateTimeUtils.todayDateString()
     }
 
-    private fun getCurrentLocalTimeString(): String =
-        java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
 
     public override fun onCleared() {
         super.onCleared()

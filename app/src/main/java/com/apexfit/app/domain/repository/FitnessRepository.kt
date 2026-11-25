@@ -22,6 +22,8 @@ interface FitnessRepository {
     val streakResultFlow: StateFlow<StreakResult>
 
     suspend fun logWeightEntry(entry: WeightEntry)
+    suspend fun editWeightEntry(id: Long, weightKg: Double): Boolean
+    suspend fun removeWeightEntry(id: Long)
     suspend fun logNutritionEntry(entry: NutritionEntry)
     suspend fun logExerciseSet(set: ExerciseSet)
     suspend fun savePlan(plan: WorkoutPlan): Long
@@ -56,5 +58,7 @@ interface FitnessRepository {
     fun getCalorieTargetFlow(): Flow<Int>
     fun getGoalFlow(): Flow<String>
     fun getCurrentWeightFlow(): Flow<Double>
+    fun getTrainingFrequencyFlow(): Flow<Int>
+    fun getAverageTrainingFrequencyFlow(): Flow<Int>
     suspend fun scanAndSaveWeeklyPatterns()
 }

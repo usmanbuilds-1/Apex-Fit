@@ -1,4 +1,5 @@
 package com.apexfit.app.ui.screens
+import kotlinx.coroutines.launch
 import com.apexfit.app.ui.theme.ApexIcons
 import androidx.compose.ui.res.painterResource
 
@@ -717,6 +718,9 @@ fun HomeWeightChartCard(
 
     var selectedFilter by rememberSaveable { mutableStateOf("7D") }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
+    var savingWeight by remember { mutableStateOf(false) }
+    val weightError by homeViewModel.weightLogError.collectAsStateWithLifecycle()
+    val weightScope = rememberCoroutineScope()
     var weightInput by rememberSaveable { mutableStateOf("") }
 
     val onWeightCardClick = remember(onNavigateTo) { { onNavigateTo(3) } }
@@ -1027,9 +1031,19 @@ fun HomeWeightChartCard(
             initialInput = weightInput,
             units = units,
             onDismiss = { showWeightDialog = false },
+            isSaving = savingWeight,
+            saveError = weightError,
             onSave = { parsedWeight ->
-                homeViewModel.logWeight(parsedWeight, preferredUnit = units)
-                showWeightDialog = false
+                if (!savingWeight) {
+                    savingWeight = true
+                    weightScope.launch {
+                        try {
+                            val job = homeViewModel.logWeight(parsedWeight, preferredUnit = units) ?: return@launch
+                            job.join()
+                            if (!job.isCancelled && homeViewModel.weightLogError.value == null) showWeightDialog = false
+                        } finally { savingWeight = false }
+                    }
+                }
             }
         )
     }
@@ -1060,12 +1074,13 @@ internal fun LogWeightDialog(
     onDismiss: () -> Unit,
     onSave: (Double) -> Unit,
     saveError: String? = null,
-    isSaving: Boolean = false
+    isSaving: Boolean = false,
+    isEditing: Boolean = false
 ) {
     var weightInput by rememberSaveable { mutableStateOf(initialInput) }
     var weightError by rememberSaveable { mutableStateOf("") }
-    val weightMin = if (units.lowercase() == "kg") 20.0 else 44.0
-    val weightMax = if (units.lowercase() == "kg") 300.0 else 660.0
+    val weightMin = if (units.lowercase() == "kg") 20.0 else 44.1
+    val weightMax = if (units.lowercase() == "kg") 300.0 else 661.3
 
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
@@ -1078,7 +1093,7 @@ internal fun LogWeightDialog(
         containerColor = DarkCardSurface,
         title = {
             Text(
-                text = "Log weight",
+                text = if (isEditing) "Edit weight" else "Log weight",
                 fontFamily = SyneFamily,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 16.sp,
@@ -1088,7 +1103,7 @@ internal fun LogWeightDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Enter your current weight in $units.",
+                    text = if (isEditing) "Correct this measurement in $units." else "Add a new measurement in $units.",
                     fontFamily = JetBrainsMonoFamily,
                     fontSize = 12.sp,
                     color = SecondaryText,
@@ -1156,7 +1171,7 @@ internal fun LogWeightDialog(
                 }
             ) {
                 Text(
-                    text = if (isSaving) "SAVING…" else "SAVE",
+                    text = if (isSaving) "SAVING…" else if (isEditing) "UPDATE" else "SAVE",
                     fontFamily = SyneFamily,
                     fontWeight = FontWeight.Bold,
                     color = if (isSaving) SecondaryText else OrangeAccent
