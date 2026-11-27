@@ -135,7 +135,7 @@ class TrainViewModelTest {
         assertEquals("Final set should not start another timer", 1, restCalls)
         assertTrue(manager.activeSession.value!!.exercises[1].sets[0].completed)
         assertNull(manager.activeSession.value!!.restCheckpoint)
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
 
@@ -183,7 +183,7 @@ class TrainViewModelTest {
         assertEquals(1, adjustedSet.repsInReserve)
         assertEquals(9, adjustedSet.rpe)
         viewModel.closeRirSelector()
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
 
