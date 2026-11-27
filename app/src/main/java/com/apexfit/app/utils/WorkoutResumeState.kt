@@ -33,13 +33,13 @@ internal object WorkoutResumeState {
             session.exercises.firstOrNull { it.executionKey == rest.exerciseKey }
                 ?.sets?.getOrNull(rest.setIndex)?.completed == true
 
-    fun sameBoot(rest: ActiveRestCheckpoint, nowElapsedMs: Long, bootCount: Int?): Boolean =
-        bootCount != null && rest.bootCount == bootCount && nowElapsedMs >= rest.startedElapsedMs
+    fun sameBoot(rest: ActiveRestCheckpoint, nowElapsedMs: Long, bootCount: Int?, liveInProcess: Boolean = false): Boolean =
+        (liveInProcess || (bootCount != null && rest.bootCount == bootCount)) && nowElapsedMs >= rest.startedElapsedMs
 
     // Expired recovered timers count only the observable interval up to the
     // saved deadline, not an invented period of rest while the app was closed.
-    fun observedRestSeconds(rest: ActiveRestCheckpoint, nowElapsedMs: Long, bootCount: Int?): Int? =
-        if (!sameBoot(rest, nowElapsedMs, bootCount)) null
+    fun observedRestSeconds(rest: ActiveRestCheckpoint, nowElapsedMs: Long, bootCount: Int?, liveInProcess: Boolean = false): Int? =
+        if (!sameBoot(rest, nowElapsedMs, bootCount, liveInProcess)) null
         else ((minOf(nowElapsedMs, rest.deadlineElapsedMs) - rest.startedElapsedMs).coerceAtLeast(0) / 1000L)
             .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 }
