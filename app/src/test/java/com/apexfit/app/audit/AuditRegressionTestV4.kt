@@ -1055,4 +1055,96 @@ class AuditRegressionTestV4 {
             AppDatabase.setTestDatabase(null)
         }
     }
+
+    @Test
+    fun repeatedExerciseOccurrencesHaveIndependentSetsLoadsAndRest() = runBlocking {
+        AppDatabase.setTestDatabase(db)
+        try {
+            val store = DataStoreManager.getInstance(context)
+            val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+            val manager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
+            val first = PlanExercise(id = 1, planSessionId = 1, exerciseId = "bench-press",
+                name = "Bench Press", muscleGroup = "Chest", sets = 1, repsMin = 5, repsMax = 6,
+                weight = 40.0, restSeconds = 150, notes = "")
+            val second = first.copy(id = 2, sets = 2, repsMin = 10, repsMax = 12,
+                weight = 20.0, restSeconds = 60)
+            val plan = PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest")
+            manager.startSession(plan, listOf(first, second), 70.0, 175.0, "kg")
+            val initial = manager.activeSession.value!!
+            val firstKey = initial.exercises[0].executionKey
+            val secondKey = initial.exercises[1].executionKey
+            assertTrue(firstKey != secondKey)
+            assertTrue(initial.exercises.all { it.exerciseId == "bench-press" })
+            assertEquals(40.0, initial.exercises[0].sets.single().weight, 0.0)
+            assertEquals(20.0, initial.exercises[1].sets.first().weight, 0.0)
+            assertEquals(150, manager.calculateRestTimeSeconds(firstKey, "compound_upper", 8))
+            assertEquals(60, manager.calculateRestTimeSeconds(secondKey, "compound_upper", 8))
+
+            manager.updateSet(firstKey, 0, 42.0, 5, 8, 0, true)
+            manager.commitRestTaken(firstKey, 0, 91, expectedSessionId = initial.sessionId)
+            manager.commitRestTaken(firstKey, 0, 999, expectedSessionId = "wrong-workout")
+            manager.updateSet(secondKey, 0, 21.0, 11, 9, 0, true)
+            manager.commitRestTaken(secondKey, 0, 37, expectedSessionId = initial.sessionId)
+            manager.addCustomSet(secondKey)
+            val current = manager.activeSession.value!!
+            assertEquals(1, current.exercises[0].sets.size)
+            assertEquals(3, current.exercises[1].sets.size)
+            assertEquals(91, current.exercises[0].sets.single().restTakenSeconds)
+            assertEquals(37, current.exercises[1].sets.first().restTakenSeconds)
+            assertEquals(42.0, current.exercises[0].sets.single().weight, 0.0)
+            assertEquals(21.0, current.exercises[1].sets.first().weight, 0.0)
+            assertFalse(current.exercises[1].sets[1].completed)
+            assertFalse(current.exercises[1].sets[2].completed)
+            val durable = kotlinx.coroutines.withTimeout(10_000) {
+                store.activeSessionJsonFlow.first { raw ->
+                    raw != null && com.apexfit.app.utils.ActiveWorkoutCodec.decode(raw).session.exercises
+                        .getOrNull(1)?.sets?.size == 3
+                }
+            }
+            val decoded = com.apexfit.app.utils.ActiveWorkoutCodec.decode(durable!!).session
+            assertEquals(listOf(firstKey, secondKey), decoded.exercises.map { it.executionKey })
+            assertEquals(91, decoded.exercises[0].sets.single().restTakenSeconds)
+            val result = manager.commitToDatabase(4, isPartial = true)
+            val saved = dao.getSetsForSession(result.sessionId)
+            assertEquals(2, saved.size)
+            assertTrue(saved.all { it.exerciseId == "bench-press" })
+            assertEquals(listOf(42.0, 21.0), saved.map { it.weight })
+            assertEquals(listOf(5, 11), saved.map { it.reps })
+            assertEquals(listOf(91, 37), saved.map { it.restTaken })
+            assertEquals(0.441, result.totalVolumeTonnes, 0.000001)
+        } finally {
+            AppDatabase.setTestDatabase(null)
+        }
+    }
+
+    @Test
+    fun occurrenceKeysAreDeterministicAndDoNotCollideWithCatalogIds() {
+        val ids = listOf("bench", "bench", "occurrence:0:bench", "row")
+        val keys = com.apexfit.app.utils.WorkoutOccurrenceKeys.allocate(ids)
+        assertEquals(4, keys.toSet().size)
+        assertEquals(keys, com.apexfit.app.utils.WorkoutOccurrenceKeys.allocate(ids))
+        assertEquals("occurrence:0:bench", keys[2])
+        assertEquals("row", keys[3])
+    }
+
+    @Test
+    fun repeatedExerciseDraftWithoutOccurrenceKeysIsNormalizedWithoutChangingLoggedSets() {
+        val first = com.apexfit.app.data.ActiveExercise("bench-press", "Bench Press", "Chest",
+            mutableListOf(com.apexfit.app.data.ActiveSet(1, 42.0, 5, completed = true)))
+        val second = first.copy(sets = mutableListOf(com.apexfit.app.data.ActiveSet(1, 21.0, 11, completed = true)))
+        val draft = com.apexfit.app.data.ActiveSession(planSessionId = "1", sessionType = "Upper",
+            exercises = mutableListOf(first, second))
+        val gson = com.google.gson.Gson()
+        val restored = com.apexfit.app.utils.ActiveWorkoutCodec.decode(gson.toJson(draft))
+        assertTrue(restored.normalized)
+        assertFalse(restored.migrated)
+        assertEquals(draft.sessionId, restored.session.sessionId)
+        assertEquals(listOf(42.0, 21.0), restored.session.exercises.map { it.sets.single().weight })
+        assertTrue(restored.session.exercises.all { it.sets.single().completed })
+        val keys = restored.session.exercises.map { it.executionKey }
+        assertEquals(2, keys.toSet().size)
+        val secondDecode = com.apexfit.app.utils.ActiveWorkoutCodec.decode(gson.toJson(restored.session))
+        assertFalse(secondDecode.normalized)
+        assertEquals(keys, secondDecode.session.exercises.map { it.executionKey })
+    }
 }
