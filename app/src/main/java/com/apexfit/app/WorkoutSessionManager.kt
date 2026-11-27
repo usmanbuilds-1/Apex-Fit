@@ -504,8 +504,12 @@ class WorkoutSessionManager(
             exercises = activeExercises
         )
         // Do not expose a workout that has not received its durable identity.
-        persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(newSession)) }
-        _activeSession.value = newSession
+        // A cancelled caller must not leave a saved draft hidden from the
+        // current process, allowing a subsequent Start to overwrite it.
+        withContext(NonCancellable) {
+            persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(newSession)) }
+            _activeSession.value = newSession
+        }
         com.apexfit.app.utils.WorkoutForegroundService.start(appContext, newSession.sessionName, newSession.startTime)
         } finally {
             _isStartingSession.value = false
@@ -817,6 +821,11 @@ class WorkoutSessionManager(
             android.util.Log.e("WorkoutSessionManager", "Workout saved; cleanup will retry on restore", e)
         }
         synchronized(stateLock) { resetActiveState() }
+        try {
+            com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Workout saved; could not stop service", e)
+        }
         receipt
         }
         } finally {
