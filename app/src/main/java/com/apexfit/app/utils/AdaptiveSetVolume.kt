@@ -44,7 +44,7 @@ object AdaptiveSetVolume {
         fatigueRatio: Double? = null,
         deloadRecommended: Boolean = false
     ): SetVolumeAdjustment? {
-        if (goal != "Gain Muscle" || baseSets !in 1..5 || loadChanged || readiness == null) return null
+        if (goal.trim().lowercase() !in setOf("gain muscle", "build muscle") || baseSets !in 1..5 || loadChanged || readiness == null) return null
         // Do not stack a per-exercise volume suggestion on top of the app's
         // broader deload recommendation. Elevated workload also blocks additions
         // even when other recovery inputs currently look favorable.
@@ -58,7 +58,8 @@ object AdaptiveSetVolume {
                     return@mapNotNull null
                 }
                 val sets = session.exercises.filter { it.id == exerciseId }.flatMap { it.sets }
-                    .filter { it.completed && !it.isWarmup && it.reps > 0 && it.rpe in 1..10 }
+                    .filter { TrainingEvidence.isWorkingSet(it) && it.rpe in 1..10 }
+                    .let { working -> val ids = mutableSetOf<Long>(); working.filter { it.id == 0L || ids.add(it.id) } }
                 if (sets.size < baseSets) null else Triple(date, session.completedAt ?: 0, sets.take(baseSets))
             }
             .sortedWith(compareByDescending<Triple<LocalDate, Long, List<com.apexfit.app.data.ExerciseSet>>> { it.first }
@@ -69,7 +70,7 @@ object AdaptiveSetVolume {
         val highEffortExposures = exposures.take(2).count { sets -> sets.count { it.rpe >= 9 } * 2 >= baseSets }
         if (readiness < 55 && highEffortExposures == 2 && baseSets > 1) {
             return SetVolumeAdjustment(baseSets, baseSets - 1,
-                "Two recent workouts on different days included repeated high-effort sets, and logged recovery signals suggest reducing work today.")
+                "Two recent workouts on different days included repeated high-effort sets, and the training-history estimate suggests caution today.")
         }
         if (!elevatedFatigue && readiness >= 70 && baseSets < 5 &&
             exposures.all { sets -> sets.all { it.reps >= repsMin && it.rpe <= 8 } }
