@@ -7,7 +7,7 @@ import java.util.UUID
 
 /** Decode known versions only. The caller must retain the original payload on any failure. */
 internal object ActiveWorkoutCodec {
-    data class Decoded(val session: ActiveSession, val migrated: Boolean)
+    data class Decoded(val session: ActiveSession, val migrated: Boolean, val normalized: Boolean = false)
 
     fun decode(raw: String, gson: Gson = Gson(), newId: () -> String = { UUID.randomUUID().toString() }): Decoded {
         val json = JsonParser.parseString(raw).asJsonObject
@@ -40,6 +40,13 @@ internal object ActiveWorkoutCodec {
         }
         val id = json.get("sessionId")?.asString.orEmpty()
         require(id.isNotBlank() && UUID.fromString(id).toString() == id) { "Invalid workout identity" }
-        return Decoded(gson.fromJson(json, ActiveSession::class.java), migrated)
+        val decoded = gson.fromJson(json, ActiveSession::class.java)
+        val keys = WorkoutOccurrenceKeys.allocate(decoded.exercises.map { it.exerciseId })
+        val current = decoded.exercises.map { it.executionKey }
+        val normalized = current != keys
+        val session = if (normalized) decoded.copy(exercises = decoded.exercises.mapIndexed { index, exercise ->
+            exercise.copy(occurrenceKey = keys[index].takeIf { it != exercise.exerciseId })
+        }.toMutableList()) else decoded
+        return Decoded(session, migrated, normalized)
     }
 }
