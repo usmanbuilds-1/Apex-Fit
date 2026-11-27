@@ -23,7 +23,8 @@ class ReadinessUiMappingTest {
         ).toUi()
 
         assertEquals("Higher estimate", ui.factors[0].value)
-        assertEquals("Moderate estimate", ui.factors[1].value)
+        assertEquals("Not measured by this estimate", ui.factors[1].value)
+        assertEquals("neutral", ui.factors[1].impact)
         assertEquals("Recent muscle history is available", ui.confidence)
         assertFalse(ui.factors.any { it.value.endsWith("%") })
     }
@@ -45,6 +46,6 @@ class ReadinessUiMappingTest {
         ).toUi()
 
         assertEquals("Some muscles need more training history", ui.confidence)
-        assertEquals("Higher estimate", ui.factors.first().value)
+        assertEquals("Needs more training history", ui.factors.first().value)
     }
 }

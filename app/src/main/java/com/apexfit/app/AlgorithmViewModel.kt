@@ -86,9 +86,9 @@ class AlgorithmViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "insufficient_data")
 
     val tdeeResult: StateFlow<com.apexfit.app.utils.TDEEResult> = combine(
-        weightFlow, nutritionFlow, richSessionsFlow
-    ) { weights, nutrition, sessions ->
-        Triple(weights, nutrition, sessions)
+        weightFlow, nutritionFlow, dataStore.nutritionDayConfirmationsFlow
+    ) { weights, nutrition, confirmations ->
+        Triple(weights, nutrition, confirmations)
     }.debounce(300L)
     .combine(
         combine(
@@ -100,7 +100,7 @@ class AlgorithmViewModel @Inject constructor(
         ) { height, age, sex, workouts, weight ->
             AlgorithmBioProfile(height, age, sex, workouts, weight)
         }
-    ) { (weights, nutrition, sessions), bio ->
+    ) { (weights, nutrition, confirmations), bio ->
         withContext(Dispatchers.Default) {
             com.apexfit.app.utils.TdeeEngine.calcAdaptiveTDEE(
                 weightLog = weights,
@@ -110,7 +110,8 @@ class AlgorithmViewModel @Inject constructor(
                 ageYears = bio.age,
                 biologicalSex = bio.sex,
                 weeklyWorkouts = bio.weeklyWorkouts,
-                fallbackWeightKg = bio.weight
+                fallbackWeightKg = bio.weight,
+                nutritionConfirmations = confirmations
             )
         }
     }.catch { e ->

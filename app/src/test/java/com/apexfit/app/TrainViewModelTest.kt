@@ -125,13 +125,17 @@ class TrainViewModelTest {
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Upper"),
             listOf(first, second), 70.0, 175.0, "kg")
         var restCalls = 0
-        viewModel.completeSetWithRpe("bench", "Bench", "Chest", 0, 10.0, 10, 1, 9) { restCalls++ }
+        viewModel.completeSetWithRpe("bench", "Bench", "Chest", 0, 10.0, 10, 1, 9) { restCalls++ }?.join()
         assertEquals(9, manager.activeSession.value!!.exercises[0].sets[0].rpe)
         assertEquals(1, viewModel.currentExerciseIdx.value)
         assertEquals(1, restCalls)
-        viewModel.completeSetWithRpe("row", "Row", "Back", 0, 10.0, 10, 1, 8) { restCalls++ }
+        val active = manager.activeSession.value!!
+        assertTrue(manager.closeRestCheckpoint(active.sessionId, active.restCheckpoint!!, 60))
+        viewModel.completeSetWithRpe("row", "Row", "Back", 0, 10.0, 10, 1, 8) { restCalls++ }?.join()
         assertEquals("Final set should not start another timer", 1, restCalls)
-        manager.discardAndExit()
+        assertTrue(manager.activeSession.value!!.exercises[1].sets[0].completed)
+        assertNull(manager.activeSession.value!!.restCheckpoint)
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
 
@@ -165,7 +169,7 @@ class TrainViewModelTest {
         var callback: List<Any>? = null
         viewModel.confirmRirAndNextSet { rpe, name, muscle, weight, reps, setIndex, totalSets ->
             callback = listOf(rpe, name, muscle, weight, reps, setIndex, totalSets)
-        }
+        }?.join()
 
         val loggedSet = manager.activeSession.value!!.exercises.single().sets.first()
         assertTrue("RIR confirmation should complete the set", loggedSet.completed)
@@ -174,12 +178,12 @@ class TrainViewModelTest {
         assertEquals(listOf(7, "Bench Press", "Chest", 60.0, 10, 0, 2), callback)
         assertTrue("The combined RIR/rest screen stays visible while resting", viewModel.rirOverlayState.value.isVisible)
         assertTrue(viewModel.rirOverlayState.value.hasLoggedSet)
-        viewModel.selectRirOption(1)
+        viewModel.selectRirOption(1)?.join()
         val adjustedSet = manager.activeSession.value!!.exercises.single().sets.first()
         assertEquals(1, adjustedSet.repsInReserve)
         assertEquals(9, adjustedSet.rpe)
         viewModel.closeRirSelector()
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
     }
 
