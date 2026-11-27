@@ -377,7 +377,7 @@ fun WorkoutExecutionSubTab(
     val liveSession by workoutExecutionViewModel.sessionManager.activeSession.collectAsStateWithLifecycle()
     val volumeAdjustments = remember(liveSession) {
         liveSession?.exercises.orEmpty().mapNotNull { exercise ->
-            exercise.volumeAdjustment?.let { exercise.exerciseId to it }
+            exercise.volumeAdjustment?.let { exercise.executionKey to it }
         }.toMap()
     }
     val preferredUnits by workoutExecutionViewModel.units.collectAsStateWithLifecycle()
