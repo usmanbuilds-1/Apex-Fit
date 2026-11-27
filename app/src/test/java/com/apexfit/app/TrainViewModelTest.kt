@@ -174,7 +174,7 @@ class TrainViewModelTest {
         assertEquals(listOf(7, "Bench Press", "Chest", 60.0, 10, 0, 2), callback)
         assertTrue("The combined RIR/rest screen stays visible while resting", viewModel.rirOverlayState.value.isVisible)
         assertTrue(viewModel.rirOverlayState.value.hasLoggedSet)
-        viewModel.selectRirOption(1)
+        viewModel.selectRirOption(1)?.join()
         val adjustedSet = manager.activeSession.value!!.exercises.single().sets.first()
         assertEquals(1, adjustedSet.repsInReserve)
         assertEquals(9, adjustedSet.rpe)
