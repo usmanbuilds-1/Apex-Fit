@@ -57,6 +57,7 @@ class WorkoutSessionManager(
     private val persistenceMutex = Mutex()
     private var committing = false // guarded by stateLock
     private var savingCriticalSet = false // guarded by stateLock
+    private var liveRestIdentity: Pair<String, Long>? = null // guarded by stateLock
     private data class PendingRest(val sessionId: String, val key: String, val index: Int, val seconds: Int)
     private val pendingRests = mutableListOf<PendingRest>() // guarded by stateLock
     private var lastReceipt: SessionCommitResult? = null // guarded by commitMutex
@@ -683,14 +684,19 @@ class WorkoutSessionManager(
             return@mutateDraftDurably null
         val exercise = edited.exercises[index]
         val done = exercise.sets.all { it.completed || it.isWarmup }
-        val next = if (done) WorkoutResumeState.advance(edited, index, false) else edited.copy(cursorIndex = index)
+        val positioned = edited.copy(cursorIndex = index)
+        val next = if (done) WorkoutResumeState.advance(positioned, index, false) else positioned
         if (done && index == edited.exercises.lastIndex) return@mutateDraftDurably next
         val type = com.apexfit.app.utils.ProgressionEngine.getExerciseType(exercise.exerciseName, exercise.muscleGroup)
         val seconds = calculateRestTimeSeconds(exerciseId, type, rpe).coerceIn(1, 3600)
         val now = SystemClock.elapsedRealtime()
+        liveRestIdentity = session.sessionId to now
         next.copy(restCheckpoint = ActiveRestCheckpoint(exerciseId, setIndex, now,
             now + seconds * 1000L, WorkoutResumeState.bootCount(appContext), seconds))
     }
+
+    fun isLiveRestCheckpoint(sessionId: String, checkpoint: ActiveRestCheckpoint): Boolean =
+        synchronized(stateLock) { liveRestIdentity == (sessionId to checkpoint.startedElapsedMs) }
 
     suspend fun advanceCursorDurably(expectedSessionId: String, expectedIndex: Int, skipped: Boolean): Boolean =
         mutateDraftDurably(expectedSessionId) { session ->
@@ -825,6 +831,7 @@ class WorkoutSessionManager(
 
     private fun resetActiveState() {
         lastProgressionResults.clear()
+        liveRestIdentity = null
         _activeSession.value = null
         _lastWeights.value = emptyMap()
         _weightContextLines.value = emptyMap()
@@ -935,16 +942,18 @@ class WorkoutSessionManager(
         val sessionNotes = (listOfNotNull(session.notes?.takeIf(String::isNotBlank)) + volumeNotes)
             .joinToString("\n").takeIf(String::isNotBlank)
 
+        val partial = isPartial || session.skippedOccurrenceIndices.orEmpty().isNotEmpty() ||
+            session.exercises.any { exercise -> exercise.sets.any { !it.completed && !it.isWarmup } }
         val trainingSession = TrainingSession(
             id = sessionId,
             // Attribute a cross-midnight workout to the local calendar day it began.
             date = com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(session.startTime),
             sessionType = session.sessionType,
-            completed = completedSetsOnly && !isPartial,
+            completed = completedSetsOnly && !partial,
             durationMinutes = durationMinutes,
             sessionFeel = sessionFeel.coerceIn(1, 5),
             planSessionId = session.planSessionId.toLongOrNull(),
-            status = if (isPartial) "partial" else "completed",
+            status = if (partial) "partial" else "completed",
             readinessScoreAtStart = session.readinessScore,
             notes = sessionNotes,
             startedAt = session.startTime,
