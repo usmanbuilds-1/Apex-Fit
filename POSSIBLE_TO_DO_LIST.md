@@ -34,8 +34,8 @@ This is a living **candidate backlog**, not an approved implementation plan or r
 | E06 | Independent sanity check of technical plan, citations and source risks | Engineering | Complete; revised plan awaiting approval |
 | U01 | Repair Today athlete binding and inspect actual Stitch render | Codex/Work | Assigned; result unverified |
 | U02 | Inventory screens and map features to UX destinations | Codex/Work | Assigned; result unverified |
-| G01 | Review preview and technical plan; approve or revise scope | User | Technical plan ready; Today preview result unverified; awaiting review |
-| G02 | Implement approved domain and UI work on coordinated branches | Both | Blocked by G01; UI also requires screen-specific approval |
+| G01 | Review preview and technical plan; approve or revise scope | User | Revised engineering plan approved 2026-11-27; Today preview result unverified |
+| G02 | Implement approved domain and UI work on coordinated branches | Both | Engineering P0 approved; draft PR #39 open; UI redesign requires separate screen approval |
 | G03 | Regression, migration, render, device and integration QA | Both | Blocked by implementation |
 | G04 | Final merge authorization | User | Pending |
 
@@ -168,3 +168,10 @@ Use this file as the repository's working list of **possible** future changes. U
 - [ ] Before approved implementation: confirm partial-workout eligibility, strength/load conventions, e1RM policy, optional muscle targets and calendar rules. Start with data-integrity fixes and read-only analytics without unnecessary migrations.
 - [ ] Reconcile Codex's local branch before integration (remote comparison before these documentation edits: 2 ahead, 99 behind main). Do not overwrite local work; implementation on a separate branch may proceed only with user approval and coordinated data contracts.
 No code, tests or migrations executed in this review. See revised technical plan for specific acceptance gates.
+
+### P0 engineering implementation — 2026-11-27
+- [x] Owner authorized proceeding with revised technical plan; UI redesign and merge remain separately gated.
+- [x] Opened [draft PR #39](https://github.com/usmanbuilds-1/Apex-Fit/pull/39) on `chatgpt/p0-workout-persistence-20261127` (head `eccf82e8d7c4c402a779b56a90ee5c1c9f5bb62f`). First slice only: stable active-workout UUID, versioned recovery without silent deletion, duplicate-write guard, final snapshot before atomic save, PR read/write transaction, cleanup safety; functional recovery dialog; no Room schema change.
+- [ ] Verify PR #39 Android CI and palette results, inspect failures, run local Android process-death/recovery/device checks before merge. Regression cases authored, not yet verified.
+- [ ] Finish P0: occurrence identity across logging, timer, VM and Compose contracts; durable acknowledgement of completed set writes; exact receipt replay; other approved data-integrity fixes. Coordinate overlapping files with Codex. Do not claim full P0 completed.
+- [ ] Begin read-only analytics slice after P0 integrity gate; preserve historical queries and explicit attribution coverage.
