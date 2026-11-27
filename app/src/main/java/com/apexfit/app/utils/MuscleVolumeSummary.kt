@@ -39,11 +39,12 @@ object MuscleVolumeSummary {
     ): List<MuscleVolumeRow> {
         val window = period.window(today)
         val totals = mutableMapOf<String, MutableMap<String, Counts>>()
-        sessions.asSequence().filter { it.completed }.forEach { session ->
+        val seenIds = mutableSetOf<Long>()
+        TrainingEvidence.sessions(sessions, window.start, today).forEach { session ->
             val date = runCatching { LocalDate.parse(session.date) }.getOrNull()
             if (date == null || date !in window || date.isAfter(today)) return@forEach
             for (exercise in session.exercises) {
-                val count = exercise.sets.count { it.completed && !it.isWarmup && it.reps > 0 }
+                val count = exercise.sets.count { TrainingEvidence.isWorkingSet(it) && (it.id == 0L || seenIds.add(it.id)) }
                 if (count == 0) continue
 
                 val primary = MuscleAliases.getCanonical(exercise.muscleGroup)

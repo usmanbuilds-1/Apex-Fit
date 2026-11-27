@@ -11,73 +11,38 @@ object FatigueEngine {
         calcFatigueToFitnessRatio(trainingLog)
 
     fun calcFatigueToFitnessRatio(trainingLog: List<TrainingSession>): FatigueResult {
-        val completed = trainingLog.filter { it.completed }
-        val earliestCompleted = completed.minByOrNull { it.date }
-        val daysOfHistory = if (earliestCompleted != null) getDaysBetween(earliestCompleted.date, getCurrentDate()) else 0L
-
-        val acuteCutoff = getDateDaysAgo(6)
-        val hasPreAcuteWorkouts = completed.any { it.date < acuteCutoff }
-
-        val completedTrainingDays = completed.map { it.date }.distinct().size
-        val isSparse = completedTrainingDays < 7 || daysOfHistory < 7 || !hasPreAcuteWorkouts
-
-        if (isSparse) {
-            return FatigueResult(
-                ratio = null,
-                status = "unknown",
-                statusLabel = "No Data",
-                recommendation = "Log more workouts to activate fatigue tracking",
-                acuteLoad = 0.0,
-                chronicLoad = 0.0
-            )
-        }
-
-        val sessionLoads = completed.map { session ->
-            val workingSets = session.exercises.flatMap { it.sets }.filter { !it.isWarmup && it.completed }
-            val totalSets = workingSets.size
-            val avgRPE = workingSets.map { it.rpe }.average().takeIf { !it.isNaN() } ?: 7.0
-            val avgWeightKg = workingSets.map { it.weight }.average().takeIf { !it.isNaN() } ?: 60.0
-            // Normalize relative to a 60 kg reference load; cap 0.25–4.0 to prevent
-            // extreme values (100 kg deadlift day vs 5 kg curl day) from distorting ACWR.
-            val weightFactor = (avgWeightKg / 60.0).coerceIn(0.25, 4.0)
-            val feelModifier = when {
-                session.sessionFeel == 0 -> 1.0
-                session.sessionFeel <= 2 -> 1.4 - (session.sessionFeel - 1) * 0.2   // feel=1→1.4, feel=2→1.2
-                session.sessionFeel == 3 -> 1.0
-                session.sessionFeel <= 5 -> 1.0 - (session.sessionFeel - 3) * 0.2   // feel=4→0.8, feel=5→0.6
-                else -> 1.0
+        val today = java.time.LocalDate.parse(getCurrentDate())
+        val seenIds = mutableSetOf<Long>()
+        val dailySets = TrainingEvidence.sessions(trainingLog, today.minusDays(27), today)
+            .groupBy { java.time.LocalDate.parse(it.date) }
+            .toSortedMap()
+            .mapValues { (_, sessions) ->
+                sessions.sumOf { session -> session.exercises.sumOf { exercise ->
+                    exercise.sets.count { TrainingEvidence.isWorkingSet(it) &&
+                        (it.id == 0L || seenIds.add(it.id)) }
+                } }
             }
-            Pair(session.date, totalSets.toDouble() * (avgRPE / 7.0) * weightFactor * feelModifier)
-        }.sortedBy { it.first }
-
-        val baselineCutoff = getDateDaysAgo(27)
-        val acuteLoad = sessionLoads
-            .filter { it.first >= acuteCutoff && it.first <= getCurrentDate() }
-            .sumOf { it.second }
-        // Decouple the recent week from its own baseline. The previous implementation
-        // divided a 28-day total (including the acute week) by four, which guaranteed
-        // that a spike also raised the denominator. Use the preceding 21 calendar days
-        // as a descriptive weekly-average baseline instead.
-        val baselineSessions = sessionLoads.filter {
-            it.first >= baselineCutoff && it.first < acuteCutoff
+        val acuteLoad = dailySets.filterKeys { it >= today.minusDays(6) }.values.sum().toDouble()
+        // Compare logged set counts with three non-overlapping prior weeks.
+        // Each baseline week needs at least one logged working set. Missing logs
+        // cannot establish actual rest or complete training coverage.
+        val baselineWeeks = (1..3).map { week ->
+            val end = today.minusDays(7L * week)
+            dailySets.filterKeys { it in end.minusDays(6)..end }.values.sum()
         }
-        val chronicLoad = if (baselineSessions.isNotEmpty()) {
-            baselineSessions.sumOf { it.second } / 3.0
-        } else {
-            0.0
-        }
+        val chronicLoad = if (baselineWeeks.all { it > 0 }) baselineWeeks.average() else 0.0
         val ratio = if (chronicLoad > 0.0) acuteLoad / chronicLoad else null
 
         val status: String
         val statusLabel: String
         val recommendation: String
         when {
-            ratio == null -> { status = "unknown"; statusLabel = "No Data"; recommendation = "Log more workouts to activate fatigue tracking" }
-            ratio < 0.6 -> { status = "detraining"; statusLabel = "Well Below Baseline"; recommendation = "Recent load is well below your previous 3-week baseline. That can be intentional during recovery or a deload." }
-            ratio < 0.8 -> { status = "low"; statusLabel = "Below Baseline"; recommendation = "Recent load is below your previous 3-week baseline. Increase only if that matches your plan and recovery." }
-            ratio <= 1.3 -> { status = "optimal"; statusLabel = "Near Baseline"; recommendation = "Recent load is close to your previous 3-week baseline. Use performance and recovery feedback to guide changes." }
-            ratio <= 1.5 -> { status = "high"; statusLabel = "Above Baseline"; recommendation = "Recent load is above your previous 3-week baseline. Consider holding or reducing load if recovery is worsening." }
-            else -> { status = "danger"; statusLabel = "Well Above Baseline"; recommendation = "Recent load is well above your previous 3-week baseline. Consider a lighter week, especially if performance or recovery is declining." }
+            ratio == null -> { status = "unknown"; statusLabel = "No Data"; recommendation = "Log working sets in each of the previous three weeks to compare logged volume." }
+            ratio < 0.6 -> { status = "detraining"; statusLabel = "Well Below Baseline"; recommendation = "Recent logged set volume is well below your previous 3-week baseline. That can be intentional during recovery or a deload." }
+            ratio < 0.8 -> { status = "low"; statusLabel = "Below Baseline"; recommendation = "Recent logged set volume is below your previous 3-week baseline. Missing workouts may affect this comparison." }
+            ratio <= 1.3 -> { status = "optimal"; statusLabel = "Near Baseline"; recommendation = "Recent logged set volume is close to your previous 3-week baseline. This is not a measure of recovery." }
+            ratio <= 1.5 -> { status = "high"; statusLabel = "Above Baseline"; recommendation = "Recent logged set volume is above your previous 3-week baseline. Use performance and how you feel to guide changes." }
+            else -> { status = "danger"; statusLabel = "Well Above Baseline"; recommendation = "Recent logged set volume is well above your previous 3-week baseline. This alone does not establish a need for a deload." }
         }
         return FatigueResult(ratio, status, statusLabel, recommendation, acuteLoad, chronicLoad)
     }
@@ -85,7 +50,8 @@ object FatigueEngine {
     // ── MUSCLE HEATMAP ────────────────────────────────────────
     fun calcMuscleHeatmap(trainingLog: List<TrainingSession>, days: Int = 7): Map<String, HeatmapEntry> {
         val cutoff = getWindowStartDate(days)
-        val recent = trainingLog.filter { it.completed && it.date >= cutoff }
+        val recent = TrainingEvidence.sessions(trainingLog, java.time.LocalDate.parse(cutoff), java.time.LocalDate.parse(getCurrentDate()))
+        val seenIds = mutableSetOf<Long>()
         // The UI and accessibility layer describe this value as working sets.
         // Counting completed sets also keeps bodyweight work visible instead of
         // treating zero added load as zero training volume.
@@ -93,7 +59,7 @@ object FatigueEngine {
         recent.forEach { session ->
             session.exercises.forEach { exercise ->
                 val canonicalMuscle = com.apexfit.app.utils.MuscleAliases.getCanonical(exercise.muscleGroup)
-                val volume = exercise.sets.count { !it.isWarmup && it.completed }
+                val volume = exercise.sets.count { TrainingEvidence.isWorkingSet(it) && (it.id == 0L || seenIds.add(it.id)) }
                 muscleVolume[canonicalMuscle] = (muscleVolume[canonicalMuscle] ?: 0) + volume
             }
         }

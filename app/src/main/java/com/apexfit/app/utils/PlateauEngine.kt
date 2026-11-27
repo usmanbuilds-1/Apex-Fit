@@ -98,8 +98,9 @@ object PlateauEngine {
         precomputedFatigue: FatigueResult? = null
     ): DeloadResult {
         val fatigue = precomputedFatigue ?: FatigueEngine.calcFatigueToFitnessRatio(trainingLog)
-        val recentRatedDays = trainingLog
-            .filter { it.completed && it.sessionFeel in 1..5 }
+        val today = java.time.LocalDate.parse(getCurrentDate())
+        val recentRatedDays = TrainingEvidence.sessions(trainingLog, today.minusDays(27), today)
+            .filter { it.sessionFeel in 1..5 && it.exercises.any { ex -> ex.sets.any(TrainingEvidence::isWorkingSet) } }
             .groupBy { it.date }
             .map { (date, sessions) -> date to sessions.map { it.sessionFeel }.average() }
             .sortedByDescending { it.first }

@@ -270,9 +270,6 @@ class WorkoutSessionManager(
 
                 val lastWeightLbs = lastSet.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS
 
-                val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
-                val readinessPercent = muscleReadinessDetail?.readinessPercent.takeIf { readinessScore?.finalScore != null }
-
                 // The DAO returns the latest set first so lastSet above stays the
                 // most recent load for context. Progression, however, must evaluate
                 // the prescribed sets in the order they were performed.
@@ -290,10 +287,9 @@ class WorkoutSessionManager(
                     )
                 }
 
-                val recoveryMultiplier = readinessPercent  
-                    ?.let { it / 100.0 }  
-                    ?.coerceIn(0.7, 1.0)  
-                    ?: 1.0  
+                // Progression is based on actual completed reps and effort;
+                // a heuristic load index is not a calibrated weight multiplier.
+                val recoveryMultiplier = 1.0
                   
                 val stalledCount = stalledCounts[exerciseSlug] ?: 0
                 val isImperial = exerciseUnit.lowercase() in listOf("lb", "lbs")
@@ -395,7 +391,7 @@ class WorkoutSessionManager(
 
                 suggestionsMap[exerciseSlug] = suggestedPreferred
                 lastWeightMap[exerciseSlug] = lastSet.weight
-                val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
+                val contextSuffix = " ($daysSince days ago)"
                 val lastWeightDisplay = lastSet.weight.toDisplayWeight(exerciseUnit)
                 contextLinesMap[exerciseSlug] = "Last: $lastWeightDisplay $exerciseUnit @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $exerciseUnit. Outcome: ${progressionResult.reason}"
             }
@@ -411,7 +407,7 @@ class WorkoutSessionManager(
             trainingLog = recentSessions,
             complianceScore = 0,
             precomputedFatigue = fatigueSnapshot
-        ).urgency.let { it == "deload_now" || it == "deload_soon" }
+        ).recommendation.let { it == "deload_now" || it == "deload_soon" }
         val readinessByMuscle = readinessScore?.takeIf { it.finalScore != null }
             ?.muscleDetails.orEmpty().filter { it.confidence != "none" }
             .associateBy { com.apexfit.app.utils.MuscleAliases.getCanonical(it.muscleGroup) }
