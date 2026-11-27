@@ -355,4 +355,52 @@ class TdeeEngineTest {
         // But not too aggressive: max rate is 0.70 kg/week = 770 kcal/day
         assertTrue("Cut $target should not exceed 770 kcal below TDEE", target >= 3500 - 780)
     }
+
+    @Test
+    fun fallback_ignoresFutureWeightEvenWhenItIsTheOnlyReading() {
+        val future = java.time.LocalDate.now().plusDays(1).toString()
+        val expected = TdeeEngine.calcAdaptiveTDEE(emptyList(), emptyList(), fallbackWeightKg = 80.0)
+        val actual = TdeeEngine.calcAdaptiveTDEE(
+            listOf(WeightEntry(date = future, weight = 120.0)),
+            emptyList(), fallbackWeightKg = 80.0
+        )
+        assertEquals(expected.tdee, actual.tdee)
+        assertEquals(expected.confidence, actual.confidence)
+    }
+
+    @Test
+    fun adaptive_ignoresFutureWeightsAndNutrition() {
+        val weights = weightLog(14, 80.0)
+        val nutrition = nutritionLog(14, 2500)
+        val expected = TdeeEngine.calcAdaptiveTDEE(weights, nutrition)
+        val future = java.time.LocalDate.now().plusDays(2).toString()
+        val actual = TdeeEngine.calcAdaptiveTDEE(
+            weights + WeightEntry(date = future, weight = 95.0),
+            nutrition + NutritionEntry(date = future, calories = 9000, protein = 150, carbs = 200, fat = 60)
+        )
+        assertEquals(2500, expected.tdee)
+        assertEquals(expected.tdee, actual.tdee)
+        assertEquals(expected.confidence, actual.confidence)
+    }
+
+    @Test
+    fun adaptive_excludesIntakeOnFinalWeighInDayEvenWhenNotToday() {
+        val weights = (3..13).map { WeightEntry(date = getDateDaysAgo(it), weight = 80.0) }
+        val nutrition = (4..13).map {
+            NutritionEntry(date = getDateDaysAgo(it), calories = 2500, protein = 150, carbs = 200, fat = 60)
+        }
+        val finalDay = NutritionEntry(date = getDateDaysAgo(3), calories = 500, protein = 30, carbs = 50, fat = 20)
+        val laterDay = finalDay.copy(date = getDateDaysAgo(1), calories = 9000)
+        val actual = TdeeEngine.calcAdaptiveTDEE(weights, nutrition + finalDay + laterDay)
+        assertEquals(2500, actual.tdee)
+        assertEquals("high", actual.confidence)
+    }
+
+    @Test
+    fun adaptive_finalDayCannotSatisfyMinimumAlignedIntakeCoverage() {
+        val weights = weightLog(7, 80.0)
+        val nutrition = nutritionLog(7, 2500)
+        val result = TdeeEngine.calcAdaptiveTDEE(weights, nutrition)
+        assertTrue(result.confidence.contains("sparse nutrition coverage"))
+    }
 }
