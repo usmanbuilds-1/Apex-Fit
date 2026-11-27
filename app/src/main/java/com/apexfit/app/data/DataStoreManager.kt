@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -28,6 +29,7 @@ class DataStoreManager(context: Context) {
             instance ?: synchronized(this) {
                 instance ?: DataStoreManager(context.applicationContext).also { instance = it }
             }
+        private val NUTRITION_DAY_CONFIRMATIONS_KEY = stringSetPreferencesKey("nutrition_day_confirmations_v1")
         val ONBOARDED_KEY = booleanPreferencesKey("onboarded")
         val USER_NAME_KEY = stringPreferencesKey("username")
         val GOAL_KEY = stringPreferencesKey("goal")
@@ -372,6 +374,24 @@ class DataStoreManager(context: Context) {
     suspend fun saveEquipment(equipment: String) {
         context.dataStore.edit { preferences ->
             preferences[EQUIPMENT_KEY] = equipment
+        }
+    }
+
+    val nutritionDayConfirmationsFlow: Flow<Map<String, String>> = context.dataStore.data.map { preferences ->
+        preferences[NUTRITION_DAY_CONFIRMATIONS_KEY].orEmpty().mapNotNull { value ->
+            val parts = value.split(":", limit = 2)
+            if (parts.size == 2) parts[0] to parts[1] else null
+        }.toMap()
+    }.distinctUntilChanged()
+
+    suspend fun setNutritionDayConfirmation(date: String, fingerprint: String?) {
+        require(java.time.LocalDate.parse(date).isBefore(java.time.LocalDate.now()))
+        require(fingerprint == null || fingerprint.matches(Regex("[0-9a-f]{64}")))
+        context.dataStore.edit { preferences ->
+            val updated = preferences[NUTRITION_DAY_CONFIRMATIONS_KEY].orEmpty()
+                .filterNot { it.substringBefore(':') == date }.toMutableSet()
+            if (fingerprint != null) updated.add("$date:$fingerprint")
+            preferences[NUTRITION_DAY_CONFIRMATIONS_KEY] = updated
         }
     }
 

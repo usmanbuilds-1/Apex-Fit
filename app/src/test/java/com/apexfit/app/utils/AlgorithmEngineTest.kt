@@ -32,7 +32,7 @@ class AlgorithmEngineTest {
         val nLog = (0..14).map {
             NutritionEntry(date = d(it), calories = 2500, protein = 150, carbs = 250, fat = 80)
         }
-        val res = TdeeEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14)
+        val res = TdeeEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14, nutritionConfirmations = NutritionDayEvidence.snapshots(nLog))
 
         val cutoff = getWindowStartDate(14)
         val recentWeight = wLog.filter { it.date >= cutoff }.sortedBy { it.date }
@@ -385,7 +385,7 @@ class AlgorithmEngineTest {
         val nLog = (0..28).map { day ->
             NutritionEntry(date = d(day), calories = 2500, protein = 150, carbs = 250, fat = 80)
         }
-        val resLoss = TdeeEngine.calcAdaptiveTDEE(wLogLoss, nLog, windowDays = 14)
+        val resLoss = TdeeEngine.calcAdaptiveTDEE(wLogLoss, nLog, windowDays = 14, nutritionConfirmations = NutritionDayEvidence.snapshots(nLog))
         assertNotNull(resLoss.tdee)
         assertTrue("TDEE while losing should be within ±30 kcal of 2775, got ${resLoss.tdee}", Math.abs(resLoss.tdee!! - 2775) <= 30)
 
@@ -393,7 +393,7 @@ class AlgorithmEngineTest {
         val wLogGain = (0..28).map { day ->
             WeightEntry(date = d(28 - day), weight = 80.0 + (1.0 / 28.0) * day)
         }
-        val resGain = TdeeEngine.calcAdaptiveTDEE(wLogGain, nLog, windowDays = 14)
+        val resGain = TdeeEngine.calcAdaptiveTDEE(wLogGain, nLog, windowDays = 14, nutritionConfirmations = NutritionDayEvidence.snapshots(nLog))
         assertNotNull(resGain.tdee)
         assertTrue("TDEE while gaining should be within ±30 kcal of 2225, got ${resGain.tdee}", Math.abs(resGain.tdee!! - 2225) <= 30)
     }
