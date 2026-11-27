@@ -30,7 +30,8 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
          * is not granted (Android 12+). A late notification is acceptable;
          * no notification is not.
          */
-        fun scheduleAlarm(context: Context, triggerAtMillis: Long, exerciseName: String) {
+        fun scheduleAlarm(context: Context, triggerAtMillis: Long, exerciseName: String, elapsedRealtime: Boolean = false) {
+            val clockType = if (elapsedRealtime) AlarmManager.ELAPSED_REALTIME_WAKEUP else AlarmManager.RTC_WAKEUP
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
             val intent = Intent(context, RestTimerAlarmReceiver::class.java).apply {
