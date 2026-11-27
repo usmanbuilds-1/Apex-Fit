@@ -1018,6 +1018,7 @@ class WorkoutSessionManager(
 
 // ── Result returned to the session complete screen ───────────────
 
+@androidx.annotation.Keep
 data class SessionCommitResult(
     val sessionId: String,
     val durationMinutes: Int,
