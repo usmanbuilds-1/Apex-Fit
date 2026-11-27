@@ -141,11 +141,15 @@ class WorkoutSessionManager(
         _currentRestSeconds.value = 0
     }
 
-    fun commitRestTaken(exerciseId: String, setIndex: Int, seconds: Int) {
+    fun commitRestTaken(exerciseId: String, setIndex: Int, seconds: Int, expectedSessionId: String? = null) {
+        synchronized(stateLock) {
+        if (committing) return
         val session = _activeSession.value ?: return
+        if (expectedSessionId != null && session.sessionId != expectedSessionId) return
         val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
-        if (setIndex < exercise.sets.size) {
+        if (setIndex in exercise.sets.indices) {
             val set = exercise.sets[setIndex]
+            if (!set.completed) return
             updateSet(
                 exerciseId = exerciseId,
                 setIndex = setIndex,
@@ -156,6 +160,7 @@ class WorkoutSessionManager(
                 completed = set.completed,
                 repsInReserve = set.repsInReserve
             )
+        }
         }
     }
 
