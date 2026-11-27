@@ -241,6 +241,21 @@ class WorkoutExecutionViewModel @Inject constructor(
     val completedHypertrophyScore: StateFlow<Double> = _completedHypertrophyScore.asStateFlow()
 
     init {
+        var observedGeneration = sessionManager.resetGeneration.value
+        viewModelScope.launch {
+            sessionManager.resetGeneration.collect { generation ->
+                if (generation != observedGeneration) {
+                    observedGeneration = generation
+                    _completedReceipt.value = null
+                    _lastCompletedSessionSets.value = emptyList()
+                    _completedHypertrophyScore.value = 0.0
+                    _showSessionCompleteScreen.value = false
+                    _rirOverlayState.value = RirOverlayState()
+                    _currentExerciseIdx.value = 0
+                    lastCompletedSetPointer = null
+                }
+            }
+        }
         viewModelScope.launch {
             sessionManager.recoveredReceipt.collect { receipt ->
                 if (receipt != null && sessionManager.activeSession.value == null) publishReceipt(receipt)
@@ -265,6 +280,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         _showSessionCompleteScreen.value = false
         _warmupCompleted.value = _warmupCompleted.value.mapValues { false }
         lastCompletedSetPointer = null
+        val generation = sessionManager.resetGeneration.value
         // AUDIT FIX (BUG-V4-002): FGS start moved into sessionManager.startSession,
         // which calls it after the session is built and while the app is still
         // foreground. Removed premature start here to prevent orphaned FGS.
@@ -277,7 +293,8 @@ class WorkoutExecutionViewModel @Inject constructor(
                     exercises = exercises,
                     userWeight = currentWeight.value,
                     userHeight = userHeight.value,
-                    preferredUnits = units.value
+                    preferredUnits = units.value,
+                    expectedResetGeneration = generation
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -535,10 +552,12 @@ class WorkoutExecutionViewModel @Inject constructor(
 
     fun finishWorkoutSession(sessionFeel: Int = 4) {
         if (_isSavingSet.value || !isCommitting.compareAndSet(false, true)) return
+        val generation = sessionManager.resetGeneration.value
         viewModelScope.launch {
             _saveError.value = null
             try {
                 val result = sessionManager.commitToDatabase(sessionFeel)
+                if (sessionManager.resetGeneration.value != generation) return@launch
                 check(result.sessionId.isNotBlank()) { "No active workout to save." }
                 publishReceipt(result)
                 
@@ -556,10 +575,12 @@ class WorkoutExecutionViewModel @Inject constructor(
                     android.util.Log.e("WorkoutExecutionViewModel", "Failed to enqueue pattern scan", we)
                 }
 
-                _showSessionCompleteScreen.value = true
-                isCommitting.set(false)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _saveError.value = "Failed to save workout: ${e.localizedMessage}"
+                if (sessionManager.resetGeneration.value == generation)
+                    _saveError.value = "Failed to save workout: ${e.localizedMessage}"
+            } finally {
                 isCommitting.set(false)
             }
         }
@@ -593,17 +614,21 @@ class WorkoutExecutionViewModel @Inject constructor(
 
     fun savePartialAndExit(sessionFeel: Int) {
         if (_isSavingSet.value || !isCommitting.compareAndSet(false, true)) return
+        val generation = sessionManager.resetGeneration.value
         viewModelScope.launch {
             _saveError.value = null
             try {
                 val result = sessionManager.savePartialAndExit(sessionFeel)
+                if (sessionManager.resetGeneration.value != generation) return@launch
                 check(result.sessionId.isNotBlank()) { "No active workout to save." }
                 publishReceipt(result)
 
-                _showSessionCompleteScreen.value = true
-                isCommitting.set(false)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _saveError.value = "Failed to save partial workout: ${e.localizedMessage}"
+                if (sessionManager.resetGeneration.value == generation)
+                    _saveError.value = "Failed to save partial workout: ${e.localizedMessage}"
+            } finally {
                 isCommitting.set(false)
             }
         }
