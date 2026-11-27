@@ -510,7 +510,6 @@ fun WorkoutExecutionSubTab(
                     TextButton(
                         onClick = {
                             showExitDialog = false
-                            restTimerViewModel.cancelRestTimer()
                             workoutExecutionViewModel.cancelActiveWorkout()
                         }
                     ) {
@@ -832,9 +831,10 @@ fun WorkoutExecutionSubTab(
                         onAddCustomLogSet = { workoutExecutionViewModel.addCustomLogSet(it) },
                         onNextExercise = { workoutExecutionViewModel.nextExercise() },
                         onSkipExercise = { ex ->
-                            workoutExecutionViewModel.skipExercise()
-                            scope.launch {
-                                snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
+                            workoutExecutionViewModel.skipExercise {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
+                                }
                             }
                         },
                         onShowNormalFinishFeelDialog = { showNormalFinishFeelDialog = true },
