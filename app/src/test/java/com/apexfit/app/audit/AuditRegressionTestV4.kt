@@ -1091,7 +1091,7 @@ class AuditRegressionTestV4 {
             manager.commitRestTaken(firstKey, 0, 999, expectedSessionId = "wrong-workout")
             manager.updateSet(secondKey, 0, 21.0, 11, 9, 0, true)
             manager.commitRestTaken(secondKey, 0, 37, expectedSessionId = initial.sessionId)
-            manager.addCustomSet(secondKey)
+            assertTrue(manager.addCustomSetDurably(initial.sessionId, secondKey))
             val current = manager.activeSession.value!!
             assertEquals(1, current.exercises[0].sets.size)
             assertEquals(3, current.exercises[1].sets.size)
@@ -1101,13 +1101,9 @@ class AuditRegressionTestV4 {
             assertEquals(21.0, current.exercises[1].sets.first().weight, 0.0)
             assertFalse(current.exercises[1].sets[1].completed)
             assertFalse(current.exercises[1].sets[2].completed)
-            val durable = kotlinx.coroutines.withTimeout(10_000) {
-                store.activeSessionJsonFlow.first { raw ->
-                    raw != null && com.apexfit.app.utils.ActiveWorkoutCodec.decode(raw).session.exercises
-                        .getOrNull(1)?.sets?.size == 3
-                }
-            }
-            val decoded = com.apexfit.app.utils.ActiveWorkoutCodec.decode(durable!!).session
+            val durable = store.activeSessionJsonFlow.first()!!
+            val decoded = com.apexfit.app.utils.ActiveWorkoutCodec.decode(durable).session
+            assertEquals(3, decoded.exercises[1].sets.size)
             assertEquals(listOf(firstKey, secondKey), decoded.exercises.map { it.executionKey })
             assertEquals(91, decoded.exercises[0].sets.single().restTakenSeconds)
             val result = manager.commitToDatabase(4, isPartial = true)
