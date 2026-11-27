@@ -57,6 +57,8 @@ class WorkoutSessionManager(
     private data class PendingRest(val sessionId: String, val key: String, val index: Int, val seconds: Int)
     private val pendingRests = mutableListOf<PendingRest>() // guarded by stateLock
     private var lastReceipt: SessionCommitResult? = null // guarded by commitMutex
+    private val _recoveredReceipt = MutableStateFlow<SessionCommitResult?>(null)
+    val recoveredReceipt: StateFlow<SessionCommitResult?> = _recoveredReceipt.asStateFlow()
     private val _restoredFromDisk = MutableStateFlow(false)
     val restoredFromDisk: StateFlow<Boolean> = _restoredFromDisk.asStateFlow()
 
@@ -89,7 +91,11 @@ class WorkoutSessionManager(
 
     private val restoreJob: Job = scope.launch {
         try {
-            val raw = dataStore.activeSessionJsonFlow.firstOrNull() ?: return@launch
+            val raw = dataStore.activeSessionJsonFlow.firstOrNull()
+            if (raw == null) {
+                recoverCommittedReceipt()
+                return@launch
+            }
             val decoded = ActiveWorkoutCodec.decode(raw, gson)
             val restored = decoded.session
             if (decoded.migrated) {
@@ -101,6 +107,7 @@ class WorkoutSessionManager(
             } else if (dao.getTrainingSessionById(restored.sessionId) != null) {
                 // Exact stable ID is proof of a previous committed transaction.
                 // Its history is already saved; do not resume or insert it again.
+                recoverCommittedReceipt(restored.sessionId)
                 dataStore.saveActiveSessionJson(null)
                 return@launch
             }
@@ -118,6 +125,57 @@ class WorkoutSessionManager(
             android.util.Log.e("WorkoutSessionManager", "Saved workout retained for recovery", e)
             _sessionRestoreFailed.value = true
         }
+    }
+
+    // A journal written before the transaction is not proof of a workout.
+    // Only a matching committed Room row permits recovery. Always take the
+    // set details and counts from Room, not from UI state or the draft.
+    private suspend fun recoverCommittedReceipt(expectedId: String? = null) {
+        try {
+            val (id, json) = dataStore.workoutReceiptFlow.firstOrNull() ?: return
+            if (expectedId != null && id != expectedId) return
+            val session = dao.getTrainingSessionById(id) ?: return
+            val journal = gson.fromJson(json, SessionCommitResult::class.java)
+            check(journal.sessionId == id)
+            val sets = dao.getSetsForSession(id)
+            val catalogIds = sets.filter { it.completed && !it.isWarmup }.map { it.exerciseId }.toSet()
+            val earned = journal.records.filter { it.exerciseId in catalogIds && it.date == session.date }
+            _recoveredReceipt.value = buildReceipt(session, sets, earned)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // History is still saved; a malformed receipt must never block
+            // restoration of the actual workout or invent earned records.
+            android.util.Log.e("WorkoutSessionManager", "Receipt recovery unavailable", e)
+        }
+    }
+
+    fun dismissReceipt(sessionId: String) {
+        if (_recoveredReceipt.value?.sessionId == sessionId) _recoveredReceipt.value = null
+        scope.launch {
+            try {
+                dataStore.dismissWorkoutReceipt(sessionId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutSessionManager", "Could not dismiss saved receipt", e)
+            }
+        }
+    }
+
+    private fun buildReceipt(session: TrainingSession, sets: List<ExerciseSet>, earned: List<PersonalRecord>): SessionCommitResult {
+        val working = sets.filter { it.completed && !it.isWarmup }
+        return SessionCommitResult(
+            sessionId = session.id,
+            durationMinutes = session.durationMinutes,
+            totalVolumeTonnes = working.sumOf { it.weight * it.reps } / 1000.0,
+            setsCompleted = working.size,
+            confirmedPRs = earned.map { it.exerciseId }.distinct(),
+            sessionType = session.sessionType,
+            records = earned,
+            isPartial = session.status == "partial",
+            savedSets = sets
+        )
     }
 
     /** Only an explicit user choice may discard an unreadable/ambiguous payload. */
@@ -537,7 +595,8 @@ class WorkoutSessionManager(
         // A cancelled caller must not leave a saved draft hidden from the
         // current process, allowing a subsequent Start to overwrite it.
         withContext(NonCancellable) {
-            persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(newSession)) }
+            persistenceMutex.withLock { dataStore.beginWorkoutDraft(gson.toJson(newSession)) }
+            _recoveredReceipt.value = null
             _activeSession.value = newSession
         }
         com.apexfit.app.utils.WorkoutForegroundService.start(appContext, newSession.sessionName, newSession.startTime)
@@ -839,9 +898,13 @@ class WorkoutSessionManager(
         // rather than silently saving inaccurate achievement results.
         withContext(NonCancellable) {
         val db = AppDatabase.getDatabase(appContext)
-        val prs = db.withTransaction {
+        val receipt = db.withTransaction {
             check(dao.getTrainingSessionById(sessionId) == null) { "Workout already saved; see workout history." }
             val earned = evaluatePRs(allSets, trainingSession.date)
+            // Write the exact earned PR snapshot BEFORE committing Room. If
+            // Room rolls back, this staged ID cannot be recovered as a receipt.
+            val staged = buildReceipt(trainingSession, allSets, earned).copy(savedSets = emptyList())
+            dataStore.stageWorkoutReceipt(sessionId, gson.toJson(staged))
             repository.insertSessionWithPRsAtomic(trainingSession, allSets, earned)
             val exerciseIds = lastProgressionResults.keys.toList()
             val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
@@ -857,28 +920,11 @@ class WorkoutSessionManager(
                 }
                 dao.updateStalledCount(exerciseId, newCount)
             }
-            earned
+            buildReceipt(trainingSession, dao.getSetsForSession(sessionId), earned)
         }
 
-        val totalVolume = allSets
-            .filter { it.completed && !it.isWarmup }
-            .sumOf { it.weight * it.reps }
-
-        // Use ACTUAL new PRs from evaluatePRs, not the preview warnings
-        val confirmedPRs = prs.map { it.exerciseId }.distinct()
-
         // A cleanup failure must not be reported as a failed database save.
-        // The exact persisted ID will be recognized on next launch.
-        val receipt = SessionCommitResult(
-            sessionId = sessionId,
-            durationMinutes = durationMinutes,
-            totalVolumeTonnes = totalVolume / 1000.0,
-            setsCompleted = allSets.count { it.completed && !it.isWarmup },
-            confirmedPRs = confirmedPRs,
-            sessionType = session.sessionType,
-            records = prs,
-            isPartial = isPartial
-        )
+        // The staged receipt remains until explicit dismissal or a new workout.
         lastReceipt = receipt
         try {
             persistenceMutex.withLock { dataStore.saveActiveSessionJson(null) }
@@ -980,7 +1026,8 @@ data class SessionCommitResult(
     val confirmedPRs: List<String>, // list of exerciseIds with new PRs
     val sessionType: String,
     val records: List<com.apexfit.app.data.PersonalRecord> = emptyList(),
-    val isPartial: Boolean = false
+    val isPartial: Boolean = false,
+    val savedSets: List<ExerciseSet> = emptyList()
 ) {
     companion object {
         fun empty() = SessionCommitResult("", 0, 0.0, 0, emptyList(), "")
