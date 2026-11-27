@@ -354,8 +354,12 @@ data class ActiveExercise(
     val targetRepsMin: Int? = null,
     val targetRepsMax: Int? = null,
     val loadContext: String? = null,
-    val volumeAdjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null
-)
+    val volumeAdjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null,
+    val occurrenceKey: String? = null
+) {
+    /** Execution identity; catalog exerciseId is always preserved for historical records. */
+    val executionKey: String get() = occurrenceKey ?: exerciseId
+}
 
 @Keep
 data class ActiveSession(
