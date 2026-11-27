@@ -25,6 +25,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.apexfit.app.utils.ActiveWorkoutCodec
 import com.apexfit.app.utils.WorkoutOccurrenceKeys
+import com.apexfit.app.utils.WorkoutResumeState
+import com.apexfit.app.data.ActiveRestCheckpoint
+import android.os.SystemClock
 import kotlinx.coroutines.isActive
 import java.util.UUID
 import com.google.gson.Gson
@@ -591,6 +594,8 @@ class WorkoutSessionManager(
         }.toMutableList()
 
         val newSession = ActiveSession(
+            cursorIndex = 0,
+            skippedOccurrenceIndices = emptyList(),
             planSessionId = planSession.id.toString(),
             sessionType = planSession.label,
             startTime = System.currentTimeMillis(),
@@ -667,13 +672,57 @@ class WorkoutSessionManager(
     suspend fun updateSetDurably(
         expectedSessionId: String, exerciseId: String, setIndex: Int,
         weight: Double, reps: Int, rpe: Int, restTakenSeconds: Int,
-        completed: Boolean, repsInReserve: Int? = null
-    ): Boolean = commitMutex.withLock {
+        completed: Boolean, repsInReserve: Int? = null,
+        advanceAfterCompletion: Boolean = false
+    ): Boolean = mutateDraftDurably(expectedSessionId) { session ->
+        val edited = editedSet(session, exerciseId, setIndex, weight, reps, rpe,
+            restTakenSeconds, completed, repsInReserve) ?: return@mutateDraftDurably null
+        if (!advanceAfterCompletion || !completed) return@mutateDraftDurably edited
+        val index = edited.exercises.indexOfFirst { it.executionKey == exerciseId }
+        if (index < 0 || WorkoutResumeState.cursor(session) != index || session.restCheckpoint != null)
+            return@mutateDraftDurably null
+        val exercise = edited.exercises[index]
+        val done = exercise.sets.all { it.completed || it.isWarmup }
+        val next = if (done) WorkoutResumeState.advance(edited, index, false) else edited.copy(cursorIndex = index)
+        if (done && index == edited.exercises.lastIndex) return@mutateDraftDurably next
+        val type = com.apexfit.app.utils.ProgressionEngine.getExerciseType(exercise.exerciseName, exercise.muscleGroup)
+        val seconds = calculateRestTimeSeconds(exerciseId, type, rpe).coerceIn(1, 3600)
+        val now = SystemClock.elapsedRealtime()
+        next.copy(restCheckpoint = ActiveRestCheckpoint(exerciseId, setIndex, now,
+            now + seconds * 1000L, WorkoutResumeState.bootCount(appContext), seconds))
+    }
+
+    suspend fun advanceCursorDurably(expectedSessionId: String, expectedIndex: Int, skipped: Boolean): Boolean =
+        mutateDraftDurably(expectedSessionId) { session ->
+            if (expectedIndex !in session.exercises.indices || WorkoutResumeState.cursor(session) != expectedIndex ||
+                session.restCheckpoint != null) null
+            else WorkoutResumeState.advance(session, expectedIndex, skipped)
+        }
+
+    suspend fun replaceRestCheckpoint(expectedSessionId: String, expected: ActiveRestCheckpoint,
+        replacement: ActiveRestCheckpoint): Boolean = mutateDraftDurably(expectedSessionId) { session ->
+        if (session.restCheckpoint != expected || !WorkoutResumeState.validRest(session, replacement) ||
+            replacement.exerciseKey != expected.exerciseKey || replacement.setIndex != expected.setIndex ||
+            replacement.startedElapsedMs != expected.startedElapsedMs || replacement.bootCount != expected.bootCount) null
+        else session.copy(restCheckpoint = replacement)
+    }
+
+    suspend fun closeRestCheckpoint(expectedSessionId: String, expected: ActiveRestCheckpoint,
+        observedSeconds: Int?): Boolean = mutateDraftDurably(expectedSessionId) { session ->
+        if (session.restCheckpoint != expected) return@mutateDraftDurably null
+        val set = session.exercises.firstOrNull { it.executionKey == expected.exerciseKey }
+            ?.sets?.getOrNull(expected.setIndex)
+        if (observedSeconds == null || set == null || !set.completed) session.copy(restCheckpoint = null)
+        else editedSet(session, expected.exerciseKey, expected.setIndex, set.weight, set.reps, set.rpe,
+            observedSeconds, true, set.repsInReserve)?.copy(restCheckpoint = null)
+    }
+
+    private suspend fun mutateDraftDurably(expectedSessionId: String,
+        transform: (ActiveSession) -> ActiveSession?): Boolean = commitMutex.withLock {
         val next = synchronized(stateLock) {
             if (committing || savingCriticalSet) return@synchronized null
             val session = _activeSession.value?.takeIf { it.sessionId == expectedSessionId } ?: return@synchronized null
-            editedSet(session, exerciseId, setIndex, weight, reps, rpe, restTakenSeconds, completed, repsInReserve)
-                ?.also { savingCriticalSet = true }
+            transform(session)?.also { savingCriticalSet = true }
         } ?: return@withLock false
 
         try {
@@ -686,8 +735,6 @@ class WorkoutSessionManager(
         } finally {
             synchronized(stateLock) {
                 savingCriticalSet = false
-                // A timer may finish during a durable RIR correction. Apply its
-                // observation to the original set before releasing commitMutex.
                 val queued = pendingRests.toList()
                 pendingRests.clear()
                 queued.forEach { rest ->
@@ -841,6 +888,7 @@ class WorkoutSessionManager(
             _activeSession.value?.takeIf { it.sessionId == requestedId }?.also { committing = true }
         } ?: return@withLock lastReceipt?.takeIf { it.sessionId == requestedId } ?: SessionCommitResult.empty()
         try {
+        check(session.restCheckpoint == null) { "Close the rest timer before finishing the workout." }
         persistJob?.cancelAndJoin()
         // Persist the exact final snapshot before the transaction, so recovery
         // can distinguish a failed commit from a successful commit + failed clear.
