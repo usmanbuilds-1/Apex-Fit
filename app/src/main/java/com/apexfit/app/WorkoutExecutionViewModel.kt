@@ -60,9 +60,9 @@ class WorkoutExecutionViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val activeExercises: StateFlow<List<PlanExercise>> = sessionManager.activeSession.map { active ->
-        active?.exercises?.map { entry ->
+        active?.exercises?.mapIndexed { index, entry ->
             PlanExercise(
-                id = entry.exerciseId.toLongOrNull() ?: 0L,
+                id = index.toLong() + 1L,
                 planSessionId = active.planSessionId.toLongOrNull() ?: 0L,
                 exerciseId = entry.exerciseId,
                 name = entry.exerciseName,
@@ -71,7 +71,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                 repsMin = entry.targetRepsMin ?: entry.sets.firstOrNull()?.reps ?: 6,
                 repsMax = entry.targetRepsMax ?: entry.sets.firstOrNull()?.reps ?: 12,
                 weight = entry.sets.firstOrNull()?.weight ?: 0.0,
-                restSeconds = 90,
+                restSeconds = entry.restSeconds ?: 90,
                 notes = ""
             )
         } ?: emptyList()
@@ -80,10 +80,24 @@ class WorkoutExecutionViewModel @Inject constructor(
     private val _currentExerciseIdx = MutableStateFlow(0)
     val currentExerciseIdx: StateFlow<Int> = _currentExerciseIdx.asStateFlow()
 
+    init {
+        // Restore the first unfinished exercise only when entering a new session.
+        // Never reset the cursor on ordinary set edits.
+        viewModelScope.launch {
+            sessionManager.activeSession.map { it?.sessionId }.distinctUntilChanged().collect { id ->
+                val active = sessionManager.activeSession.value
+                if (id != null && active?.sessionId == id && sessionManager.restoredFromDisk.value) {
+                    val unfinished = active.exercises.indexOfFirst { ex -> ex.sets.any { !it.completed && !it.isWarmup } }
+                    _currentExerciseIdx.value = if (unfinished >= 0) unfinished else active.exercises.lastIndex.coerceAtLeast(0)
+                }
+            }
+        }
+    }
+
     val loggedSets: StateFlow<Map<String, List<UiExerciseSet>>> = sessionManager.activeSession.map { active ->
         if (active != null) {
             active.exercises.associate { exercise ->
-                exercise.exerciseId to exercise.sets.mapIndexed { sIdx, setObj ->
+                exercise.executionKey to exercise.sets.mapIndexed { sIdx, setObj ->
                     ExerciseSet(
                         id = sIdx.toLong(),
                         sessionId = active.planSessionId,
@@ -127,7 +141,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                 val lastSetRpe = lastCompletedSet?.rpe ?: 0
                 val prog = if (targetEff > 0) (currentEff / targetEff) * 100.0 else 0.0
 
-                exercise.exerciseId to EffectiveSetsData(
+                exercise.executionKey to EffectiveSetsData(
                     exerciseId = exercise.exerciseId,
                     currentEffectiveSets = currentEff,
                     targetEffectiveSets = targetEff,
@@ -328,7 +342,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         _rirOverlayState.value = next
         if (current.hasLoggedSet) {
             val recordedRestSeconds = sessionManager.activeSession.value?.exercises
-                ?.firstOrNull { it.exerciseId == current.exerciseId }
+                ?.firstOrNull { it.executionKey == current.exerciseId }
                 ?.sets?.getOrNull(current.setIndex)?.restTakenSeconds ?: 0
             logWorkoutSetState(
                 exerciseId = current.exerciseId,
@@ -344,7 +358,8 @@ class WorkoutExecutionViewModel @Inject constructor(
     }
 
     fun confirmRirSelection() {
-        val exerciseId = _rirOverlayState.value.exerciseId
+        val state = _rirOverlayState.value
+        val exerciseId = sessionManager.activeSession.value?.exercises?.firstOrNull { it.executionKey == state.exerciseId }?.exerciseId ?: return
         val rpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(_rirOverlayState.value.selectedRir)
 
         viewModelScope.launch {
@@ -387,7 +402,7 @@ class WorkoutExecutionViewModel @Inject constructor(
 
         _rirOverlayState.value = _rirOverlayState.value.copy(hasLoggedSet = true)
         val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
-        val currentIndex = exercises.indexOfFirst { it.exerciseId == exId }
+        val currentIndex = exercises.indexOfFirst { it.executionKey == exId }
         val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed } == true
         val lastExerciseDone = exerciseDone && currentIndex == exercises.lastIndex
         if (!lastExerciseDone) {
@@ -406,7 +421,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         logWorkoutSetState(exerciseId, setIndex, weight, reps, rpe, completed = true,
             repsInReserve = (10 - rpe).coerceIn(0, 9))
         val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
-        val index = exercises.indexOfFirst { it.exerciseId == exerciseId }
+        val index = exercises.indexOfFirst { it.executionKey == exerciseId }
         val done = exercises.getOrNull(index)?.sets?.all { it.completed } == true
         if (!(done && index == exercises.lastIndex)) onRest()
         if (done && index >= 0 && index < exercises.lastIndex) _currentExerciseIdx.value = index + 1
