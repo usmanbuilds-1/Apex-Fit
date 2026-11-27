@@ -22,6 +22,7 @@ import com.apexfit.app.utils.getDaysBetweenClamped
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -1348,5 +1349,82 @@ class AuditRegressionTestV4 {
         assertTrue(store.clearActiveDraftIfMatches(newer))
         assertEquals(null, store.activeSessionJsonFlow.first())
         assertTrue(store.clearActiveDraftIfMatches(newer))
+    }
+
+    @Test
+    fun resetExcludesWorkoutWritesAndInvalidatesPreResetStarts() = runBlocking<Unit> {
+        AppDatabase.setTestDatabase(db)
+        try {
+            val store = DataStoreManager.getInstance(context)
+            val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+            val manager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
+            val exercise = PlanExercise(planSessionId = 1, exerciseId = "bench-press",
+                name = "Bench Press", muscleGroup = "Chest", sets = 2, repsMin = 8, repsMax = 12,
+                weight = 20.0, restSeconds = 90, notes = "")
+            val plan = PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest")
+            manager.startSession(plan, listOf(exercise), 70.0, 175.0, "kg")
+            val active = manager.activeSession.value!!
+            val generation = manager.resetGeneration.value
+            assertTrue(manager.updateSetDurably(active.sessionId, "bench-press", 0, 20.0, 8, 8, 0, true, 2))
+            store.stageWorkoutReceipt(active.sessionId, "{}")
+            val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+            val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+            val reset = sessionScope.launch {
+                manager.resetWorkoutData {
+                    entered.complete(Unit)
+                    release.await()
+                    db.clearAllTables()
+                    store.clearAllData()
+                }
+            }
+            try {
+                kotlinx.coroutines.withTimeout(10_000) { entered.await() }
+                assertEquals(null, manager.activeSession.value)
+                assertEquals(null, store.activeSessionJsonFlow.first())
+                assertEquals(null, store.workoutReceiptFlow.first())
+                assertEquals(generation + 1L, manager.resetGeneration.value)
+                manager.startSession(plan, listOf(exercise), 70.0, 175.0, "kg")
+                assertEquals(null, manager.activeSession.value)
+                manager.updateSet("bench-press", 0, 99.0, 9, 8, 0, true)
+                assertEquals(null, store.activeSessionJsonFlow.first())
+            } finally {
+                release.complete(Unit)
+                kotlinx.coroutines.withTimeout(10_000) { reset.join() }
+            }
+            assertFalse(manager.updateSetDurably(active.sessionId, "bench-press", 0, 99.0, 9, 8, 0, true))
+            assertEquals(null, dao.getTrainingSessionById(active.sessionId))
+            manager.startSession(plan, listOf(exercise), 70.0, 175.0, "kg", expectedResetGeneration = generation)
+            assertEquals(null, manager.activeSession.value)
+            assertEquals(null, store.activeSessionJsonFlow.first())
+            manager.startSession(plan, listOf(exercise), 70.0, 175.0, "kg")
+            assertTrue(manager.activeSession.value!!.sessionId != active.sessionId)
+            assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
+        } finally {
+            AppDatabase.setTestDatabase(null)
+        }
+    }
+
+    @Test
+    fun resetActionFailureReleasesWorkoutGateWithoutRestoringDiscardedDraft() = runBlocking<Unit> {
+        val store = DataStoreManager.getInstance(context)
+        val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+        val manager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
+        val exercise = PlanExercise(planSessionId = 1, exerciseId = "bench-press",
+            name = "Bench Press", muscleGroup = "Chest", sets = 1, repsMin = 8, repsMax = 12,
+            weight = 20.0, restSeconds = 90, notes = "")
+        val plan = PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest")
+        manager.startSession(plan, listOf(exercise), 70.0, 175.0, "kg")
+        val oldId = manager.activeSession.value!!.sessionId
+        try {
+            manager.resetWorkoutData { throw java.io.IOException("Injected reset action failure") }
+            fail("Reset action must report its failure")
+        } catch (expected: java.io.IOException) {
+            assertEquals("Injected reset action failure", expected.message)
+        }
+        assertEquals(null, store.activeSessionJsonFlow.first())
+        assertEquals(null, manager.activeSession.value)
+        manager.startSession(plan, listOf(exercise), 70.0, 175.0, "kg")
+        assertTrue(manager.activeSession.value!!.sessionId != oldId)
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 }
