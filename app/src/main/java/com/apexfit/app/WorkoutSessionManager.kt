@@ -271,14 +271,15 @@ class WorkoutSessionManager(
         exercises: List<PlanExercise>,
         userWeight: Double,
         userHeight: Double,
-        preferredUnits: String
+        preferredUnits: String,
+        expectedResetGeneration: Long = resetGeneration.value
     ) = withContext(Dispatchers.IO) {
         // Startup restore and a new workout must never race each other. Await the
         // persisted-session read before deciding whether a session is already active.
         restoreJob.join()
         val accepted = synchronized(stateLock) {
             !committing && !savingCriticalSet && !_sessionRestoreFailed.value &&
-                _activeSession.value == null && _isStartingSession.compareAndSet(false, true)
+                expectedResetGeneration == _resetGeneration.value && _activeSession.value == null && _isStartingSession.compareAndSet(false, true)
         }
         if (!accepted) return@withContext
         val catalogIds = exercises.map { it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
