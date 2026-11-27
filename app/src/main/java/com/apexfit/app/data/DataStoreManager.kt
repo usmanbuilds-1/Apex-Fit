@@ -289,6 +289,16 @@ class DataStoreManager(context: Context) {
         }
     }
 
+    /** Compare the exact saved draft, so cleanup cannot erase a newer workout. */
+    suspend fun clearActiveDraftIfMatches(expectedJson: String): Boolean {
+        val result = context.dataStore.edit { preferences ->
+            if (preferences[ACTIVE_SESSION_JSON_KEY] == expectedJson) {
+                preferences.remove(ACTIVE_SESSION_JSON_KEY)
+            }
+        }
+        return result[ACTIVE_SESSION_JSON_KEY] == null
+    }
+
     /** A staged receipt is visible only if Room confirms the matching workout ID. */
     val workoutReceiptFlow: Flow<Pair<String, String>?> = context.dataStore.data.map { preferences ->
         val id = preferences[WORKOUT_RECEIPT_ID_KEY]
