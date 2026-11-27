@@ -1243,4 +1243,59 @@ class AuditRegressionTestV4 {
         assertEquals(null, manager.recoveredReceipt.value)
         assertEquals(null, dao.getTrainingSessionById(draft.sessionId))
     }
+
+    @Test
+    fun skippedOccurrenceCursorAndRestCheckpointSurviveRestore() = runBlocking<Unit> {
+        AppDatabase.setTestDatabase(db)
+        try {
+            val store = DataStoreManager.getInstance(context)
+            val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+            val manager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
+            val first = PlanExercise(id = 1, planSessionId = 1, exerciseId = "bench-press",
+                name = "Bench Press", muscleGroup = "Chest", sets = 1, repsMin = 8, repsMax = 12,
+                weight = 20.0, restSeconds = 90, notes = "")
+            val second = first.copy(id = 2, exerciseId = "squat", name = "Squat", muscleGroup = "Legs")
+            val third = first.copy(id = 3)
+            manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
+                listOf(first, second, third), 70.0, 175.0, "kg")
+            val initial = manager.activeSession.value!!
+            assertTrue(manager.advanceCursorDurably(initial.sessionId, 0, skipped = true))
+            assertFalse(manager.advanceCursorDurably(initial.sessionId, 0, skipped = true))
+            assertTrue(manager.updateSetDurably(initial.sessionId, "squat", 0, 20.0, 8, 8, 0, true, 2,
+                advanceAfterCompletion = true))
+            val before = manager.activeSession.value!!
+            val checkpoint = before.restCheckpoint!!
+            assertEquals(2, before.cursorIndex)
+            assertEquals(listOf(0), before.skippedOccurrenceIndices)
+            assertFalse(before.exercises[0].sets.single().completed)
+            assertEquals("squat", checkpoint.exerciseKey)
+            assertEquals(90, checkpoint.totalSeconds)
+            assertEquals(checkpoint.startedElapsedMs + 90_000L, checkpoint.deadlineElapsedMs)
+
+            val changed = checkpoint.copy(totalSeconds = 105, deadlineElapsedMs = checkpoint.startedElapsedMs + 105_000L,
+                adjustmentSeconds = 15)
+            assertTrue(manager.replaceRestCheckpoint(initial.sessionId, checkpoint, changed))
+            assertFalse(manager.replaceRestCheckpoint(initial.sessionId, checkpoint, changed))
+            val restoredManager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
+            val restored = kotlinx.coroutines.withTimeout(10_000) { restoredManager.activeSession.first { it != null }!! }
+            assertEquals(initial.sessionId, restored.sessionId)
+            assertEquals(2, com.apexfit.app.utils.WorkoutResumeState.cursor(restored))
+            assertEquals(listOf(0), restored.skippedOccurrenceIndices)
+            assertEquals(changed, restored.restCheckpoint)
+            assertFalse(restoredManager.closeRestCheckpoint("wrong-session", changed, 41))
+            assertTrue(restoredManager.closeRestCheckpoint(initial.sessionId, changed, 41))
+            assertEquals(null, restoredManager.activeSession.value!!.restCheckpoint)
+            assertEquals(41, restoredManager.activeSession.value!!.exercises[1].sets.single().restTakenSeconds)
+            assertTrue(restoredManager.updateSetDurably(initial.sessionId, restored.exercises[2].executionKey, 0,
+                20.0, 10, 8, 0, true, 2, advanceAfterCompletion = true))
+            assertEquals(null, restoredManager.activeSession.value!!.restCheckpoint)
+            val receipt = restoredManager.commitToDatabase(4)
+            assertTrue("A skipped exercise cannot count as full completion", receipt.isPartial)
+            assertEquals(2, receipt.setsCompleted)
+            assertEquals(listOf(1, 2), receipt.savedSets.map { it.occurrenceIndex })
+            assertEquals(listOf(41, 0), receipt.savedSets.map { it.restTaken })
+        } finally {
+            AppDatabase.setTestDatabase(null)
+        }
+    }
 }
