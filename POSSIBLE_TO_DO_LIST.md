@@ -31,6 +31,7 @@ This is a living **candidate backlog**, not an approved implementation plan or r
 | E03 | 14-row specification, contracts, dependencies, migrations and acceptance tests | Engineering | Draft complete; awaiting user review |
 | E04 | Shared analytics architecture and implementation order | Engineering | Draft complete; awaiting user review |
 | E05 | Database migration, privacy and backward compatibility plan | Engineering | Draft complete; awaiting user review |
+| E06 | Independent sanity check of technical plan, citations and source risks | Engineering | Complete; revised plan awaiting approval |
 | U01 | Repair Today athlete binding and inspect actual Stitch render | Codex/Work | Assigned; result unverified |
 | U02 | Inventory screens and map features to UX destinations | Codex/Work | Assigned; result unverified |
 | G01 | Review preview and technical plan; approve or revise scope | User | Technical plan ready; Today preview result unverified; awaiting review |
@@ -61,7 +62,7 @@ All are candidates, not approved implementation. Existing partial implementation
 
 Previously discussed unilateral tracking, muscle feedback, mesocycles, equipment profiles and Health Connect remain optional future candidates outside the current 14-feature scope.
 
-**Maintenance rule:** record each milestone once, with commit/PR/test or preview evidence. Distinguish proposed, assigned, verified, approved, implemented, tested, deferred and rejected. Update on each relevant work session or reported Codex milestone; do not assume its local progress. The draft technical specification is [Training Analytics Technical Plan](docs/TRAINING_ANALYTICS_TECHNICAL_PLAN.md), committed as `ccf1db92ecddf509e81ff6ff18e042e744f7d870`. It contains the pinned source audit, competitor/scientific evidence, 14 feature specifications with acceptance tests, unified analytics architecture and proposed additive migrations. No Android code or schema changed. Codex branch comparison: two unique commits, 97 behind the audited main baseline; reconcile without overwriting local changes before implementation. Device, migration, CI and Stitch verification remain pending. Approval decisions include partial-workout eligibility, load conventions, estimated 1RM, target defaults, historical schedule rules and photo privacy/backup. All F01–F14 remain candidates pending scope approval.
+**Maintenance rule:** record each milestone once, with commit/PR/test or preview evidence. Distinguish proposed, assigned, verified, approved, implemented, tested, deferred and rejected. Update on each relevant work session or reported Codex milestone; do not assume its local progress. The draft technical specification is [Training Analytics Technical Plan](docs/TRAINING_ANALYTICS_TECHNICAL_PLAN.md), originally committed as `ccf1db92ecddf509e81ff6ff18e042e744f7d870`, fact-checked and revised in `3396a74d31bf4d6da73fd6c4869cd649a03999bc`. It contains the pinned source audit, competitor/scientific evidence, 14 feature specifications with acceptance tests, unified analytics architecture and proposed additive migrations. No Android code or schema changed. Codex branch comparison: two unique commits, 97 behind the audited main baseline; reconcile without overwriting local changes before implementation. Device, migration, CI and Stitch verification remain pending. Approval decisions include partial-workout eligibility, load conventions, estimated 1RM, target defaults, historical schedule rules and photo privacy/backup. All F01–F14 remain candidates pending scope approval.
 
 ## Candidate UX and design improvements
 
@@ -160,3 +161,10 @@ Source audit findings from the merged PR #38 codebase (commit `0b1dcdda`). These
 ## Change policy
 
 Use this file as the repository's working list of **possible** future changes. Update entries as ideas are discussed; mark implemented only after verification, record the corresponding PR/test evidence, and move rejected or deferred ideas out of active scope. This file is not a substitute for a confirmed implementation specification.
+
+### Sanity-check outcome (2026-11-27)
+- [x] Verified cited research and competitor feature claims; narrowed scientific claims and distinguished product policy from evidence.
+- [x] Hardened plan for active JSON compatibility, duplicate-save prevention, effort provenance, historical PRs, time ranges, schedule history and photo privacy.
+- [ ] Before approved implementation: confirm partial-workout eligibility, strength/load conventions, e1RM policy, optional muscle targets and calendar rules. Start with data-integrity fixes and read-only analytics without unnecessary migrations.
+- [ ] Reconcile Codex's local branch before integration (remote comparison before these documentation edits: 2 ahead, 99 behind main). Do not overwrite local work; implementation on a separate branch may proceed only with user approval and coordinated data contracts.
+No code, tests or migrations executed in this review. See revised technical plan for specific acceptance gates.
