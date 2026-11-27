@@ -635,8 +635,9 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override fun getCurrentWeightFlow(): Flow<Double> {
-        return combine(dao.observeAllWeightEntries(), dataStore.weightBaselineFlow) { entries, fallback ->
-            BodyWeightHistory.latest(entries)?.weight ?: fallback ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+        return combine(dao.observeAllWeightEntries(), dataStore.weightBaselineFlow, todayDateFlow) { entries, fallback, today ->
+            BodyWeightHistory.latest(entries.filter { it.date <= today })?.weight
+                ?: fallback ?: com.apexfit.app.UserDefaults.WEIGHT_KG
         }.distinctUntilChanged().flowOn(Dispatchers.IO)
     }
 
