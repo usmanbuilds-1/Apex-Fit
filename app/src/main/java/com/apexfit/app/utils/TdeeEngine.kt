@@ -85,7 +85,7 @@ object TdeeEngine {
         val loggedNutritionDays = nutritionInWeightWindow.map { it.date }.distinct().size
         val nutritionCoverage = loggedNutritionDays.toDouble() / calendarDays.coerceAtLeast(1)
 
-        if (nutritionCoverage < 0.80) {
+        if (loggedNutritionDays < 7 || nutritionCoverage < 0.80) {
             val loggedDailyCalories = nutritionInWeightWindow
                 .groupBy { it.date }
                 .map { (_, e) -> e.sumOf { it.calories } }
