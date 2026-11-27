@@ -50,6 +50,8 @@ class DataStoreManager(context: Context) {
         val SUPPLEMENTS_KEY = stringPreferencesKey("supplements")
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
+        private val WORKOUT_RECEIPT_ID_KEY = stringPreferencesKey("workout_receipt_id_v1")
+        private val WORKOUT_RECEIPT_JSON_KEY = stringPreferencesKey("workout_receipt_json_v1")
         val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
         val EXERCISE_SEED_VERSION_KEY = intPreferencesKey("exercise_seed_version")
         val EXERCISE_SETS_CANONICALIZED_KEY = booleanPreferencesKey("exercise_sets_canonicalized_v1")
@@ -284,6 +286,37 @@ class DataStoreManager(context: Context) {
             } else {
                 preferences[ACTIVE_SESSION_JSON_KEY] = json
             }
+        }
+    }
+
+    /** A staged receipt is visible only if Room confirms the matching workout ID. */
+    val workoutReceiptFlow: Flow<Pair<String, String>?> = context.dataStore.data.map { preferences ->
+        val id = preferences[WORKOUT_RECEIPT_ID_KEY]
+        val json = preferences[WORKOUT_RECEIPT_JSON_KEY]
+        if (id != null && json != null) id to json else null
+    }.distinctUntilChanged()
+
+    suspend fun stageWorkoutReceipt(sessionId: String, json: String) {
+        context.dataStore.edit { preferences ->
+            preferences[WORKOUT_RECEIPT_ID_KEY] = sessionId
+            preferences[WORKOUT_RECEIPT_JSON_KEY] = json
+        }
+    }
+
+    suspend fun dismissWorkoutReceipt(sessionId: String) {
+        context.dataStore.edit { preferences ->
+            if (preferences[WORKOUT_RECEIPT_ID_KEY] == sessionId) {
+                preferences.remove(WORKOUT_RECEIPT_ID_KEY)
+                preferences.remove(WORKOUT_RECEIPT_JSON_KEY)
+            }
+        }
+    }
+
+    suspend fun beginWorkoutDraft(json: String) {
+        context.dataStore.edit { preferences ->
+            preferences[ACTIVE_SESSION_JSON_KEY] = json
+            preferences.remove(WORKOUT_RECEIPT_ID_KEY)
+            preferences.remove(WORKOUT_RECEIPT_JSON_KEY)
         }
     }
 
