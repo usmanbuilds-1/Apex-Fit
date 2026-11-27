@@ -1298,4 +1298,39 @@ class AuditRegressionTestV4 {
             AppDatabase.setTestDatabase(null)
         }
     }
+
+    @Test
+    fun finishWithOpenRestSavesOnceAndDiscardRejectsStaleSessionId() = runBlocking<Unit> {
+        AppDatabase.setTestDatabase(db)
+        try {
+            val store = DataStoreManager.getInstance(context)
+            val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
+            val manager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
+            val exercise = PlanExercise(planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
+                muscleGroup = "Chest", sets = 2, repsMin = 8, repsMax = 12, weight = 20.0,
+                restSeconds = 90, notes = "")
+            val plan = PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest")
+            manager.startSession(plan, listOf(exercise), 70.0, 175.0, "kg")
+            val id = manager.activeSession.value!!.sessionId
+            assertTrue(manager.updateSetDurably(id, "bench-press", 0, 20.0, 8, 8, 0, true, 2,
+                advanceAfterCompletion = true))
+            assertNotNull(manager.activeSession.value!!.restCheckpoint)
+            assertFalse(manager.discardDraftDurably("wrong-session"))
+            assertEquals(id, manager.activeSession.value!!.sessionId)
+            val receipt = manager.commitToDatabase(4)
+            assertTrue(receipt.isPartial)
+            assertEquals(1, receipt.savedSets.size)
+            assertTrue(receipt.savedSets.single().restTaken in 0..90)
+            assertEquals(null, store.activeSessionJsonFlow.first())
+            manager.startSession(plan, listOf(exercise), 70.0, 175.0, "kg")
+            val newId = manager.activeSession.value!!.sessionId
+            assertFalse(manager.discardDraftDurably(id))
+            assertTrue(manager.discardDraftDurably(newId))
+            assertEquals(null, store.activeSessionJsonFlow.first())
+            assertEquals(null, manager.activeSession.value)
+            assertEquals(1, dao.getSetsForSession(id).size)
+        } finally {
+            AppDatabase.setTestDatabase(null)
+        }
+    }
 }
