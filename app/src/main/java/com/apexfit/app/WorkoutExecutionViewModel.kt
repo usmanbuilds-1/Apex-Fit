@@ -426,7 +426,6 @@ class WorkoutExecutionViewModel @Inject constructor(
 
     fun finishWorkoutSession(sessionFeel: Int = 4) {
         if (!isCommitting.compareAndSet(false, true)) return
-        com.apexfit.app.utils.WorkoutForegroundService.stop(getApplication())
         viewModelScope.launch {
             _saveError.value = null
             val session = sessionManager.activeSession.value
@@ -519,7 +518,6 @@ class WorkoutExecutionViewModel @Inject constructor(
 
     fun savePartialAndExit(sessionFeel: Int) {
         if (!isCommitting.compareAndSet(false, true)) return
-        com.apexfit.app.utils.WorkoutForegroundService.stop(getApplication())
         viewModelScope.launch {
             _saveError.value = null
             val session = sessionManager.activeSession.value
