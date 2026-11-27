@@ -97,7 +97,7 @@ class RestTimerViewModel @Inject constructor(
         updateContext(active, saved)
         val now = SystemClock.elapsedRealtime()
         val boot = WorkoutResumeState.bootCount(getApplication())
-        val valid = WorkoutResumeState.validRest(active, saved) && WorkoutResumeState.sameBoot(saved, now, boot)
+        val valid = WorkoutResumeState.validRest(active, saved) && WorkoutResumeState.sameBoot(saved, now, boot, sessionManager.isLiveRestCheckpoint(active.sessionId, saved))
         if (!valid) {
             _restTimerSeconds.value = 0
             _restTimerLastSetContext.value = "Rest timing unavailable after restart. Close to continue."
@@ -108,7 +108,7 @@ class RestTimerViewModel @Inject constructor(
         val remaining = remainingRestSeconds(saved.deadlineElapsedMs, now)
         _restTimerSeconds.value = remaining
         if (remaining == 0) {
-            finishCheckpoint(active.sessionId, saved, WorkoutResumeState.observedRestSeconds(saved, now, boot))
+            finishCheckpoint(active.sessionId, saved, WorkoutResumeState.observedRestSeconds(saved, now, boot, sessionManager.isLiveRestCheckpoint(active.sessionId, saved)))
             return
         }
         RestTimerAlarmReceiver.scheduleAlarm(getApplication(),
@@ -122,7 +122,7 @@ class RestTimerViewModel @Inject constructor(
                 if (seconds != previous && seconds in 1..3) AudioService.playBeep(getApplication())
                 if (seconds == 0) {
                     if (previous > 0) AudioService.playRestTimerComplete(getApplication())
-                    finishCheckpoint(active.sessionId, saved, WorkoutResumeState.observedRestSeconds(saved, tick, boot))
+                    finishCheckpoint(active.sessionId, saved, WorkoutResumeState.observedRestSeconds(saved, tick, boot, sessionManager.isLiveRestCheckpoint(active.sessionId, saved)))
                     break
                 }
                 delay(250)
@@ -170,7 +170,7 @@ class RestTimerViewModel @Inject constructor(
         writing = true
         viewModelScope.launch {
             try {
-                if (sessionManager.closeRestCheckpoint(id, saved, observed)) stopLocal()
+                if (sessionManager.closeRestCheckpoint(id, saved, observed) && sessionId == id && checkpoint == saved) stopLocal()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -201,7 +201,7 @@ class RestTimerViewModel @Inject constructor(
                 val currentId = sessionId
                 if (current != null && currentId != null && current.deadlineElapsedMs <= SystemClock.elapsedRealtime()) {
                     finishCheckpoint(currentId, current, WorkoutResumeState.observedRestSeconds(
-                        current, SystemClock.elapsedRealtime(), WorkoutResumeState.bootCount(getApplication())))
+                        current, SystemClock.elapsedRealtime(), WorkoutResumeState.bootCount(getApplication()), sessionManager.isLiveRestCheckpoint(currentId, current)))
                 }
             }
         }
@@ -241,7 +241,7 @@ class RestTimerViewModel @Inject constructor(
         val saved = checkpoint ?: return
         val id = sessionId ?: return
         finishCheckpoint(id, saved, WorkoutResumeState.observedRestSeconds(saved,
-            SystemClock.elapsedRealtime(), WorkoutResumeState.bootCount(getApplication())))
+            SystemClock.elapsedRealtime(), WorkoutResumeState.bootCount(getApplication()), sessionManager.isLiveRestCheckpoint(id, saved)))
     }
 
     fun cancelRestTimer() {
