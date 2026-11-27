@@ -50,7 +50,9 @@ data class UiExerciseSet(
     val exerciseId: String = "",
     val repsInReserve: Int = 2,
     val effectiveSetValue: Double = 0.0,
-    val restTaken: Int = 0
+    val restTaken: Int = 0,
+    val occurrenceIndex: Int? = null,
+    val setNumber: Int? = null
 )
 
 @Immutable
@@ -141,7 +143,9 @@ fun com.apexfit.app.data.ExerciseSet.toUi(): UiExerciseSet = UiExerciseSet(
     exerciseId = this.exerciseId,
     repsInReserve = this.repsInReserve,
     effectiveSetValue = try { com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(rpe) } catch(e: Exception) { 0.0 },
-    restTaken = this.restTaken
+    restTaken = this.restTaken,
+    occurrenceIndex = this.occurrenceIndex,
+    setNumber = this.setNumber
 )
 
 fun com.apexfit.app.data.TrainingSession.toUi(): UiTrainingSession = UiTrainingSession(
