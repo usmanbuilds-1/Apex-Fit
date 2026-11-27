@@ -676,6 +676,8 @@ class WorkoutSessionManager(
         completed: Boolean, repsInReserve: Int? = null,
         advanceAfterCompletion: Boolean = false
     ): Boolean = mutateDraftDurably(expectedSessionId) { session ->
+        if (!completed && session.restCheckpoint?.let { it.exerciseKey == exerciseId && it.setIndex == setIndex } == true)
+            return@mutateDraftDurably null
         val edited = editedSet(session, exerciseId, setIndex, weight, reps, rpe,
             restTakenSeconds, completed, repsInReserve) ?: return@mutateDraftDurably null
         if (!advanceAfterCompletion || !completed) return@mutateDraftDurably edited
@@ -715,7 +717,7 @@ class WorkoutSessionManager(
 
     suspend fun closeRestCheckpoint(expectedSessionId: String, expected: ActiveRestCheckpoint,
         observedSeconds: Int?): Boolean = mutateDraftDurably(expectedSessionId) { session ->
-        if (session.restCheckpoint != expected) return@mutateDraftDurably null
+        if (session.restCheckpoint != expected || (observedSeconds != null && observedSeconds !in 0..expected.totalSeconds)) return@mutateDraftDurably null
         val set = session.exercises.firstOrNull { it.executionKey == expected.exerciseKey }
             ?.sets?.getOrNull(expected.setIndex)
         if (observedSeconds == null || set == null || !set.completed) session.copy(restCheckpoint = null)
