@@ -125,11 +125,11 @@ class TrainViewModelTest {
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Upper"),
             listOf(first, second), 70.0, 175.0, "kg")
         var restCalls = 0
-        viewModel.completeSetWithRpe("bench", "Bench", "Chest", 0, 10.0, 10, 1, 9) { restCalls++ }
+        viewModel.completeSetWithRpe("bench", "Bench", "Chest", 0, 10.0, 10, 1, 9) { restCalls++ }?.join()
         assertEquals(9, manager.activeSession.value!!.exercises[0].sets[0].rpe)
         assertEquals(1, viewModel.currentExerciseIdx.value)
         assertEquals(1, restCalls)
-        viewModel.completeSetWithRpe("row", "Row", "Back", 0, 10.0, 10, 1, 8) { restCalls++ }
+        viewModel.completeSetWithRpe("row", "Row", "Back", 0, 10.0, 10, 1, 8) { restCalls++ }?.join()
         assertEquals("Final set should not start another timer", 1, restCalls)
         manager.discardAndExit()
         viewModel.viewModelScope.coroutineContext[Job]?.cancelChildren()
@@ -165,7 +165,7 @@ class TrainViewModelTest {
         var callback: List<Any>? = null
         viewModel.confirmRirAndNextSet { rpe, name, muscle, weight, reps, setIndex, totalSets ->
             callback = listOf(rpe, name, muscle, weight, reps, setIndex, totalSets)
-        }
+        }?.join()
 
         val loggedSet = manager.activeSession.value!!.exercises.single().sets.first()
         assertTrue("RIR confirmation should complete the set", loggedSet.completed)
