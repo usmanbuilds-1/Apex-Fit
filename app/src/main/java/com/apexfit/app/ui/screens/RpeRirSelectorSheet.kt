@@ -357,8 +357,9 @@ fun RirSelectorOverlay(
     val lastSetContext by restTimerViewModel.restTimerLastSetContext.collectAsStateWithLifecycle()
     val nextSetPreview by restTimerViewModel.restTimerNextSetPreview.collectAsStateWithLifecycle()
     val isRestVisible by restTimerViewModel.showRestOverlay.collectAsStateWithLifecycle()
-    val exercise = activeExercises.firstOrNull { it.exerciseId == state.exerciseId }
-    val exerciseIndex = activeExercises.indexOfFirst { it.exerciseId == state.exerciseId }
+    val occurrenceKeys = com.apexfit.app.utils.WorkoutOccurrenceKeys.allocate(activeExercises.map { it.exerciseId })
+    val exerciseIndex = occurrenceKeys.indexOf(state.exerciseId)
+    val exercise = activeExercises.getOrNull(exerciseIndex)
     val repMin = exercise?.repsMin?.coerceAtLeast(1) ?: 1
     val repMax = exercise?.repsMax?.coerceAtLeast(repMin) ?: repMin
     val isLastSet = state.setIndex + 1 >= state.totalSets
