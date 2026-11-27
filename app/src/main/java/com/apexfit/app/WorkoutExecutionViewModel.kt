@@ -391,19 +391,19 @@ class WorkoutExecutionViewModel @Inject constructor(
         )
     }
 
-    fun selectRirOption(rir: Int, onSaved: (() -> Unit)? = null) {
-        if (_isSavingSet.value || isCommitting.get()) return
+    fun selectRirOption(rir: Int, onSaved: (() -> Unit)? = null): Job? {
+        if (_isSavingSet.value || isCommitting.get()) return null
         val current = _rirOverlayState.value
         val next = current.copy(selectedRir = rir.coerceIn(0, 5))
         if (!current.hasLoggedSet) {
             _rirOverlayState.value = next
             onSaved?.invoke()
-            return
+            return null
         }
         val recordedRestSeconds = sessionManager.activeSession.value?.exercises
             ?.firstOrNull { it.executionKey == current.exerciseId }
-            ?.sets?.getOrNull(current.setIndex)?.restTakenSeconds ?: return
-        persistConfirmedSet(current.exerciseId, current.setIndex, current.weight, current.reps,
+            ?.sets?.getOrNull(current.setIndex)?.restTakenSeconds ?: return null
+        return persistConfirmedSet(current.exerciseId, current.setIndex, current.weight, current.reps,
             com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(next.selectedRir),
             completed = true, restTakenSeconds = recordedRestSeconds, repsInReserve = next.selectedRir) {
             _rirOverlayState.value = _rirOverlayState.value.copy(selectedRir = next.selectedRir)
