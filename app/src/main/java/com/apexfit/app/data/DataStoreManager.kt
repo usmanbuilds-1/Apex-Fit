@@ -322,6 +322,15 @@ class DataStoreManager(context: Context) {
         }
     }
 
+    /** Clear only the workout recovery journal before a confirmed full reset. */
+    suspend fun clearWorkoutRecoveryData() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(ACTIVE_SESSION_JSON_KEY)
+            preferences.remove(WORKOUT_RECEIPT_ID_KEY)
+            preferences.remove(WORKOUT_RECEIPT_JSON_KEY)
+        }
+    }
+
     suspend fun beginWorkoutDraft(json: String) {
         context.dataStore.edit { preferences ->
             preferences[ACTIVE_SESSION_JSON_KEY] = json
