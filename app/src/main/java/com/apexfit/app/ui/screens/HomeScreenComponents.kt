@@ -344,8 +344,8 @@ fun HomeTodayWorkoutCard(
                     val currentReadiness = readiness
                     if (currentReadiness != null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("${currentReadiness.score}%", fontSize = 24.sp, fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.ExtraBold, color = PrimaryText)
-                            Text("RECOVERY", fontSize = 12.sp, fontFamily = SyneFamily, fontWeight = FontWeight.ExtraBold, color = GreenAccent, letterSpacing = 1.sp)
+                            Text(currentReadiness.label, fontSize = 14.sp, fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.ExtraBold, color = PrimaryText)
+                            Text("LOAD ESTIMATE", fontSize = 10.sp, fontFamily = SyneFamily, fontWeight = FontWeight.ExtraBold, color = GreenAccent, letterSpacing = 1.sp)
                         }
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 6.dp)) {
@@ -1220,7 +1220,7 @@ private fun ReadinessExplanationDialog(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "${readiness.score}% · ${readiness.recommendation}",
+                        text = "${readiness.label} · ${readiness.recommendation}",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
