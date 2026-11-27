@@ -828,12 +828,41 @@ class WorkoutSessionManager(
         _restoredFromDisk.value = false
     }
 
+    suspend fun discardDraftDurably(expectedSessionId: String): Boolean = commitMutex.withLock {
+        val allowed = synchronized(stateLock) {
+            if (committing || savingCriticalSet || _isStartingSession.value || _sessionRestoreFailed.value ||
+                _activeSession.value?.sessionId != expectedSessionId) false
+            else { committing = true; true }
+        }
+        if (!allowed) return@withLock false
+        try {
+            withContext(Dispatchers.IO + NonCancellable) {
+                persistJob?.cancelAndJoin()
+                persistenceMutex.withLock { dataStore.saveActiveSessionJson(null) }
+                synchronized(stateLock) { resetActiveState() }
+                try {
+                    com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
+                    com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(appContext)
+                } catch (e: Exception) {
+                    android.util.Log.e("WorkoutSessionManager", "Draft discarded; service cleanup failed", e)
+                }
+            }
+            true
+        } finally {
+            synchronized(stateLock) { committing = false }
+        }
+    }
+
     fun clearPersistedSession() {
-        synchronized(stateLock) {
-            if (committing || savingCriticalSet || _isStartingSession.value || _sessionRestoreFailed.value) return
-            com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
-            resetActiveState()
-            persistSession(immediate = true)
+        val id = _activeSession.value?.sessionId ?: return
+        scope.launch {
+            try {
+                discardDraftDurably(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutSessionManager", "Draft retained; discard failed", e)
+            }
         }
     }
 
@@ -884,20 +913,33 @@ class WorkoutSessionManager(
             _activeSession.value?.takeIf { it.sessionId == requestedId }?.also { committing = true }
         } ?: return@withLock lastReceipt?.takeIf { it.sessionId == requestedId } ?: SessionCommitResult.empty()
         try {
-        check(session.restCheckpoint == null) { "Close the rest timer before finishing the workout." }
+        // Finishing is itself an explicit end to any open rest interval.
+        // Resolve the checkpoint in the same final snapshot; no separate UI
+        // close/write race and no time inferred across a reboot.
+        val finalSession = session.restCheckpoint?.let { rest ->
+            val observed = WorkoutResumeState.observedRestSeconds(rest, SystemClock.elapsedRealtime(),
+                WorkoutResumeState.bootCount(appContext), isLiveRestCheckpoint(session.sessionId, rest))
+            val set = session.exercises.firstOrNull { it.executionKey == rest.exerciseKey }?.sets?.getOrNull(rest.setIndex)
+            val updated = if (observed != null && set?.completed == true)
+                editedSet(session, rest.exerciseKey, rest.setIndex, set.weight, set.reps, set.rpe,
+                    observed, true, set.repsInReserve) ?: session
+            else session
+            updated.copy(restCheckpoint = null)
+        } ?: session
         persistJob?.cancelAndJoin()
         // Persist the exact final snapshot before the transaction, so recovery
         // can distinguish a failed commit from a successful commit + failed clear.
-        persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(session)) }
+        persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(finalSession)) }
+        synchronized(stateLock) { _activeSession.value = finalSession }
 
-        val sessionId = session.sessionId
+        val sessionId = finalSession.sessionId
         val completedAt = System.currentTimeMillis()
         val durationMinutes = ((completedAt - session.startTime).coerceAtLeast(0L).toDouble() / 60_000.0)
             .let { it.roundToInt() }
             .coerceAtLeast(1)
 
         // Flatten all sets, filter to completed if needed
-        val allSets = session.exercises.flatMapIndexed { occurrenceIndex, exercise ->
+        val allSets = finalSession.exercises.flatMapIndexed { occurrenceIndex, exercise ->
             exercise.sets
                 .filter { if (completedSetsOnly) it.completed else true }
                 .map { activeSet ->
@@ -1016,10 +1058,7 @@ class WorkoutSessionManager(
     }
 
     /** Called from "Save partial session?" dialog — no path */
-    fun discardAndExit() {
-        com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
-        clearPersistedSession()
-    }
+    fun discardAndExit() = clearPersistedSession()
 
     val hasCompletedSets: Boolean
         get() = _activeSession.value
