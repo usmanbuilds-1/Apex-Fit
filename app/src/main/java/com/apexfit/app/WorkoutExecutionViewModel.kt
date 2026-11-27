@@ -232,14 +232,21 @@ class WorkoutExecutionViewModel @Inject constructor(
         // which calls it after the session is built and while the app is still
         // foreground. Removed premature start here to prevent orphaned FGS.
         viewModelScope.launch {
-            val exercises = dao.getExercisesForSession(planSession.id)
-            sessionManager.startSession(
-                planSession = planSession,
-                exercises = exercises,
-                userWeight = currentWeight.value,
-                userHeight = userHeight.value,
-                preferredUnits = units.value
-            )
+            _saveError.value = null
+            try {
+                val exercises = dao.getExercisesForSession(planSession.id)
+                sessionManager.startSession(
+                    planSession = planSession,
+                    exercises = exercises,
+                    userWeight = currentWeight.value,
+                    userHeight = userHeight.value,
+                    preferredUnits = units.value
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _saveError.value = "Couldn't start workout. Please try again."
+            }
         }
     }
 
@@ -449,7 +456,7 @@ class WorkoutExecutionViewModel @Inject constructor(
             try {
                 _lastCompletedSessionSets.value = completedSets
                 val result = sessionManager.commitToDatabase(sessionFeel)
-                sessionManager.clearPersistedSession()
+                check(result.sessionId.isNotBlank()) { "No active workout to save." }
                 _completedReceipt.value = result
 
                 val score = withContext(Dispatchers.Default) {
@@ -542,7 +549,7 @@ class WorkoutExecutionViewModel @Inject constructor(
             try {
                 _lastCompletedSessionSets.value = completedSets
                 val result = sessionManager.savePartialAndExit(sessionFeel)
-                sessionManager.clearPersistedSession()
+                check(result.sessionId.isNotBlank()) { "No active workout to save." }
                 _completedReceipt.value = result
 
                 val score = withContext(Dispatchers.Default) {
