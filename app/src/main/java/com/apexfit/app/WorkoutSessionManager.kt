@@ -57,6 +57,8 @@ class WorkoutSessionManager(
     private val persistenceMutex = Mutex()
     private var committing = false // guarded by stateLock
     private var savingCriticalSet = false // guarded by stateLock
+    private val _resetGeneration = MutableStateFlow(0L)
+    val resetGeneration: StateFlow<Long> = _resetGeneration.asStateFlow()
     private var liveRestIdentity: Pair<String, Long>? = null // guarded by stateLock
     private data class PendingRest(val sessionId: String, val key: String, val index: Int, val seconds: Int)
     private val pendingRests = mutableListOf<PendingRest>() // guarded by stateLock
@@ -194,8 +196,9 @@ class WorkoutSessionManager(
     /** Only an explicit user choice may discard an unreadable/ambiguous payload. */
     suspend fun discardUnrestorableSession(): Boolean {
         restoreJob.join()
-        if (!_sessionRestoreFailed.value || _activeSession.value != null) return false
-        return try {
+        return commitMutex.withLock {
+        if (!_sessionRestoreFailed.value || _activeSession.value != null) return@withLock false
+        try {
             persistenceMutex.withLock { dataStore.saveActiveSessionJson(null) }
             _sessionRestoreFailed.value = false
             true
@@ -204,6 +207,7 @@ class WorkoutSessionManager(
         } catch (e: Exception) {
             android.util.Log.e("WorkoutSessionManager", "Unable to discard saved workout", e)
             false
+        }
         }
     }
 
@@ -272,8 +276,11 @@ class WorkoutSessionManager(
         // Startup restore and a new workout must never race each other. Await the
         // persisted-session read before deciding whether a session is already active.
         restoreJob.join()
-        if (_sessionRestoreFailed.value) return@withContext
-        if (!_isStartingSession.compareAndSet(false, true)) return@withContext
+        val accepted = synchronized(stateLock) {
+            !committing && !savingCriticalSet && !_sessionRestoreFailed.value &&
+                _activeSession.value == null && _isStartingSession.compareAndSet(false, true)
+        }
+        if (!accepted) return@withContext
         val catalogIds = exercises.map { it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
         val occurrenceKeys = WorkoutOccurrenceKeys.allocate(catalogIds)
         val repeatedCatalogIds = catalogIds.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
@@ -835,6 +842,48 @@ class WorkoutSessionManager(
         _weightContextLines.value = emptyMap()
         _pendingPRWarnings.value = emptyMap()
         _restoredFromDisk.value = false
+    }
+
+    /**
+     * Explicit full reset owns the same mutation boundary as workout commit,
+     * discard and confirmed set writes. Reject during startup rather than
+     * letting a pre-reset plan snapshot become a new draft after the wipe.
+     * The supplied reset action runs only after the workout journal is erased.
+     */
+    internal suspend fun resetWorkoutData(resetOtherData: suspend () -> Unit) {
+        restoreJob.join()
+        commitMutex.withLock {
+            synchronized(stateLock) {
+                check(!committing && !savingCriticalSet && !_isStartingSession.value) {
+                    "Workout is starting. Try resetting again after it finishes starting."
+                }
+                committing = true
+            }
+            try {
+                withContext(Dispatchers.IO + NonCancellable) {
+                    persistJob?.cancelAndJoin()
+                    persistenceMutex.withLock { dataStore.clearWorkoutRecoveryData() }
+                    synchronized(stateLock) {
+                        resetActiveState()
+                        pendingRests.clear()
+                        metadataMap = emptyMap()
+                        lastReceipt = null
+                        _recoveredReceipt.value = null
+                        _sessionRestoreFailed.value = false
+                        _resetGeneration.value += 1L
+                    }
+                    try {
+                        com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
+                        com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(appContext)
+                    } catch (e: Exception) {
+                        android.util.Log.e("WorkoutSessionManager", "Reset service cleanup failed", e)
+                    }
+                    resetOtherData()
+                }
+            } finally {
+                synchronized(stateLock) { committing = false }
+            }
+        }
     }
 
     suspend fun discardDraftDurably(expectedSessionId: String): Boolean = commitMutex.withLock {
