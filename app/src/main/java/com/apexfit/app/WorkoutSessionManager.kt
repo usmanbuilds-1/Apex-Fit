@@ -24,6 +24,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.apexfit.app.utils.ActiveWorkoutCodec
+import com.apexfit.app.utils.WorkoutOccurrenceKeys
 import kotlinx.coroutines.isActive
 import java.util.UUID
 import com.google.gson.Gson
@@ -94,16 +95,18 @@ class WorkoutSessionManager(
                 check(dao.getTrainingSessionsStartedAt(restored.startTime).isEmpty()) {
                     "Legacy workout may already exist in history"
                 }
-                dataStore.saveActiveSessionJson(gson.toJson(restored))
             } else if (dao.getTrainingSessionById(restored.sessionId) != null) {
                 // Exact stable ID is proof of a previous committed transaction.
                 // Its history is already saved; do not resume or insert it again.
                 dataStore.saveActiveSessionJson(null)
                 return@launch
             }
+            if (decoded.migrated || decoded.normalized) {
+                dataStore.saveActiveSessionJson(gson.toJson(restored))
+            }
             _restoredFromDisk.value = true
             _weightContextLines.value = restored.exercises.mapNotNull { exercise ->
-                exercise.loadContext?.let { exercise.exerciseId to it }
+                exercise.loadContext?.let { exercise.executionKey to it }
             }.toMap()
             _activeSession.value = restored
         } catch (e: CancellationException) {
@@ -140,7 +143,7 @@ class WorkoutSessionManager(
 
     fun commitRestTaken(exerciseId: String, setIndex: Int, seconds: Int) {
         val session = _activeSession.value ?: return
-        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
+        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
         if (setIndex < exercise.sets.size) {
             val set = exercise.sets[setIndex]
             updateSet(
@@ -157,12 +160,13 @@ class WorkoutSessionManager(
     }
 
     fun calculateRestTimeSeconds(exerciseId: String, exerciseType: String, rpe: Int): Int {
-        val planned = _activeSession.value?.exercises?.firstOrNull { it.exerciseId == exerciseId }?.restSeconds
+        val exercise = _activeSession.value?.exercises?.firstOrNull { it.executionKey == exerciseId }
+        val planned = exercise?.restSeconds
         if (planned != null && planned > 0) return planned.coerceIn(15, 900)
         return com.apexfit.app.utils.ProgressionEngine.calculateRestTimeSeconds(
             exerciseType = exerciseType,
             rpe = rpe,
-            restSecondsOverride = metadataMap[exerciseId]?.defaultRestSeconds
+            restSecondsOverride = metadataMap[exercise?.exerciseId ?: exerciseId]?.defaultRestSeconds
         )
     }
 
@@ -187,8 +191,10 @@ class WorkoutSessionManager(
         restoreJob.join()
         if (_sessionRestoreFailed.value) return@withContext
         if (!_isStartingSession.compareAndSet(false, true)) return@withContext
-        val slugByExercise = exercises.associate { it.name to it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
-        val ids = exercises.mapNotNull { slugByExercise[it.name] }
+        val catalogIds = exercises.map { it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
+        val occurrenceKeys = WorkoutOccurrenceKeys.allocate(catalogIds)
+        val repeatedCatalogIds = catalogIds.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+        val ids = catalogIds.distinct()
         try {
             persistJob?.join()
             if (synchronized(stateLock) { committing || _activeSession.value != null }) return@withContext
@@ -277,25 +283,35 @@ class WorkoutSessionManager(
             emptyMap()
         }
 
-        exercises.forEach { ex ->
+        exercises.forEachIndexed { index, ex ->
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
-            val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
+            val exerciseSlug = catalogIds[index]
+            val occurrenceKey = occurrenceKeys[index]
             val exerciseHistory = lastSets[exerciseSlug].orEmpty()
             val lastSet = exerciseHistory.firstOrNull()
             val isBodyweight = exerciseCategories[exerciseSlug].equals("Bodyweight", ignoreCase = true)
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
-            if (lastSet == null) {
+            if (exerciseSlug in repeatedCatalogIds) {
+                // Legacy historical sets cannot distinguish separate prescriptions for
+                // the same exercise. Honor this occurrence's explicit load, or use
+                // first-exposure calibration; don't apply ambiguous automatic progression.
+                val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder.forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
+                val target = if (ex.weight > 0.0) ex.weight.fromDisplayWeightToKg(ex.weightUnit) else calibration.initialLoadKg
+                suggestionsMap[occurrenceKey] = target.toDisplayWeight(exerciseUnit)
+                lastWeightMap[occurrenceKey] = target
+                contextLinesMap[occurrenceKey] = "Separate exercise prescription · automatic progression paused for repeated entries."
+            } else if (lastSet == null) {
                 val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder
                     .forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
-                suggestionsMap[exerciseSlug] = calibration.initialLoadKg.toDisplayWeight(exerciseUnit)
-                lastWeightMap[exerciseSlug] = calibration.initialLoadKg
-                contextLinesMap[exerciseSlug] = calibration.guidance
+                suggestionsMap[occurrenceKey] = calibration.initialLoadKg.toDisplayWeight(exerciseUnit)
+                lastWeightMap[occurrenceKey] = calibration.initialLoadKg
+                contextLinesMap[occurrenceKey] = calibration.guidance
             } else if (isBodyweight && ex.weight <= 0.0 && lastSet.weight <= 0.0) {
-                suggestionsMap[exerciseSlug] = 0.0
-                lastWeightMap[exerciseSlug] = 0.0
-                contextLinesMap[exerciseSlug] = "Bodyweight · record added load only if you use it."
+                suggestionsMap[occurrenceKey] = 0.0
+                lastWeightMap[occurrenceKey] = 0.0
+                contextLinesMap[occurrenceKey] = "Bodyweight · record added load only if you use it."
             } else {
                 val daysSince = com.apexfit.app.utils.getDaysBetweenClamped(lastSet.date, today)
 
@@ -424,11 +440,11 @@ class WorkoutSessionManager(
                     }
                 }
 
-                suggestionsMap[exerciseSlug] = suggestedPreferred
-                lastWeightMap[exerciseSlug] = lastSet.weight
+                suggestionsMap[occurrenceKey] = suggestedPreferred
+                lastWeightMap[occurrenceKey] = lastSet.weight
                 val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
                 val lastWeightDisplay = lastSet.weight.toDisplayWeight(exerciseUnit)
-                contextLinesMap[exerciseSlug] = "Last: $lastWeightDisplay $exerciseUnit @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $exerciseUnit. Outcome: ${progressionResult.reason}"
+                contextLinesMap[occurrenceKey] = "Last: $lastWeightDisplay $exerciseUnit @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $exerciseUnit. Outcome: ${progressionResult.reason}"
             }
         }
 
@@ -448,16 +464,17 @@ class WorkoutSessionManager(
             .associateBy { com.apexfit.app.utils.MuscleAliases.getCanonical(it.muscleGroup) }
         val adjustedMuscles = mutableSetOf<String>()
         // Build the in-memory session with pre-filled sets
-        val activeExercises = exercises.map { ex ->
+        val activeExercises = exercises.mapIndexed { index, ex ->
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
-            val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
-            val suggestedWeight = suggestionsMap[exerciseSlug] ?: ex.weight.toDisplayWeight(exerciseUnit)
+            val exerciseSlug = catalogIds[index]
+            val occurrenceKey = occurrenceKeys[index]
+            val suggestedWeight = suggestionsMap[occurrenceKey] ?: ex.weight.toDisplayWeight(exerciseUnit)
             val muscle = com.apexfit.app.utils.MuscleAliases.getCanonical(ex.muscleGroup)
             val lastLoggedWeight = lastSets[exerciseSlug]?.firstOrNull()?.weight
             val readinessForVolume = readinessByMuscle[muscle]?.readinessPercent?.let { local ->
                 minOf(local, readinessScore?.systemicReadiness ?: local)
             }
-            val adjustment = if (muscle !in adjustedMuscles && lastLoggedWeight != null) {
+            val adjustment = if (exerciseSlug !in repeatedCatalogIds && muscle !in adjustedMuscles && lastLoggedWeight != null) {
                 com.apexfit.app.utils.AdaptiveSetVolume.adjustment(
                     goal = proposedGoal,
                     exerciseId = exerciseSlug,
@@ -479,8 +496,9 @@ class WorkoutSessionManager(
                 restSeconds = ex.restSeconds.takeIf { it > 0 },
                 targetRepsMin = ex.repsMin,
                 targetRepsMax = ex.repsMax,
-                loadContext = contextLinesMap[exerciseSlug],
+                loadContext = contextLinesMap[occurrenceKey],
                 volumeAdjustment = adjustment,
+                occurrenceKey = occurrenceKey.takeIf { it != exerciseSlug },
                 sets = (1..(adjustment?.adjustedSets ?: ex.sets)).map { setNum ->
                     ActiveSet(
                         setNumber = setNum,
@@ -539,12 +557,12 @@ class WorkoutSessionManager(
         val session = _activeSession.value ?: return
 
         // Structural sharing: only copy the affected exercise
-        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
+        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
         if (setIndex !in exercise.sets.indices) return
 
         val rpeVal = rpe.coerceIn(0, 10)
         val updatedExercises = session.exercises.map { ex ->
-            if (ex.exerciseId == exerciseId) {
+            if (ex.executionKey == exerciseId) {
                 val updatedSets = ex.sets.toMutableList()
                 val rirVal = repsInReserve ?: updatedSets[setIndex].repsInReserve
                 updatedSets[setIndex] = updatedSets[setIndex].copy(
@@ -576,7 +594,7 @@ class WorkoutSessionManager(
         if (committing) return
         val session = _activeSession.value ?: return
 
-        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
+        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
         val lastSet = exercise.sets.lastOrNull()
         val newSetNum = exercise.sets.size + 1
         val suggestedWeight = lastSet?.weight ?: 50.0
@@ -586,7 +604,7 @@ class WorkoutSessionManager(
 
         // Structural sharing: only copy the affected exercise
         val updatedExercises = session.exercises.map { ex ->
-            if (ex.exerciseId == exerciseId) {
+            if (ex.executionKey == exerciseId) {
                 val updatedSets = ex.sets.toMutableList()
                 updatedSets.add(
                     ActiveSet(
@@ -616,7 +634,7 @@ class WorkoutSessionManager(
         synchronized(stateLock) {
         if (committing) return false
         val session = _activeSession.value ?: return false
-        val exercise = session.exercises.firstOrNull { it.exerciseId == exerciseId } ?: return false
+        val exercise = session.exercises.firstOrNull { it.executionKey == exerciseId } ?: return false
         val sets = exercise.volumeAdjustment?.revert(exercise.sets) ?: return false
         val restored = exercise.copy(sets = sets.toMutableList(), volumeAdjustment = null)
         val updated = session.copy(exercises = session.exercises.map {
@@ -671,8 +689,9 @@ class WorkoutSessionManager(
      * to show the PR badge in the UI.
      */
     suspend fun checkPRPreview(exerciseId: String, weight: Double, reps: Int) {
+        val catalogId = _activeSession.value?.exercises?.firstOrNull { it.executionKey == exerciseId }?.exerciseId ?: return
         val prs = try {
-            repository.getPRsForExercise(exerciseId)
+            repository.getPRsForExercise(catalogId)
         } catch (e: Exception) {
             android.util.Log.e("ApexFit", "checkPRPreview DB read failed", e)
             return
