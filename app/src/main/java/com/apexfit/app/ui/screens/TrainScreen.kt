@@ -382,6 +382,8 @@ fun WorkoutExecutionSubTab(
     }
     val preferredUnits by workoutExecutionViewModel.units.collectAsStateWithLifecycle()
     val saveError by workoutExecutionViewModel.saveError.collectAsStateWithLifecycle()
+    val setSaveError by workoutExecutionViewModel.setSaveError.collectAsStateWithLifecycle()
+    val savingSet by workoutExecutionViewModel.isSavingSet.collectAsStateWithLifecycle()
     val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
      val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -433,6 +435,13 @@ fun WorkoutExecutionSubTab(
                     formGuideContent = content
                 }
             }
+        }
+    }
+
+    LaunchedEffect(setSaveError, showRirOverlay) {
+        if (setSaveError != null && !showRirOverlay) {
+            snackbarHostState.showSnackbar(setSaveError.orEmpty())
+            workoutExecutionViewModel.dismissSetSaveError()
         }
     }
 
@@ -794,7 +803,7 @@ fun WorkoutExecutionSubTab(
                         volumeAdjustments = volumeAdjustments,
                         onUndoVolumeAdjustment = workoutExecutionViewModel.sessionManager::undoSetVolumeAdjustment,
                         preferredUnits = preferredUnits,
-                        showRirOverlay = showRirOverlay,
+                        showRirOverlay = showRirOverlay || savingSet,
                         onOpenFormGuide = onOpenFormGuide,
                         onToggleWarmupItem = { workoutExecutionViewModel.toggleWarmupItem(it) },
                         onLogSetState = { exId, sIdx, w, r, rpe, comp, restTaken ->
