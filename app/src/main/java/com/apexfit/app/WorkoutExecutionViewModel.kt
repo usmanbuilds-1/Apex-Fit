@@ -287,11 +287,20 @@ class WorkoutExecutionViewModel @Inject constructor(
         }
     }
 
-    fun cancelActiveWorkout() {
-        if (_isSavingSet.value || isCommitting.get()) return
-        com.apexfit.app.utils.WorkoutForegroundService.stop(getApplication())
-        com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())
-        sessionManager.discardAndExit()
+    fun cancelActiveWorkout(): Job? {
+        val active = sessionManager.activeSession.value ?: return null
+        if (isCommitting.get() || !_isSavingSet.compareAndSet(false, true)) return null
+        return viewModelScope.launch {
+            try {
+                check(sessionManager.discardDraftDurably(active.sessionId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _saveError.value = "Couldn't discard the workout. Your saved draft was retained."
+            } finally {
+                _isSavingSet.value = false
+            }
+        }
     }
 
     fun cancelOrCompleteEmptySession() {
@@ -490,7 +499,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
     }
 
-    private fun moveExercise(skipped: Boolean, sessionFeel: Int = 4) {
+    private fun moveExercise(skipped: Boolean, sessionFeel: Int = 4, onSaved: (() -> Unit)? = null) {
         if (isCommitting.get() || !_isSavingSet.compareAndSet(false, true)) return
         val active = sessionManager.activeSession.value
         if (active == null || active.exercises.isEmpty()) {
@@ -508,6 +517,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                 if (sessionManager.activeSession.value?.sessionId != active.sessionId) return@launch
                 sessionManager.activeSession.value?.let { _currentExerciseIdx.value = WorkoutResumeState.cursor(it) }
                 moved = true
+                onSaved?.invoke()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -574,7 +584,8 @@ class WorkoutExecutionViewModel @Inject constructor(
         _completedReceipt.value = null
     }
 
-    fun skipExercise(sessionFeel: Int = 4) = moveExercise(skipped = true, sessionFeel = sessionFeel)
+    fun skipExercise(sessionFeel: Int = 4, onSaved: (() -> Unit)? = null) =
+        moveExercise(skipped = true, sessionFeel = sessionFeel, onSaved = onSaved)
 
     fun finishWorkoutEarly(sessionFeel: Int = 4) {
         savePartialAndExit(sessionFeel)
