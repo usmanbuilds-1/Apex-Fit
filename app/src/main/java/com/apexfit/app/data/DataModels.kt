@@ -409,7 +409,11 @@ data class TrainingDayTargets(
     val fat: Int  // fat stays constant both days
 )
 data class TDEEResult(val tdee: Int?, val confidence: String, val avgCalories: Int, val weightChangeKg: Double)
-data class ComplianceResult(val calories: Int, val protein: Int, val training: Int, val overall: Int, val weakestDay: String?)
+data class ComplianceResult(
+    val calories: Int, val protein: Int, val training: Int, val overall: Int, val weakestDay: String?,
+    val confirmedNutritionDays: Int = 0, val evaluatedDays: Int = 0, val nutritionCoverage: Int = 0,
+    val nutritionComparisonAvailable: Boolean = false, val trainingComparisonAvailable: Boolean = false
+)
 data class FatigueResult(val ratio: Double?, val status: String, val statusLabel: String, val recommendation: String, val acuteLoad: Double, val chronicLoad: Double)
 data class DiminishingResult(val status: String, val message: String, val suggestions: List<String> = emptyList(), val slope: Double = 0.0)
 data class WeakPoint(val muscle: String, val displayName: String, val overallScore: Int, val trend: String)
