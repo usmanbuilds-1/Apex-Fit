@@ -400,23 +400,23 @@ fun com.apexfit.app.utils.SessionReadiness.toUi(): UiSessionReadiness = UiSessio
 )
 
 fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
-    val predictionText = "A rough estimate from logged training and nutrition, not a measurement of recovery. Consider sleep, stress, soreness and how you feel."
+    val predictionText = "A training-history estimate, not a measurement of recovery. Consider sleep, stress, soreness and warm-up performance."
 
     val factorList = mutableListOf<UiReadinessFactor>()
     factorList.add(UiReadinessFactor(
         name = "Systemic training load",
         impact = if (this.systemicReadiness >= 70) "positive" else if (this.systemicReadiness >= 50) "neutral" else "negative",
-        value = readinessBand(this.systemicReadiness)
+        value = if (this.finalScore == null) "Needs more training history" else readinessBand(this.systemicReadiness)
     ))
     factorList.add(UiReadinessFactor(
-        name = "Logged nutrition",
-        impact = if (this.nutritionScore >= 70) "positive" else if (this.nutritionScore >= 50) "neutral" else "negative",
-        value = readinessBand(this.nutritionScore)
+        name = "Nutrition and well-being",
+        impact = "neutral",
+        value = "Not measured by this estimate"
     ))
     this.muscleDetails.forEach { md ->
         factorList.add(UiReadinessFactor(
             name = "${md.muscleGroup.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }} Recovery",
-            impact = if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
+            impact = if (md.confidence == "none") "neutral" else if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
             value = if (md.confidence == "none") "Needs more training history" else "${md.dataPoints} logged exposures"
         ))
     }
