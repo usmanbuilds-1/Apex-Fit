@@ -355,4 +355,53 @@ class TdeeEngineTest {
         // But not too aggressive: max rate is 0.70 kg/week = 770 kcal/day
         assertTrue("Cut $target should not exceed 770 kcal below TDEE", target >= 3500 - 780)
     }
+
+    @Test
+    fun fallbackIgnoresFutureWeightEvenWhenItIsTheOnlyEntry() {
+        val future = WeightEntry(date = java.time.LocalDate.parse(getCurrentDate()).plusDays(1).toString(), weight = 110.0)
+        val current = WeightEntry(date = getCurrentDate(), weight = 70.0)
+        val withCurrent = TdeeEngine.calcAdaptiveTDEE(listOf(current, future), emptyList(), fallbackWeightKg = 80.0)
+        assertEquals(TdeeEngine.calcAdaptiveTDEE(listOf(current), emptyList(), fallbackWeightKg = 80.0), withCurrent)
+        assertEquals(TdeeEngine.calcAdaptiveTDEE(emptyList(), emptyList(), fallbackWeightKg = 80.0),
+            TdeeEngine.calcAdaptiveTDEE(listOf(future), emptyList(), fallbackWeightKg = 80.0))
+    }
+
+    @Test
+    fun adaptiveIgnoresFutureWeightsAndNutrition() {
+        val weights = weightLog(14, 80.0)
+        val meals = nutritionLog(14, 2500)
+        val futureDate = java.time.LocalDate.parse(getCurrentDate()).plusDays(1).toString()
+        val expected = TdeeEngine.calcAdaptiveTDEE(weights, meals)
+        assertEquals(2500, expected.tdee)
+        assertEquals(expected, TdeeEngine.calcAdaptiveTDEE(
+            weights + WeightEntry(date = futureDate, weight = 110.0),
+            meals + NutritionEntry(date = futureDate, calories = 8000, protein = 150, carbs = 200, fat = 60)
+        ))
+    }
+
+    @Test
+    fun adaptiveExcludesIntakeOnAndAfterLastWeightDate() {
+        val weights = weightLog(14, 80.0).filter { it.date <= getDateDaysAgo(2) }
+        val terminal = weights.last().date
+        val meals = nutritionLog(14, 2500)
+        val changed = meals.map { if (it.date >= terminal) it.copy(calories = 100) else it }
+        val expected = TdeeEngine.calcAdaptiveTDEE(weights, meals)
+        assertEquals(2500, expected.tdee)
+        assertEquals(2500, expected.avgCalories)
+        assertEquals(expected, TdeeEngine.calcAdaptiveTDEE(weights, changed))
+    }
+
+    @Test
+    fun adaptiveCoverageDoesNotCountTerminalDay() {
+        val weights = weightLog(14, 80.0)
+        // 10 of 13 elapsed days are logged; a terminal-day meal cannot
+        // increase that 76.9% coverage above the existing 80% gate.
+        val meals = nutritionLog(14, 2500).filter {
+            it.date >= getDateDaysAgo(9) && it.date < getCurrentDate() ||
+                it.date == getDateDaysAgo(13) || it.date == getCurrentDate()
+        }
+        val result = TdeeEngine.calcAdaptiveTDEE(weights, meals)
+        assertTrue(result.confidence.contains("sparse nutrition coverage"))
+    }
+
 }
