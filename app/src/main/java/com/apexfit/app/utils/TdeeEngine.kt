@@ -19,7 +19,10 @@ object TdeeEngine {
         weeklyWorkouts: Int = 4,
         fallbackWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG
     ): TDEEResult {
-        val latestWeight = BodyWeightHistory.latest(weightLog)
+        val today = getCurrentDate()
+        // Use the same as-of date for both fallback and adaptive estimates.
+        val eligibleWeights = weightLog.filter { it.date <= today && BodyWeightHistory.valid(it) }
+        val latestWeight = BodyWeightHistory.latest(eligibleWeights)
             ?.weight
             ?: fallbackWeightKg
         
@@ -43,9 +46,8 @@ object TdeeEngine {
         val fallbackTdee = (bmrBaseline * activityMultiplier).roundToInt()
 
         val cutoff = getWindowStartDate(windowDays)
-        val today = getCurrentDate()
-        val recentWeight = weightLog
-            .filter { it.date in cutoff..today && BodyWeightHistory.valid(it) }
+        val recentWeight = eligibleWeights
+            .filter { it.date >= cutoff }
             .sortedWith(BodyWeightHistory.chronological)
         val recentNutrition = nutritionLog.filter { it.date in cutoff..today }
         val recentWeightDays = recentWeight.map { it.date }.distinct().size
@@ -72,9 +74,13 @@ object TdeeEngine {
         val oldestEntry = recentWeight.first()
         val newestEntry = recentWeight.last()
         val daysBetween = getDaysBetween(oldestEntry.date, newestEntry.date).coerceAtLeast(1L)
-        val calendarDays = (daysBetween + 1L).toInt()
+        // Nutrition entries have a calendar date, not an observed intake interval.
+        // Approximate both weight endpoints as start-of-day measurements: [start, end).
+        // The terminal date's intake is not part of the elapsed days. Intraday timing
+        // and full-day logging confidence are separate limitations of this estimator.
+        val calendarDays = daysBetween.toInt()
         val nutritionInWeightWindow = recentNutrition.filter {
-            it.date >= oldestEntry.date && it.date <= newestEntry.date
+            it.date >= oldestEntry.date && it.date < newestEntry.date
         }
         val loggedNutritionDays = nutritionInWeightWindow.map { it.date }.distinct().size
         val nutritionCoverage = loggedNutritionDays.toDouble() / calendarDays.coerceAtLeast(1)
@@ -96,10 +102,14 @@ object TdeeEngine {
             .groupBy { it.date }
             .map { (_, e) -> e.sumOf { it.calories } }
         val avgCalories = if (dailyCalories.isEmpty()) 0.0 else dailyCalories.average()
-        val fullTrendData = AlgorithmEngine.calcTrendWeight(weightLog.sortedBy { it.date })
-        val trendAtCutoff = fullTrendData.firstOrNull { it.date >= oldestEntry.date }?.trend
-            ?: fullTrendData.first().trend
-        val weightChangeKg = fullTrendData.last().trend - trendAtCutoff
+        // Warm-start the EMA using valid earlier measurements, but stop at the
+        // same endpoint used to compute elapsed days and intake coverage.
+        val fullTrendData = AlgorithmEngine.calcTrendWeight(
+            eligibleWeights.filter { it.date <= newestEntry.date }.sortedWith(BodyWeightHistory.chronological)
+        )
+        val trendAtCutoff = fullTrendData.first { it.date == oldestEntry.date }.trend
+        val trendAtEnd = fullTrendData.last { it.date == newestEntry.date }.trend
+        val weightChangeKg = trendAtEnd - trendAtCutoff
         
         // Divisor is actual calendar days between the weight observations, not log count.
         
