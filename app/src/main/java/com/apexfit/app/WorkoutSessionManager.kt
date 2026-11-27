@@ -93,11 +93,11 @@ class WorkoutSessionManager(
     private val _currentRestSeconds = MutableStateFlow(0)
     val currentRestSeconds: StateFlow<Int> = _currentRestSeconds.asStateFlow()
 
-    private val restoreJob: Job = scope.launch {
+    private val restoreJob: Job = scope.launch(Dispatchers.IO) {
         try {
             val raw = dataStore.activeSessionJsonFlow.firstOrNull()
             if (raw == null) {
-                recoverCommittedReceipt()
+                _recoveredReceipt.value = recoverCommittedReceipt()
                 return@launch
             }
             val decoded = ActiveWorkoutCodec.decode(raw, gson)
@@ -111,8 +111,13 @@ class WorkoutSessionManager(
             } else if (dao.getTrainingSessionById(restored.sessionId) != null) {
                 // Exact stable ID is proof of a previous committed transaction.
                 // Its history is already saved; do not resume or insert it again.
-                recoverCommittedReceipt(restored.sessionId)
-                dataStore.saveActiveSessionJson(null)
+                val receipt = recoverCommittedReceipt(restored.sessionId)
+                check(dataStore.clearActiveDraftIfMatches(raw)) {
+                    "Saved draft changed during recovery"
+                }
+                // Publish only after cleanup has completed, so recovery is
+                // observable as one completed operation, not two racing flows.
+                _recoveredReceipt.value = receipt
                 return@launch
             }
             if (decoded.migrated || decoded.normalized) {
@@ -134,25 +139,29 @@ class WorkoutSessionManager(
     // A journal written before the transaction is not proof of a workout.
     // Only a matching committed Room row permits recovery. Always take the
     // set details and counts from Room, not from UI state or the draft.
-    private suspend fun recoverCommittedReceipt(expectedId: String? = null) {
+    private suspend fun recoverCommittedReceipt(expectedId: String? = null): SessionCommitResult? {
         try {
-            val (id, json) = dataStore.workoutReceiptFlow.firstOrNull() ?: return
-            if (expectedId != null && id != expectedId) return
-            val session = dao.getTrainingSessionById(id) ?: return
+            val (id, json) = dataStore.workoutReceiptFlow.firstOrNull() ?: return null
+            if (expectedId != null && id != expectedId) return null
+            val session = dao.getTrainingSessionById(id) ?: return null
             val journal = gson.fromJson(json, SessionCommitResult::class.java)
             check(journal.sessionId == id)
             val sets = dao.getSetsForSession(id)
             val catalogIds = sets.filter { it.completed && !it.isWarmup }.map { it.exerciseId }.toSet()
             val earned = journal.records.filter { it.exerciseId in catalogIds && it.date == session.date }
-            _recoveredReceipt.value = buildReceipt(session, sets, earned)
+            return buildReceipt(session, sets, earned)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             // History is still saved; a malformed receipt must never block
             // restoration of the actual workout or invent earned records.
             android.util.Log.e("WorkoutSessionManager", "Receipt recovery unavailable", e)
+            return null
         }
     }
+
+    /** Wait for the same initialization barrier used by startSession. */
+    internal suspend fun awaitRestoration() = restoreJob.join()
 
     fun dismissReceipt(sessionId: String) {
         if (_recoveredReceipt.value?.sessionId == sessionId) _recoveredReceipt.value = null
