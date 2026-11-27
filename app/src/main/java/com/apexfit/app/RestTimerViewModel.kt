@@ -31,6 +31,7 @@ class RestTimerViewModel @Inject constructor(
     private var restDeadline = 0L
     private var restExerciseName = "Rest"
     private var restSetPointer: Pair<String, Int>? = null
+    private var restSessionId: String? = null
     private var restAdjustmentSeconds = 0
 
     // Rest Timer State
@@ -76,7 +77,9 @@ class RestTimerViewModel @Inject constructor(
             "Last set: $reps reps @ RPE $rpe"
         }
 
-        val activeExercises = sessionManager.activeSession.value?.exercises ?: emptyList()
+        val active = sessionManager.activeSession.value
+        val activeExercises = active?.exercises ?: emptyList()
+        restSessionId = active?.sessionId
         restSetPointer = activeExercises.firstOrNull { it.executionKey == exerciseId }?.let { it.executionKey to setIndex }
         restExerciseName = exerciseName
         restStartedAt = SystemClock.elapsedRealtime()
@@ -222,12 +225,15 @@ class RestTimerViewModel @Inject constructor(
         _showRestOverlay.value = false
         restTimerJob?.cancel()
         // Commit the elapsed rest time to the last completed set
-        val pointer = restSetPointer ?: lastCompletedSetPointer ?: findLastCompletedSetPointer()
+        val pointer = if (restSessionId != null && restSessionId == sessionManager.activeSession.value?.sessionId) {
+            restSetPointer ?: lastCompletedSetPointer
+        } else null
         pointer?.let { (exId, sIdx) ->
             val elapsed = elapsedRestSeconds(restStartedAt, SystemClock.elapsedRealtime())
-            sessionManager.commitRestTaken(exId, sIdx, elapsed)
+            sessionManager.commitRestTaken(exId, sIdx, elapsed, expectedSessionId = restSessionId)
         }
         restSetPointer = null
+        restSessionId = null
         restAdjustmentSeconds = 0
         sessionManager.resetRestSeconds()
         // Cancel the pending alarm — user dismissed the timer manually
@@ -235,6 +241,8 @@ class RestTimerViewModel @Inject constructor(
     }
 
     fun cancelRestTimer() {
+        restSetPointer = null
+        restSessionId = null
         restTimerJob?.cancel()
         restTimerJob = null
         _isRestTimerActive.value = false
