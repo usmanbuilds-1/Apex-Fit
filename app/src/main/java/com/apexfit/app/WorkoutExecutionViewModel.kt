@@ -240,6 +240,22 @@ class WorkoutExecutionViewModel @Inject constructor(
     private val _completedHypertrophyScore = MutableStateFlow(0.0)
     val completedHypertrophyScore: StateFlow<Double> = _completedHypertrophyScore.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            sessionManager.recoveredReceipt.collect { receipt ->
+                if (receipt != null && sessionManager.activeSession.value == null) publishReceipt(receipt)
+            }
+        }
+    }
+
+    private fun publishReceipt(receipt: SessionCommitResult) {
+        val sets = receipt.savedSets.filter { it.completed }.map { it.toUi() }
+        _lastCompletedSessionSets.value = sets
+        _completedHypertrophyScore.value = calculateWorkoutSessionHypertrophyQualityScore(sets)
+        _completedReceipt.value = receipt
+        _showSessionCompleteScreen.value = true
+    }
+
     var lastCompletedSetPointer: Pair<String, Int>? = null
         private set
 
@@ -314,7 +330,11 @@ class WorkoutExecutionViewModel @Inject constructor(
                     val weightKg = weight.fromDisplayWeightToKg(set.weightUnit)
                     viewModelScope.launch { sessionManager.checkPRPreview(exerciseId, weightKg, reps) }
                 }
-                onSaved()
+                try {
+                    onSaved()
+                } catch (e: Exception) {
+                    _setSaveError.value = "Set was saved, but the next workout action could not start."
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -472,40 +492,10 @@ class WorkoutExecutionViewModel @Inject constructor(
         if (_isSavingSet.value || !isCommitting.compareAndSet(false, true)) return
         viewModelScope.launch {
             _saveError.value = null
-            val session = sessionManager.activeSession.value
-            val completedSets = withContext(Dispatchers.Default) {
-                val sets = mutableListOf<UiExerciseSet>()
-                session?.exercises?.forEach { ex ->
-                    ex.sets.filter { it.completed }.forEach { setObj ->
-                        sets.add(
-                            ExerciseSet(
-                                exerciseId = ex.exerciseId,
-                                exerciseName = ex.exerciseName,
-                                muscleGroup = ex.muscleGroup,
-                                weight = setObj.weight.fromDisplayWeightToKg(setObj.weightUnit),
-                                reps = setObj.reps,
-                                rpe = setObj.rpe,
-                                isWarmup = setObj.isWarmup,
-                                restTaken = setObj.restTakenSeconds,
-                                completed = setObj.completed,
-                                effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
-                            ).toUi()
-                        )
-                    }
-                }
-                sets
-            }
-
             try {
-                _lastCompletedSessionSets.value = completedSets
                 val result = sessionManager.commitToDatabase(sessionFeel)
                 check(result.sessionId.isNotBlank()) { "No active workout to save." }
-                _completedReceipt.value = result
-
-                val score = withContext(Dispatchers.Default) {
-                    calculateWorkoutSessionHypertrophyQualityScore(completedSets)
-                }
-                _completedHypertrophyScore.value = score
+                publishReceipt(result)
                 
                 // Enqueue PatternScanWorker asynchronously to process patterns off the main commit path
                 try {
@@ -544,7 +534,9 @@ class WorkoutExecutionViewModel @Inject constructor(
     }
 
     fun dismissSessionComplete() {
+        _completedReceipt.value?.let { sessionManager.dismissReceipt(it.sessionId) }
         _showSessionCompleteScreen.value = false
+        _completedReceipt.value = null
     }
 
     fun skipExercise(sessionFeel: Int = 4) {
@@ -565,40 +557,10 @@ class WorkoutExecutionViewModel @Inject constructor(
         if (_isSavingSet.value || !isCommitting.compareAndSet(false, true)) return
         viewModelScope.launch {
             _saveError.value = null
-            val session = sessionManager.activeSession.value
-            val completedSets = withContext(Dispatchers.Default) {
-                val sets = mutableListOf<UiExerciseSet>()
-                session?.exercises?.forEach { ex ->
-                    ex.sets.filter { it.completed }.forEach { setObj ->
-                        sets.add(
-                            ExerciseSet(
-                                exerciseId = ex.exerciseId,
-                                exerciseName = ex.exerciseName,
-                                muscleGroup = ex.muscleGroup,
-                                weight = setObj.weight.fromDisplayWeightToKg(setObj.weightUnit),
-                                reps = setObj.reps,
-                                rpe = setObj.rpe,
-                                isWarmup = setObj.isWarmup,
-                                restTaken = setObj.restTakenSeconds,
-                                completed = setObj.completed,
-                                effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(setObj.rpe)
-                            ).toUi()
-                        )
-                    }
-                }
-                sets
-            }
-
             try {
-                _lastCompletedSessionSets.value = completedSets
                 val result = sessionManager.savePartialAndExit(sessionFeel)
                 check(result.sessionId.isNotBlank()) { "No active workout to save." }
-                _completedReceipt.value = result
-
-                val score = withContext(Dispatchers.Default) {
-                    calculateWorkoutSessionHypertrophyQualityScore(completedSets)
-                }
-                _completedHypertrophyScore.value = score
+                publishReceipt(result)
 
                 _showSessionCompleteScreen.value = true
                 isCommitting.set(false)
