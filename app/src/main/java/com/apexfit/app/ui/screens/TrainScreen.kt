@@ -60,6 +60,41 @@ fun TrainTab(
     val libraryScope = rememberCoroutineScope()
     var libraryDetail by remember { mutableStateOf<Pair<com.apexfit.app.data.Exercise, FormGuideContent>?>(null) }
     var libraryError by remember { mutableStateOf(false) }
+    val recoveryRequired by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
+    var recoveryDismissed by remember(recoveryRequired, subTab) { mutableStateOf(false) }
+    var discardingRecovery by remember { mutableStateOf(false) }
+    var recoveryError by remember { mutableStateOf(false) }
+    // Functional recovery gate only: no redesign or navigation changes.
+    if (recoveryRequired && !recoveryDismissed) {
+        AlertDialog(
+            onDismissRequest = { if (!discardingRecovery) recoveryDismissed = true },
+            title = { Text("Saved workout needs attention") },
+            text = {
+                Text(
+                    if (recoveryError) "Could not discard the saved draft. Try again."
+                    else "The previous workout could not be safely restored. Its saved data has been kept. Keep it for recovery, or discard the saved draft to start a new workout. Workouts already in your history are not deleted."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !discardingRecovery,
+                    onClick = {
+                        discardingRecovery = true
+                        libraryScope.launch {
+                            try {
+                                recoveryError = !workoutExecutionViewModel.sessionManager.discardUnrestorableSession()
+                            } finally {
+                                discardingRecovery = false
+                            }
+                        }
+                    }
+                ) { Text("Discard draft") }
+            },
+            dismissButton = {
+                TextButton(enabled = !discardingRecovery, onClick = { recoveryDismissed = true }) { Text("Keep for now") }
+            }
+        )
+    }
 
     if (showLibrary) {
         val library by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
@@ -348,8 +383,7 @@ fun WorkoutExecutionSubTab(
     val preferredUnits by workoutExecutionViewModel.units.collectAsStateWithLifecycle()
     val saveError by workoutExecutionViewModel.saveError.collectAsStateWithLifecycle()
     val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
-    val sessionRestoreFailed by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
+     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val currentExercise = exercises.getOrNull(currentIdx)
     val currentExerciseEquipment by produceState<String?>(
@@ -384,17 +418,7 @@ fun WorkoutExecutionSubTab(
         }
     }
 
-    LaunchedEffect(sessionRestoreFailed) {
-        if (sessionRestoreFailed) {
-            snackbarHostState.showSnackbar(
-                message = "Your previous session could not be restored.",
-                actionLabel = "OK",
-                duration = SnackbarDuration.Long
-            )
-        }
-    }
-
-    var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
+     var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
     var showNormalFinishFeelDialog by rememberSaveable { mutableStateOf(false) }
     var selectedFeelRating by rememberSaveable { mutableStateOf(4) }
     var showExitDialog by rememberSaveable { mutableStateOf(false) }
