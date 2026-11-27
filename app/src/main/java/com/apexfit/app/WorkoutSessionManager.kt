@@ -53,6 +53,9 @@ class WorkoutSessionManager(
     private val commitMutex = Mutex()
     private val persistenceMutex = Mutex()
     private var committing = false // guarded by stateLock
+    private var savingCriticalSet = false // guarded by stateLock
+    private data class PendingRest(val sessionId: String, val key: String, val index: Int, val seconds: Int)
+    private val pendingRests = mutableListOf<PendingRest>() // guarded by stateLock
     private var lastReceipt: SessionCommitResult? = null // guarded by commitMutex
     private val _restoredFromDisk = MutableStateFlow(false)
     val restoredFromDisk: StateFlow<Boolean> = _restoredFromDisk.asStateFlow()
@@ -146,6 +149,10 @@ class WorkoutSessionManager(
         if (committing) return
         val session = _activeSession.value ?: return
         if (expectedSessionId != null && session.sessionId != expectedSessionId) return
+        if (savingCriticalSet) {
+            pendingRests.add(PendingRest(session.sessionId, exerciseId, setIndex, seconds))
+            return
+        }
         val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
         if (setIndex in exercise.sets.indices) {
             val set = exercise.sets[setIndex]
@@ -202,7 +209,7 @@ class WorkoutSessionManager(
         val ids = catalogIds.distinct()
         try {
             persistJob?.join()
-            if (synchronized(stateLock) { committing || _activeSession.value != null }) return@withContext
+            if (synchronized(stateLock) { committing || savingCriticalSet || _activeSession.value != null }) return@withContext
             val lastWeightMap = mutableMapOf<String, Double>()
             val suggestionsMap = mutableMapOf<String, Double>()
             val contextLinesMap = mutableMapOf<String, String>()
@@ -547,7 +554,8 @@ class WorkoutSessionManager(
      * Called whenever user changes weight, reps, RPE, or checks off a set.
      * Mutates in memory — no database write.
      */
-    fun updateSet(
+    private fun editedSet(
+        session: ActiveSession,
         exerciseId: String,
         setIndex: Int,
         weight: Double,
@@ -555,39 +563,72 @@ class WorkoutSessionManager(
         rpe: Int,
         restTakenSeconds: Int,
         completed: Boolean,
-        repsInReserve: Int? = null
+        repsInReserve: Int?
+    ): ActiveSession? {
+        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return null
+        val old = exercise.sets.getOrNull(setIndex) ?: return null
+        if (!weight.isFinite() || weight < 0.0 || reps < 0 || (completed && reps == 0)) return null
+        val newSets = exercise.sets.toMutableList()
+        newSets[setIndex] = old.copy(
+            weight = weight, reps = reps, rpe = rpe.coerceIn(0, 10),
+            restTakenSeconds = restTakenSeconds.coerceAtLeast(0),
+            completedAt = if (completed) old.completedAt.takeIf { it > 0L } ?: System.currentTimeMillis() else 0L,
+            completed = completed, repsInReserve = repsInReserve ?: old.repsInReserve
+        )
+        return session.copy(exercises = session.exercises.map {
+            if (it.executionKey == exerciseId) it.copy(sets = newSets) else it
+        }.toMutableList())
+    }
+
+    fun updateSet(
+        exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int,
+        restTakenSeconds: Int, completed: Boolean, repsInReserve: Int? = null
     ) {
         synchronized(stateLock) {
-        if (committing) return
-        val session = _activeSession.value ?: return
+            if (committing || savingCriticalSet) return
+            val session = _activeSession.value ?: return
+            val old = session.exercises.find { it.executionKey == exerciseId }?.sets?.getOrNull(setIndex) ?: return
+            val updated = editedSet(session, exerciseId, setIndex, weight, reps, rpe, restTakenSeconds, completed, repsInReserve) ?: return
+            _activeSession.value = updated
+            persistSession(immediate = completed || old.completed)
+        }
+    }
 
-        // Structural sharing: only copy the affected exercise
-        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
-        if (setIndex !in exercise.sets.indices) return
+    /**
+     * Acknowledge user-confirmed completion/correction only after durable DataStore
+     * write. Failed writes leave the previously published set unchanged.
+     * Serialize against final commit and reject stale-session callbacks.
+     */
+    suspend fun updateSetDurably(
+        expectedSessionId: String, exerciseId: String, setIndex: Int,
+        weight: Double, reps: Int, rpe: Int, restTakenSeconds: Int,
+        completed: Boolean, repsInReserve: Int? = null
+    ): Boolean = commitMutex.withLock {
+        val next = synchronized(stateLock) {
+            if (committing || savingCriticalSet) return@synchronized null
+            val session = _activeSession.value?.takeIf { it.sessionId == expectedSessionId } ?: return@synchronized null
+            editedSet(session, exerciseId, setIndex, weight, reps, rpe, restTakenSeconds, completed, repsInReserve)
+                ?.also { savingCriticalSet = true }
+        } ?: return@withLock false
 
-        val rpeVal = rpe.coerceIn(0, 10)
-        val updatedExercises = session.exercises.map { ex ->
-            if (ex.executionKey == exerciseId) {
-                val updatedSets = ex.sets.toMutableList()
-                val rirVal = repsInReserve ?: updatedSets[setIndex].repsInReserve
-                updatedSets[setIndex] = updatedSets[setIndex].copy(
-                    weight = weight,
-                    reps = reps,
-                    rpe = rpeVal,
-                    restTakenSeconds = restTakenSeconds,
-                    completedAt = if (completed) updatedSets[setIndex].completedAt.takeIf { it > 0L } ?: System.currentTimeMillis() else 0L,
-                    completed = completed,
-                    repsInReserve = rirVal
-                )
-                ex.copy(sets = updatedSets)
-            } else {
-                ex
+        try {
+            withContext(Dispatchers.IO + NonCancellable) {
+                persistJob?.cancelAndJoin()
+                persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(next)) }
+                synchronized(stateLock) { _activeSession.value = next }
             }
-        }.toMutableList()
-
-        _activeSession.value = session.copy(exercises = updatedExercises)
-        // Completed sets and changes to completed sets should not wait for debounce.
-        persistSession(immediate = completed || exercise.sets[setIndex].completed)
+            true
+        } finally {
+            synchronized(stateLock) {
+                savingCriticalSet = false
+                // A timer may finish during a durable RIR correction. Apply its
+                // observation to the original set before releasing commitMutex.
+                val queued = pendingRests.toList()
+                pendingRests.clear()
+                queued.forEach { rest ->
+                    commitRestTaken(rest.key, rest.index, rest.seconds, rest.sessionId)
+                }
+            }
         }
     }
 
@@ -596,7 +637,7 @@ class WorkoutSessionManager(
      */
     fun addCustomSet(exerciseId: String) {
         synchronized(stateLock) {
-        if (committing) return
+        if (committing || savingCriticalSet) return
         val session = _activeSession.value ?: return
 
         val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
@@ -637,7 +678,7 @@ class WorkoutSessionManager(
 
     fun undoSetVolumeAdjustment(exerciseId: String): Boolean {
         synchronized(stateLock) {
-        if (committing) return false
+        if (committing || savingCriticalSet) return false
         val session = _activeSession.value ?: return false
         val exercise = session.exercises.firstOrNull { it.executionKey == exerciseId } ?: return false
         val sets = exercise.volumeAdjustment?.revert(exercise.sets) ?: return false
@@ -681,7 +722,7 @@ class WorkoutSessionManager(
 
     fun clearPersistedSession() {
         synchronized(stateLock) {
-            if (committing || _isStartingSession.value || _sessionRestoreFailed.value) return
+            if (committing || savingCriticalSet || _isStartingSession.value || _sessionRestoreFailed.value) return
             com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
             resetActiveState()
             persistSession(immediate = true)
