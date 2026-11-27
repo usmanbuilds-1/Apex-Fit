@@ -77,11 +77,11 @@ class RestTimerViewModel @Inject constructor(
         }
 
         val activeExercises = sessionManager.activeSession.value?.exercises ?: emptyList()
-        restSetPointer = activeExercises.firstOrNull { it.exerciseId == exerciseId }?.let { it.exerciseId to setIndex }
+        restSetPointer = activeExercises.firstOrNull { it.executionKey == exerciseId }?.let { it.executionKey to setIndex }
         restExerciseName = exerciseName
         restStartedAt = SystemClock.elapsedRealtime()
         restDeadline = restStartedAt + restSeconds * 1000L
-        val exerciseIndex = activeExercises.indexOfFirst { it.exerciseId == exerciseId }
+        val exerciseIndex = activeExercises.indexOfFirst { it.executionKey == exerciseId }
         val completedExercise = activeExercises.getOrNull(exerciseIndex)
         val nextIncomplete = completedExercise?.sets?.indexOfFirst { !it.completed } ?: -1
         val nextPreview = when {
@@ -222,7 +222,7 @@ class RestTimerViewModel @Inject constructor(
         _showRestOverlay.value = false
         restTimerJob?.cancel()
         // Commit the elapsed rest time to the last completed set
-        val pointer = lastCompletedSetPointer ?: restSetPointer ?: findLastCompletedSetPointer()
+        val pointer = restSetPointer ?: lastCompletedSetPointer ?: findLastCompletedSetPointer()
         pointer?.let { (exId, sIdx) ->
             val elapsed = elapsedRestSeconds(restStartedAt, SystemClock.elapsedRealtime())
             sessionManager.commitRestTaken(exId, sIdx, elapsed)
@@ -249,7 +249,7 @@ class RestTimerViewModel @Inject constructor(
         active.exercises.forEach { ex ->
             ex.sets.forEachIndexed { idx, set ->
                 if (set.completed) {
-                    lastPointer = ex.exerciseId to idx
+                    lastPointer = ex.executionKey to idx
                 }
             }
         }
