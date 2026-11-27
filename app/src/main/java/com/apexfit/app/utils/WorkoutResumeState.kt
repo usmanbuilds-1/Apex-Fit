@@ -30,6 +30,7 @@ internal object WorkoutResumeState {
     fun validRest(session: ActiveSession, rest: ActiveRestCheckpoint): Boolean =
         rest.startedElapsedMs >= 0 && rest.deadlineElapsedMs >= rest.startedElapsedMs &&
             rest.totalSeconds in 1..3600 &&
+            rest.deadlineElapsedMs - rest.startedElapsedMs == rest.totalSeconds * 1000L &&
             session.exercises.firstOrNull { it.executionKey == rest.exerciseKey }
                 ?.sets?.getOrNull(rest.setIndex)?.completed == true
 
