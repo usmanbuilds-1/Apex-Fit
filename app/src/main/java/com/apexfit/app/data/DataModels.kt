@@ -142,7 +142,11 @@ data class ExerciseSet(
     val completed: Boolean,
     val repsInReserve: Int = 2,
     val effectiveSetValue: Double = 0.0,
-    @ColumnInfo(name = "weight_unit") val weightUnit: String = "kg"
+    @ColumnInfo(name = "weight_unit") val weightUnit: String = "kg",
+    @ColumnInfo(name = "occurrence_index") val occurrenceIndex: Int? = null,
+    @ColumnInfo(name = "set_number") val setNumber: Int? = null,
+    @ColumnInfo(name = "source_plan_exercise_id") val sourcePlanExerciseId: Long? = null,
+    @ColumnInfo(name = "set_completed_at") val setCompletedAt: Long? = null
 ) {
     constructor(weight: Double, reps: Int, rpe: Int = 7, isWarmup: Boolean = false, completed: Boolean = true) : this(
         id = 0,
@@ -356,7 +360,8 @@ data class ActiveExercise(
     val targetRepsMax: Int? = null,
     val loadContext: String? = null,
     val volumeAdjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null,
-    val occurrenceKey: String? = null
+    val occurrenceKey: String? = null,
+    val sourcePlanExerciseId: Long? = null
 ) {
     /** Execution identity; catalog exerciseId is always preserved for historical records. */
     val executionKey: String get() = occurrenceKey ?: exerciseId
@@ -391,7 +396,8 @@ data class LastSetWithDate(
     val restTaken: Int,
     val completed: Boolean,
     val date: String,
-    val repsInReserve: Int = 2
+    val repsInReserve: Int = 2,
+    @ColumnInfo(name = "occurrence_index") val occurrenceIndex: Int? = null
 )
 
 data class EffectiveSetsData(
