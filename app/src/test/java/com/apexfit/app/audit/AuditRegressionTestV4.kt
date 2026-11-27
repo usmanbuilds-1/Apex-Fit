@@ -1190,7 +1190,7 @@ class AuditRegressionTestV4 {
     }
 
     @Test
-    fun committedReceiptRecoversExactPrsAndDatabaseSetsAfterCrashBeforeDraftClear() = runBlocking {
+    fun committedReceiptRecoversExactPrsAndDatabaseSetsAfterCrashBeforeDraftClear() = runBlocking<Unit> {
         AppDatabase.setTestDatabase(db)
         try {
             val store = DataStoreManager.getInstance(context)
