@@ -75,7 +75,9 @@ fun RpeRirSelectorSheet(
     onAddRestTime: (Int) -> Unit,
     onSubtractRestTime: () -> Unit,
     onConfirmRirAndNextSet: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isSavingSet: Boolean = false,
+    setSaveError: String? = null
 ) {
     val scrollState = rememberScrollState()
     Column(
@@ -91,7 +93,7 @@ fun RpeRirSelectorSheet(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = onDismiss, enabled = !isSavingSet, modifier = Modifier.size(48.dp)) {
                     Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Back to workout",
                         tint = ApexColors.TextPrimary)
                 }
@@ -145,7 +147,7 @@ fun RpeRirSelectorSheet(
                     lineHeight = 22.sp
                 )
                 Spacer(Modifier.height(14.dp))
-                RirOptions(selectedRir = selectedRir, onSelect = onSelectRirOption)
+                RirOptions(selectedRir = selectedRir, onSelect = { if (!isSavingSet) onSelectRirOption(it) })
                 Spacer(Modifier.height(9.dp))
                 val rpe = ProgressionEngine.calculateRPEFromRIR(selectedRir)
                 val repStatus = when {
@@ -187,14 +189,16 @@ fun RpeRirSelectorSheet(
             }
         }
 
+        setSaveError?.let { Text(it, color = ApexColors.Alert, modifier = Modifier.padding(bottom = 8.dp)) }
         Button(
+            enabled = !isSavingSet,
             onClick = if (isShowingHistory) onReturnFromHistory else onConfirmRirAndNextSet,
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(bottom = 8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
             shape = RoundedCornerShape(10.dp)
         ) {
             Text(
-                text = if (isShowingHistory) "Back to workout" else primaryActionLabel,
+                text = if (isSavingSet) "Saving set…" else if (isShowingHistory) "Back to workout" else primaryActionLabel,
                 color = ApexColors.OnGlow,
                 fontWeight = FontWeight.Bold
             )
@@ -350,6 +354,8 @@ fun RirSelectorOverlay(
     onDismiss: () -> Unit
 ) {
     val state by workoutExecutionViewModel.rirOverlayState.collectAsStateWithLifecycle()
+    val savingSet by workoutExecutionViewModel.isSavingSet.collectAsStateWithLifecycle()
+    val saveError by workoutExecutionViewModel.setSaveError.collectAsStateWithLifecycle()
     val activeExercises by workoutExecutionViewModel.activeExercises.collectAsStateWithLifecycle()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val restSeconds by restTimerViewModel.restTimerSeconds.collectAsStateWithLifecycle()
@@ -395,7 +401,7 @@ fun RirSelectorOverlay(
         primaryActionLabel = nextAction,
         units = units,
         onSelectRirOption = { rir ->
-            workoutExecutionViewModel.selectRirOption(rir)
+            workoutExecutionViewModel.selectRirOption(rir) {
             if (state.hasLoggedSet) {
                 restTimerViewModel.updateRestTimerForRpe(
                     rpe = ProgressionEngine.calculateRPEFromRIR(rir),
@@ -406,6 +412,7 @@ fun RirSelectorOverlay(
                     units = units,
                     reps = state.reps
                 )
+            }
             }
         },
         onConfirmRirSelection = workoutExecutionViewModel::confirmRirSelection,
@@ -439,7 +446,9 @@ fun RirSelectorOverlay(
                 if (isWorkoutComplete) workoutExecutionViewModel.nextExercise()
             }
         },
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        isSavingSet = savingSet,
+        setSaveError = saveError
     )
 }
 
