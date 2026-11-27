@@ -100,7 +100,7 @@ class WorkoutExecutionViewModel @Inject constructor(
                 exercise.executionKey to exercise.sets.mapIndexed { sIdx, setObj ->
                     ExerciseSet(
                         id = sIdx.toLong(),
-                        sessionId = active.planSessionId,
+                        sessionId = active.sessionId,
                         exerciseId = exercise.exerciseId,
                         exerciseName = exercise.exerciseName,
                         muscleGroup = exercise.muscleGroup,
@@ -364,6 +364,7 @@ class WorkoutExecutionViewModel @Inject constructor(
 
         viewModelScope.launch {
             val lastSets = dao.getExerciseSetsByExerciseIdAndRPE(exerciseId, rpe, 5)
+            if (_rirOverlayState.value.exerciseId != state.exerciseId || _rirOverlayState.value.setIndex != state.setIndex || !_rirOverlayState.value.isVisible) return@launch
             _rirOverlayState.value = _rirOverlayState.value.copy(
                 historicalSets = lastSets,
                 isShowingHistory = true
