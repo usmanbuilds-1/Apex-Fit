@@ -17,6 +17,7 @@ import com.apexfit.app.utils.AppConstants
 import com.apexfit.app.utils.PatternScanWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import com.apexfit.app.utils.WorkoutResumeState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
@@ -94,8 +95,7 @@ class WorkoutExecutionViewModel @Inject constructor(
             sessionManager.activeSession.map { it?.sessionId }.distinctUntilChanged().collect { id ->
                 val active = sessionManager.activeSession.value
                 if (id != null && active?.sessionId == id && sessionManager.restoredFromDisk.value) {
-                    val unfinished = active.exercises.indexOfFirst { ex -> ex.sets.any { !it.completed && !it.isWarmup } }
-                    _currentExerciseIdx.value = if (unfinished >= 0) unfinished else active.exercises.lastIndex.coerceAtLeast(0)
+                    _currentExerciseIdx.value = WorkoutResumeState.cursor(active)
                 }
             }
         }
@@ -311,6 +311,7 @@ class WorkoutExecutionViewModel @Inject constructor(
     private fun persistConfirmedSet(
         exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int,
         completed: Boolean, restTakenSeconds: Int = 0, repsInReserve: Int? = null,
+        advanceAfterCompletion: Boolean = false,
         onSaved: () -> Unit = {}
     ): Job? {
         val session = sessionManager.activeSession.value ?: return null
@@ -320,10 +321,13 @@ class WorkoutExecutionViewModel @Inject constructor(
         return viewModelScope.launch {
             try {
                 check(sessionManager.updateSetDurably(session.sessionId, exerciseId, setIndex,
-                    weight, reps, rpe, restTakenSeconds, completed, repsInReserve)) {
+                    weight, reps, rpe, restTakenSeconds, completed, repsInReserve, advanceAfterCompletion)) {
                     "Workout changed before this set could be saved."
                 }
                 if (sessionManager.activeSession.value?.sessionId != session.sessionId) return@launch
+                if (advanceAfterCompletion) {
+                    sessionManager.activeSession.value?.let { _currentExerciseIdx.value = WorkoutResumeState.cursor(it) }
+                }
                 if (completed) {
                     lastCompletedSetPointer = Pair(exerciseId, setIndex)
                     // Use the logged set's units, not a possibly changed preference.
@@ -446,17 +450,14 @@ class WorkoutExecutionViewModel @Inject constructor(
         val calculatedRpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(repsInReserve)
 
         return persistConfirmedSet(exId, sIdx, w, r, calculatedRpe, completed = true,
-            restTakenSeconds = 0, repsInReserve = repsInReserve) {
+            restTakenSeconds = 0, repsInReserve = repsInReserve, advanceAfterCompletion = true) {
             _rirOverlayState.value = _rirOverlayState.value.copy(hasLoggedSet = true)
             val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
             val currentIndex = exercises.indexOfFirst { it.executionKey == exId }
-            val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed } == true
+            val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed || it.isWarmup } == true
             val lastExerciseDone = exerciseDone && currentIndex == exercises.lastIndex
             if (!lastExerciseDone) {
                 onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, w, r, sIdx, totalSets)
-            }
-            if (exerciseDone && currentIndex >= 0 && currentIndex < exercises.lastIndex) {
-                _currentExerciseIdx.value = currentIndex + 1
             }
         }
     }
@@ -466,12 +467,11 @@ class WorkoutExecutionViewModel @Inject constructor(
         setIndex: Int, weight: Double, reps: Int, totalSets: Int, rpe: Int,
         onRest: () -> Unit
     ): Job? = persistConfirmedSet(exerciseId, setIndex, weight, reps, rpe, completed = true,
-        repsInReserve = (10 - rpe).coerceIn(0, 9)) {
+        repsInReserve = (10 - rpe).coerceIn(0, 9), advanceAfterCompletion = true) {
         val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
         val index = exercises.indexOfFirst { it.executionKey == exerciseId }
-        val done = exercises.getOrNull(index)?.sets?.all { it.completed } == true
+        val done = exercises.getOrNull(index)?.sets?.all { it.completed || it.isWarmup } == true
         if (!(done && index == exercises.lastIndex)) onRest()
-        if (done && index >= 0 && index < exercises.lastIndex) _currentExerciseIdx.value = index + 1
     }
 
     fun closeRirSelector() {
@@ -479,14 +479,38 @@ class WorkoutExecutionViewModel @Inject constructor(
         _rirOverlayState.value = _rirOverlayState.value.copy(isVisible = false)
     }
 
-    fun nextExercise() {
-        if (_isSavingSet.value || isCommitting.get()) return
-        if (_currentExerciseIdx.value < activeExercises.value.size - 1) {
-            _currentExerciseIdx.value += 1
-        } else {
-            finishWorkoutSession()
+    private fun moveExercise(skipped: Boolean, sessionFeel: Int = 4) {
+        if (isCommitting.get() || !_isSavingSet.compareAndSet(false, true)) return
+        val active = sessionManager.activeSession.value
+        if (active == null || active.exercises.isEmpty()) {
+            _isSavingSet.value = false
+            return
+        }
+        val index = WorkoutResumeState.cursor(active)
+        val finalExercise = index == active.exercises.lastIndex
+        viewModelScope.launch {
+            var moved = false
+            try {
+                check(sessionManager.advanceCursorDurably(active.sessionId, index, skipped)) {
+                    "Workout changed or rest is still open."
+                }
+                if (sessionManager.activeSession.value?.sessionId != active.sessionId) return@launch
+                sessionManager.activeSession.value?.let { _currentExerciseIdx.value = WorkoutResumeState.cursor(it) }
+                moved = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _setSaveError.value = "Couldn't save workout position. Close the rest timer and try again."
+            } finally {
+                _isSavingSet.value = false
+            }
+            if (moved && finalExercise) {
+                if (skipped) savePartialAndExit(sessionFeel) else finishWorkoutSession(sessionFeel)
+            }
         }
     }
+
+    fun nextExercise() = moveExercise(skipped = false)
 
     fun finishWorkoutSession(sessionFeel: Int = 4) {
         if (_isSavingSet.value || !isCommitting.compareAndSet(false, true)) return
@@ -539,18 +563,10 @@ class WorkoutExecutionViewModel @Inject constructor(
         _completedReceipt.value = null
     }
 
-    fun skipExercise(sessionFeel: Int = 4) {
-        if (_isSavingSet.value || isCommitting.get()) return
-        val exercisesSize = activeExercises.value.size
-        if (_currentExerciseIdx.value < exercisesSize - 1) {
-            _currentExerciseIdx.value += 1
-        } else {
-            finishWorkoutSession(sessionFeel)
-        }
-    }
+    fun skipExercise(sessionFeel: Int = 4) = moveExercise(skipped = true, sessionFeel = sessionFeel)
 
     fun finishWorkoutEarly(sessionFeel: Int = 4) {
-        finishWorkoutSession(sessionFeel)
+        savePartialAndExit(sessionFeel)
     }
 
     fun savePartialAndExit(sessionFeel: Int) {
