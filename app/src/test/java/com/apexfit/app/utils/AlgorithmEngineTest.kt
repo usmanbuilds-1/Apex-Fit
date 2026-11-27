@@ -146,10 +146,10 @@ class AlgorithmEngineTest {
 
     @Test
     fun testCalcFatigueToFitness_normal() {
-        val tLog = (0..14).map { 
+        val tLog = (0..27).map { 
             val exSet = ExerciseSet(weight = 100.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
             val exLog = ExerciseLog(id = "squat", name = "Squat", muscleGroup = "quads", sets = listOf(exSet))
-            RichTrainingSession(date = d(14 - it), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog)) 
+            RichTrainingSession(date = d(27 - it), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog)) 
         }
         val res = FatigueEngine.calcFatigueToFitnessRatio(tLog)
         assertNotNull(res.ratio)
@@ -204,7 +204,10 @@ class AlgorithmEngineTest {
                 date = d(it),
                 sessionType = "Upper",
                 completed = true,
-                sessionFeel = 4
+                sessionFeel = 4,
+                exercises = listOf(ExerciseLog("row", "Row", "back", listOf(
+                    ExerciseSet(weight = 20.0, reps = 8, rpe = 8, isWarmup = false, completed = true)
+                )))
             )
         }
 
@@ -227,7 +230,10 @@ class AlgorithmEngineTest {
                 date = d(0),
                 sessionType = "Session $it",
                 completed = true,
-                sessionFeel = 2
+                sessionFeel = 2,
+                exercises = listOf(ExerciseLog("row", "Row", "back", listOf(
+                    ExerciseSet(weight = 20.0, reps = 8, rpe = 8, isWarmup = false, completed = true)
+                )))
             )
         }
 
@@ -250,7 +256,10 @@ class AlgorithmEngineTest {
                 date = d(it),
                 sessionType = "Upper",
                 completed = true,
-                sessionFeel = 2
+                sessionFeel = 2,
+                exercises = listOf(ExerciseLog("row", "Row", "back", listOf(
+                    ExerciseSet(weight = 20.0, reps = 8, rpe = 8, isWarmup = false, completed = true)
+                )))
             )
         }
 

@@ -91,11 +91,12 @@ object AlgorithmEngine {
     // ── HYPERTROPHY QUALITY SCORE ─────────────────────────────
     fun calcEffectiveSets(trainingLog: List<TrainingSession>, days: Int = 7): Map<String, Double> {
         val cutoff = getWindowStartDate(days)
-        val recent = trainingLog.filter { it.completed && it.date >= cutoff }
+        val recent = TrainingEvidence.sessions(trainingLog, java.time.LocalDate.parse(cutoff), java.time.LocalDate.parse(getCurrentDate()))
+        val seenIds = mutableSetOf<Long>()
         val effectiveSets = mutableMapOf<String, Double>()
         recent.forEach { session ->
             session.exercises.forEach { exercise ->
-                val working = exercise.sets.filter { !it.isWarmup && it.completed }
+                val working = exercise.sets.filter { TrainingEvidence.isWorkingSet(it) && it.rpe in 1..10 && (it.id == 0L || seenIds.add(it.id)) }
                 working.forEach { set ->
                     val rpeModifier = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(set.rpe)
                     val score = 1.0 * rpeModifier
