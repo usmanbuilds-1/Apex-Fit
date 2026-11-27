@@ -18,6 +18,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import com.apexfit.app.utils.ActiveWorkoutCodec
 import kotlinx.coroutines.isActive
 import java.util.UUID
 import com.google.gson.Gson
@@ -42,6 +48,11 @@ class WorkoutSessionManager(
     private var metadataMap: Map<String, ExerciseMetadata> = emptyMap()
     private val gson = Gson()
     private var persistJob: Job? = null
+    private val stateLock = Any()
+    private val commitMutex = Mutex()
+    private val persistenceMutex = Mutex()
+    private var committing = false // guarded by stateLock
+    private var lastReceipt: SessionCommitResult? = null // guarded by commitMutex
     private val _restoredFromDisk = MutableStateFlow(false)
     val restoredFromDisk: StateFlow<Boolean> = _restoredFromDisk.asStateFlow()
 
@@ -73,33 +84,51 @@ class WorkoutSessionManager(
     val currentRestSeconds: StateFlow<Int> = _currentRestSeconds.asStateFlow()
 
     private val restoreJob: Job = scope.launch {
-            val json = dataStore.activeSessionJsonFlow.firstOrNull()
-            if (!json.isNullOrEmpty()) {
-                try {
-                    val restored = gson.fromJson(json, ActiveSession::class.java)
-                    if (restored != null) {
-                        if (restored.schemaVersion != ActiveSession.CURRENT_VERSION) {
-                            throw IllegalStateException(
-                                "ActiveSession schema mismatch: stored v${restored.schemaVersion}, current v${ActiveSession.CURRENT_VERSION}"
-                            )
-                        }
-                        _restoredFromDisk.value = true
-                        _weightContextLines.value = restored.exercises.mapNotNull { exercise ->
-                            exercise.loadContext?.let { exercise.exerciseId to it }
-                        }.toMap()
-                        _activeSession.value = restored
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("WorkoutSessionManager", "Session restore failed — clearing corrupt JSON", e)
-                    _sessionRestoreFailed.value = true
-                    scope.launch {
-                        try { dataStore.saveActiveSessionJson(null) } catch (_: Exception) { }
-                    }
+        try {
+            val raw = dataStore.activeSessionJsonFlow.firstOrNull() ?: return@launch
+            val decoded = ActiveWorkoutCodec.decode(raw, gson)
+            val restored = decoded.session
+            if (decoded.migrated) {
+                // A v1 payload had no durable ID. Do not guess whether it is an
+                // already-committed workout left behind by the old save path.
+                check(dao.getTrainingSessionsStartedAt(restored.startTime).isEmpty()) {
+                    "Legacy workout may already exist in history"
                 }
+                dataStore.saveActiveSessionJson(gson.toJson(restored))
+            } else if (dao.getTrainingSessionById(restored.sessionId) != null) {
+                // Exact stable ID is proof of a previous committed transaction.
+                // Its history is already saved; do not resume or insert it again.
+                dataStore.saveActiveSessionJson(null)
+                return@launch
             }
+            _restoredFromDisk.value = true
+            _weightContextLines.value = restored.exercises.mapNotNull { exercise ->
+                exercise.loadContext?.let { exercise.exerciseId to it }
+            }.toMap()
+            _activeSession.value = restored
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Saved workout retained for recovery", e)
+            _sessionRestoreFailed.value = true
+        }
     }
 
-
+    /** Only an explicit user choice may discard an unreadable/ambiguous payload. */
+    suspend fun discardUnrestorableSession(): Boolean {
+        restoreJob.join()
+        if (!_sessionRestoreFailed.value || _activeSession.value != null) return false
+        return try {
+            persistenceMutex.withLock { dataStore.saveActiveSessionJson(null) }
+            _sessionRestoreFailed.value = false
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Unable to discard saved workout", e)
+            false
+        }
+    }
 
     fun incrementRestSeconds() {
         _currentRestSeconds.value++
@@ -156,11 +185,13 @@ class WorkoutSessionManager(
         // Startup restore and a new workout must never race each other. Await the
         // persisted-session read before deciding whether a session is already active.
         restoreJob.join()
+        if (_sessionRestoreFailed.value) return@withContext
         if (!_isStartingSession.compareAndSet(false, true)) return@withContext
         val slugByExercise = exercises.associate { it.name to it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
         val ids = exercises.mapNotNull { slugByExercise[it.name] }
         try {
-            if (_activeSession.value != null) return@withContext
+            persistJob?.join()
+            if (synchronized(stateLock) { committing || _activeSession.value != null }) return@withContext
             val lastWeightMap = mutableMapOf<String, Double>()
             val suggestionsMap = mutableMapOf<String, Double>()
             val contextLinesMap = mutableMapOf<String, String>()
@@ -465,17 +496,17 @@ class WorkoutSessionManager(
             )
         }.toMutableList()
 
-        _activeSession.value = ActiveSession(
+        val newSession = ActiveSession(
             planSessionId = planSession.id.toString(),
             sessionType = planSession.label,
             startTime = System.currentTimeMillis(),
             readinessScore = readinessScore?.finalScore,
             exercises = activeExercises
         )
-        persistSession()
-
-        val session = _activeSession.value ?: return@withContext
-        com.apexfit.app.utils.WorkoutForegroundService.start(appContext, session.sessionName, session.startTime)
+        // Do not expose a workout that has not received its durable identity.
+        persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(newSession)) }
+        _activeSession.value = newSession
+        com.apexfit.app.utils.WorkoutForegroundService.start(appContext, newSession.sessionName, newSession.startTime)
         } finally {
             _isStartingSession.value = false
         }
@@ -499,6 +530,8 @@ class WorkoutSessionManager(
         completed: Boolean,
         repsInReserve: Int? = null
     ) {
+        synchronized(stateLock) {
+        if (committing) return
         val session = _activeSession.value ?: return
 
         // Structural sharing: only copy the affected exercise
@@ -515,7 +548,7 @@ class WorkoutSessionManager(
                     reps = reps,
                     rpe = rpeVal,
                     restTakenSeconds = restTakenSeconds,
-                    completedAt = if (completed) System.currentTimeMillis() else 0L,
+                    completedAt = if (completed) updatedSets[setIndex].completedAt.takeIf { it > 0L } ?: System.currentTimeMillis() else 0L,
                     completed = completed,
                     repsInReserve = rirVal
                 )
@@ -526,13 +559,17 @@ class WorkoutSessionManager(
         }.toMutableList()
 
         _activeSession.value = session.copy(exercises = updatedExercises)
-        persistSession()
+        // Completed sets and changes to completed sets should not wait for debounce.
+        persistSession(immediate = completed || exercise.sets[setIndex].completed)
+        }
     }
 
     /**
      * Adds an extra set to the given exercise in-memory.
      */
     fun addCustomSet(exerciseId: String) {
+        synchronized(stateLock) {
+        if (committing) return
         val session = _activeSession.value ?: return
 
         val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
@@ -566,11 +603,14 @@ class WorkoutSessionManager(
         }.toMutableList()
 
         _activeSession.value = session.copy(exercises = updatedExercises)
-        persistSession()
+        persistSession(immediate = true)
+        }
     }
 
 
     fun undoSetVolumeAdjustment(exerciseId: String): Boolean {
+        synchronized(stateLock) {
+        if (committing) return false
         val session = _activeSession.value ?: return false
         val exercise = session.exercises.firstOrNull { it.exerciseId == exerciseId } ?: return false
         val sets = exercise.volumeAdjustment?.revert(exercise.sets) ?: return false
@@ -579,38 +619,46 @@ class WorkoutSessionManager(
             if (it === exercise) restored else it
         }.toMutableList())
         if (!_activeSession.compareAndSet(session, updated)) return false
-        persistSession()
+        persistSession(immediate = true)
         return true
+        }
     }
 
-    private fun persistSession() {
+    // Called under stateLock by mutation methods. Serialized writes prevent a
+    // delayed draft from replacing the final snapshot or a later workout.
+    private fun persistSession(immediate: Boolean = false) {
         persistJob?.cancel()
+        val session = _activeSession.value
         persistJob = scope.launch {
-            delay(500)
-            val session = _activeSession.value
+            if (!immediate) delay(500)
             try {
-                if (session != null) {
-                    dataStore.saveActiveSessionJson(gson.toJson(session))
-                } else {
-                    dataStore.saveActiveSessionJson(null)
+                persistenceMutex.withLock {
+                    dataStore.saveActiveSessionJson(session?.let { gson.toJson(it) })
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("WorkoutSessionManager", "Session persist failed", e)
             }
         }
     }
 
-    fun clearPersistedSession() {
+    private fun resetActiveState() {
         lastProgressionResults.clear()
-        persistJob?.cancel()
-        com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
-        scope.launch {
-            dataStore.saveActiveSessionJson(null)
-        }
         _activeSession.value = null
         _lastWeights.value = emptyMap()
         _weightContextLines.value = emptyMap()
         _pendingPRWarnings.value = emptyMap()
+        _restoredFromDisk.value = false
+    }
+
+    fun clearPersistedSession() {
+        synchronized(stateLock) {
+            if (committing || _isStartingSession.value || _sessionRestoreFailed.value) return
+            com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
+            resetActiveState()
+            persistSession(immediate = true)
+        }
     }
 
     /**
@@ -651,16 +699,20 @@ class WorkoutSessionManager(
         sessionFeel: Int,
         completedSetsOnly: Boolean = true,
         isPartial: Boolean = false
-    ): SessionCommitResult = withContext(Dispatchers.IO) {
-        // AUDIT FIX (BUG-V4-003): cancel any pending persist before we clear
-        // state, so a debounced saver cannot write stale data after the commit's
-        // null write.
-        persistJob?.cancel()
+    ): SessionCommitResult {
+        val requestedId = _activeSession.value?.sessionId ?: return SessionCommitResult.empty()
+        return withContext(Dispatchers.IO) {
+        commitMutex.withLock {
+        val session = synchronized(stateLock) {
+            _activeSession.value?.takeIf { it.sessionId == requestedId }?.also { committing = true }
+        } ?: return@withLock lastReceipt?.takeIf { it.sessionId == requestedId } ?: SessionCommitResult.empty()
+        try {
+        persistJob?.cancelAndJoin()
+        // Persist the exact final snapshot before the transaction, so recovery
+        // can distinguish a failed commit from a successful commit + failed clear.
+        persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(session)) }
 
-        val session = _activeSession.value
-            ?: return@withContext SessionCommitResult.empty()
-
-        val sessionId = UUID.randomUUID().toString()
+        val sessionId = session.sessionId
         val completedAt = System.currentTimeMillis()
         val durationMinutes = ((completedAt - session.startTime).coerceAtLeast(0L).toDouble() / 60_000.0)
             .let { it.roundToInt() }
@@ -713,16 +765,15 @@ class WorkoutSessionManager(
             completedAt = completedAt
         )
 
-        // Single atomic transaction — both rows or neither
-        val prs = try {
-            evaluatePRs(allSets)
-        } catch (e: Exception) {
-            android.util.Log.e("ApexFit", "evaluatePRs failed, proceeding with no PRs", e)
-            emptyList()
-        }
+        // Once the durable draft exists, finish the atomic transaction and
+        // cleanup even if the caller leaves the screen. PR read failure aborts
+        // rather than silently saving inaccurate achievement results.
+        withContext(NonCancellable) {
         val db = AppDatabase.getDatabase(appContext)
-        db.withTransaction {
-            repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
+        val prs = db.withTransaction {
+            check(dao.getTrainingSessionById(sessionId) == null) { "Workout already saved; see workout history." }
+            val earned = evaluatePRs(allSets, trainingSession.date)
+            repository.insertSessionWithPRsAtomic(trainingSession, allSets, earned)
             val exerciseIds = lastProgressionResults.keys.toList()
             val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
                 .associate { it.exerciseId to it.stalledCount }
@@ -737,24 +788,19 @@ class WorkoutSessionManager(
                 }
                 dao.updateStalledCount(exerciseId, newCount)
             }
+            earned
         }
-        lastProgressionResults.clear()
 
         val totalVolume = allSets
-            .filter { !it.isWarmup }
+            .filter { it.completed && !it.isWarmup }
             .sumOf { it.weight * it.reps }
 
         // Use ACTUAL new PRs from evaluatePRs, not the preview warnings
         val confirmedPRs = prs.map { it.exerciseId }.distinct()
 
-        // Clear state — ALWAYS runs after successful insert
-        _activeSession.value = null
-        _lastWeights.value = emptyMap()
-        _weightContextLines.value = emptyMap()
-        _pendingPRWarnings.value = emptyMap()
-        dataStore.saveActiveSessionJson(null)
-
-        SessionCommitResult(
+        // A cleanup failure must not be reported as a failed database save.
+        // The exact persisted ID will be recognized on next launch.
+        val receipt = SessionCommitResult(
             sessionId = sessionId,
             durationMinutes = durationMinutes,
             totalVolumeTonnes = totalVolume / 1000.0,
@@ -764,6 +810,20 @@ class WorkoutSessionManager(
             records = prs,
             isPartial = isPartial
         )
+        lastReceipt = receipt
+        try {
+            persistenceMutex.withLock { dataStore.saveActiveSessionJson(null) }
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Workout saved; cleanup will retry on restore", e)
+        }
+        synchronized(stateLock) { resetActiveState() }
+        receipt
+        }
+        } finally {
+            synchronized(stateLock) { committing = false }
+        }
+        }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -796,7 +856,7 @@ class WorkoutSessionManager(
     // PR EVALUATION — runs after commit
     // ─────────────────────────────────────────────────────────────
 
-    private suspend fun evaluatePRs(sets: List<ExerciseSet>): List<PersonalRecord> {
+    private suspend fun evaluatePRs(sets: List<ExerciseSet>, workoutDate: String): List<PersonalRecord> {
         val newPRs = mutableListOf<PersonalRecord>()
         sets.filter { !it.isWarmup && it.completed }
             .groupBy { it.exerciseId }
@@ -809,7 +869,7 @@ class WorkoutSessionManager(
                 } ?: return@forEach
 
                 val existing = repository.getPRsForExercise(exerciseId)
-                val today = com.apexfit.app.utils.DateTimeUtils.todayDateString()
+                val today = workoutDate
 
                 val prevWeight = existing.firstOrNull { it.type == "max_weight" }?.value ?: 0.0
                 val prevVolume = existing.firstOrNull { it.type == "volume" }?.value ?: 0.0
