@@ -254,7 +254,8 @@ class FitnessRepositoryImpl @Inject constructor(
             bioProfileFlow,
             nutritionEntriesFlow,
             todayDateFlow,
-            getTrainingFrequencyFlow()
+            getTrainingFrequencyFlow(),
+            dataStore.nutritionDayConfirmationsFlow
         ) { values ->
             val isManual            = values[0] as Boolean
             val manualCals          = values[1] as Int
@@ -269,8 +270,10 @@ class FitnessRepositoryImpl @Inject constructor(
             val nutrition           = values[7] as List<NutritionEntry>
             val todayDate           = values[8] as String
             val currentWeekFrequency = values[9] as Int
+            @Suppress("UNCHECKED_CAST")
+            val confirmations = values[10] as Map<String, String>
 
-            val latestWeight = BodyWeightHistory.latest(weights)?.weight
+            val latestWeight = BodyWeightHistory.latest(weights.filter { it.date <= todayDate })?.weight
                 ?: bio.currentWeightKg
             val calories: Int = if (isManual) {
                 manualCals
@@ -282,7 +285,8 @@ class FitnessRepositoryImpl @Inject constructor(
                     ageYears       = bio.ageYears,
                     biologicalSex  = bio.biologicalSex,
                     weeklyWorkouts = bio.weeklyWorkouts,
-                    fallbackWeightKg = latestWeight
+                    fallbackWeightKg = latestWeight,
+                    nutritionConfirmations = confirmations
                 )
                 TdeeEngine.suggestCaloricTarget(
                     tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,

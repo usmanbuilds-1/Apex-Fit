@@ -17,7 +17,8 @@ object TdeeEngine {
         ageYears: Int = com.apexfit.app.UserDefaults.AGE_YEARS,
         biologicalSex: String = "male",
         weeklyWorkouts: Int = 4,
-        fallbackWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG
+        fallbackWeightKg: Double = com.apexfit.app.UserDefaults.WEIGHT_KG,
+        nutritionConfirmations: Map<String, String> = emptyMap()
     ): TDEEResult {
         val today = getCurrentDate()
         // Use the same as-of date for both fallback and adaptive estimates.
@@ -98,6 +99,19 @@ object TdeeEngine {
             )
         }
 
+        // A meal row proves logging, not full-day intake.
+        val snapshots = NutritionDayEvidence.snapshots(nutritionInWeightWindow)
+        if (snapshots.size != calendarDays ||
+            snapshots.any { (date, fingerprint) -> nutritionConfirmations[date] != fingerprint }) {
+            return TDEEResult(
+                fallbackTdee,
+                "low (Mifflin-St Jeor; unconfirmed nutrition days)",
+                nutritionInWeightWindow.groupBy { it.date }
+                    .map { (_, entries) -> entries.sumOf { it.calories } }
+                    .average().takeIf { it.isFinite() }?.roundToInt() ?: 0,
+                0.0
+            )
+        }
         val dailyCalories = nutritionInWeightWindow
             .groupBy { it.date }
             .map { (_, e) -> e.sumOf { it.calories } }
@@ -117,11 +131,8 @@ object TdeeEngine {
         val calorieImbalancePerDay = (weightChangeKg * AppConstants.CALORIES_PER_KG_BODYFAT) / daysBetween
         val tdee = (avgCalories - calorieImbalancePerDay).roundToInt().coerceAtLeast(1200)
         
-        val confidence = when {
-            loggedNutritionDays >= 10 && recentWeight.map { it.date }.distinct().size >= 8 -> "high"
-            loggedNutritionDays >= 7  && recentWeight.map { it.date }.distinct().size >= 5 -> "medium"
-            else -> "low"
-        }
+        // Confirmed logging does not remove water-weight and self-report error.
+        val confidence = "medium"
         return TDEEResult(tdee, confidence, avgCalories.roundToInt(), Math.round(weightChangeKg * 100.0) / 100.0)
     }
 
