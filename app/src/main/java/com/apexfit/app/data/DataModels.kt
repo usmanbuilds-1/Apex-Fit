@@ -282,6 +282,7 @@ data class PlanExercise(
         )
     ]
 )
+@Keep
 data class PersonalRecord(
     @PrimaryKey val id: String, // exerciseId_type
     val exerciseId: String,
