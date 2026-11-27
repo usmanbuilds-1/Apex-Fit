@@ -367,6 +367,18 @@ data class ActiveExercise(
     val executionKey: String get() = occurrenceKey ?: exerciseId
 }
 
+/** Monotonic checkpoint: only comparable within the same verified boot. */
+@Keep
+data class ActiveRestCheckpoint(
+    val exerciseKey: String,
+    val setIndex: Int,
+    val startedElapsedMs: Long,
+    val deadlineElapsedMs: Long,
+    val bootCount: Int?,
+    val totalSeconds: Int,
+    val adjustmentSeconds: Int = 0
+)
+
 @Keep
 data class ActiveSession(
     val planSessionId: String,
@@ -376,7 +388,10 @@ data class ActiveSession(
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
     val schemaVersion: Int = 2,
-    val sessionId: String = java.util.UUID.randomUUID().toString()
+    val sessionId: String = java.util.UUID.randomUUID().toString(),
+    val cursorIndex: Int? = null,
+    val skippedOccurrenceIndices: List<Int>? = null,
+    val restCheckpoint: ActiveRestCheckpoint? = null
 ) {
     companion object {
         const val CURRENT_VERSION = 2
