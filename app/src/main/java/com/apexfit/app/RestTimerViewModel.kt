@@ -112,7 +112,7 @@ class RestTimerViewModel @Inject constructor(
             return
         }
         RestTimerAlarmReceiver.scheduleAlarm(getApplication(),
-            System.currentTimeMillis() + remaining * 1000L, restExerciseName(active, saved))
+            saved.deadlineElapsedMs, restExerciseName(active, saved), elapsedRealtime = true)
         timerJob = viewModelScope.launch {
             while (sessionId == active.sessionId && checkpoint == saved && _isRestTimerActive.value) {
                 val tick = SystemClock.elapsedRealtime()
