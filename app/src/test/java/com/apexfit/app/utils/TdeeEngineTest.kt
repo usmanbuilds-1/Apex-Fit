@@ -355,4 +355,17 @@ class TdeeEngineTest {
         // But not too aggressive: max rate is 0.70 kg/week = 770 kcal/day
         assertTrue("Cut $target should not exceed 770 kcal below TDEE", target >= 3500 - 780)
     }
+    @Test
+    fun noAutomaticDeficitForLowCurrentOrGoalWeight() {
+        assertEquals(2200, TdeeEngine.suggestCaloricTarget(2200, "lose fat", 55.0, 50.0, 180.0, 26, "male"))
+        assertEquals(2500, TdeeEngine.suggestCaloricTarget(2500, "lose fat", 70.0, 55.0, 180.0, 26, "male"))
+        assertEquals(2200, TdeeEngine.suggestCaloricTarget(2200, "lose fat", 55.0, null, 180.0, 26, "male"))
+        assertFalse(GoalEngine.calcGoalTimeline(70.0, 55.0, "lose fat", 180.0, "male").isRealistic)
+    }
+    @Test
+    fun buildMuscleAliasMatchesGainMuscle() {
+        assertEquals(TdeeEngine.suggestCaloricTarget(2500, "gain muscle", 80.0, 85.0),
+            TdeeEngine.suggestCaloricTarget(2500, "build muscle", 80.0, 85.0))
+    }
+
 }

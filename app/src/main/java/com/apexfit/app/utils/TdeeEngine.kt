@@ -124,8 +124,11 @@ object TdeeEngine {
         ageYears: Int = 35,
         sex: String = "male"
     ): Int {
-        val normalizedGoal = goal.trim().lowercase()
+        val normalizedGoal = goal.trim().lowercase().let { if (it == "build muscle") "gain muscle" else it }
+        val blockedLoss = normalizedGoal == "lose fat" &&
+            GoalEngine.blocksAutomaticWeightLoss(currentWeightKg, goalWeightKg, heightCm)
         val targetAlreadyReachedOrContradictory = when {
+            blockedLoss -> true
             goalWeightKg == null -> false
             normalizedGoal == "gain muscle" -> goalWeightKg <= currentWeightKg
             normalizedGoal == "lose fat" -> goalWeightKg >= currentWeightKg
