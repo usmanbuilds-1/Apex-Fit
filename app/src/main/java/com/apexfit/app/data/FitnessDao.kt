@@ -80,6 +80,12 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_sessions WHERE completed = 1 OR status = 'partial' ORDER BY date DESC, completed_at DESC")
     fun getSavedTrainingSessionsFlow(): Flow<List<TrainingSession>>
 
+    @Query("SELECT * FROM workout_sessions WHERE id = :id LIMIT 1")
+    suspend fun getTrainingSessionById(id: String): TrainingSession?
+
+    @Query("SELECT * FROM workout_sessions WHERE started_at = :startedAt")
+    suspend fun getTrainingSessionsStartedAt(startedAt: Long): List<TrainingSession>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTrainingSession(session: TrainingSession): Long
 
@@ -650,13 +656,13 @@ interface FitnessDao {
 
     @Transaction
     suspend fun insertSessionAtomic(session: TrainingSession, sets: List<ExerciseSet>) {
-        insertTrainingSession(session)
+        check(insertTrainingSession(session) != -1L) { "Workout already saved: ${session.id}" }
         insertExerciseSets(sets)
     }
 
     @Transaction
     suspend fun insertSessionWithPRsAtomic(session: TrainingSession, sets: List<ExerciseSet>, prs: List<PersonalRecord>) {
-        insertTrainingSession(session)
+        check(insertTrainingSession(session) != -1L) { "Workout already saved: ${session.id}" }
         insertExerciseSets(sets)
         insertPersonalRecords(prs)
     }
