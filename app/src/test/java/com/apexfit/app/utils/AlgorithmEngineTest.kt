@@ -165,7 +165,7 @@ class AlgorithmEngineTest {
     fun testCalcComplianceScores_normal() {
         val nLog = (0..13).map { NutritionEntry(date = d(13 - it), calories = 2500, protein = 150, carbs = 200, fat = 60) }
         val targets = NutritionTargets(2500, 150, 200, 60, 4)
-        val res = ComplianceEngine.calcComplianceScores(nLog, emptyList(), targets, 14)
+        val res = ComplianceEngine.calcComplianceScores(nLog, emptyList(), targets, 14, NutritionDayEvidence.snapshots(nLog))
         assertEquals(100, res.protein)
         assertEquals(100, res.calories)
     }

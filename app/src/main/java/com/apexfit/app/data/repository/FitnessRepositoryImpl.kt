@@ -355,24 +355,14 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val complianceScoresFlow: StateFlow<UiComplianceResult> by lazy {
-        val mappedNutritionFlow = nutritionEntriesFlow.map { list ->
-            list.map {
-                com.apexfit.app.utils.NutritionEntry(
-                    date = it.date,
-                    calories = it.calories,
-                    protein = it.protein.roundToInt(),
-                    carbs = it.carbs.roundToInt(),
-                    fat = it.fat.roundToInt()
-                )
-            }
-        }
         combine(
-            mappedNutritionFlow,
+            nutritionEntriesFlow,
             richSessionsFlow,
-            sharedTargetsFlow
-        ) { nutrition, sessions, targets ->
-            val res = ComplianceEngine.calcComplianceScores(nutrition, sessions, targets)
-            res.toUi()
+            sharedTargetsFlow,
+            dataStore.nutritionDayConfirmationsFlow,
+            todayDateFlow
+        ) { nutrition, sessions, targets, confirmations, date ->
+            ComplianceEngine.calcComplianceScores(nutrition, sessions, targets, nutritionConfirmations = confirmations, today = LocalDate.parse(date)).toUi()
         }
         .debounce(300L)
         .flowOn(Dispatchers.Default)
@@ -388,23 +378,14 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val streakResultFlow: StateFlow<StreakResult> by lazy {
-        val mappedNutritionFlow = nutritionEntriesFlow.map { list ->
-            list.map {
-                com.apexfit.app.utils.NutritionEntry(
-                    date = it.date,
-                    calories = it.calories,
-                    protein = it.protein.roundToInt(),
-                    carbs = it.carbs.roundToInt(),
-                    fat = it.fat.roundToInt()
-                )
-            }
-        }
         combine(
-            mappedNutritionFlow,
+            nutritionEntriesFlow,
             richSessionsFlow,
-            sharedTargetsFlow
-        ) { nutrition, sessions, targets ->
-            ComplianceEngine.calcStreaks(nutrition, sessions, targets)
+            sharedTargetsFlow,
+            dataStore.nutritionDayConfirmationsFlow,
+            todayDateFlow
+        ) { nutrition, sessions, targets, confirmations, date ->
+            ComplianceEngine.calcStreaks(nutrition, sessions, targets, nutritionConfirmations = confirmations, today = LocalDate.parse(date))
         }
         .debounce(300L)
         .flowOn(Dispatchers.Default)

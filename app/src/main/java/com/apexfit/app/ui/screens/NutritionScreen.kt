@@ -87,6 +87,7 @@ fun NutritionScreen(
     val calorieTargetManual by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
+    val compliance by algorithmViewModel.complianceScores.collectAsStateWithLifecycle()
     val hasCalorieTarget = if (calorieTargetManual) calorieTargetValue > 0 else (tdeeResult.tdee ?: 0) > 0
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val currentWeight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
@@ -347,6 +348,28 @@ fun NutritionScreen(
                     color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                 Text("Supplement preference: ${foodPreferences.supplements}", color = ApexColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        item {
+            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                HorizontalDivider(color = ApexColors.BorderSubtle)
+                Text("Food log coverage", style = MaterialTheme.typography.titleMedium, color = ApexColors.TextPrimary)
+                Text(
+                    if (compliance.evaluatedDays > 0)
+                        "${compliance.confirmedNutritionDays} of ${compliance.evaluatedDays} past days confirmed"
+                    else "No finished days to evaluate yet",
+                    style = MaterialTheme.typography.bodyMedium, color = ApexColors.TextSecondary
+                )
+                if (compliance.nutritionComparisonAvailable) {
+                    Text("Against current targets: calories ${compliance.calories}% · protein ${compliance.protein}%",
+                        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                } else {
+                    Text("Target comparison unavailable until complete days are confirmed.",
+                        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                }
+                Text("Past targets are not recorded. This is not historical adherence.",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
             }
         }
 

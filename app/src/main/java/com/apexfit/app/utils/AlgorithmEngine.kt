@@ -50,19 +50,25 @@ object AlgorithmEngine {
     }
 
     fun getCurrentTrendWeight(log: List<WeightEntry>): Double? {
-        return calcTrendWeight(log).lastOrNull()?.trend
+        return calcTrendWeight(log.filter { it.date <= getCurrentDate() }).lastOrNull()?.trend
     }
 
     fun getWeightDirection(log: List<WeightEntry>, days: Int = 14): String {
-        val trend = calcTrendWeight(log)
-        if (trend.size < 2) return "insufficient_data"
-        val cutoff = getWindowStartDate(days)
-        val recent = trend.filter { it.date >= cutoff }
-        if (recent.size < 2) return "insufficient_data"
-        val change = recent.last().trend - recent.first().trend
+        val today = java.time.LocalDate.parse(getCurrentDate())
+        val cutoff = today.minusDays((days.coerceAtLeast(1) - 1).toLong())
+        val trend = calcTrendWeight(log.filter { it.date <= today.toString() })
+        val recent = trend.filter { it.date >= cutoff.toString() }
+        // Do not classify from two isolated measurements or stale observations.
+        if (recent.size < 4) return "insufficient_data"
+        val span = getDaysBetween(recent.first().date, recent.last().date)
+        if (span < 7 || getDaysBetween(recent.last().date, today.toString()) > 3) return "insufficient_data"
+        val first = recent.first().trend
+        val changePerWeekPct = (recent.last().trend - first) / first * 100.0 * 7.0 / span
+        // A descriptive 0.25% body-weight/week deadband, not a statistical
+        // confidence interval or a direct measure of fat or muscle change.
         return when {
-            change > 0.3 -> "gaining"
-            change < -0.3 -> "losing"
+            changePerWeekPct > 0.25 -> "gaining"
+            changePerWeekPct < -0.25 -> "losing"
             else -> "maintaining"
         }
     }

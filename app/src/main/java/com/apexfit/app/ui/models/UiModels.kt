@@ -291,7 +291,12 @@ data class UiComplianceResult(
     val protein: Int,
     val training: Int,
     val overall: Int,
-    val weakestDay: String?
+    val weakestDay: String?,
+    val confirmedNutritionDays: Int = 0,
+    val evaluatedDays: Int = 0,
+    val nutritionCoverage: Int = 0,
+    val nutritionComparisonAvailable: Boolean = false,
+    val trainingComparisonAvailable: Boolean = false
 )
 
 @Immutable
@@ -335,7 +340,12 @@ fun com.apexfit.app.utils.ComplianceResult.toUi(): UiComplianceResult = UiCompli
     protein = this.protein,
     training = this.training,
     overall = this.overall,
-    weakestDay = this.weakestDay
+    weakestDay = this.weakestDay,
+    confirmedNutritionDays = this.confirmedNutritionDays,
+    evaluatedDays = this.evaluatedDays,
+    nutritionCoverage = this.nutritionCoverage,
+    nutritionComparisonAvailable = this.nutritionComparisonAvailable,
+    trainingComparisonAvailable = this.trainingComparisonAvailable
 )
 
 fun UiComplianceResult.toData(): com.apexfit.app.utils.ComplianceResult = com.apexfit.app.utils.ComplianceResult(
@@ -343,7 +353,12 @@ fun UiComplianceResult.toData(): com.apexfit.app.utils.ComplianceResult = com.ap
     protein = this.protein,
     training = this.training,
     overall = this.overall,
-    weakestDay = this.weakestDay
+    weakestDay = this.weakestDay,
+    confirmedNutritionDays = this.confirmedNutritionDays,
+    evaluatedDays = this.evaluatedDays,
+    nutritionCoverage = this.nutritionCoverage,
+    nutritionComparisonAvailable = this.nutritionComparisonAvailable,
+    trainingComparisonAvailable = this.trainingComparisonAvailable
 )
 
 fun com.apexfit.app.utils.FatigueResult.toUi(): UiFatigueResult = UiFatigueResult(

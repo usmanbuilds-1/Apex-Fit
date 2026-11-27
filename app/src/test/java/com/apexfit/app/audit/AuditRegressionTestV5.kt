@@ -28,6 +28,7 @@ import com.apexfit.app.utils.TdeeEngine
 import com.apexfit.app.utils.getDateDaysAgo
 import com.apexfit.app.utils.trainingSessionAgeDays
 import kotlinx.coroutines.runBlocking
+import com.apexfit.app.utils.NutritionDayEvidence
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -218,7 +219,7 @@ class AuditRegressionTestV5 {
     }
 
     @Test
-    fun complianceCountsMissingDaysAfterTrackingBegins() {
+    fun complianceReportsMissingDaysAsCoverageNotTargetFailure() {
         val target = NutritionTargets(2000, 120, 200, 60, weeklyTrainingSessions = 4)
         val nutrition = listOf(
             NutritionEntry(date = getDateDaysAgo(7), calories = 2000, protein = 120, carbs = 200, fat = 60),
@@ -229,11 +230,15 @@ class AuditRegressionTestV5 {
             nutritionLog = nutrition,
             trainingLog = emptyList(),
             targets = target,
-            days = 14
+            days = 14,
+            nutritionConfirmations = NutritionDayEvidence.snapshots(nutrition)
         )
 
-        assertEquals(25, result.calories)
-        assertEquals(25, result.protein)
+        assertEquals(100, result.calories)
+        assertEquals(100, result.protein)
+        assertEquals(1, result.confirmedNutritionDays)
+        assertEquals(7, result.evaluatedDays)
+        assertEquals(14, result.nutritionCoverage)
     }
 
     @Test
