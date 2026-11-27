@@ -753,46 +753,33 @@ class WorkoutSessionManager(
     /**
      * Adds an extra set to the given exercise in-memory.
      */
+    private fun withCustomSet(session: ActiveSession, exerciseId: String): ActiveSession? {
+        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return null
+        if (exercise.sets.size >= 20) return null
+        val lastSet = exercise.sets.lastOrNull()
+        val updated = exercise.copy(sets = (exercise.sets + ActiveSet(
+            setNumber = (exercise.sets.maxOfOrNull { it.setNumber } ?: 0) + 1,
+            weight = lastSet?.weight ?: 50.0,
+            reps = lastSet?.reps ?: 10,
+            rpe = lastSet?.rpe?.takeIf { it in 1..10 } ?: 0,
+            weightUnit = lastSet?.weightUnit ?: "kg"
+        )).toMutableList())
+        return session.copy(exercises = session.exercises.map {
+            if (it.executionKey == exerciseId) updated else it
+        }.toMutableList())
+    }
+
     fun addCustomSet(exerciseId: String) {
         synchronized(stateLock) {
-        if (committing || savingCriticalSet) return
-        val session = _activeSession.value ?: return
-
-        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
-        val lastSet = exercise.sets.lastOrNull()
-        val newSetNum = exercise.sets.size + 1
-        val suggestedWeight = lastSet?.weight ?: 50.0
-        val suggestedReps = lastSet?.reps ?: 10
-        val suggestedRpe = lastSet?.rpe?.takeIf { it in 1..10 } ?: 0
-        val suggestedWeightUnit = lastSet?.weightUnit ?: "kg"
-
-        // Structural sharing: only copy the affected exercise
-        val updatedExercises = session.exercises.map { ex ->
-            if (ex.executionKey == exerciseId) {
-                val updatedSets = ex.sets.toMutableList()
-                updatedSets.add(
-                    ActiveSet(
-                        setNumber = newSetNum,
-                        weight = suggestedWeight,
-                        reps = suggestedReps,
-                        rpe = suggestedRpe,
-                        isWarmup = false,
-                        restTakenSeconds = 0,
-                        completed = false,
-                        weightUnit = suggestedWeightUnit
-                    )
-                )
-                ex.copy(sets = updatedSets)
-            } else {
-                ex
-            }
-        }.toMutableList()
-
-        _activeSession.value = session.copy(exercises = updatedExercises)
-        persistSession(immediate = true)
+            if (committing || savingCriticalSet) return
+            val session = _activeSession.value ?: return
+            _activeSession.value = withCustomSet(session, exerciseId) ?: return
+            persistSession(immediate = true)
         }
     }
 
+    suspend fun addCustomSetDurably(expectedSessionId: String, exerciseId: String): Boolean =
+        mutateDraftDurably(expectedSessionId) { session -> withCustomSet(session, exerciseId) }
 
     fun undoSetVolumeAdjustment(exerciseId: String): Boolean {
         synchronized(stateLock) {
