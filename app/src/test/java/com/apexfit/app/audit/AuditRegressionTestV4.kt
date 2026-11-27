@@ -1117,6 +1117,10 @@ class AuditRegressionTestV4 {
             assertEquals(listOf(42.0, 21.0), saved.map { it.weight })
             assertEquals(listOf(5, 11), saved.map { it.reps })
             assertEquals(listOf(91, 37), saved.map { it.restTaken })
+            assertEquals(listOf(0, 1), saved.map { it.occurrenceIndex })
+            assertEquals(listOf(1, 1), saved.map { it.setNumber })
+            assertEquals(listOf(1L, 2L), saved.map { it.sourcePlanExerciseId })
+            assertTrue(saved.all { (it.setCompletedAt ?: 0L) > 0L })
             assertEquals(0.441, result.totalVolumeTonnes, 0.000001)
         } finally {
             AppDatabase.setTestDatabase(null)
