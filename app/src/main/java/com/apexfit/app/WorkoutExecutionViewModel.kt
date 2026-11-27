@@ -600,9 +600,28 @@ class WorkoutExecutionViewModel @Inject constructor(
     }
 
     fun dismissSessionComplete() {
-        _completedReceipt.value?.let { sessionManager.dismissReceipt(it.sessionId) }
-        _showSessionCompleteScreen.value = false
-        _completedReceipt.value = null
+        val receipt = _completedReceipt.value
+        if (receipt == null) {
+            _showSessionCompleteScreen.value = false
+            return
+        }
+        viewModelScope.launch {
+            try {
+                sessionManager.dismissReceipt(receipt.sessionId)
+                // A delayed dismissal must not hide a newer workout receipt.
+                if (_completedReceipt.value?.sessionId == receipt.sessionId) {
+                    _showSessionCompleteScreen.value = false
+                    _completedReceipt.value = null
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (_completedReceipt.value?.sessionId == receipt.sessionId) {
+                    _saveError.value = "Workout saved; could not dismiss receipt. Try again."
+                }
+                android.util.Log.e("WorkoutExecutionViewModel", "Receipt dismissal failed", e)
+            }
+        }
     }
 
     fun skipExercise(sessionFeel: Int = 4, onSaved: (() -> Unit)? = null) =

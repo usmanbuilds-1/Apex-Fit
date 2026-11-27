@@ -1222,8 +1222,13 @@ class AuditRegressionTestV4 {
             assertEquals(null, restored.activeSession.value)
             assertEquals(1, dao.getSetsForSession(id).size)
             assertTrue(recovered.isPartial)
-            restored.dismissReceipt(id)
-            kotlinx.coroutines.withTimeout(10_000) { store.workoutReceiptFlow.first { it == null } }
+            // An unrelated acknowledgement must not remove the recovered receipt.
+            restored.dismissReceipt("unrelated-session")
+            assertEquals(id, store.workoutReceiptFlow.first()!!.first)
+            assertEquals(original, restored.recoveredReceipt.value)
+            kotlinx.coroutines.withTimeout(10_000) { restored.dismissReceipt(id) }
+            assertEquals(null, store.workoutReceiptFlow.first())
+            assertEquals(null, restored.recoveredReceipt.value)
         } finally {
             AppDatabase.setTestDatabase(null)
         }

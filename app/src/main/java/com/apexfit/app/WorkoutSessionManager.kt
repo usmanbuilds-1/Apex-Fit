@@ -165,15 +165,13 @@ class WorkoutSessionManager(
     /** Wait for the same initialization barrier used by startSession. */
     internal suspend fun awaitRestoration() = restoreJob.join()
 
-    fun dismissReceipt(sessionId: String) {
-        if (_recoveredReceipt.value?.sessionId == sessionId) _recoveredReceipt.value = null
-        scope.launch {
-            try {
+    /** Complete the journal write before acknowledging dismissal to the caller. */
+    suspend fun dismissReceipt(sessionId: String) {
+        restoreJob.join()
+        commitMutex.withLock {
+            withContext(Dispatchers.IO + NonCancellable) {
                 dataStore.dismissWorkoutReceipt(sessionId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                android.util.Log.e("WorkoutSessionManager", "Could not dismiss saved receipt", e)
+                if (_recoveredReceipt.value?.sessionId == sessionId) _recoveredReceipt.value = null
             }
         }
     }
