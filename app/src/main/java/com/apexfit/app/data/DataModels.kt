@@ -365,10 +365,11 @@ data class ActiveSession(
     val readinessScore: Int? = null,
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
-    val schemaVersion: Int = 1 // <-- Added this line
+    val schemaVersion: Int = 2,
+    val sessionId: String = java.util.UUID.randomUUID().toString()
 ) {
     companion object {
-        const val CURRENT_VERSION = 1 // <-- Added this block
+        const val CURRENT_VERSION = 2
     }
 }
 
