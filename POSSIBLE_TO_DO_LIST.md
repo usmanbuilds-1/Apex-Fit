@@ -26,13 +26,14 @@ This is a living **candidate backlog**, not an approved implementation plan or r
 
 | ID | Deliverable | Owner | Status |
 |---|---|---|---|
-| E01 | Audit 14 features against reachable source | Engineering | Pending |
-| E02 | Research competitors and scientific/technical evidence | Engineering | Pending |
-| E03 | 14-row specification, contracts, dependencies, migrations and acceptance tests | Engineering | Pending |
-| E04 | Shared analytics architecture and implementation order | Engineering | Pending |
+| E01 | Audit 14 features against reachable source | Engineering | Complete (targeted source audit; device verification pending) |
+| E02 | Research competitors and scientific/technical evidence | Engineering | Complete (targeted evidence review) |
+| E03 | 14-row specification, contracts, dependencies, migrations and acceptance tests | Engineering | Draft complete; awaiting user review |
+| E04 | Shared analytics architecture and implementation order | Engineering | Draft complete; awaiting user review |
+| E05 | Database migration, privacy and backward compatibility plan | Engineering | Draft complete; awaiting user review |
 | U01 | Repair Today athlete binding and inspect actual Stitch render | Codex/Work | Assigned; result unverified |
 | U02 | Inventory screens and map features to UX destinations | Codex/Work | Assigned; result unverified |
-| G01 | Review preview and technical plan; approve or revise scope | User | Awaiting deliverables |
+| G01 | Review preview and technical plan; approve or revise scope | User | Technical plan ready; Today preview result unverified; awaiting review |
 | G02 | Implement approved domain and UI work on coordinated branches | Both | Blocked by G01; UI also requires screen-specific approval |
 | G03 | Regression, migration, render, device and integration QA | Both | Blocked by implementation |
 | G04 | Final merge authorization | User | Pending |
@@ -60,7 +61,7 @@ All are candidates, not approved implementation. Existing partial implementation
 
 Previously discussed unilateral tracking, muscle feedback, mesocycles, equipment profiles and Health Connect remain optional future candidates outside the current 14-feature scope.
 
-**Maintenance rule:** record each milestone once, with commit/PR/test or preview evidence. Distinguish proposed, assigned, verified, approved, implemented, tested, deferred and rejected. Update on each relevant work session or reported Codex milestone; do not assume its local progress. The detailed technical specification will be a separate reviewed document linked from this tracker rather than duplicating it here.
+**Maintenance rule:** record each milestone once, with commit/PR/test or preview evidence. Distinguish proposed, assigned, verified, approved, implemented, tested, deferred and rejected. Update on each relevant work session or reported Codex milestone; do not assume its local progress. The draft technical specification is [Training Analytics Technical Plan](docs/TRAINING_ANALYTICS_TECHNICAL_PLAN.md), committed as `ccf1db92ecddf509e81ff6ff18e042e744f7d870`. It contains the pinned source audit, competitor/scientific evidence, 14 feature specifications with acceptance tests, unified analytics architecture and proposed additive migrations. No Android code or schema changed. Codex branch comparison: two unique commits, 97 behind the audited main baseline; reconcile without overwriting local changes before implementation. Device, migration, CI and Stitch verification remain pending. Approval decisions include partial-workout eligibility, load conventions, estimated 1RM, target defaults, historical schedule rules and photo privacy/backup. All F01–F14 remain candidates pending scope approval.
 
 ## Candidate UX and design improvements
 
