@@ -175,7 +175,7 @@ class AuditRegressionTestV4 {
         assertEquals("lb", active.sets.single().weightUnit)
         assertEquals(22.05, active.sets.single().weight, 0.1)
         assertTrue(active.loadContext.orEmpty().contains("8–12 reps · about 2–3 RIR"))
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 
     @Test
@@ -190,7 +190,7 @@ class AuditRegressionTestV4 {
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
             listOf(exercise), 70.0, 175.0, "kg")
         assertEquals(0.0, manager.activeSession.value!!.exercises.single().sets.first().weight, 0.001)
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 
     @Test
@@ -212,7 +212,7 @@ class AuditRegressionTestV4 {
         assertEquals("lb", activeExercise.sets.first().weightUnit)
         assertTrue(activeExercise.loadContext.orEmpty().contains("enter a comfortable starting load"))
         assertTrue(activeExercise.loadContext.orEmpty().contains("6–10 reps · about 2–3 RIR"))
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 
     @Test
@@ -261,7 +261,7 @@ class AuditRegressionTestV4 {
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
             listOf(exercise), 70.0, 175.0, "kg")
         assertEquals(6.25, manager.activeSession.value!!.exercises.single().sets.first().weight, 0.001)
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 
     @Test
@@ -279,7 +279,7 @@ class AuditRegressionTestV4 {
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
             listOf(exercise), 70.0, 175.0, "kg")
         assertTrue("Three successful sets should progress the load", manager.activeSession.value!!.exercises.single().sets.first().weight > 100.0)
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 
     @Test
@@ -293,7 +293,7 @@ class AuditRegressionTestV4 {
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
             listOf(exercise), 70.0, 175.0, "kg")
         assertEquals(150, manager.calculateRestTimeSeconds("bench-press", "compound_upper", 10))
-        manager.discardAndExit()
+        assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 
     @Test
@@ -715,7 +715,7 @@ class AuditRegressionTestV4 {
         // Starting another workout must not overwrite the active one.
         sessionManager.startSession(armsSession, listOf(curlExercise), 75.0, 175.0, "kg")
         assertEquals("Upper", sessionManager.activeSession.value?.sessionType)
-        sessionManager.discardAndExit()
+        assertTrue(sessionManager.discardDraftDurably(sessionManager.activeSession.value!!.sessionId))
         sessionManager.startSession(armsSession, listOf(curlExercise), 75.0, 175.0, "kg")
         val curlActive = sessionManager.activeSession.value?.exercises?.first()
         assertEquals(31.25, curlActive?.sets?.first()?.weight ?: 0.0, 0.001)
@@ -803,7 +803,7 @@ class AuditRegressionTestV4 {
                     suggested > currentWeight
                 )
                 currentWeight = suggested
-                sessionManager.discardAndExit()
+                assertTrue(sessionManager.discardDraftDurably(sessionManager.activeSession.value!!.sessionId))
             }
         }
     }
