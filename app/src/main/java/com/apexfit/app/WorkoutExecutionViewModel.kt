@@ -365,8 +365,19 @@ class WorkoutExecutionViewModel @Inject constructor(
     }
 
     fun addCustomLogSet(exerciseId: String) {
-        if (_isSavingSet.value || isCommitting.get()) return
-        sessionManager.addCustomSet(exerciseId)
+        val active = sessionManager.activeSession.value ?: return
+        if (isCommitting.get() || !_isSavingSet.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                check(sessionManager.addCustomSetDurably(active.sessionId, exerciseId))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _setSaveError.value = "Couldn't save the extra set. Try again."
+            } finally {
+                _isSavingSet.value = false
+            }
+        }
     }
 
     fun openRirSelector(
