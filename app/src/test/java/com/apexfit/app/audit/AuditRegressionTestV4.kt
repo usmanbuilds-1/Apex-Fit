@@ -1011,7 +1011,9 @@ class AuditRegressionTestV4 {
         store.saveActiveSessionJson(com.google.gson.Gson().toJson(session))
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
         val manager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
-        kotlinx.coroutines.withTimeout(10_000) { store.activeSessionJsonFlow.first { it == null } }
+        kotlinx.coroutines.withTimeout(10_000) { manager.awaitRestoration() }
+        assertFalse("Restore must complete without error", manager.sessionRestoreFailed.value)
+        assertEquals("Committed draft must be removed from storage", null, store.activeSessionJsonFlow.first())
         assertEquals(null, manager.activeSession.value)
         assertEquals(1, dao.getSetsForSession(saved.id).size)
         assertFalse(manager.sessionRestoreFailed.value)
@@ -1211,10 +1213,10 @@ class AuditRegressionTestV4 {
             // Simulate process loss after Room commit but before active-draft clearing.
             store.saveActiveSessionJson(draftBeforeCommit)
             val restored = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
-            val recovered = kotlinx.coroutines.withTimeout(10_000) {
-                restored.recoveredReceipt.first { it != null }!!
-            }
-            kotlinx.coroutines.withTimeout(10_000) { store.activeSessionJsonFlow.first { it == null } }
+            kotlinx.coroutines.withTimeout(10_000) { restored.awaitRestoration() }
+            assertFalse("Restore must complete without error", restored.sessionRestoreFailed.value)
+            val recovered = checkNotNull(restored.recoveredReceipt.value) { "Committed receipt must be published" }
+            assertEquals("Committed draft must be removed from storage", null, store.activeSessionJsonFlow.first())
             assertEquals(original, recovered)
             assertEquals(null, restored.activeSession.value)
             assertEquals(1, dao.getSetsForSession(id).size)
@@ -1332,5 +1334,19 @@ class AuditRegressionTestV4 {
         } finally {
             AppDatabase.setTestDatabase(null)
         }
+    }
+
+    @Test
+    fun staleDraftCleanupDoesNotEraseNewerDraft() = runBlocking<Unit> {
+        val store = DataStoreManager.getInstance(context)
+        val old = """{"sessionId":"old"}"""
+        val newer = """{"sessionId":"new"}"""
+        store.saveActiveSessionJson(old)
+        store.saveActiveSessionJson(newer)
+        assertFalse(store.clearActiveDraftIfMatches(old))
+        assertEquals(newer, store.activeSessionJsonFlow.first())
+        assertTrue(store.clearActiveDraftIfMatches(newer))
+        assertEquals(null, store.activeSessionJsonFlow.first())
+        assertTrue(store.clearActiveDraftIfMatches(newer))
     }
 }
