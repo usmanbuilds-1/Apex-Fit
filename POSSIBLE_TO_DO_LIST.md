@@ -1,6 +1,6 @@
 # Apex Fit — Possible To-Do List
 
-Last updated: 2026-11-25
+Last updated: 2026-11-27
 
 ## Purpose and scope
 
@@ -11,6 +11,56 @@ This is a living **candidate backlog**, not an approved implementation plan or r
 - Separate visual/UX proposals from correctness issues. Known data-integrity and calculation defects should be evaluated before release; do not silently dismiss them as aesthetic preferences.
 - Keep the app offline-first, dark-only, fast and accessible. Do not introduce paid APIs or unnecessary dependencies.
 - For approved changes, use a dedicated branch/PR, regression tests, screenshot comparisons where relevant, and device QA. Merge only after explicit approval.
+
+## Current coordination — 2026-11-27
+
+**Owner of this backlog:** engineering ChatGPT session. Update this file when scope, evidence, approval or completion changes; do not maintain competing checklists. Codex/Work provides visual and local QA evidence for this file.
+
+- Engineering ChatGPT: source audit, scientific research, technical specifications, shared data contracts, migration design, domain implementation after approval, automated tests, independent review and integration.
+- Codex/Work (Luna): Stitch previews, UI/UX, screen inventory, approved Compose changes, local Android renders and interaction QA.
+- User: approves each screen, feature scope, implementation and merge.
+- Current gate: planning and preview only. No Android changes for this scope until approved. Today approval does not authorize other screens.
+- Last verified remote refs: main `02d5c6dfbf974fda8b7f1dc9c6c9e18b1daf48e7` before this documentation update; Codex branch `codex/night-ledger-qa-20261124` at `19039d0c77a0f33fe9d1337a091796651bc20b57`. Local/uncommitted state is unverified here.
+
+### Active work tracker
+
+| ID | Deliverable | Owner | Status |
+|---|---|---|---|
+| E01 | Audit 14 features against reachable source | Engineering | Pending |
+| E02 | Research competitors and scientific/technical evidence | Engineering | Pending |
+| E03 | 14-row specification, contracts, dependencies, migrations and acceptance tests | Engineering | Pending |
+| E04 | Shared analytics architecture and implementation order | Engineering | Pending |
+| U01 | Repair Today athlete binding and inspect actual Stitch render | Codex/Work | Assigned; result unverified |
+| U02 | Inventory screens and map features to UX destinations | Codex/Work | Assigned; result unverified |
+| G01 | Review preview and technical plan; approve or revise scope | User | Awaiting deliverables |
+| G02 | Implement approved domain and UI work on coordinated branches | Both | Blocked by G01; UI also requires screen-specific approval |
+| G03 | Regression, migration, render, device and integration QA | Both | Blocked by implementation |
+| G04 | Final merge authorization | User | Pending |
+
+### Proposed 14 features — compact scope register
+
+All are candidates, not approved implementation. Existing partial implementations must be verified before deciding what to change.
+
+| ID | Feature | Proposed behavior |
+|---|---|---|
+| F01 | Muscle volume graphs | Weekly/monthly/yearly direct working-set trends, using full history. |
+| F02 | Muscle heatmap | Interactive front/back map and accessible ranked list; counts reconcile with sets. |
+| F03 | Muscle set targets | Editable weekly targets per muscle, independent of prescriptions. |
+| F04 | Monthly volume comparison | Compare periods with partial-month and zero-baseline handling. |
+| F05 | Training frequency | Distinct trained dates per muscle and average intervals. |
+| F06 | Training reports | Weekly/monthly strength, volume, adherence and earned PRs tied to sessions. |
+| F07 | Workout calendar | Completed, scheduled and missed sessions using preserved schedule history. |
+| F08 | Exercise strength graphs | Actual load, reps, estimated 1RM and volume load with intact set pairing. |
+| F09 | Rep-specific PRs | Heaviest qualifying set per exact rep count, with backfill/ties/corrections. |
+| F10 | Relative strength | Movement-appropriate performance relative to body weight known at workout date. |
+| F11 | Performance goals | Load, rep or volume goals backed by qualifying records. |
+| F12 | Progress photos | Private on-device dated photos, thumbnails, comparison, deletion and backup policy. |
+| F13 | Supersets/circuits | Ordered groups across builder, importer and execution, with resume and real rest timing. |
+| F14 | Advanced set types | Explicit warm-up, working, drop, failure and rest-pause accounting; preserve legacy flags. |
+
+Previously discussed unilateral tracking, muscle feedback, mesocycles, equipment profiles and Health Connect remain optional future candidates outside the current 14-feature scope.
+
+**Maintenance rule:** record each milestone once, with commit/PR/test or preview evidence. Distinguish proposed, assigned, verified, approved, implemented, tested, deferred and rejected. Update on each relevant work session or reported Codex milestone; do not assume its local progress. The detailed technical specification will be a separate reviewed document linked from this tracker rather than duplicating it here.
 
 ## Candidate UX and design improvements
 
