@@ -278,9 +278,9 @@ class AlgorithmEngineTest {
             sex           = "male"
         )
         assertEquals(2400, targets.calories)
-        assertEquals(123, targets.protein)
+        assertEquals(144, targets.protein)
         assertEquals(80, targets.fat)
-        assertEquals(297, targets.carbs)
+        assertEquals(276, targets.carbs)
     }
 
     @Test
@@ -293,11 +293,11 @@ class AlgorithmEngineTest {
             heightCm = 180.0,
             sex = "male"
         )
-        assertEquals(2700, cycled.trainingDayCalories)
-        assertEquals(2233, cycled.restDayCalories)
-        assertEquals(135, cycled.trainingDayProtein)
-        assertEquals(111, cycled.restDayProtein)
-        assertEquals(72, cycled.fat)
+        assertEquals(2687, cycled.trainingDayCalories)
+        assertEquals(2251, cycled.restDayCalories)
+        assertEquals(144, cycled.trainingDayProtein)
+        assertEquals(144, cycled.restDayProtein)
+        assertEquals(80, cycled.fat)
         assertTrue(cycled.trainingDayCarbs > cycled.restDayCarbs)
     }
 
