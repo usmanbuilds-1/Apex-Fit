@@ -345,6 +345,11 @@ class WorkoutSessionManager(
                 .associateBy { it.exerciseId }
         }
         val lastSets = dao.getLastSetsWithDateForExercises(ids).groupBy { it.exerciseId }
+        // Do not interpret a previous multi-occurrence workout as one prescription.
+        val ambiguousHistoryIds = lastSets.filterValues { history ->
+            history.map { it.occurrenceIndex }.distinct().size > 1
+        }.keys
+        val progressionPausedIds = repeatedCatalogIds + ambiguousHistoryIds
         val exerciseCategories = dao.getExercisesByIds(ids).associate { it.id to it.category }
 
         val stalledCounts = try {
@@ -363,7 +368,7 @@ class WorkoutSessionManager(
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
             val suggestedPreferred: Double
-            if (exerciseSlug in repeatedCatalogIds) {
+            if (exerciseSlug in progressionPausedIds) {
                 // Legacy historical sets cannot distinguish separate prescriptions for
                 // the same exercise. Honor this occurrence's explicit load, or use
                 // first-exposure calibration; don't apply ambiguous automatic progression.
@@ -371,7 +376,7 @@ class WorkoutSessionManager(
                 val target = if (ex.weight > 0.0) ex.weight.fromDisplayWeightToKg(ex.weightUnit) else calibration.initialLoadKg
                 suggestionsMap[occurrenceKey] = target.toDisplayWeight(exerciseUnit)
                 lastWeightMap[occurrenceKey] = target
-                contextLinesMap[occurrenceKey] = "Separate exercise prescription · automatic progression paused for repeated entries."
+                contextLinesMap[occurrenceKey] = "Separate exercise prescription · automatic progression paused for repeated or mixed historical entries."
             } else if (lastSet == null) {
                 val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder
                     .forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
@@ -544,7 +549,7 @@ class WorkoutSessionManager(
             val readinessForVolume = readinessByMuscle[muscle]?.readinessPercent?.let { local ->
                 minOf(local, readinessScore?.systemicReadiness ?: local)
             }
-            val adjustment = if (exerciseSlug !in repeatedCatalogIds && muscle !in adjustedMuscles && lastLoggedWeight != null) {
+            val adjustment = if (exerciseSlug !in progressionPausedIds && muscle !in adjustedMuscles && lastLoggedWeight != null) {
                 com.apexfit.app.utils.AdaptiveSetVolume.adjustment(
                     goal = proposedGoal,
                     exerciseId = exerciseSlug,
@@ -569,6 +574,7 @@ class WorkoutSessionManager(
                 loadContext = contextLinesMap[occurrenceKey],
                 volumeAdjustment = adjustment,
                 occurrenceKey = occurrenceKey.takeIf { it != exerciseSlug },
+                sourcePlanExerciseId = ex.id.takeIf { it > 0L },
                 sets = (1..(adjustment?.adjustedSets ?: ex.sets)).map { setNum ->
                     ActiveSet(
                         setNumber = setNum,
@@ -847,7 +853,7 @@ class WorkoutSessionManager(
             .coerceAtLeast(1)
 
         // Flatten all sets, filter to completed if needed
-        val allSets = session.exercises.flatMap { exercise ->
+        val allSets = session.exercises.flatMapIndexed { occurrenceIndex, exercise ->
             exercise.sets
                 .filter { if (completedSetsOnly) it.completed else true }
                 .map { activeSet ->
@@ -864,7 +870,11 @@ class WorkoutSessionManager(
                         completed = activeSet.completed,
                         repsInReserve = activeSet.repsInReserve,
                         effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(activeSet.rpe),
-                        weightUnit = "kg"
+                        weightUnit = "kg",
+                        occurrenceIndex = occurrenceIndex,
+                        setNumber = activeSet.setNumber,
+                        sourcePlanExerciseId = exercise.sourcePlanExerciseId,
+                        setCompletedAt = activeSet.completedAt.takeIf { activeSet.completed && it > 0L }
                     )
                 }
         }
