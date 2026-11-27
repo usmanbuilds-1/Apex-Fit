@@ -94,7 +94,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         viewModelScope.launch {
             sessionManager.activeSession.map { it?.sessionId }.distinctUntilChanged().collect { id ->
                 val active = sessionManager.activeSession.value
-                if (id != null && active?.sessionId == id && sessionManager.restoredFromDisk.value) {
+                if (id != null && active?.sessionId == id) {
                     _currentExerciseIdx.value = WorkoutResumeState.cursor(active)
                 }
             }
