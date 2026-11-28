@@ -367,7 +367,8 @@ data class ActiveExercise(
     val volumeAdjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null,
     val occurrenceKey: String? = null,
     val sourcePlanExerciseId: Long? = null,
-    val secondaryMuscleSnapshot: String? = null
+    val secondaryMuscleSnapshot: String? = null,
+    val progressionProposal: com.apexfit.app.utils.ConfirmedProgressionProposal? = null
 ) {
     /** Execution identity; catalog exerciseId is always preserved for historical records. */
     val executionKey: String get() = occurrenceKey ?: exerciseId
@@ -428,7 +429,11 @@ data class LastSetWithDate(
     val date: String,
     val repsInReserve: Int = 2,
     @ColumnInfo(name = "occurrence_index") val occurrenceIndex: Int? = null,
-    @ColumnInfo(name = "advanced_details") val advancedDetails: String? = null
+    @ColumnInfo(name = "advanced_details") val advancedDetails: String? = null,
+    @ColumnInfo(name = "weight_unit") val weightUnit: String = "kg",
+    @ColumnInfo(name = "set_observation") val setObservation: String? = null,
+    @ColumnInfo(name = "source_plan_exercise_id") val sourcePlanExerciseId: Long? = null,
+    @ColumnInfo(name = "set_number") val setNumber: Int? = null
 )
 
 data class EffectiveSetsData(

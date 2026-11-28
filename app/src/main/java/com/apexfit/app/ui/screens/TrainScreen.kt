@@ -1,4 +1,5 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ui.theme.ApexIcons
 import androidx.compose.ui.res.painterResource
 
@@ -855,6 +856,25 @@ fun WorkoutExecutionSubTab(
                             roundRest = (circuit?.roundRestSeconds ?: 90).toString()
                             showCircuitEditor = true
                         }) { Text(if (circuit == null) "Configure superset / circuit" else "Edit circuit") }
+                    }
+                    val proposalExercise = liveSession?.exercises?.getOrNull(currentIdx)
+                    val proposal = proposalExercise?.progressionProposal
+                    var showProgressionConfirm by remember { mutableStateOf(false) }
+                    if (proposal != null && proposalExercise != null && liveSession?.circuit == null &&
+                        proposalExercise.sets.none { it.completed }) {
+                        TextButton(enabled = !savingSet && !showRirOverlay && liveSession?.restCheckpoint == null,
+                            onClick = { showProgressionConfirm = true }) {
+                            Text("Use suggested load · confirm setup")
+                        }
+                        if (showProgressionConfirm) AlertDialog(
+                            onDismissRequest = { showProgressionConfirm = false },
+                            title = { Text("Same equipment setup?") },
+                            text = { Text("Previous setup: ${proposal.basis.label} · ${proposal.setup}. Source workout ${proposal.sourceDate}. Apply ${proposal.suggestedKg.toDisplayWeight(preferredUnits)} $preferredUnits in this same load convention, replacing the weights of all unlogged prescribed sets? Adjust manually if equipment or conditions differ.") },
+                            confirmButton = { TextButton(onClick = {
+                                showProgressionConfirm = false
+                                workoutExecutionViewModel.applyProgression(proposalExercise.executionKey, proposal)
+                            }) { Text("Confirm and apply") } },
+                            dismissButton = { TextButton(onClick = { showProgressionConfirm = false }) { Text("Keep plan load") } })
                     }
                     val grouped = circuitSession != null && com.apexfit.app.utils.CircuitExecution.contains(circuitSession, currentIdx)
                     if (grouped && circuit != null) {

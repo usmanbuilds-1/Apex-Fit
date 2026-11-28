@@ -2,7 +2,8 @@ package com.apexfit.app
 import androidx.room.withTransaction
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.data.*
-import com.apexfit.app.utils.ProgressionEngine.OutcomeType
+import com.apexfit.app.utils.ProgressionEvidence
+import com.apexfit.app.utils.ConfirmedProgressionProposal
 import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.utils.fromDisplayWeightToKg
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +52,6 @@ class WorkoutSessionManager(
     private val appContext: android.content.Context,
 ) {
 
-    private var lastProgressionResults: MutableMap<String, Any> = mutableMapOf()
     private var metadataMap: Map<String, ExerciseMetadata> = emptyMap()
     private val gson = Gson()
     private var persistJob: Job? = null
@@ -371,12 +371,7 @@ class WorkoutSessionManager(
         val exerciseCatalog = dao.getExercisesByIds(ids).associateBy { it.id }
         val exerciseCategories = exerciseCatalog.mapValues { it.value.category }
 
-        val stalledCounts = try {
-            dao.getStalledCountsForExercises(ids).associate { it.exerciseId to it.stalledCount }
-        } catch (e: Exception) {
-            emptyMap()
-        }
-
+        val proposals = mutableMapOf<String, ConfirmedProgressionProposal>()
         exercises.forEachIndexed { index, ex ->
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
             val exerciseSlug = catalogIds[index]
@@ -386,199 +381,41 @@ class WorkoutSessionManager(
             val isBodyweight = exerciseCategories[exerciseSlug].equals("Bodyweight", ignoreCase = true)
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
-            val suggestedPreferred: Double
-            if (exerciseSlug in progressionPausedIds) {
-                // Legacy historical sets cannot distinguish separate prescriptions for
-                // the same exercise. Honor this occurrence's explicit load, or use
-                // first-exposure calibration; don't apply ambiguous automatic progression.
-                val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder.forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
-                val target = if (ex.weight > 0.0) ex.weight.fromDisplayWeightToKg(ex.weightUnit) else calibration.initialLoadKg
-                suggestionsMap[occurrenceKey] = target.toDisplayWeight(exerciseUnit)
-                lastWeightMap[occurrenceKey] = target
-                contextLinesMap[occurrenceKey] = "Separate exercise prescription · automatic progression paused for repeated or mixed historical entries."
-            } else if (lastSet == null) {
-                val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder
-                    .forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
-                suggestionsMap[occurrenceKey] = calibration.initialLoadKg.toDisplayWeight(exerciseUnit)
-                lastWeightMap[occurrenceKey] = calibration.initialLoadKg
-                contextLinesMap[occurrenceKey] = calibration.guidance
-            } else if (isBodyweight && ex.weight <= 0.0 && lastSet.weight <= 0.0) {
-                suggestionsMap[occurrenceKey] = 0.0
-                lastWeightMap[occurrenceKey] = 0.0
-                contextLinesMap[occurrenceKey] = "Bodyweight · record added load only if you use it."
-            } else {
-                val daysSince = com.apexfit.app.utils.getDaysBetweenClamped(lastSet.date, today)
-
-                val lastWeightLbs = lastSet.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS
-
-                // The DAO returns the latest set first so lastSet above stays the
-                // most recent load for context. Progression, however, must evaluate
-                // the prescribed sets in the order they were performed.
-                val allLastSets = exerciseHistory.sortedBy { it.id }.map { previous ->
-                    com.apexfit.app.ui.models.UiExerciseSet(
-                        id = previous.id,
-                        weight = previous.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,
-                        reps = previous.reps,
-                        rpe = previous.rpe,
-                        isWarmup = previous.isWarmup,
-                        completed = previous.completed,
-                        exerciseName = previous.exerciseName,
-                        sessionId = previous.sessionId,
-                        muscleGroup = previous.muscleGroup
-                    )
-                }
-
-                // Progression is based on actual completed reps and effort;
-                // a heuristic load index is not a calibrated weight multiplier.
-                val recoveryMultiplier = 1.0
-                  
-                val stalledCount = stalledCounts[exerciseSlug] ?: 0
-                val isImperial = exerciseUnit.lowercase() in listOf("lb", "lbs")
-                val metadataIncrementKg = metadataMap[exerciseSlug]
-                    ?.defaultProgressionIncrementKg
-                    ?.takeIf { it > 0.0 }
-                val fallbackStep = if (exType == "isolation") 1.25 else 2.5
-
-                // The engine's canonical input is kg metadata converted internally
-                // to pounds. Custom exercises have no seed metadata, so derive a
-                // canonical override from the user's actual increment grid instead
-                // of mixing a pound fallback with a kilogram boundary.
-                val progressionIncrementKg = metadataIncrementKg ?: if (isImperial) {
-                    fallbackStep / com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                } else {
-                    fallbackStep
-                }
-
-                val progressionResult = com.apexfit.app.utils.ProgressionEngine.calculateProgressiveWeight(  
-                    exerciseId = exerciseSlug,  
-                    lastSessionSets = allLastSets.ifEmpty {  
-                        listOf(com.apexfit.app.ui.models.UiExerciseSet(  
-                            weight = lastWeightLbs,  
-                            reps = ex.repsMin,  
-                            rpe = 7,  
-                            isWarmup = false,  
-                            completed = true  
-                        ))  
-                    },  
-                    repsMin = ex.repsMin,  
-                    repsMax = ex.repsMax,  
-                    targetSets = ex.sets,  
-                    recoveryMultiplier = recoveryMultiplier,  
-                    currentWeight = lastWeightLbs,  
-                    exerciseType = exType,
-                    consecutiveStalledSessions = stalledCount,
-                    incrementOverrideKg = progressionIncrementKg
-                )
-                lastProgressionResults[exerciseSlug] = progressionResult
-
-                val suggestedLbs = progressionResult.newWeight
-
-                // Quantise once, at the user-facing unit boundary. Metric seed
-                // metadata already describes the intended increment (1 kg, 1.25 kg,
-                // 2 kg, 2.5 kg, 5 kg). For imperial display, map that equivalent to
-                // a practical 1.25/2.5 lb grid rather than quantising in both units.
-                val preferredStep = if (metadataIncrementKg != null) {
-                    if (isImperial) {
-                        val hardwareGrid = fallbackStep
-                        val equivalentLbs = metadataIncrementKg * com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                        (Math.round(equivalentLbs / hardwareGrid) * hardwareGrid)
-                            .coerceAtLeast(hardwareGrid)
-                    } else {
-                        metadataIncrementKg
-                    }
-                } else {
-                    fallbackStep
-                }
-
-                val lastPreferred = if (isImperial) {
-                    lastSet.weight.toDisplayWeight(exerciseUnit)
-                } else {
-                    lastSet.weight
-                }
-
-                val suggestedPreferred = when (progressionResult.outcome) {
-                    OutcomeType.STALLED, OutcomeType.PROGRESSING -> lastPreferred
-                    OutcomeType.SUCCESS -> {
-                        val rawDeltaPreferred = if (isImperial) {
-                            suggestedLbs - lastWeightLbs
-                        } else {
-                            (suggestedLbs - lastWeightLbs) / com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                        }
-                        val quantizedDelta = if (rawDeltaPreferred >= preferredStep / 2.0) {
-                            (Math.round(rawDeltaPreferred / preferredStep) * preferredStep)
-                                .coerceAtLeast(preferredStep)
-                        } else {
-                            0.0
-                        }
-                        val candidate = lastPreferred + quantizedDelta
-                        val finalPreferred = if (isImperial && quantizedDelta > 0.0) {
-                            // Stored history is canonical kg, so converting it to lb
-                            // can produce values such as 100.09. On a successful
-                            // progression, snap the *displayed target* to the imperial
-                            // hardware grid without changing hold semantics.
-                            val snapped = Math.round(candidate / preferredStep) * preferredStep
-                            if (snapped <= lastPreferred) lastPreferred + preferredStep else snapped
-                        } else {
-                            candidate
-                        }
-                        Math.round(finalPreferred * 100.0) / 100.0
-                    }
-                    OutcomeType.PLATEAU -> {
-                        val rawTarget = lastPreferred * 0.9
-                        val quantizedTarget = Math.floor(rawTarget / preferredStep) * preferredStep
-                        Math.round(quantizedTarget.coerceAtLeast(0.0) * 100.0) / 100.0
-                    }
-                }
-
-                suggestionsMap[occurrenceKey] = suggestedPreferred
-                lastWeightMap[occurrenceKey] = lastSet.weight
-                val contextSuffix = " ($daysSince days ago)"
-                val lastWeightDisplay = lastSet.weight.toDisplayWeight(exerciseUnit)
-                contextLinesMap[occurrenceKey] = "Last: $lastWeightDisplay $exerciseUnit @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $exerciseUnit. Outcome: ${progressionResult.reason}"
+            val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder.forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
+            val prescribedKg = ex.weight.takeIf { it.isFinite() && it > 0.0 }
+                ?.fromDisplayWeightToKg(ex.weightUnit) ?: 0.0
+            val isImperial = exerciseUnit.lowercase() in listOf("lb", "lbs")
+            val fallbackStep = if (exType == "isolation") 1.25 else 2.5
+            val incrementKg = metadataMap[exerciseSlug]?.defaultProgressionIncrementKg?.takeIf { it.isFinite() && it > 0.0 }
+                ?: if (isImperial) fallbackStep / com.apexfit.app.utils.AppConstants.KG_TO_LBS else fallbackStep
+            // Current equipment cannot be inferred from a prior log or exercise category.
+            // Never auto-apply a load change; require explicit same-setup confirmation first.
+            val proposal = if (exerciseSlug !in progressionPausedIds && !isBodyweight)
+                ProgressionEvidence.proposal(exerciseHistory, ex.id, ex.sets, ex.repsMax, incrementKg,
+                    java.time.LocalDate.parse(today)) else null
+            if (proposal != null) proposals[occurrenceKey] = proposal
+            suggestionsMap[occurrenceKey] = prescribedKg.toDisplayWeight(exerciseUnit)
+            val priorKg = lastSet?.let(ProgressionEvidence::kg)
+            lastWeightMap[occurrenceKey] = priorKg ?: prescribedKg
+            contextLinesMap[occurrenceKey] = when {
+                proposal != null -> "Prior comparable sets on ${proposal.sourceDate} · ${proposal.basis.label} · ${proposal.setup}. Confirm same setup to use ${proposal.suggestedKg.toDisplayWeight(exerciseUnit)} $exerciseUnit."
+                lastSet == null -> calibration.guidance
+                isBodyweight -> "Bodyweight · record added load only if used."
+                else -> "Automatic progression paused: prior prescription, effort or load setup is not verified. Use your plan load or enter a suitable load."
             }
         }
 
         _lastWeights.value = lastWeightMap
         _weightContextLines.value = contextLinesMap
 
-        val proposedGoal = dao.getAllPlans().firstOrNull { it.id == planSession.planId }?.goal.orEmpty()
-        val recentSessions = repository.richSessionsFlow.value
-        val fatigueSnapshot = com.apexfit.app.utils.FatigueEngine.calcFatigueToFitnessRatio(recentSessions)
-        val deloadRecommended = com.apexfit.app.utils.PlateauEngine.calcDeloadRecommendation(
-            trainingLog = recentSessions,
-            complianceScore = 0,
-            precomputedFatigue = fatigueSnapshot
-        ).recommendation.let { it == "deload_now" || it == "deload_soon" }
-        val readinessByMuscle = readinessScore?.takeIf { it.finalScore != null }
-            ?.muscleDetails.orEmpty().filter { it.confidence != "none" }
-            .associateBy { com.apexfit.app.utils.MuscleAliases.getCanonical(it.muscleGroup) }
-        val adjustedMuscles = mutableSetOf<String>()
         // Build the in-memory session with pre-filled sets
         val activeExercises = exercises.mapIndexed { index, ex ->
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
             val exerciseSlug = catalogIds[index]
             val occurrenceKey = occurrenceKeys[index]
             val suggestedWeight = suggestionsMap[occurrenceKey] ?: ex.weight.toDisplayWeight(exerciseUnit)
-            val muscle = com.apexfit.app.utils.MuscleAliases.getCanonical(ex.muscleGroup)
-            val lastLoggedWeight = lastSets[exerciseSlug]?.firstOrNull()?.weight
-            val readinessForVolume = readinessByMuscle[muscle]?.readinessPercent?.let { local ->
-                minOf(local, readinessScore?.systemicReadiness ?: local)
-            }
-            val adjustment = if (exerciseSlug !in progressionPausedIds && muscle !in adjustedMuscles && lastLoggedWeight != null) {
-                com.apexfit.app.utils.AdaptiveSetVolume.adjustment(
-                    goal = proposedGoal,
-                    exerciseId = exerciseSlug,
-                    baseSets = ex.sets,
-                    repsMin = ex.repsMin,
-                    sessions = recentSessions,
-                    today = java.time.LocalDate.parse(today),
-                    readiness = readinessForVolume,
-                    loadChanged = kotlin.math.abs(suggestedWeight.fromDisplayWeightToKg(exerciseUnit) - lastLoggedWeight) > 0.05,
-                    fatigueRatio = fatigueSnapshot.ratio,
-                    deloadRecommended = deloadRecommended
-                )
-            } else null
-            if (adjustment != null) adjustedMuscles.add(muscle)
+            // Volume adjustments need confirmed current setup and source-aware effort history too.
+            val adjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null
             ActiveExercise(
                 exerciseId = exerciseSlug,
                 exerciseName = ex.name,
@@ -588,6 +425,7 @@ class WorkoutSessionManager(
                 targetRepsMax = ex.repsMax,
                 loadContext = contextLinesMap[occurrenceKey],
                 volumeAdjustment = adjustment,
+                progressionProposal = proposals[occurrenceKey],
                 occurrenceKey = occurrenceKey.takeIf { it != exerciseSlug },
                 sourcePlanExerciseId = ex.id.takeIf { it > 0L },
                 secondaryMuscleSnapshot = exerciseCatalog[exerciseSlug]?.let {
@@ -756,6 +594,35 @@ class WorkoutSessionManager(
     fun isLiveRestCheckpoint(sessionId: String, checkpoint: ActiveRestCheckpoint): Boolean =
         synchronized(stateLock) { liveRestIdentity == (sessionId to checkpoint.startedElapsedMs) }
 
+    suspend fun applyProgressionDurably(expectedSessionId: String, exerciseKey: String,
+                                        proposal: ConfirmedProgressionProposal): Boolean {
+        val before = activeSession.value?.takeIf { it.sessionId == expectedSessionId } ?: return false
+        val exerciseBefore = before.exercises.getOrNull(WorkoutResumeState.cursor(before)) ?: return false
+        if (exerciseBefore.executionKey != exerciseKey || exerciseBefore.progressionProposal != proposal) return false
+        // Revalidate source facts before the durable draft mutation. No suspend call under stateLock.
+        val source = dao.getLastSetsWithDateForExercises(listOf(exerciseBefore.exerciseId))
+        val current = ProgressionEvidence.proposal(source, exerciseBefore.sourcePlanExerciseId ?: 0L,
+            proposal.targetSets, exerciseBefore.targetRepsMax ?: 0,
+            (proposal.suggestedKg - proposal.priorKg).takeIf { it > 0 } ?: 1.0,
+            java.time.LocalDate.now()) ?: return false
+        if (current.copy(suggestedKg = proposal.suggestedKg) != proposal ||
+            kotlin.math.abs(current.suggestedKg - proposal.suggestedKg) > 0.000001) return false
+        val applied = mutateDraftDurably(expectedSessionId) { session ->
+            if (session.circuit != null || session.restCheckpoint != null) return@mutateDraftDurably null
+            val index = WorkoutResumeState.cursor(session)
+            val exercise = session.exercises.getOrNull(index) ?: return@mutateDraftDurably null
+            if (exercise.executionKey != exerciseKey) return@mutateDraftDurably null
+            val updated = ProgressionEvidence.apply(exercise, proposal) ?: return@mutateDraftDurably null
+            session.copy(exercises = session.exercises.toMutableList().apply { set(index, updated) })
+        }
+        if (applied) synchronized(stateLock) {
+            val active = _activeSession.value?.takeIf { it.sessionId == expectedSessionId }
+            val updated = active?.exercises?.firstOrNull { it.executionKey == exerciseKey }
+            updated?.loadContext?.let { _weightContextLines.value = _weightContextLines.value + (exerciseKey to it) }
+        }
+        return applied
+    }
+
     suspend fun configureCircuitDurably(expectedSessionId: String, group: ActiveCircuit?): Boolean =
         mutateDraftDurably(expectedSessionId) { CircuitExecution.configure(it, group) }
 
@@ -875,7 +742,6 @@ class WorkoutSessionManager(
     }
 
     private fun resetActiveState() {
-        lastProgressionResults.clear()
         liveRestIdentity = null
         _activeSession.value = null
         _lastWeights.value = emptyMap()
@@ -1109,20 +975,8 @@ class WorkoutSessionManager(
             val staged = buildReceipt(trainingSession, allSets, earned).copy(savedSets = emptyList())
             dataStore.stageWorkoutReceipt(sessionId, gson.toJson(staged))
             repository.insertSessionWithPRsAtomic(trainingSession, allSets, earned)
-            val exerciseIds = lastProgressionResults.keys.toList()
-            val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
-                .associate { it.exerciseId to it.stalledCount }
-            lastProgressionResults.forEach { (exerciseId, result) ->
-                if (!trainingSession.completed || exerciseId in advancedIds || allSets.none { it.exerciseId == exerciseId && it.completed && !it.isWarmup }) return@forEach
-                val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
-                val current = currentCounts[exerciseId] ?: 0
-                val newCount = when (r.outcome.name) {
-                    "SUCCESS", "PROGRESSING", "PLATEAU" -> 0
-                    "STALLED" -> current + 1
-                    else -> current
-                }
-                dao.updateStalledCount(exerciseId, newCount)
-            }
+            // Legacy stall counters were based on the preceding workout and cannot be
+            // replayed after edits. Do not update or use them until source-linked replay exists.
             buildReceipt(trainingSession, dao.getSetsForSession(sessionId), earned)
         }
 

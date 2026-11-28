@@ -25,7 +25,9 @@ data class SetVolumeAdjustment(val baseSets: Int, val adjustedSets: Int, val rea
                 restTakenSeconds = 0,
                 completedAt = 0L,
                 completed = false,
-                repsInReserve = 2
+                repsInReserve = 2,
+                advancedDetails = null,
+                setObservation = null
             )
         }
     }

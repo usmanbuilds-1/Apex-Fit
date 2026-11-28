@@ -67,3 +67,6 @@ RIR is a self-reported effort estimate, not a measurement; prior RIR accuracy ev
 
 ### Integration: captured set observations (2026-11-28)
 A08 eligibility and uncertainty policies are unchanged. Actual load convention and RIR are user attestations, not measured resistance or objectively verified proximity to failure. Explicit 5+ is a category; legacy values are not promoted. Setup names identify user-selected comparable conditions, not calibrated machines. Optional explicit free-weight rep-limit check retains narrow estimate eligibility. This is provenance engineering; no new physiological effect or accuracy claim. See A07/A08 evidence and Android Room migration guidance. Existing automated progression consumers still need source-aware review; no new prescriptions.
+
+### Integration: progression eligibility (2026-11-28)
+Explicit matching setup and rated work are reporting/decision integrity policies, not physiological measurements. RPE 8 and existing metadata increments are product rules; they are not validated as universal optimal prescriptions. Unknown effort and mixed resistance conventions cannot trigger increases or stall classifications. Until matched historical prescription replay exists, hold or offer a conditional next-load suggestion rather than automatically deloading. Existing A08 RIR evidence applies; no new empirical claim.

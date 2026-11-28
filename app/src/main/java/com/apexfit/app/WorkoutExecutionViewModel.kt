@@ -598,6 +598,18 @@ class WorkoutExecutionViewModel @Inject constructor(
         persistConfirmedSet(exerciseId, setIndex, weight, reps, 0, completed = true,
             advanceAfterCompletion = true, advanced = details)
 
+    fun applyProgression(exerciseKey: String, proposal: com.apexfit.app.utils.ConfirmedProgressionProposal) {
+        val active = sessionManager.activeSession.value ?: return
+        if (isCommitting.get() || !_isSavingSet.compareAndSet(false, true)) return
+        _setSaveError.value = null
+        viewModelScope.launch {
+            try { check(sessionManager.applyProgressionDurably(active.sessionId, exerciseKey, proposal)) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { _setSaveError.value = "Suggestion is no longer valid. Use the load fields to adjust manually." }
+            finally { _isSavingSet.value = false }
+        }
+    }
+
     fun configureCircuit(group: ActiveCircuit?) {
         val active = sessionManager.activeSession.value ?: return
         if (isCommitting.get() || !_isSavingSet.compareAndSet(false, true)) return

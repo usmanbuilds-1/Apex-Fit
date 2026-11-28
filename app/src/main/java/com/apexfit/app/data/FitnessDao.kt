@@ -537,6 +537,7 @@ interface FitnessDao {
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
                es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
+               es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -561,6 +562,7 @@ interface FitnessDao {
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
                es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
+               es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -579,6 +581,7 @@ interface FitnessDao {
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
                es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
+               es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -691,6 +694,7 @@ interface FitnessDao {
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
                es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
+               es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id

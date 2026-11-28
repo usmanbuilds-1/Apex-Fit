@@ -23,6 +23,11 @@ internal object ActiveWorkoutCodec {
             require(exercise.get("exerciseId")?.asString?.isNotBlank() == true)
             require(exercise.get("exerciseName")?.asString?.isNotBlank() == true)
             require(exercise.get("muscleGroup")?.isJsonPrimitive == true)
+            val proposal = exercise.get("progressionProposal")
+            if (proposal != null && !proposal.isJsonNull) {
+                require(ConfirmedProgressionProposal.valid(
+                    com.google.gson.Gson().fromJson(proposal, ConfirmedProgressionProposal::class.java)))
+            }
             val snapshot = exercise.get("secondaryMuscleSnapshot")
             if (snapshot != null && !snapshot.isJsonNull) {
                 require(snapshot.isJsonPrimitive && snapshot.asJsonPrimitive.isString &&
