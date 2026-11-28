@@ -52,7 +52,8 @@ object LoadConfirmations {
     fun normalizedSetup(setup: String): String = setup.trim().lowercase(Locale.ROOT)
 }
 
-data class RepRecordKey(val basis: RecordedLoadBasis, val setup: String, val reps: Int)
+data class RepRecordKey(val basis: RecordedLoadBasis, val setup: String, val reps: Int,
+                        val trainingFormat: TrainingFormat = TrainingFormat.UNKNOWN)
 data class RepRecordEvent(
     val key: RepRecordKey, val sessionId: String, val date: LocalDate,
     val setId: Long, val loadGrams: Long, val chronologyLimited: Boolean
@@ -62,7 +63,7 @@ data class RepRecordEvent(
 
 data class RepRecordProjection(val events: List<RepRecordEvent>) {
     val best: List<RepRecordEvent> get() = events.groupBy { it.key }.values.map { it.last() }
-        .sortedWith(compareBy({ it.key.basis.name }, { it.key.setup }, { it.key.reps }))
+        .sortedWith(compareBy({ it.key.basis.name }, { it.key.setup }, { it.key.trainingFormat.name }, { it.key.reps }))
 }
 
 object RepRecords {
@@ -77,7 +78,7 @@ object RepRecords {
                     ?: return@mapNotNull null
                 if (observation.setId <= 0 || observation.reps <= 0) return@mapNotNull null
                 val grams = (kg * 1000.0).roundToLong().takeIf { it > 0 } ?: return@mapNotNull null
-                Candidate(RepRecordKey(c.basis, LoadConfirmations.normalizedSetup(c.setup), observation.reps),
+                Candidate(RepRecordKey(c.basis, LoadConfirmations.normalizedSetup(c.setup), observation.reps, point.trainingFormat),
                     point.sessionId, point.date, observation.setId, grams, observation.completedAt?.takeIf { it > 0 })
             }
         }
