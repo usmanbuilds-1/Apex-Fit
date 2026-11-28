@@ -637,7 +637,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { if (!isResetting) showResetDialog = false },
             title = { Text(stringResource(R.string.settings_reset_all_data)) },
-            text = { Text(stringResource(R.string.settings_this_will_permanently_delete_a)) },
+            text = { Text("Deletes saved local workouts, plans, nutrition, measurements, goals, progress photos and unfinished workout data. Previously exported files and original photos outside Apex Fit are not deleted. Only the bundled exercise catalog is restored.") },
             confirmButton = {
                 TextButton(
                     onClick = {
