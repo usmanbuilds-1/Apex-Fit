@@ -275,7 +275,10 @@ data class PlanExercise(
     @ColumnInfo(name = "weight_unit", defaultValue = "'kg'")
     val weightUnit: String = "kg",
     val restSeconds: Int,
-    val notes: String
+    val notes: String,
+    @ColumnInfo(name = "group_key") val groupKey: String? = null,
+    @ColumnInfo(name = "group_transition_rest") val groupTransitionRest: Int? = null,
+    @ColumnInfo(name = "group_round_rest") val groupRoundRest: Int? = null
 )
 
 @Entity(
