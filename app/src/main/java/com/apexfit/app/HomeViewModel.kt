@@ -112,6 +112,9 @@ class HomeViewModel @Inject constructor(
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
+    val todayWorkoutChoice = repository.todayWorkoutChoiceFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> =
         repository.todayExercisesFlow
 
