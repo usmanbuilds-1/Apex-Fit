@@ -313,9 +313,10 @@ class FitnessRepositoryImpl @Inject constructor(
             val localDate = LocalDate.parse(todayDate)
             val applicable = projectedWeek?.takeIf { it.monday == WorkoutSchedule.monday(localDate) }
             if (applicable != null) {
-                // Today may have a fresher actual completion or choice than the weekly flow.
-                val adjusted = applicable.copy(trainingDates = if (isTodayTraining)
-                    applicable.trainingDates + localDate else applicable.trainingDates - localDate)
+                // A fresher actual completion can establish training; do not discard verified
+                // partial association evidence just because its reservation has been consumed.
+                val adjusted = if (completedTodayCount > 0)
+                    applicable.copy(trainingDates = applicable.trainingDates + localDate) else applicable
                 return@combine MacroEngine.calcProjectedDayTargets(calories, adjusted, localDate,
                     goal, latestWeight, bio.heightCm, bio.biologicalSex)
             }
