@@ -298,9 +298,10 @@ class HomeViewModel @Inject constructor(
 
     fun exportUserData(destination: android.net.Uri, onComplete: (Boolean) -> Unit) {
         if (!_isExporting.compareAndSet(false, true)) return
+        val generation = com.apexfit.app.utils.LocalResetCoordinator.currentGeneration()
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                com.apexfit.app.utils.SecureUserExport.save(getApplication<Application>(), destination)
+                com.apexfit.app.utils.SecureUserExport.save(getApplication<Application>(), destination, generation)
                 withContext(Dispatchers.Main) { onComplete(true) }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
