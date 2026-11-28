@@ -18,6 +18,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import com.apexfit.app.data.AppDatabase
 import com.apexfit.app.data.DataStoreManager
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.cancel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -47,10 +48,23 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
         var body = inputData.getString("body") ?: "Open Apex Fit to view updates."
         val id = inputData.getString("id") ?: "apex_notification"
         val today = com.apexfit.app.utils.getTodayDateString()
+        val localDate = java.time.LocalDate.parse(today)
+        if (!ScheduleConsumerPolicy.sameDayNotification(inputData.getString("scheduled_date"), localDate)) return Result.success()
+        if (id == "morning_readiness") {
+            val dao = buildDao(applicationContext)
+            val choice = TodayWorkoutResolver.observe(dao, localDate).first()
+            val completed = dao.getCompletedSessionCountFlow(today).first()
+            val label = ScheduleConsumerPolicy.readinessSession(localDate, choice, completed) ?: return Result.success()
+            title = "Today’s workout"
+            body = "You have $label today. Open Apex Fit to review your readiness."
+        }
         if (id == "midday_protein") {
             val dao = buildDao(applicationContext)
             val todayProtein = dao.getNutritionForDate(today).sumOf { it.protein }
-            val proteinTarget = inputData.getInt("protein_target", 0)
+            val repository = buildRepository(applicationContext)
+            val proteinTarget = try { repository.sharedTargetsFlow.first().protein }
+                finally { repository.appScope.cancel() }
+            if (proteinTarget <= 0) return Result.success()
             if (proteinTarget > 0) {
                 if (todayProtein >= proteinTarget * 0.30) return Result.success()
                 title = "Protein progress"
@@ -108,6 +122,7 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
 class DailyCoachingWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val repository = buildRepository(applicationContext)
+        try {
         val dao = buildDao(applicationContext)
         val dataStore = buildDataStore(applicationContext)
 
@@ -134,54 +149,12 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         val dbSets = dao.getRecentExerciseSets(cutoff)
         val completedSessions = com.apexfit.app.utils.SessionMapper.buildRichSessions(dbSessions, dbSets)
 
-        val isManual = dataStore.calorieTargetManualFlow.first()
-        val manualValue = dataStore.calorieTargetValueFlow.first()
         val userGoal = dataStore.goalFlow.first()
-        val latestWeightForCoaching = BodyWeightHistory.latest(dbWeights)?.weight ?: repository.getCurrentWeightFlow().first()
-        val latestTrend = AlgorithmEngine.getCurrentTrendWeight(engineWeights) ?: latestWeightForCoaching
-        
-        val goalWeight = dataStore.explicitGoalWeightFlow.first()
-        val userHeight = dataStore.heightFlow.first()
-        val userSex    = dataStore.sexFlow.first()
-        val userAge    = dataStore.ageFlow.first()
-        val weeklyWorkouts = repository.getTrainingFrequencyFlow().first()
-        val averageWorkouts = repository.getAverageTrainingFrequencyFlow().first()
-        val tdeeResult = TdeeEngine.calcAdaptiveTDEE(
-            engineWeights, dbNutrition, heightCm = userHeight, ageYears = userAge,
-            biologicalSex = userSex, weeklyWorkouts = averageWorkouts,
-            fallbackWeightKg = latestWeightForCoaching,
-            nutritionConfirmations = dataStore.nutritionDayConfirmationsFlow.first()
-        )
-        val suggestedCal = TdeeEngine.suggestCaloricTarget(
-            tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
-            goal            = userGoal,
-            currentWeightKg = latestWeightForCoaching,
-            goalWeightKg    = goalWeight,
-            heightCm        = userHeight,
-            ageYears        = userAge,
-            sex             = userSex
-        )
-        
-        val calorieTarget = if (isManual) manualValue else suggestedCal
-        val targets = com.apexfit.app.utils.MacroEngine.calcMacroTargets(
-            calorieTarget = calorieTarget,
-            bodyWeightKg  = latestWeightForCoaching,
-            goal          = userGoal,
-            heightCm      = userHeight,
-            sex           = userSex,
-            weeklyTrainingSessions = weeklyWorkouts
-        )
-
-        // Find today session
-        val activePlan = dao.getActivePlan()
-        var todaySessionType: String? = null
-        if (activePlan != null) {
-            val sessionsPlan = dao.getSessionsForPlan(activePlan.id)
-            val todaySession = WorkoutSchedule.sessionForDate(activePlan, sessionsPlan, java.time.LocalDate.now())
-            if (todaySession != null) {
-                todaySessionType = todaySession.label
-            }
-        }
+        val today = java.time.LocalDate.now()
+        val targets = repository.sharedTargetsFlow.first()
+        val choice = TodayWorkoutResolver.observe(dao, today).first()
+        val completedToday = dao.getCompletedSessionCountFlow(today.toString()).first()
+        val todaySessionType = ScheduleConsumerPolicy.readinessSession(today, choice, completedToday)
 
         val workManager = WorkManager.getInstance(applicationContext)
 
@@ -229,16 +202,15 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
                 set(java.util.Calendar.MINUTE, 0)
                 set(java.util.Calendar.SECOND, 0)
                 set(java.util.Calendar.MILLISECOND, 0)
-                if (timeInMillis <= now.timeInMillis) {
-                    add(java.util.Calendar.DAY_OF_YEAR, 1)
-                }
+                // Never carry today's evaluated trigger into tomorrow.
             }
+            if (target.timeInMillis <= now.timeInMillis) return@forEach
             val delayMs = (target.timeInMillis - java.util.Calendar.getInstance().timeInMillis).coerceAtLeast(0L)
             val inputData = workDataOf(
                 "id" to trigger.id,
                 "title" to trigger.title,
                 "body" to trigger.body,
-                "protein_target" to targets.protein
+                "scheduled_date" to today.toString()
             )
             val delayedRequest = OneTimeWorkRequestBuilder<DelayedNotificationWorker>()
                 .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
@@ -252,6 +224,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
         }
 
         return Result.success()
+        } finally { repository.appScope.cancel() }
     }
 }
 
