@@ -990,7 +990,7 @@ class AuditRegressionTestV4 {
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, store)
         val manager = com.apexfit.app.WorkoutSessionManager(repo, store, sessionScope, dao, context)
         val restored = kotlinx.coroutines.withTimeout(10_000) { manager.activeSession.first { it != null }!! }
-        assertEquals(2, restored.schemaVersion)
+        assertEquals(com.apexfit.app.data.ActiveSession.CURRENT_VERSION, restored.schemaVersion)
         assertEquals(20.0, restored.exercises.single().sets.single().weight, 0.0)
         assertTrue(restored.exercises.single().sets.single().completed)
         assertEquals(34, restored.exercises.single().sets.single().restTakenSeconds)
