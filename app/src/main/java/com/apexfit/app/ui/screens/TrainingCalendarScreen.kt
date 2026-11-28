@@ -85,52 +85,7 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
     val target = linkTarget
     val candidates by produceState<RescheduleCandidates>(RescheduleCandidates.Loading, target, candidateRetry) {
         value = RescheduleCandidates.Loading
-        if (move != null) {
-        AlertDialog(onDismissRequest = { if (!decisionBusy) moveTarget = null },
-            title = { Text("Move scheduled workout") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Choose a later rest day within the next 14 days. The recurring plan stays unchanged.")
-                    val options = moveOptions
-                    when {
-                        options == null -> CircularProgressIndicator(Modifier.size(24.dp))
-                        options.isEmpty() -> {
-                            Text("No eligible rest days available.")
-                            TextButton(onClick = { decisionError = null; moveRetry++ }) { Text("Retry") }
-                        }
-                        else -> LazyColumn(Modifier.heightIn(max = 240.dp)) {
-                            items(options, key = { it.toString() }) { date ->
-                                Row(Modifier.fillMaxWidth().clickable(enabled = !decisionBusy, role = Role.RadioButton) {
-                                    chosenMoveDate = date
-                                }, verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(selected = chosenMoveDate == date, onClick = null)
-                                    Text(DateTimeUtils.formatDateForDisplay(date), Modifier.padding(vertical = 12.dp))
-                                }
-                            }
-                        }
-                    }
-                    decisionError?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                }
-            },
-            confirmButton = {
-                TextButton(enabled = !decisionBusy && chosenMoveDate != null &&
-                    moveOptions?.contains(chosenMoveDate) == true, onClick = {
-                    val date = chosenMoveDate ?: return@TextButton
-                    decisionBusy = true
-                    decisionError = null
-                    scope.launch {
-                        try {
-                            progressViewModel.reserveProspectiveMove(move.date, date, requireNotNull(move.futureMoveOccurrenceId))
-                            moveTarget = null
-                        } catch (cancelled: CancellationException) { throw cancelled }
-                        catch (_: Exception) { decisionError = "Reservation could not be saved; refresh and retry."; chosenMoveDate = null; moveRetry++ }
-                        finally { decisionBusy = false }
-                    }
-                }) { Text(if (decisionBusy) "Saving…" else "Reserve") }
-            },
-            dismissButton = { TextButton(enabled = !decisionBusy, onClick = { moveTarget = null; decisionError = null }) { Text("Cancel") } })
-    }
-    if (target != null) {
+        if (target != null) {
             try {
                 value = RescheduleCandidates.Ready(progressViewModel.reschedulingCandidates(
                     target.date, requireNotNull(target.recordedOccurrenceId)))
@@ -196,6 +151,51 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
                 }
             }
         })
+    if (move != null) {
+        AlertDialog(onDismissRequest = { if (!decisionBusy) moveTarget = null },
+            title = { Text("Move scheduled workout") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Choose a later rest day within the next 14 days. The recurring plan stays unchanged.")
+                    val options = moveOptions
+                    when {
+                        options == null -> CircularProgressIndicator(Modifier.size(24.dp))
+                        options.isEmpty() -> {
+                            Text("No eligible rest days available.")
+                            TextButton(onClick = { decisionError = null; moveRetry++ }) { Text("Retry") }
+                        }
+                        else -> LazyColumn(Modifier.heightIn(max = 240.dp)) {
+                            items(options, key = { it.toString() }) { date ->
+                                Row(Modifier.fillMaxWidth().clickable(enabled = !decisionBusy, role = Role.RadioButton) {
+                                    chosenMoveDate = date
+                                }, verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(selected = chosenMoveDate == date, onClick = null)
+                                    Text(DateTimeUtils.formatDateForDisplay(date), Modifier.padding(vertical = 12.dp))
+                                }
+                            }
+                        }
+                    }
+                    decisionError?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !decisionBusy && chosenMoveDate != null &&
+                    chosenMoveDate?.let { moveOptions?.contains(it) } == true, onClick = {
+                    val date = chosenMoveDate ?: return@TextButton
+                    decisionBusy = true
+                    decisionError = null
+                    scope.launch {
+                        try {
+                            progressViewModel.reserveProspectiveMove(move.date, date, requireNotNull(move.futureMoveOccurrenceId))
+                            moveTarget = null
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { decisionError = "Reservation could not be saved; refresh and retry."; chosenMoveDate = null; moveRetry++ }
+                        finally { decisionBusy = false }
+                    }
+                }) { Text(if (decisionBusy) "Saving…" else "Reserve") }
+            },
+            dismissButton = { TextButton(enabled = !decisionBusy, onClick = { moveTarget = null; decisionError = null }) { Text("Cancel") } })
+    }
     if (target != null) {
         val options = (candidates as? RescheduleCandidates.Ready)?.sessions.orEmpty()
         val chosen = options.firstOrNull { it.id == selectedCandidate }
