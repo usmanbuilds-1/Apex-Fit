@@ -35,6 +35,7 @@ class ProgressViewModel @Inject constructor(
 
     fun observeStrengthHistory(exerciseId: String, start: java.time.LocalDate, end: java.time.LocalDate):
         Flow<List<StrengthSessionPoint>> = dao.observeStrengthSets(exerciseId, start.toString(), end.toString())
+            .distinctUntilChanged()
             .map { StrengthAnalytics.calculate(it, exerciseId, start, end) }
             .distinctUntilChanged().flowOn(Dispatchers.Default)
 
@@ -64,6 +65,16 @@ class ProgressViewModel @Inject constructor(
         EstimatedStrength.calculate(points, confirmations, weights)
     }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
+    /** Screen reads all-time records anyway. Reuse that single history projection for range panels. */
+    fun observeStrengthDashboard(exerciseId: String, today: java.time.LocalDate): Flow<StrengthDashboardSnapshot> {
+        val history = observeStrengthHistory(exerciseId, java.time.LocalDate.of(1, 1, 1), today)
+        val weights = dao.observeAllWeightEntries().distinctUntilChanged()
+        return combine(history, setLoadConfirmations, weights) { points, confirmations, entries ->
+            StrengthDashboardSnapshot(points, RepRecords.calculate(points, confirmations),
+                EstimatedStrength.calculate(points, confirmations, entries), confirmations)
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+    }
+
     fun observeCustomGoals(today: java.time.LocalDate): Flow<List<FitnessGoalProgress>> =
         dataStore.customFitnessGoalsFlow.flatMapLatest { goals ->
             if (goals.isEmpty()) flowOf(emptyList())
@@ -72,8 +83,11 @@ class ProgressViewModel @Inject constructor(
                 combine(dao.observeAnalyticsWorkingSets(start.toString(), today.toString()),
                     dao.observeCalendarSessions(start.toString(), today.toString()), dao.observeAllWeightEntries(),
                     setLoadConfirmations) { rows, sessions, weights, confirmations ->
-                    val pointsByExercise = goals.filter { it.spec.exerciseGoal }.map { it.spec.exerciseId }.distinct()
-                        .associateWith { id -> StrengthAnalytics.calculate(rows, id, start, today) }
+                    val goalExerciseIds = goals.filter { it.spec.exerciseGoal }.map { it.spec.exerciseId }.toSet()
+                    val relevantRows = rows.filter { it.set.exerciseId in goalExerciseIds }.groupBy { it.set.exerciseId }
+                    val pointsByExercise = goalExerciseIds.associateWith { id ->
+                        StrengthAnalytics.calculate(relevantRows[id].orEmpty(), id, start, today)
+                    }
                     goals.map { goal ->
                         val end = listOfNotNull(today, goal.spec.deadline, goal.archivedOn).minOrNull()!!
                         CustomFitnessGoals.progress(goal, today, CustomFitnessGoals.observations(
