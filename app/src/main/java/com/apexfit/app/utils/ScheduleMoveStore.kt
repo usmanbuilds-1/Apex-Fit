@@ -58,6 +58,25 @@ object ScheduleMoveStore {
         row
     }
 
+    /** A bounded picker horizon, not a change to the recurrence or validation rules. */
+    suspend fun candidates(db: AppDatabase, original: LocalDate, expectedOccurrenceId: String,
+                           today: LocalDate = LocalDate.now(),
+                           nowMs: Long = System.currentTimeMillis()): List<LocalDate> = db.withTransaction {
+        val dao = db.fitnessDao()
+        val source = dao.getScheduleRevisionForDate(original.toString())
+        require(original > today && source != null && source.revision.recordedAt <= nowMs &&
+            ScheduleLedger.resolve(original, listOf(source)).occurrenceId == expectedOccurrenceId) {
+            "Schedule changed; refresh before reserving"
+        }
+        (1L..14L).map { original.plusDays(it) }.filter { target ->
+            val destination = dao.getScheduleRevisionForDate(target.toString())
+            val revisions = listOfNotNull(source, destination).distinctBy { it.revision.id }
+            revisions.all { it.revision.recordedAt <= nowMs } &&
+                ProspectiveWorkoutMoves.propose(original, target, today, revisions) is MoveValidation.Allowed &&
+                dao.getScheduleMoveConflicts(original.toString(), target.toString()).isEmpty()
+        }
+    }
+
     /** Cancels only a reservation. Never deletes a workout or its association. */
     suspend fun cancel(db: AppDatabase, occurrenceId: String, expectedRecordedAt: Long): Boolean =
         db.withTransaction {
