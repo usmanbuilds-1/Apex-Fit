@@ -397,7 +397,7 @@ class WorkoutSessionManager(
                 ?: if (isImperial) fallbackStep / com.apexfit.app.utils.AppConstants.KG_TO_LBS else fallbackStep
             // Current equipment cannot be inferred from a prior log or exercise category.
             // Never auto-apply a load change; require explicit same-setup confirmation first.
-            val proposal = if (exerciseSlug !in progressionPausedIds && !isBodyweight)
+            val proposal = if (exercises.none { it.groupKey != null } && exerciseSlug !in progressionPausedIds && !isBodyweight)
                 ProgressionEvidence.proposal(exerciseHistory, ex.id, ex.sets, ex.repsMax, incrementKg,
                     java.time.LocalDate.parse(today)) else null
             if (proposal != null) proposals[occurrenceKey] = proposal
@@ -406,6 +406,7 @@ class WorkoutSessionManager(
             lastWeightMap[occurrenceKey] = priorKg ?: prescribedKg
             contextLinesMap[occurrenceKey] = when {
                 proposal != null -> "Prior comparable sets on ${proposal.sourceDate} · ${proposal.basis.label} · ${proposal.setup}. Confirm same setup to use ${proposal.suggestedKg.toDisplayWeight(exerciseUnit)} $exerciseUnit."
+                exercises.any { it.groupKey != null } -> "Grouped session: use plan load; progression comparison paused."
                 lastSet == null -> calibration.guidance
                 isBodyweight -> "Bodyweight · record added load only if used."
                 else -> "Automatic progression paused: prior prescription, effort or load setup is not verified. Use your plan load or enter a suitable load."
@@ -987,7 +988,8 @@ class WorkoutSessionManager(
             notes = sessionNotes,
             startedAt = session.startTime,
             completedAt = completedAt,
-            scheduleOccurrenceId = finalSession.scheduleOccurrenceId
+            scheduleOccurrenceId = finalSession.scheduleOccurrenceId,
+            groupedExecution = CircuitExecution.hasGroups(finalSession)
         )
 
         // Once the durable draft exists, finish the atomic transaction and
