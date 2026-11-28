@@ -2,6 +2,7 @@ package com.apexfit.app.utils
 
 import androidx.room.withTransaction
 import com.apexfit.app.data.AppDatabase
+import com.apexfit.app.data.PlanSession
 import com.apexfit.app.data.ScheduleRevision
 import com.apexfit.app.data.ScheduleRevisionSlot
 import com.apexfit.app.data.ScheduleRevisionSnapshot
@@ -55,6 +56,29 @@ object ScheduleLedger {
     data class Day(val kind: CalendarScheduleKind, val revisionId: Long? = null,
                    val planName: String? = null, val slotId: Long? = null, val label: String? = null,
                    val occurrenceId: String? = null)
+
+    /** Bind only the exact training slot selected at the start, not a workout with a similar label.
+     * An off-schedule session or today's replacement live plan remains unlinked.
+     */
+    fun occurrenceForStart(date: LocalDate, startTime: Long, chosen: PlanSession,
+                           snapshot: ScheduleRevisionSnapshot?): String? {
+        if (snapshot == null || chosen.id <= 0 || chosen.planId <= 0 ||
+            snapshot.revision.recordedAt > startTime || snapshot.revision.planId != chosen.planId ||
+            WorkoutSchedule.weekday(chosen.day) != date.dayOfWeek || !WorkoutSchedule.isTraining(chosen)) return null
+        val day = resolve(date, listOf(snapshot))
+        val slot = snapshot.slots.singleOrNull { it.slotId == chosen.id } ?: return null
+        return day.occurrenceId?.takeIf {
+            day.kind == CalendarScheduleKind.TRAINING && day.slotId == chosen.id &&
+                day.label == chosen.label && slot.cycleWeek == chosen.cycleWeek
+        }
+    }
+
+    fun validOccurrence(id: String, date: String?, slotId: Long?): Boolean {
+        val parts = id.split(':')
+        val day = date?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return false
+        val revision = parts.getOrNull(0)?.toLongOrNull()?.takeIf { it > 0 } ?: return false
+        return parts.size == 3 && slotId != null && slotId > 0 && id == "$revision:$day:$slotId"
+    }
 
     /** Resolution uses only immutable snapshot values. Missing or malformed evidence is unknown. */
     fun resolve(date: LocalDate, revisions: List<ScheduleRevisionSnapshot>): Day {
