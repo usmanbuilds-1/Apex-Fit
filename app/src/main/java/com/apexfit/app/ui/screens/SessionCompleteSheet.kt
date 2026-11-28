@@ -82,6 +82,16 @@ internal fun SessionCompleteSheet(
             val duration = if (receipt.durationMinutes > 0) "${receipt.durationMinutes} min · " else ""
             Text("$duration${receipt.setsCompleted} working sets · ${receiptWorkingReps(sessionSets)} working reps", color = ApexColors.TextSecondary)
             Text("Total rest ${formatReceiptDuration(totalRestSeconds)}", color = ApexColors.TextSecondary)
+            if (receipt.reservedOccurrenceId != null) {
+                val original = receipt.reservedOccurrenceId.split(':').getOrNull(1)
+                val date = original?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+                val label = date?.let { com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(it) } ?: "original date"
+                Text(when (receipt.reservationCredited) {
+                    true -> if (receipt.isPartial) "Partial workout credited to $label." else "Scheduled workout credited to $label."
+                    false -> "Workout saved. No reservation credit for $label. Review the Training calendar."
+                    null -> "Workout saved. Reservation credit could not be confirmed. Review the Training calendar."
+                }, color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+            }
             HorizontalDivider(color = ApexColors.BorderSubtle)
             if (showDetails) {
                 sessionSets.filter { it.completed }.groupBy { set ->
