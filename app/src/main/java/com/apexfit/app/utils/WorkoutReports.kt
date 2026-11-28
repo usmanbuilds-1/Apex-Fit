@@ -6,7 +6,7 @@ import java.time.LocalDate
 data class ReportLoadGroup(val exerciseId: String, val setup: String, val basis: RecordedLoadBasis,
                            val sets: Int, val kgReps: Double)
 data class ReportExercise(val key: String, val sets: List<ExerciseSet>, val workingSets: Int, val reps: Long)
-data class WorkoutReport(val session: TrainingSession, val exercises: List<ReportExercise>,
+data class WorkoutReport(val session: com.apexfit.app.data.TrainingSession, val exercises: List<ReportExercise>,
     val workingSets: Int, val workingReps: Long, val warmups: Int, val incomplete: Int, val invalid: Int,
     val durationMinutes: Int?, val loadGroups: List<ReportLoadGroup>, val unconfirmedWorkingSets: Int,
     val records: List<RepRecordEvent>, val legacyGrouping: Boolean)
