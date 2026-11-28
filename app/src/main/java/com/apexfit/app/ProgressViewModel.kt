@@ -109,8 +109,10 @@ class ProgressViewModel @Inject constructor(
         combine(dao.observeCalendarSessions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
             dao.observeCalendarPlans(),
             dao.observeScheduleRevisions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
-            dao.observeScheduleDispositions(month.atDay(1).toString(), month.atEndOfMonth().toString())) { sessions, plans, revisions, dispositions ->
-            TrainingCalendar.build(month, today, sessions, plans, revisions = revisions, dispositions = dispositions)
+            dao.observeScheduleDispositions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
+            dao.observeScheduleWorkoutAssociations(month.atDay(1).toString(), month.atEndOfMonth().toString())) { sessions, plans, revisions, dispositions, associations ->
+            TrainingCalendar.build(month, today, sessions, plans, revisions = revisions, dispositions = dispositions,
+                associations = associations)
         }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
     suspend fun setOccurrenceDecision(date: java.time.LocalDate, occurrenceId: String,
@@ -125,6 +127,9 @@ class ProgressViewModel @Inject constructor(
             if (decision == null) {
                 dao.clearScheduleDisposition(occurrenceId)
             } else {
+                require(dao.getScheduleWorkoutAssociation(occurrenceId) == null) {
+                    "Clear the rescheduled workout association first"
+                }
                 val linked = dao.getOccurrenceWorkouts(date.toString(), occurrenceId)
                 require(linked.none { it.planSessionId == day.slotId &&
                     it.startedAt != null && it.completedAt != null && it.completedAt >= it.startedAt &&
@@ -135,6 +140,15 @@ class ProgressViewModel @Inject constructor(
                     decision.name, System.currentTimeMillis()))
             }
         }
+
+    suspend fun reschedulingCandidates(date: java.time.LocalDate, occurrenceId: String) =
+        RescheduledWorkouts.candidates(AppDatabase.getDatabase(getApplication()), date, occurrenceId)
+
+    suspend fun linkRescheduledWorkout(date: java.time.LocalDate, occurrenceId: String, sessionId: String) =
+        RescheduledWorkouts.link(AppDatabase.getDatabase(getApplication()), date, occurrenceId, sessionId)
+
+    suspend fun unlinkRescheduledWorkout(date: java.time.LocalDate, occurrenceId: String) =
+        RescheduledWorkouts.unlink(AppDatabase.getDatabase(getApplication()), date, occurrenceId)
 
     val workoutHistory = dao.getSavedTrainingSessionsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
