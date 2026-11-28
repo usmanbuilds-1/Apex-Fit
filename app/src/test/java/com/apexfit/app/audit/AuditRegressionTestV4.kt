@@ -90,6 +90,7 @@ class AuditRegressionTestV4 {
             dao.insertTrainingSession(
                 TrainingSession(
                     id = "session_1",
+                    trainingFormat = "sequential",
                     date = "2024-01-01",
                     sessionType = "Upper",
                     completed = true,
@@ -783,6 +784,7 @@ class AuditRegressionTestV4 {
                 dao.insertTrainingSession(
                     TrainingSession(
                         id = sessionId,
+                        trainingFormat = "sequential",
                         date = java.time.LocalDate.of(2024, 1, sessionIdx).toString(),
                         sessionType = "Custom",
                         completed = true,
