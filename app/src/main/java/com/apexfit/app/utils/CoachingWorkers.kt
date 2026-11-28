@@ -204,7 +204,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
                 set(java.util.Calendar.MILLISECOND, 0)
                 // Never carry today's evaluated trigger into tomorrow.
             }
-            if (target.timeInMillis <= now.timeInMillis) return@forEach
+            if (target.timeInMillis <= now.timeInMillis && trigger.id != "plateau_confirmed") return@forEach
             val delayMs = (target.timeInMillis - java.util.Calendar.getInstance().timeInMillis).coerceAtLeast(0L)
             val inputData = workDataOf(
                 "id" to trigger.id,
