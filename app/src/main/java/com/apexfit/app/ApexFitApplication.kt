@@ -57,6 +57,7 @@ class ApexFitApplication : Application(), Configuration.Provider {
         // Startup initialization: seed exercises and schedule coaching sequentially
         if (Build.FINGERPRINT == "robolectric") return
         appScope.launch {
+            com.apexfit.app.utils.LocalDataGate.exclusive {
             com.apexfit.app.utils.SecureUserExport.cleanupStale(app)
             val dataStore = DataStoreManager.getInstance(app)
 
@@ -100,6 +101,7 @@ class ApexFitApplication : Application(), Configuration.Provider {
                 Log.i("ApexFitApplication", "Coaching task scheduled")
             } catch (e: Exception) {
                 Log.e("ApexFitApplication", "Failed to schedule coaching", e)
+            }
             }
         }
     }
