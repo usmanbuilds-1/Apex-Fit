@@ -57,10 +57,7 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
     val selectedSession = day?.sessions?.firstOrNull { it.id == sessionId }
     BackHandler(enabled = sessionId != null) { sessionId = null }
     if (selectedSession != null) {
-        val sets by remember(selectedSession.id) { progressViewModel.setsForSession(selectedSession.id) }
-            .collectAsStateWithLifecycle(initialValue = null)
-        val units by progressViewModel.units.collectAsStateWithLifecycle()
-        WorkoutHistoryDetail(selectedSession, sets, units, onBack = { sessionId = null })
+        SavedWorkoutReportScreen(selectedSession.id, progressViewModel, onBack = { sessionId = null })
         return
     }
     TrainingCalendarContent(month, today, data, selectedDate?.let(LocalDate::parse),

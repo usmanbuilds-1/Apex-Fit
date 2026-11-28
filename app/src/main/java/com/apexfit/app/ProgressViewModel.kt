@@ -75,6 +75,12 @@ class ProgressViewModel @Inject constructor(
     val workoutHistory = dao.getSavedTrainingSessionsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    fun observeWorkoutReport(sessionId: String, today: java.time.LocalDate): Flow<WorkoutReport?> =
+        combine(dao.observeSavedWorkoutFacts(sessionId), dao.observeWorkoutRecordHistory(sessionId, today.toString()),
+            setLoadConfirmations) { facts, history, confirmations ->
+            facts?.let { WorkoutReports.calculate(it, history, confirmations, today) }
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
     fun setsForSession(sessionId: String): Flow<List<com.apexfit.app.data.ExerciseSet>> = dao.getSetsForSessionFlow(sessionId)
 
     val units = dataStore.unitsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "kg")

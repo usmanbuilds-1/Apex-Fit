@@ -523,6 +523,12 @@ data class CalendarPlanSnapshot(
     val sessions: List<PlanSession>
 )
 
+data class SavedWorkoutFacts(
+    @Embedded val session: TrainingSession,
+    @androidx.room.Relation(parentColumn = "id", entityColumn = "sessionId")
+    val sets: List<ExerciseSet>
+)
+
 data class StrengthExerciseOption(val exerciseId: String, val name: String, val category: String, val equipment: String)
 
 /** Read projection only; does not change the Room schema. */

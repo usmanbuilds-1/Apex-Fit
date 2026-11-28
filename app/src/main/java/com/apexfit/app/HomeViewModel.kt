@@ -304,11 +304,10 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {  
             try {  
                 val cutoff90 = com.apexfit.app.utils.getWindowStartDate(90)
-                val cutoff365 = com.apexfit.app.utils.getWindowStartDate(365)
                 val weights = dao.observeAllWeightEntries().first()  
                 val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
                 val sessions = dao.getAllTrainingSessions()  
-                val exerciseSets = dao.getRecentExerciseSets(cutoff365)
+                val exerciseSets = dao.getAllExerciseSetsForExport()
                 val personalRecords = dao.getRecentPersonalRecordsWithNames(limit = 500).first()
                 val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
                 val muscleTargets = dataStore.muscleTargetHistoryFlow.first()
@@ -328,12 +327,12 @@ class HomeViewModel @Inject constructor(
                         nutrition.forEach { writer.appendLine("${it.date},${csvEscape(it.name)},${it.calories},${it.protein},${it.carbs},${it.fat}") }
                         writer.appendLine()
                         writer.appendLine("## Workout Sessions")
-                        writer.appendLine("date,type,duration_min,feel")
-                        sessions.forEach { writer.appendLine("${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel}") }
+                        writer.appendLine("session_id,date,type,duration_min,feel,completed,status,started_at,completed_at")
+                        sessions.forEach { writer.appendLine("${csvEscape(it.id)},${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel},${it.completed},${csvEscape(it.status.orEmpty())},${it.startedAt ?: ""},${it.completedAt ?: ""}") }
                         writer.appendLine()
                         writer.appendLine("## Exercise Sets")
-                        writer.appendLine("sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit")
-                        exerciseSets.forEach { writer.appendLine("${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)}") }
+                        writer.appendLine("set_id,sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit,occurrence_index,set_number,set_completed_at")
+                        exerciseSets.forEach { writer.appendLine("${it.id},${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)},${it.occurrenceIndex ?: ""},${it.setNumber ?: ""},${it.setCompletedAt ?: ""}") }
                         writer.appendLine()
                         writer.appendLine("## Personal Records")
                         writer.appendLine("id,exerciseId,type,value,date")

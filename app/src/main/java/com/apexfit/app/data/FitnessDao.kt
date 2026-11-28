@@ -163,6 +163,27 @@ interface FitnessDao {
     @Query("SELECT * FROM exercise_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     fun getSetsForSessionFlow(sessionId: String): Flow<List<ExerciseSet>>
 
+    @Transaction
+    @Query("SELECT * FROM workout_sessions WHERE id = :sessionId AND (completed = 1 OR status = 'partial')")
+    fun observeSavedWorkoutFacts(sessionId: String): Flow<SavedWorkoutFacts?>
+
+    @Query("""
+        SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
+               ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
+               ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles
+        FROM exercise_sets es JOIN workout_sessions ts ON es.sessionId = ts.id
+        LEFT JOIN exercises e ON e.id = es.exerciseId
+        WHERE ts.date <= :endDate AND (ts.completed = 1 OR ts.status = 'partial')
+          AND es.completed = 1 AND es.isWarmup = 0 AND es.reps > 0
+          AND es.exerciseId IN (SELECT exerciseId FROM exercise_sets WHERE sessionId = :sessionId)
+        ORDER BY ts.date, ts.id, es.id
+    """)
+    fun observeWorkoutRecordHistory(sessionId: String, endDate: String): Flow<List<AnalyticsWorkingSet>>
+
+    @Query("SELECT * FROM exercise_sets ORDER BY sessionId, id")
+    suspend fun getAllExerciseSetsForExport(): List<ExerciseSet>
+
     @Query("SELECT * FROM exercise_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     suspend fun getSetsForSession(sessionId: String): List<ExerciseSet>
 
