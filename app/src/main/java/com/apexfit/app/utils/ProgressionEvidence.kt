@@ -40,7 +40,7 @@ object ProgressionEvidence {
         val first = history.first()
         val date = runCatching { LocalDate.parse(first.date) }.getOrNull() ?: return null
         if (date > today || history.any { it.sessionId != first.sessionId || it.date != first.date ||
-                it.exerciseId != first.exerciseId || it.advancedDetails != null ||
+                it.exerciseId != first.exerciseId || it.advancedDetails != null || it.groupedExecution == true ||
                 it.sourcePlanExerciseId != planExerciseId || it.occurrenceIndex == null } ||
             history.map { it.occurrenceIndex }.distinct().size != 1) return null
         val prescribed = (1..targetSets).map { number ->
