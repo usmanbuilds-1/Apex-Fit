@@ -57,6 +57,10 @@ internal object ActiveWorkoutCodec {
         }
         val migrated = version != ActiveSession.CURRENT_VERSION
         if (migrated) {
+            if (version < 8) {
+                json.remove("reservedOccurrenceId")
+                json.remove("reservationRecordedAt")
+            }
             if (version < 7) {
                 json.remove("startedLocalDate")
                 json.remove("scheduleOccurrenceId")
@@ -73,6 +77,7 @@ internal object ActiveWorkoutCodec {
         require(decoded.scheduleOccurrenceId == null || ScheduleLedger.validOccurrence(
             decoded.scheduleOccurrenceId, decoded.startedLocalDate, decoded.planSessionId.toLongOrNull()
         )) { "Invalid scheduled occurrence" }
+        require(ReservedWorkoutExecution.validDraft(decoded)) { "Invalid reserved workout identity" }
         val keys = WorkoutOccurrenceKeys.allocate(decoded.exercises.map { it.exerciseId })
         val current = decoded.exercises.map { it.executionKey }
         val normalized = current != keys
