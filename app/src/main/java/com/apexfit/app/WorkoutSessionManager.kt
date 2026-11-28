@@ -448,14 +448,20 @@ class WorkoutSessionManager(
             )
         }.toMutableList()
 
+        val startedAt = System.currentTimeMillis()
+        val startDate = com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(startedAt)
+        val scheduleOccurrence = com.apexfit.app.utils.ScheduleLedger.occurrenceForStart(
+            java.time.LocalDate.parse(startDate), startedAt, planSession, dao.getScheduleRevisionForDate(startDate))
         val newSession = ActiveSession(
             cursorIndex = 0,
             skippedOccurrenceIndices = emptyList(),
             planSessionId = planSession.id.toString(),
             sessionType = planSession.label,
-            startTime = System.currentTimeMillis(),
+            startTime = startedAt,
             readinessScore = readinessScore?.finalScore,
-            exercises = activeExercises
+            exercises = activeExercises,
+            startedLocalDate = startDate,
+            scheduleOccurrenceId = scheduleOccurrence
         )
         // Do not expose a workout that has not received its durable identity.
         // A cancelled caller must not leave a saved draft hidden from the
@@ -948,8 +954,10 @@ class WorkoutSessionManager(
             session.exercises.any { exercise -> exercise.sets.any { !it.completed && !it.isWarmup } }
         val trainingSession = TrainingSession(
             id = sessionId,
-            // Attribute a cross-midnight workout to the local calendar day it began.
-            date = com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(session.startTime),
+            // New drafts preserve the actual local date at Start even across timezone changes.
+            // Legacy drafts have no captured date; retain the old timestamp fallback, never link them.
+            date = finalSession.startedLocalDate
+                ?: com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(finalSession.startTime),
             sessionType = session.sessionType,
             completed = completedSetsOnly && !partial,
             durationMinutes = durationMinutes,
@@ -959,7 +967,8 @@ class WorkoutSessionManager(
             readinessScoreAtStart = session.readinessScore,
             notes = sessionNotes,
             startedAt = session.startTime,
-            completedAt = completedAt
+            completedAt = completedAt,
+            scheduleOccurrenceId = finalSession.scheduleOccurrenceId
         )
 
         // Once the durable draft exists, finish the atomic transaction and
