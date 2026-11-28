@@ -306,7 +306,7 @@ internal fun MuscleVolumeContent(
                             modifier = Modifier.padding(bottom = 16.dp))
                         Text(if (period == MuscleVolumePeriod.YEAR) "Sets by logged month" else "Sets by logged date",
                             style = MaterialTheme.typography.titleMedium)
-                        Text("Periods without logged sets are not shown. Indirect counts use today's library metadata, not verified historical attribution. Zero indirect sets may mean missing attribution.",
+                        Text("Periods without logged sets are not shown. New workouts preserve captured muscle attribution. Older workouts may use current library estimates; zero indirect sets may mean missing attribution.",
                             color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                     }
                     val buckets = if (period == MuscleVolumePeriod.YEAR) {

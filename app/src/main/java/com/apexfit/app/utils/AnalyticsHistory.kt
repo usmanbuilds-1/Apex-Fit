@@ -5,8 +5,8 @@ import com.apexfit.app.data.ExerciseLog
 import com.apexfit.app.data.RichTrainingSession
 
 /**
- * Observed saved work only. Secondary attribution is from the current library;
- * older records are not represented as immutable historical attribution.
+ * Observed saved work only. Prefer occurrence-time secondary snapshots; legacy
+ * rows may use current-library inference. Never merge different attributions.
  */
 object AnalyticsHistory {
     fun sessions(rows: List<AnalyticsWorkingSet>): List<RichTrainingSession> =
@@ -20,7 +20,9 @@ object AnalyticsHistory {
                 startedAt = session.analyticsStartedAt,
                 completedAt = session.analyticsCompletedAt,
                 exercises = sessionRows.groupBy {
-                    it.set.exerciseId to MuscleAliases.getCanonical(it.set.muscleGroup)
+                    Triple(it.set.exerciseId, MuscleAliases.getCanonical(it.set.muscleGroup),
+                        MuscleAttribution.resolve(it.set.muscleGroup, it.set.secondaryMuscleSnapshot,
+                            it.analyticsSecondaryMuscles.takeIf { _ -> it.analyticsCatalogPresent }))
                 }.values.map { exerciseRows ->
                     val first = exerciseRows.first()
                     ExerciseLog(
@@ -28,7 +30,8 @@ object AnalyticsHistory {
                         name = first.set.exerciseName,
                         muscleGroup = first.set.muscleGroup,
                         sets = exerciseRows.map { it.set },
-                        secondaryMuscles = first.analyticsSecondaryMuscles
+                        secondaryMuscles = MuscleAttribution.resolve(first.set.muscleGroup,
+                            first.set.secondaryMuscleSnapshot, first.analyticsSecondaryMuscles.takeIf { first.analyticsCatalogPresent }).secondary
                     )
                 }
             )

@@ -147,7 +147,8 @@ data class ExerciseSet(
     @ColumnInfo(name = "set_number") val setNumber: Int? = null,
     @ColumnInfo(name = "source_plan_exercise_id") val sourcePlanExerciseId: Long? = null,
     @ColumnInfo(name = "set_completed_at") val setCompletedAt: Long? = null,
-    @ColumnInfo(name = "advanced_details") val advancedDetails: String? = null
+    @ColumnInfo(name = "advanced_details") val advancedDetails: String? = null,
+    @ColumnInfo(name = "secondary_muscle_snapshot") val secondaryMuscleSnapshot: String? = null
 ) {
     constructor(weight: Double, reps: Int, rpe: Int = 7, isWarmup: Boolean = false, completed: Boolean = true) : this(
         id = 0,
@@ -363,7 +364,8 @@ data class ActiveExercise(
     val loadContext: String? = null,
     val volumeAdjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null,
     val occurrenceKey: String? = null,
-    val sourcePlanExerciseId: Long? = null
+    val sourcePlanExerciseId: Long? = null,
+    val secondaryMuscleSnapshot: String? = null
 ) {
     /** Execution identity; catalog exerciseId is always preserved for historical records. */
     val executionKey: String get() = occurrenceKey ?: exerciseId
@@ -397,7 +399,7 @@ data class ActiveSession(
     val readinessScore: Int? = null,
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
-    val schemaVersion: Int = 4,
+    val schemaVersion: Int = 5,
     val sessionId: String = java.util.UUID.randomUUID().toString(),
     val cursorIndex: Int? = null,
     val skippedOccurrenceIndices: List<Int>? = null,
@@ -405,7 +407,7 @@ data class ActiveSession(
     val circuit: ActiveCircuit? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 4
+        const val CURRENT_VERSION = 5
     }
 }
 
@@ -552,7 +554,8 @@ data class AnalyticsWorkingSet(
     val analyticsStatus: String?,
     val analyticsStartedAt: Long?,
     val analyticsCompletedAt: Long?,
-    val analyticsSecondaryMuscles: List<String>
+    val analyticsSecondaryMuscles: List<String>,
+    val analyticsCatalogPresent: Boolean = true
 )
 
 @Entity(

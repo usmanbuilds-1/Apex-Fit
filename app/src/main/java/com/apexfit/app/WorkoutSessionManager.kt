@@ -368,7 +368,8 @@ class WorkoutSessionManager(
             history.map { it.occurrenceIndex }.distinct().size > 1 || history.any { it.advancedDetails != null }
         }.keys
         val progressionPausedIds = repeatedCatalogIds + ambiguousHistoryIds
-        val exerciseCategories = dao.getExercisesByIds(ids).associate { it.id to it.category }
+        val exerciseCatalog = dao.getExercisesByIds(ids).associateBy { it.id }
+        val exerciseCategories = exerciseCatalog.mapValues { it.value.category }
 
         val stalledCounts = try {
             dao.getStalledCountsForExercises(ids).associate { it.exerciseId to it.stalledCount }
@@ -589,6 +590,10 @@ class WorkoutSessionManager(
                 volumeAdjustment = adjustment,
                 occurrenceKey = occurrenceKey.takeIf { it != exerciseSlug },
                 sourcePlanExerciseId = ex.id.takeIf { it > 0L },
+                secondaryMuscleSnapshot = exerciseCatalog[exerciseSlug]?.let {
+                    com.apexfit.app.utils.MuscleAttribution.encode(ex.muscleGroup, it.secondaryMuscles)
+                        .takeIf { snapshot -> com.apexfit.app.utils.MuscleAttribution.decode(snapshot) != null }
+                },
                 sets = (1..(adjustment?.adjustedSets ?: ex.sets)).map { setNum ->
                     ActiveSet(
                         setNumber = setNum,
@@ -1041,7 +1046,8 @@ class WorkoutSessionManager(
                         setNumber = activeSet.setNumber,
                         sourcePlanExerciseId = exercise.sourcePlanExerciseId,
                         setCompletedAt = activeSet.completedAt.takeIf { activeSet.completed && it > 0L },
-                        advancedDetails = activeSet.advancedDetails
+                        advancedDetails = activeSet.advancedDetails,
+                        secondaryMuscleSnapshot = exercise.secondaryMuscleSnapshot
                     )
                 }
         }

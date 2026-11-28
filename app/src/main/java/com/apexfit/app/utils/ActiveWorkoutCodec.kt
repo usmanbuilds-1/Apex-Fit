@@ -23,6 +23,11 @@ internal object ActiveWorkoutCodec {
             require(exercise.get("exerciseId")?.asString?.isNotBlank() == true)
             require(exercise.get("exerciseName")?.asString?.isNotBlank() == true)
             require(exercise.get("muscleGroup")?.isJsonPrimitive == true)
+            val snapshot = exercise.get("secondaryMuscleSnapshot")
+            if (snapshot != null && !snapshot.isJsonNull) {
+                require(snapshot.isJsonPrimitive && snapshot.asJsonPrimitive.isString &&
+                    MuscleAttribution.decode(snapshot.asString) != null) { "Invalid muscle attribution snapshot" }
+            }
             val sets = exercise.getAsJsonArray("sets")
             require(sets != null)
             for (item in sets) {

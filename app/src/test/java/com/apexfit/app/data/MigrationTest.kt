@@ -585,10 +585,28 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateAll8To30() {
+    fun migrate30To31KeepsLegacySnapshotUnknown() {
+        val old = helper.createDatabase(TEST_DB, 30)
+        old.execSQL("INSERT INTO exercises (id, name, category, primary_muscle, secondary_muscles, equipment_required, created_at) VALUES ('row', 'Row', 'Cable', 'Back', '[\"Biceps\"]', 'Cable', 1000)")
+        old.execSQL("INSERT INTO workout_sessions (id, date, sessionType, completed, durationMinutes, sessionFeel, status) VALUES ('legacy', '2026-11-01', 'Pull', 1, 25, 4, 'completed')")
+        old.execSQL("INSERT INTO exercise_sets (id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue, weight_unit, occurrence_index, set_number) VALUES (1, 'legacy', 'row', 'Row', 'Back', 25.0, 8, 8, 0, 90, 1, 2, 0.75, 'kg', 0, 1)")
+        old.close()
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 31, true, AppDatabase.MIGRATION_30_31)
+        migrated.query("SELECT weight,reps,secondary_muscle_snapshot FROM exercise_sets WHERE id=1").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(25.0, it.getDouble(0), 0.0)
+            assertEquals(8, it.getInt(1))
+            assertTrue(it.isNull(2))
+        }
+        migrated.query("PRAGMA foreign_key_check").use { assertEquals(0, it.count) }
+        migrated.close()
+    }
+
+    @Test
+    fun migrateAll8To31() {
         helper.createDatabase(TEST_DB, 8).close()
         helper.runMigrationsAndValidate(
-            TEST_DB, 30, true,
+            TEST_DB, 31, true,
             AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
             AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14,
@@ -598,7 +616,7 @@ class MigrationTest {
             AppDatabase.MIGRATION_20_21, AppDatabase.MIGRATION_21_22,
             AppDatabase.MIGRATION_22_23, AppDatabase.MIGRATION_23_24,
             AppDatabase.MIGRATION_24_25, AppDatabase.MIGRATION_25_26,
-            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28, AppDatabase.MIGRATION_28_29, AppDatabase.MIGRATION_29_30
+            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28, AppDatabase.MIGRATION_28_29, AppDatabase.MIGRATION_29_30, AppDatabase.MIGRATION_30_31
         ).close()
     }
 }

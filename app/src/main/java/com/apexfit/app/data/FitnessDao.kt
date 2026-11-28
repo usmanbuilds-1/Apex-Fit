@@ -118,7 +118,8 @@ interface FitnessDao {
         SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
                ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
                ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
-               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
+               (e.id IS NOT NULL) AS analyticsCatalogPresent
         FROM workout_sessions ts
         JOIN exercise_sets es ON es.sessionId = ts.id
         LEFT JOIN exercises e ON e.id = es.exerciseId
@@ -147,7 +148,8 @@ interface FitnessDao {
         SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
                ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
                ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
-               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
+               (e.id IS NOT NULL) AS analyticsCatalogPresent
         FROM exercise_sets es
         JOIN workout_sessions ts ON es.sessionId = ts.id
         LEFT JOIN exercises e ON e.id = es.exerciseId
@@ -171,7 +173,8 @@ interface FitnessDao {
         SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
                ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
                ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
-               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
+               (e.id IS NOT NULL) AS analyticsCatalogPresent
         FROM exercise_sets es JOIN workout_sessions ts ON es.sessionId = ts.id
         LEFT JOIN exercises e ON e.id = es.exerciseId
         WHERE ts.date <= :endDate AND (ts.completed = 1 OR ts.status = 'partial')

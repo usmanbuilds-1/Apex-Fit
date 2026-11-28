@@ -26,6 +26,9 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
+      - name: Generate Room schemas before packaging migration fixtures
+        run: ./gradlew :app:kspDebugKotlin --no-daemon
+
       - name: Build Debug APK
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
 

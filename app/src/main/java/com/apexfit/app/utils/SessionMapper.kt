@@ -11,7 +11,9 @@ object SessionMapper {
         return sessions.map { sessionObj ->
             val sessionSets = setsBySession[sessionObj.id] ?: emptyList()
             val exercises = sessionSets
-                .groupBy { it.exerciseId to MuscleAliases.getCanonical(it.muscleGroup) }
+                .groupBy { Triple(it.exerciseId, MuscleAliases.getCanonical(it.muscleGroup),
+                    MuscleAttribution.resolve(it.muscleGroup, it.secondaryMuscleSnapshot,
+                        exerciseSecondaryMuscles[it.exerciseId])) }
                 .map { (key, exSets) ->
                     val exerciseId = key.first
                     com.apexfit.app.utils.ExerciseLog(
@@ -20,7 +22,7 @@ object SessionMapper {
                         muscleGroup = exSets.first().muscleGroup,
                         // AUDIT FIX (BUG-V4-013): attach structured secondary muscles
                         // so the fatigue/readiness engine uses real data not substring guesses.
-                        secondaryMuscles = exerciseSecondaryMuscles[exerciseId] ?: emptyList(),
+                        secondaryMuscles = key.third.secondary,
                         // Preserve stable persisted row IDs, occurrence and recorded set metadata.
                         sets = exSets
                     )

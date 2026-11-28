@@ -332,8 +332,8 @@ class HomeViewModel @Inject constructor(
                         sessions.forEach { writer.appendLine("${csvEscape(it.id)},${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel},${it.completed},${csvEscape(it.status.orEmpty())},${it.startedAt ?: ""},${it.completedAt ?: ""}") }
                         writer.appendLine()
                         writer.appendLine("## Exercise Sets")
-                        writer.appendLine("set_id,sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit,occurrence_index,set_number,set_completed_at,advanced_details")
-                        exerciseSets.forEach { writer.appendLine("${it.id},${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)},${it.occurrenceIndex ?: ""},${it.setNumber ?: ""},${it.setCompletedAt ?: ""},${csvEscape(it.advancedDetails.orEmpty())}") }
+                        writer.appendLine("set_id,sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit,occurrence_index,set_number,set_completed_at,advanced_details,secondary_muscle_snapshot")
+                        exerciseSets.forEach { writer.appendLine("${it.id},${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)},${it.occurrenceIndex ?: ""},${it.setNumber ?: ""},${it.setCompletedAt ?: ""},${csvEscape(it.advancedDetails.orEmpty())},${csvEscape(it.secondaryMuscleSnapshot.orEmpty())}") }
                         writer.appendLine()
                         writer.appendLine("## Personal Records")
                         writer.appendLine("id,exerciseId,type,value,date")
