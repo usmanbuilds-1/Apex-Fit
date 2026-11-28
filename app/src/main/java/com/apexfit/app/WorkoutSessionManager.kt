@@ -374,7 +374,8 @@ class WorkoutSessionManager(
         val ambiguousHistoryIds = lastSets.filterValues { history ->
             history.map { it.occurrenceIndex }.distinct().size > 1 || history.any { it.advancedDetails != null }
         }.keys
-        val progressionPausedIds = repeatedCatalogIds + ambiguousHistoryIds
+        val progressionPausedIds = repeatedCatalogIds + ambiguousHistoryIds +
+            if (exercises.any { it.groupKey != null }) ids.toSet() else emptySet()
         val exerciseCatalog = dao.getExercisesByIds(ids).associateBy { it.id }
         val exerciseCategories = exerciseCatalog.mapValues { it.value.category }
 
@@ -987,7 +988,8 @@ class WorkoutSessionManager(
             notes = sessionNotes,
             startedAt = session.startTime,
             completedAt = completedAt,
-            scheduleOccurrenceId = finalSession.scheduleOccurrenceId
+            scheduleOccurrenceId = finalSession.scheduleOccurrenceId,
+            trainingFormat = if (CircuitExecution.hasGroups(finalSession)) "grouped" else "sequential"
         )
 
         // Once the durable draft exists, finish the atomic transaction and
