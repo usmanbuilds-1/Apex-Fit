@@ -6,7 +6,7 @@ import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 
 enum class MuscleVolumePeriod {
-    WEEK, MONTH;
+    WEEK, MONTH, YEAR;
 
     fun window(today: LocalDate): ClosedRange<LocalDate> = when (this) {
         WEEK -> {
@@ -14,6 +14,13 @@ enum class MuscleVolumePeriod {
             monday..monday.plusDays(6)
         }
         MONTH -> today.withDayOfMonth(1)..today.with(TemporalAdjusters.lastDayOfMonth())
+        YEAR -> today.withDayOfYear(1)..today.with(TemporalAdjusters.lastDayOfYear())
+    }
+
+    fun shift(anchor: LocalDate, amount: Long): LocalDate = when (this) {
+        WEEK -> anchor.plusWeeks(amount)
+        MONTH -> anchor.plusMonths(amount)
+        YEAR -> anchor.plusYears(amount)
     }
 }
 
@@ -39,6 +46,15 @@ data class MuscleVolumeRow(
     val fractionalSets: Double get() = directSets + 0.5 * secondarySets
     val directTrainingDays: Int get() = daily.count { it.directSets > 0 }
     val exposureDays: Int get() = daily.count { it.directSets > 0 || it.secondarySets > 0 }
+    val directMeanGapDays: Double? get() = meanGap(daily.filter { it.directSets > 0 }.map { it.date })
+    val exposureMeanGapDays: Double? get() = meanGap(daily.filter { it.directSets > 0 || it.secondarySets > 0 }.map { it.date })
+
+    private fun meanGap(dates: List<LocalDate>): Double? {
+        val distinct = dates.distinct().sorted()
+        if (distinct.size < 2) return null
+        return distinct.zipWithNext { a, b -> java.time.temporal.ChronoUnit.DAYS.between(a, b) }
+            .average()
+    }
 }
 
 /** Fixed presentation bins, not training targets or clinical thresholds. */
@@ -83,7 +99,7 @@ object MuscleVolumeSummary {
         val totals = mutableMapOf<String, MutableMap<String, Counts>>()
         val daily = mutableMapOf<String, MutableMap<LocalDate, DayCounts>>()
         val seenIds = mutableSetOf<Long>()
-        TrainingEvidence.sessions(sessions, start, end).forEach { session ->
+        TrainingEvidence.sessions(sessions, start, end, includeSavedPartial = true).forEach { session ->
             val date = runCatching { LocalDate.parse(session.date) }.getOrNull()
             if (date == null || date !in start..end) return@forEach
             for (exercise in session.exercises) {

@@ -90,3 +90,17 @@ fun MuscleVolumeHeatmapMixedBandsSmallScreen() {
     ))
     ApexFitTheme { MuscleVolumeContent(listOf(session), LocalDate.parse("2026-11-16"), onBack = {}) }
 }
+
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun MuscleFrequencyYearWithHistoricalWork() {
+    val sessions = listOf(pullSession().copy(date = "2025-02-01"),
+        pullSession().copy(date = "2025-02-05"), pullSession().copy(date = "2025-09-01"))
+    ApexFitTheme {
+        MuscleVolumeContent(sessions, LocalDate.parse("2026-11-16"), onBack = {},
+            initialSelectedMuscle = "back", initialPeriod = MuscleVolumePeriod.YEAR,
+            periodAnchor = LocalDate.parse("2025-01-01"), onNavigatePeriod = {})
+    }
+}

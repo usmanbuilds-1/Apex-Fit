@@ -12,10 +12,11 @@ object TrainingEvidence {
     fun sessions(
         sessions: List<RichTrainingSession>,
         start: LocalDate,
-        end: LocalDate
+        end: LocalDate,
+        includeSavedPartial: Boolean = false
     ): List<RichTrainingSession> = sessions.filter { session ->
         val date = runCatching { LocalDate.parse(session.date) }.getOrNull()
-        session.completed && date != null && date in start..end &&
+        (session.completed || (includeSavedPartial && session.savedPartial)) && date != null && date in start..end &&
             (session.completedAt ?: session.startedAt ?: 0L) <= System.currentTimeMillis()
     }
 }

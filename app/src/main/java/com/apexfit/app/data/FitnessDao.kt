@@ -101,6 +101,23 @@ interface FitnessDao {
     @Query("DELETE FROM workout_sessions WHERE id = :id")
     suspend fun deleteTrainingSession(id: String)
 
+    // A single bounded snapshot of saved work, including completed sets in partial workouts.
+    // Keep this separate from completed-session readiness and adherence inputs.
+    @Query("""
+        SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
+               ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
+               ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles
+        FROM workout_sessions ts
+        JOIN exercise_sets es ON es.sessionId = ts.id
+        LEFT JOIN exercises e ON e.id = es.exerciseId
+        WHERE ts.date BETWEEN :startDate AND :endDate
+          AND (ts.completed = 1 OR ts.status = 'partial')
+          AND es.completed = 1 AND es.isWarmup = 0 AND es.reps > 0
+        ORDER BY ts.date ASC, ts.id ASC, es.id ASC
+    """)
+    fun observeAnalyticsWorkingSets(startDate: String, endDate: String): Flow<List<AnalyticsWorkingSet>>
+
     // Exercise Sets
     @Query("SELECT * FROM exercise_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     fun getSetsForSessionFlow(sessionId: String): Flow<List<ExerciseSet>>

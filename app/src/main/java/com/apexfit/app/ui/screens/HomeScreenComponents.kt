@@ -186,7 +186,7 @@ fun HomeTodayWorkoutCard(
         }
     }
 
-    val weeklyVolumeHeatmap by algorithmViewModel.muscleHeatmap.collectAsStateWithLifecycle()
+    val weeklyVolumeHeatmap by homeViewModel.currentWeekMuscleHeatmap.collectAsStateWithLifecycle()
 
     ApexCard(
         elevation = 2.dp,

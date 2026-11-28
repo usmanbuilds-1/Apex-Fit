@@ -47,4 +47,46 @@ class MuscleAnalyticsRepositoryTest {
             db.close()
         }
     }
+    @Test
+    fun boundedHistoricalQueryIncludesSavedPartialWorkAndRefreshesAfterDeletion() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val dao = db.fitnessDao()
+            val old = LocalDate.now().minusDays(400)
+            val start = old.minusDays(1)
+            val end = old.plusDays(1)
+            dao.insertExercise(Exercise(id = "history-row", name = "History Row", category = "Cable",
+                primaryMuscle = "Back", secondaryMuscles = listOf("Biceps"), equipmentRequired = "Cable"))
+            val sessions = listOf(
+                TrainingSession("full", old.toString(), "Pull", true, 20, 3),
+                TrainingSession("partial", old.plusDays(1).toString(), "Pull", false, 10, 3, status = "partial"),
+                TrainingSession("outside", old.minusDays(2).toString(), "Pull", true, 20, 3),
+                TrainingSession("abandoned", old.toString(), "Pull", false, 10, 3, status = "cancelled")
+            )
+            for ((index, session) in sessions.withIndex()) {
+                dao.insertTrainingSession(session)
+                dao.insertExerciseSet(ExerciseSet(id = 800L + index, sessionId = session.id,
+                    exerciseId = "history-row", exerciseName = "History Row", muscleGroup = "Back",
+                    weight = 20.0, reps = 8, rpe = 8, isWarmup = false, completed = true))
+            }
+            dao.insertExerciseSet(ExerciseSet(id = 899, sessionId = "partial",
+                exerciseId = "history-row", exerciseName = "History Row", muscleGroup = "Back",
+                weight = 20.0, reps = 0, rpe = 8, isWarmup = false, completed = true))
+            val flow = dao.observeAnalyticsWorkingSets(start.toString(), end.toString())
+            val facts = withTimeout(10000) { flow.first() }
+            assertEquals(setOf(800L, 801L), facts.map { it.set.id }.toSet())
+            val rich = com.apexfit.app.utils.AnalyticsHistory.sessions(facts)
+            val back = MuscleVolumeSummary.calculateWindow(rich, start, end).first { it.muscle == "back" }
+            assertEquals(2, back.directSets)
+            assertEquals(2, back.directTrainingDays)
+            assertEquals(1.0, back.directMeanGapDays!!, 0.0)
+            dao.deleteExerciseSet(801)
+            val remaining = withTimeout(10000) { flow.first { it.size == 1 } }
+            assertEquals(800L, remaining.single().set.id)
+        } finally {
+            db.close()
+        }
+    }
+
 }

@@ -149,4 +149,49 @@ class MuscleVolumeSummaryTest {
         assertEquals(1, FatigueEngine.directHeatmap(week).getValue("back").volume)
     }
 
+    @Test
+    fun frequencyCountsDistinctDatesAndReportsActualCalendarGaps() {
+        val press = ExerciseLog("press", "Press", "Chest", listOf(ExerciseSet(weight = 20.0, reps = 8)),
+            secondaryMuscles = listOf("Triceps"))
+        val extension = ExerciseLog("extension", "Extension", "Triceps", listOf(ExerciseSet(weight = 10.0, reps = 8)))
+        val sessions = listOf(
+            RichTrainingSession("2026-11-01", "Push", true, exercises = listOf(press)),
+            RichTrainingSession("2026-11-01", "Arms", true, exercises = listOf(extension)),
+            RichTrainingSession("2026-11-05", "Push", true, exercises = listOf(press)),
+            RichTrainingSession("2026-11-09", "Arms", false, exercises = listOf(extension), savedPartial = true),
+            RichTrainingSession("2026-11-12", "Abandoned", false, exercises = listOf(extension))
+        )
+        val triceps = MuscleVolumeSummary.calculate(sessions, today, MuscleVolumePeriod.MONTH)
+            .first { it.muscle == "triceps" }
+        assertEquals(2, triceps.directTrainingDays)
+        assertEquals(3, triceps.exposureDays)
+        assertEquals(8.0, triceps.directMeanGapDays!!, 0.0)
+        assertEquals(4.0, triceps.exposureMeanGapDays!!, 0.0)
+        val chest = MuscleVolumeSummary.calculate(sessions.take(1), today, MuscleVolumePeriod.MONTH).first { it.muscle == "chest" }
+        org.junit.Assert.assertNull(chest.directMeanGapDays)
+    }
+
+    @Test
+    fun historicalYearIsBoundedAndLeapYearNavigationIsSafe() {
+        val anchor = LocalDate.parse("2024-02-29")
+        val range = MuscleVolumePeriod.YEAR.window(anchor)
+        assertEquals(LocalDate.parse("2024-01-01"), range.start)
+        assertEquals(LocalDate.parse("2024-12-31"), range.endInclusive)
+        assertEquals(LocalDate.parse("2025-02-28"), MuscleVolumePeriod.YEAR.shift(anchor, 1))
+        val exercise = ExerciseLog("row", "Row", "Back", listOf(ExerciseSet(weight = 20.0, reps = 8)))
+        val sessions = listOf("2023-12-31", "2024-06-01", "2024-12-31", "2025-01-01").map {
+            RichTrainingSession(it, "Pull", true, exercises = listOf(exercise))
+        }
+        assertEquals(2, MuscleVolumeSummary.calculateWindow(sessions, range.start, range.endInclusive).single().directSets)
+    }
+
+    @Test
+    fun partialWorkIsIncludedInVolumeButNotCompletedSessionEvidence() {
+        val session = RichTrainingSession(today.toString(), "Partial", false,
+            exercises = listOf(ExerciseLog("row", "Row", "Back", listOf(ExerciseSet(weight = 20.0, reps = 8)))),
+            savedPartial = true)
+        assertEquals(1, MuscleVolumeSummary.calculate(listOf(session), today, MuscleVolumePeriod.WEEK).single().directSets)
+        assertEquals(emptyList<RichTrainingSession>(), TrainingEvidence.sessions(listOf(session), today, today))
+    }
+
 }

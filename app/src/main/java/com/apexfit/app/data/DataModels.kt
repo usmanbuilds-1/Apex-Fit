@@ -512,7 +512,20 @@ data class RichTrainingSession(
     val durationMinutes: Int = 0,
     val exercises: List<ExerciseLog> = emptyList(),
     val startedAt: Long? = null,
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+    val savedPartial: Boolean = false
+)
+
+/** Read projection only; does not change the Room schema. */
+data class AnalyticsWorkingSet(
+    @androidx.room.Embedded val set: ExerciseSet,
+    val analyticsDate: String,
+    val analyticsSessionType: String,
+    val analyticsSessionCompleted: Boolean,
+    val analyticsStatus: String?,
+    val analyticsStartedAt: Long?,
+    val analyticsCompletedAt: Long?,
+    val analyticsSecondaryMuscles: List<String>
 )
 
 @Entity(
