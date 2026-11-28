@@ -28,6 +28,8 @@ import com.apexfit.app.utils.LoadConfirmations
 import com.apexfit.app.utils.SetLoadConfirmation
 import com.apexfit.app.utils.RepRecordProjection
 import com.apexfit.app.utils.RepRecordEvent
+import com.apexfit.app.utils.EstimatedStrengthPoint
+import com.apexfit.app.utils.EstimatedStrength
 import kotlinx.coroutines.launch
 import com.apexfit.app.utils.StrengthSessionPoint
 import com.apexfit.app.utils.DateTimeUtils
@@ -96,10 +98,20 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
             catch (_: Exception) { value = StrengthLoad.Failed }
         }
     }
+    val estimates by key(selectedId, start, today, retry) {
+        produceState<StrengthLoad<List<EstimatedStrengthPoint>>>(StrengthLoad.Loading) {
+            val id = selectedId ?: return@produceState
+            try {
+                progressViewModel.observeEstimatedStrength(id, start, today).collect { value = StrengthLoad.Ready(it) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { value = StrengthLoad.Failed }
+        }
+    }
     val confirmed = (confirmations as? StrengthLoad.Ready)?.value
     var editing by remember { mutableStateOf<StrengthObservation?>(null) }
     var basis by remember { mutableStateOf(RecordedLoadBasis.TOTAL) }
     var setup by remember { mutableStateOf("") }
+    var repLimit by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -111,7 +123,7 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
             saveError = false
             scope.launch {
                 try {
-                    progressViewModel.confirmSetLoad(edit, choice, setup)
+                    progressViewModel.confirmSetLoad(edit, choice, setup, repLimit)
                     editing = null
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { saveError = true }
@@ -135,6 +147,14 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
                     OutlinedTextField(setup, { if (it.length <= 48) setup = it },
                         label = { Text("Setup name (same for comparable sets)") },
                         placeholder = { Text("e.g. Gym A flat barbell") }, singleLine = true, enabled = !saving)
+                    if (basis == RecordedLoadBasis.TOTAL && edit.reps in 2..5) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = repLimit, onCheckedChange = { repLimit = it }, enabled = !saving)
+                            Text("Unassisted free-weight set, full uninterrupted reps, reached my rep limit (no reps left).")
+                        }
+                        Text("Optional: only confirm if you remember. Never train to failure just to unlock estimates.",
+                            style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                    }
                     if (saveError) Text("Could not save. Try again.", color = MaterialTheme.colorScheme.error)
                 }
             },
@@ -195,6 +215,14 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
                 }
                 is StrengthLoad.Ready -> item { RepRecordsPanel(recordData.value, units) }
             }
+            when (val estimateData = estimates) {
+                StrengthLoad.Loading -> item { Text("Loading estimated strength…", color = ApexColors.TextSecondary) }
+                StrengthLoad.Failed -> item {
+                    Text("Estimated strength couldn't load.")
+                    TextButton(onClick = { retry++ }) { Text("Retry") }
+                }
+                is StrengthLoad.Ready -> item { EstimatedStrengthPanel(estimateData.value, units) }
+            }
             if (confirmations is StrengthLoad.Failed) item {
                 Text("Load confirmations couldn't load.")
                 TextButton(onClick = { retry++ }) { Text("Retry") }
@@ -215,6 +243,7 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
                                 val prior = confirmed?.let { LoadConfirmations.match(observation, it) }
                                 basis = prior?.basis ?: RecordedLoadBasis.TOTAL
                                 setup = prior?.setup.orEmpty()
+                                repLimit = prior?.freeWeightRepLimit == true
                                 saveError = false
                                 editing = observation
                             }
@@ -358,6 +387,81 @@ internal fun RepRecordsPanel(projection: RepRecordProjection, units: String) {
                     }
                     Text(DateTimeUtils.formatDateForDisplay(event.date.toString()), style = MaterialTheme.typography.labelSmall)
                 }
+            }
+        }
+    }
+}
+
+
+@Composable
+internal fun EstimatedStrengthPanel(points: List<EstimatedStrengthPoint>, units: String) {
+    var showAll by rememberSaveable { mutableStateOf(false) }
+    var selectedSetup by rememberSaveable { mutableStateOf<String?>(null) }
+    val setups = remember(points) { points.map { it.setup }.distinct().sorted() }
+    val activeSetup = selectedSetup?.takeIf { it in setups } ?: setups.firstOrNull()
+    val series = remember(points, activeSetup) { points.filter { it.setup == activeSetup } }
+    val daily = remember(series) {
+        series.groupBy { it.date }.toSortedMap().values.map { day ->
+            day.maxWithOrNull(compareBy<EstimatedStrengthPoint> { it.estimated1RmKg }.thenByDescending { it.setId })!!
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Estimated strength", style = MaterialTheme.typography.titleMedium)
+        Text("Epley estimate, not a measured 1RM. Only confirmed unassisted total free-weight sets of 2–5 reps at the rep limit qualify.",
+            color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+        if (points.isEmpty()) {
+            Text("No eligible confirmed sets in this period.", color = ApexColors.TextSecondary)
+        } else {
+            if (setups.size > 1) {
+                Text("Compare only within the same setup.", style = MaterialTheme.typography.bodySmall)
+                setups.forEach { setup ->
+                    Row(Modifier.fillMaxWidth().clickable { selectedSetup = setup }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = setup == activeSetup, onClick = { selectedSetup = setup })
+                        Text(setup)
+                    }
+                }
+            } else Text(activeSetup.orEmpty(), color = ApexColors.TextSecondary)
+            val latest = daily.lastOrNull()
+            if (latest != null) {
+                Text("Latest dated estimate", style = MaterialTheme.typography.bodySmall)
+                Text(String.format(Locale.getDefault(), "%.1f %s", latest.estimated1RmKg.toDisplayWeight(units), units),
+                    style = MaterialTheme.typography.headlineSmall, color = ApexColors.Primary)
+                Text("Relative strength: " + (latest.relativeStrength?.let { String.format(Locale.getDefault(), "%.2f× bodyweight", it) }
+                    ?: "Unavailable — no recent prior weigh-in"))
+                latest.bodyWeight?.let { weight ->
+                    Text("Bodyweight: " + String.format(Locale.getDefault(), "%.1f %s", weight.kg.toDisplayWeight(units), units) +
+                        " · " + DateTimeUtils.formatDateForDisplay(weight.date.toString()) + " · ${weight.ageDays} day(s) earlier",
+                        color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Text("Historical daily bodyweight averages must precede the workout by 1–7 days. Same-day ordering is unknown. No current-weight substitution.",
+                style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+            if (daily.size >= 2) {
+                val low = daily.minOf { it.estimated1RmKg }
+                val span = (daily.maxOf { it.estimated1RmKg } - low).coerceAtLeast(0.1)
+                val elapsed = ChronoUnit.DAYS.between(daily.first().date, daily.last().date).coerceAtLeast(1)
+                Canvas(Modifier.fillMaxWidth().height(90.dp).semantics {
+                    contentDescription = "Highest daily estimated one rep max for the selected setup, ${daily.size} dates. Source sets below."
+                }) {
+                    val plotted = daily.map { p ->
+                        Offset(size.width * (0.03f + 0.94f * ChronoUnit.DAYS.between(daily.first().date, p.date).toFloat() / elapsed.toFloat()),
+                            size.height * (0.85f - 0.70f * ((p.estimated1RmKg - low) / span).toFloat()))
+                    }
+                    plotted.zipWithNext().forEach { (a, b) -> drawLine(ApexColors.Primary, a, b, strokeWidth = 2.dp.toPx()) }
+                    plotted.forEach { drawCircle(ApexColors.Primary, radius = 3.dp.toPx(), center = it) }
+                }
+            }
+            TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Show recent estimates" else "Show all source sets") }
+            val visible = series.asReversed().let { if (showAll) it else it.take(3) }
+            visible.forEach { point ->
+                HorizontalDivider(color = ApexColors.BorderSubtle)
+                Text(DateTimeUtils.formatDateForDisplay(point.date.toString()) + " · " +
+                    observedPair(StrengthObservation(point.setId, point.loadKg, point.reps), units))
+                Text(String.format(Locale.getDefault(), "Estimate %.1f %s", point.estimated1RmKg.toDisplayWeight(units), units) +
+                    (point.relativeStrength?.let { String.format(Locale.getDefault(), " · %.2f× bodyweight", it) } ?: " · relative unavailable"),
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                Text("Source set ${point.setId}", style = MaterialTheme.typography.labelSmall, color = ApexColors.TextSecondary)
             }
         }
     }

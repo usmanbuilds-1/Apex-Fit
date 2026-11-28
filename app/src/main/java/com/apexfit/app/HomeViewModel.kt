@@ -344,9 +344,9 @@ class HomeViewModel @Inject constructor(
                         bodyMeasurements.forEach { writer.appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }
                         writer.appendLine()
                         writer.appendLine("## Load Setup Confirmations")
-                        writer.appendLine("set_id,fingerprint,basis,setup")
+                        writer.appendLine("set_id,fingerprint,basis,setup,free_weight_rep_limit")
                         setLoadConfirmations.values.sortedBy { it.setId }.forEach {
-                            writer.appendLine("${it.setId},${it.fingerprint},${it.basis.name},${csvEscape(it.setup)}")
+                            writer.appendLine("${it.setId},${it.fingerprint},${it.basis.name},${csvEscape(it.setup)},${it.freeWeightRepLimit}")
                         }
                         writer.appendLine()
                         writer.appendLine("## Muscle Target History")

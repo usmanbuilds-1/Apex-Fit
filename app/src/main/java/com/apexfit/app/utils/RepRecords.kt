@@ -10,7 +10,12 @@ enum class RecordedLoadBasis(val label: String) {
     TOTAL("Total external load"), PER_HAND("Load per hand"), MACHINE_STACK("Machine stack setting")
 }
 
-data class SetLoadConfirmation(val setId: Long, val fingerprint: String, val basis: RecordedLoadBasis, val setup: String)
+data class SetLoadConfirmation(
+    val setId: Long, val fingerprint: String, val basis: RecordedLoadBasis, val setup: String,
+    // Explicit user attestation: unassisted free-weight set, total external mass,
+    // uninterrupted full reps to the user's rep limit. Never inferred from RPE/RIR defaults.
+    val freeWeightRepLimit: Boolean = false
+)
 
 object LoadConfirmations {
     fun fingerprint(s: ExerciseSet): String {
@@ -24,13 +29,17 @@ object LoadConfirmations {
     fun validSetup(setup: String): Boolean = setup.trim().length in 1..48 &&
         setup.none { it == '|' || it.isISOControl() }
 
-    fun encode(c: SetLoadConfirmation): String = "${c.setId}|${c.fingerprint}|${c.basis.name}|${c.setup.trim()}"
+    fun encode(c: SetLoadConfirmation): String =
+        "${c.setId}|${c.fingerprint}|${c.basis.name}|${c.setup.trim()}|${if (c.freeWeightRepLimit) "limit" else "unknown"}"
     fun decode(raw: String): SetLoadConfirmation? {
-        val p = raw.split('|', limit = 4)
-        if (p.size != 4 || !p[1].matches(Regex("[0-9a-f]{64}")) || !validSetup(p[3])) return null
+        val p = raw.split('|')
+        if (p.size !in 4..5 || !p[1].matches(Regex("[0-9a-f]{64}")) || !validSetup(p[3])) return null
+        if (p.size == 5 && p[4] !in setOf("limit", "unknown")) return null
         val id = p[0].toLongOrNull()?.takeIf { it > 0 } ?: return null
         val basis = runCatching { RecordedLoadBasis.valueOf(p[2]) }.getOrNull() ?: return null
-        return SetLoadConfirmation(id, p[1], basis, p[3].trim())
+        val limit = p.getOrNull(4) == "limit"
+        if (limit && basis != RecordedLoadBasis.TOTAL) return null
+        return SetLoadConfirmation(id, p[1], basis, p[3].trim(), limit)
     }
 
     fun decodeAll(raw: Set<String>): Map<Long, SetLoadConfirmation> = raw.mapNotNull(::decode)

@@ -39,12 +39,14 @@ class ProgressViewModel @Inject constructor(
 
     val setLoadConfirmations = dataStore.setLoadConfirmationsFlow
 
-    suspend fun confirmSetLoad(observation: StrengthObservation, basis: RecordedLoadBasis?, setup: String) {
+    suspend fun confirmSetLoad(observation: StrengthObservation, basis: RecordedLoadBasis?, setup: String,
+                               freeWeightRepLimit: Boolean = false) {
         val fingerprint = requireNotNull(observation.fingerprint)
         require(observation.setId > 0)
         if (basis != null) require(LoadConfirmations.validSetup(setup) && (observation.loadKg ?: 0.0) > 0)
         dataStore.confirmSetLoad(observation.setId, basis?.let {
-            SetLoadConfirmation(observation.setId, fingerprint, it, setup.trim())
+            SetLoadConfirmation(observation.setId, fingerprint, it, setup.trim(),
+                freeWeightRepLimit && it == RecordedLoadBasis.TOTAL && observation.reps in 2..5)
         })
     }
 
@@ -52,6 +54,14 @@ class ProgressViewModel @Inject constructor(
         combine(observeStrengthHistory(exerciseId, java.time.LocalDate.of(1, 1, 1), today), setLoadConfirmations) { points, confirmations ->
             RepRecords.calculate(points, confirmations)
         }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
+    fun observeEstimatedStrength(exerciseId: String, start: java.time.LocalDate, end: java.time.LocalDate):
+        Flow<List<EstimatedStrengthPoint>> = combine(
+        observeStrengthHistory(exerciseId, start, end), setLoadConfirmations,
+        dao.observeAllWeightEntries()
+    ) { points, confirmations, weights ->
+        EstimatedStrength.calculate(points, confirmations, weights)
+    }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
     val personalRecords = dao.getPersonalRecordsWithNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
