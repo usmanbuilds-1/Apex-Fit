@@ -110,6 +110,34 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_sessions WHERE date = :date AND schedule_occurrence_id = :occurrenceId")
     suspend fun getOccurrenceWorkouts(date: String, occurrenceId: String): List<TrainingSession>
 
+    @Insert
+    suspend fun insertScheduleWorkoutAssociation(association: ScheduleWorkoutAssociation)
+
+    @Query("DELETE FROM schedule_workout_associations WHERE occurrenceId = :occurrenceId")
+    suspend fun clearScheduleWorkoutAssociation(occurrenceId: String)
+
+    @Query("SELECT * FROM schedule_workout_associations WHERE occurrenceId = :occurrenceId")
+    suspend fun getScheduleWorkoutAssociation(occurrenceId: String): ScheduleWorkoutAssociation?
+
+    @Query("SELECT * FROM schedule_workout_associations WHERE sessionId = :sessionId")
+    suspend fun getAssociationForWorkout(sessionId: String): ScheduleWorkoutAssociation?
+
+    @Transaction
+    @Query("SELECT * FROM schedule_workout_associations WHERE scheduledDate BETWEEN :start AND :end")
+    fun observeScheduleWorkoutAssociations(start: String, end: String): Flow<List<RescheduledWorkoutSnapshot>>
+
+    @Query("""
+        SELECT ws.* FROM workout_sessions ws
+        WHERE ws.plan_session_id = :slotId AND ws.date != :scheduledDate AND ws.date <= :today
+          AND ws.schedule_occurrence_id IS NULL AND ws.started_at >= :recordedAt
+          AND ws.completed_at >= ws.started_at AND ws.completed_at <= :nowMs
+          AND ((ws.completed = 1 AND ws.status = 'completed') OR (ws.completed = 0 AND ws.status = 'partial'))
+          AND NOT EXISTS (SELECT 1 FROM schedule_workout_associations a WHERE a.sessionId = ws.id)
+        ORDER BY ws.date DESC, ws.started_at DESC, ws.id
+    """)
+    suspend fun getReschedulingCandidates(slotId: Long, scheduledDate: String, today: String,
+                                         recordedAt: Long, nowMs: Long): List<TrainingSession>
+
     // Training Sessions
     @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     suspend fun getAllTrainingSessions(): List<TrainingSession>
