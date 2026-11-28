@@ -236,6 +236,11 @@ class FitnessRepositoryImpl @Inject constructor(
             .flatMapLatest { date -> dao.getCompletedSessionCountFlow(date) }
             .distinctUntilChanged()
 
+        val weekProjection = todayDateFlow.flatMapLatest { date ->
+            getTrainingFrequencyFlow().flatMapLatest { fallback ->
+                com.apexfit.app.utils.WeeklyNutritionSchedule.observe(dao, LocalDate.parse(date), fallback)
+            }
+        }
         @Suppress("UNCHECKED_CAST")
         combine(
             dataStore.calorieTargetManualFlow,
@@ -248,7 +253,8 @@ class FitnessRepositoryImpl @Inject constructor(
             nutritionEntriesFlow,
             todayDateFlow,
             getTrainingFrequencyFlow(),
-            dataStore.nutritionDayConfirmationsFlow
+            dataStore.nutritionDayConfirmationsFlow,
+            weekProjection
         ) { values ->
             val isManual            = values[0] as Boolean
             val manualCals          = values[1] as Int
@@ -264,6 +270,7 @@ class FitnessRepositoryImpl @Inject constructor(
             val currentWeekFrequency = values[9] as Int
             @Suppress("UNCHECKED_CAST")
             val confirmations = values[10] as Map<String, String>
+            val projectedWeek = values[11] as com.apexfit.app.utils.WeeklyNutritionProjection?
 
             val latestWeight = BodyWeightHistory.latest(weights.filter { it.date <= todayDate })?.weight
                 ?: bio.currentWeightKg
@@ -303,6 +310,15 @@ class FitnessRepositoryImpl @Inject constructor(
             val isTodayTraining = com.apexfit.app.utils.ScheduleConsumerPolicy.isTrainingDay(
                 LocalDate.parse(todayDate), choice, completedTodayCount)
 
+            val localDate = LocalDate.parse(todayDate)
+            val applicable = projectedWeek?.takeIf { it.monday == WorkoutSchedule.monday(localDate) }
+            if (applicable != null) {
+                // Today may have a fresher actual completion or choice than the weekly flow.
+                val adjusted = applicable.copy(trainingDates = if (isTodayTraining)
+                    applicable.trainingDates + localDate else applicable.trainingDates - localDate)
+                return@combine MacroEngine.calcProjectedDayTargets(calories, adjusted, localDate,
+                    goal, latestWeight, bio.heightCm, bio.biologicalSex)
+            }
             val todayCalories = if (isTodayTraining) cycled.trainingDayCalories else cycled.restDayCalories
             val todayProtein  = if (isTodayTraining) cycled.trainingDayProtein else cycled.restDayProtein
             val todayCarbs    = if (isTodayTraining) cycled.trainingDayCarbs else cycled.restDayCarbs
