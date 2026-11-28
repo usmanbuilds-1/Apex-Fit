@@ -70,7 +70,7 @@ object ProgressionEvidence {
                 it.completed || it.isWarmup || it.restTakenSeconds > 0 || it.advancedDetails != null || it.setObservation != null
             }) return null
         return exercise.copy(sets = exercise.sets.map { set ->
-            set.copy(weight = proposal.suggestedKg.toDisplayWeight(set.weightUnit))
+            set.copy(weight = proposal.suggestedKg.toEditableWeight(set.weightUnit))
         }.toMutableList(), progressionProposal = null,
             loadContext = "Confirmed same setup: ${proposal.basis.label} · ${proposal.setup}. Adjust load if needed.")
     }
