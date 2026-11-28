@@ -46,7 +46,7 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
     override suspend fun doWork(): Result = LocalDataGate.exclusive { deliver() }
 
     private suspend fun deliver(): Result {
-        if (!buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
+        if (LocalResetCoordinator.pending(applicationContext) || !buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
         var title = inputData.getString("title") ?: "Apex Fit Update"
         var body = inputData.getString("body") ?: "Open Apex Fit to view updates."
         val id = inputData.getString("id") ?: "apex_notification"
@@ -126,7 +126,7 @@ class DailyCoachingWorker(context: Context, params: WorkerParameters) : Coroutin
     override suspend fun doWork(): Result = LocalDataGate.exclusive { runCoaching() }
 
     private suspend fun runCoaching(): Result {
-        if (!buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
+        if (LocalResetCoordinator.pending(applicationContext) || !buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
         val repository = buildRepository(applicationContext)
         try {
         val dao = buildDao(applicationContext)
@@ -276,7 +276,7 @@ class PatternScanWorker(ctx: Context, params: WorkerParameters) : CoroutineWorke
     override suspend fun doWork(): Result = LocalDataGate.exclusive { scan() }
 
     private suspend fun scan(): Result {
-        if (!buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
+        if (LocalResetCoordinator.pending(applicationContext) || !buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
         val repository = buildRepository(applicationContext)
         return try {
             repository.scanAndSaveWeeklyPatterns()
