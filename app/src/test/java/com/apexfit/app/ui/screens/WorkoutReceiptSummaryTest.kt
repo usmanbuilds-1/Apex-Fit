@@ -44,4 +44,18 @@ class WorkoutReceiptSummaryTest {
         assertTrue(summaries.isEmpty())
         assertEquals(0L, totalActualRestSeconds(emptyList()))
     }
+
+    @Test
+    fun repeatedCatalogExerciseKeepsSeparateRecordedOccurrences() {
+        val first = UiExerciseSet(weight = 40.0, reps = 5, rpe = 8, exerciseId = "press",
+            exerciseName = "Press", occurrenceIndex = 0, setNumber = 1, restTaken = 91)
+        val second = first.copy(weight = 20.0, reps = 11, occurrenceIndex = 1, restTaken = 37)
+        val summaries = summarizeCompletedExercises(listOf(first, second))
+        assertEquals(2, summaries.size)
+        assertEquals(listOf(40.0, 20.0), summaries.map { it.workingSets.single().weight })
+        assertEquals(listOf(91L, 37L), summaries.map { it.actualRestSeconds })
+        val legacy = summarizeCompletedExercises(listOf(first.copy(occurrenceIndex = null), second.copy(occurrenceIndex = null)))
+        assertEquals(1, legacy.size)
+        assertEquals(2, legacy.single().workingSets.size)
+    }
 }

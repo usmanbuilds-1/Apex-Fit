@@ -1,168 +1,97 @@
 package com.apexfit.app.utils
 
-import com.apexfit.app.data.*
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
 object ComplianceEngine {
-    // ── COMPLIANCE SCORES ────────────────────────────────────
+    private fun confirmedDates(log: List<NutritionEntry>, confirmations: Map<String, String>): Set<String> =
+        NutritionDayEvidence.snapshots(log).filter { (date, fingerprint) ->
+            confirmations[date] == fingerprint
+        }.keys
+
+    private fun validTrainingDates(log: List<TrainingSession>, today: LocalDate): Set<LocalDate> =
+        log.mapNotNull { session ->
+            val date = runCatching { LocalDate.parse(session.date) }.getOrNull()
+            if (date != null && date <= today && session.completed &&
+                (session.completedAt ?: session.startedAt ?: 0L) <= System.currentTimeMillis() &&
+                session.exercises.any { ex -> ex.sets.any {
+                    it.completed && !it.isWarmup && it.reps > 0 && it.weight.isFinite() && it.weight >= 0.0
+                } }) date else null
+        }.toSet()
+
+    /**
+     * Compare confirmed, finished food-log days with the CURRENT targets.
+     * There is no historical target ledger, so this must not be called historical adherence.
+     * Coverage is separate from target comparison; unconfirmed days are unknown.
+     */
     fun calcComplianceScores(
         nutritionLog: List<NutritionEntry>,
         trainingLog: List<TrainingSession>,
         targets: NutritionTargets,
-        days: Int = 14
+        days: Int = 14,
+        nutritionConfirmations: Map<String, String> = emptyMap(),
+        today: LocalDate = LocalDate.parse(getCurrentDate())
     ): ComplianceResult {
-        if (targets.calories <= 0 || targets.protein <= 0) {
-            return ComplianceResult(
-                calories = 0,
-                protein = 0,
-                training = 0,
-                overall = 0,
-                weakestDay = null
-            )
+        val end = today.minusDays(1)
+        val start = today.minusDays(days.coerceIn(1, 90).toLong())
+        val trainingDates = validTrainingDates(trainingLog, today).filter { it in start..end }
+        val observedNutrition = nutritionLog.filter {
+            val date = runCatching { LocalDate.parse(it.date) }.getOrNull()
+            date != null && date in start..end
+        }.groupBy { it.date }
+        val observedDates = observedNutrition.keys.map(LocalDate::parse) + trainingDates
+        val first = observedDates.minOrNull() ?: return ComplianceResult(0, 0, 0, 0, null)
+        val evaluated = (ChronoUnit.DAYS.between(first, end) + 1).toInt()
+        val confirmed = confirmedDates(nutritionLog, nutritionConfirmations)
+        val comparable = observedNutrition.filterKeys { it in confirmed }
+        val count = comparable.size
+        val coverage = (count * 100.0 / evaluated).roundToInt()
+        val validTargets = targets.calories > 0 && targets.protein > 0
+        fun calorieHit(entries: List<NutritionEntry>): Boolean =
+            kotlin.math.abs(entries.sumOf { it.calories.toLong() } - targets.calories).toDouble() <= targets.calories * 0.10
+        fun proteinHit(entries: List<NutritionEntry>): Boolean =
+            entries.sumOf { it.protein } >= targets.protein
+        fun percent(hits: Int, total: Int): Int = if (total == 0) 0 else (hits * 100.0 / total).roundToInt()
+        val cal = if (validTargets) percent(comparable.values.count(::calorieHit), count) else 0
+        val protein = if (validTargets) percent(comparable.values.count(::proteinHit), count) else 0
+        // This is a comparison to current frequency, not scheduled-day adherence.
+        val expected = (evaluated * targets.weeklyTrainingSessions.coerceIn(0, 7) / 7.0).roundToInt()
+        val training = if (expected > 0) percent(trainingDates.size, expected).coerceAtMost(100) else 0
+        val available = buildList {
+            if (validTargets && count > 0) { add(cal to 0.35); add(protein to 0.40) }
+            if (expected > 0) add(training to 0.25)
         }
-
-        val safeDays = days.coerceAtLeast(1)
-        val today = java.time.LocalDate.parse(getCurrentDate())
-        val windowStart = today.minusDays((safeDays - 1).toLong())
-        val observedDates = buildList {
-            nutritionLog.mapTo(this) { it.date }
-            trainingLog.mapTo(this) { it.date }
-        }.mapNotNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
-            .filter { !it.isBefore(windowStart) && !it.isAfter(today) }
-
-        if (observedDates.isEmpty()) {
-            return ComplianceResult(0, 0, 0, 0, null)
-        }
-
-        // Start at the first day the user has any tracked data inside the window.
-        // Missing days after tracking begins are real misses rather than disappearing
-        // from the denominator.
-        val evaluationStart = maxOf(windowStart, observedDates.minOrNull()!!)
-        val evaluatedDays = (java.time.temporal.ChronoUnit.DAYS.between(evaluationStart, today) + 1L)
-            .toInt()
-            .coerceAtLeast(1)
-        val cutoff = evaluationStart.toString()
-
-        val recentNutrition = nutritionLog.filter { it.date >= cutoff && it.date <= today.toString() }
-        val dailyNutrition = recentNutrition
-            .groupBy { it.date }
-            .mapValues { (_, e) -> Pair(e.sumOf { it.calories }, e.sumOf { it.protein }) }
-        val recentTraining = trainingLog.filter {
-            it.date >= cutoff && it.date <= today.toString() && it.completed
-        }
-
-        val calHits = dailyNutrition.values.count { (cal, _) ->
-            Math.abs(cal - targets.calories).toDouble() / targets.calories <= 0.10
-        }
-        val proteinHits = dailyNutrition.values.count { (_, protein) -> protein >= targets.protein }
-
-        val expectedSessions = ((evaluatedDays / 7.0) * targets.weeklyTrainingSessions)
-            .roundToInt()
-            .coerceAtLeast(if (targets.weeklyTrainingSessions > 0) 1 else 0)
-        // Onboarding frequency is expressed as training days per week, so
-        // multiple sessions logged on the same date must not count as multiple
-        // adherence days.
-        val completedTrainingDays = recentTraining.map { it.date }.distinct().size
-        val trainingScore = if (expectedSessions > 0) {
-            minOf(100, ((completedTrainingDays.toDouble() * 100) / expectedSessions).roundToInt())
-        } else {
-            0
-        }
-        val calScore = ((calHits.toDouble() * 100) / evaluatedDays).roundToInt()
-        val proteinScore = ((proteinHits.toDouble() * 100) / evaluatedDays).roundToInt()
-        val overall = ((proteinScore * 0.4) + (calScore * 0.35) + (trainingScore * 0.25)).roundToInt()
-
-        val dayNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
-        val dayScores = mutableMapOf<String, Pair<Int,Int>>()
-        val groupedByDate = recentNutrition.groupBy { it.date }
-
-        val dateParseCache = mutableMapOf<String, java.time.LocalDate>()
-        groupedByDate.keys.forEach { dateStr ->
-            try {
-                dateParseCache[dateStr] = java.time.LocalDate.parse(dateStr)
-            } catch (e: Exception) {
-                // Ignore parse errors safely
-            }
-        }
-
-        groupedByDate.forEach { (dateStr, entries) ->
-            val parsedDate = dateParseCache[dateStr] ?: return@forEach
-            val dow = parsedDate.dayOfWeek.value % 7
-            val day = dayNames[dow]
-            val current = dayScores[day] ?: Pair(0, 0)
-            val totalCal = entries.sumOf { it.calories }
-            val totalProtein = entries.sumOf { it.protein }
-            val hit = if (totalProtein >= targets.protein &&
-                Math.abs(totalCal - targets.calories).toDouble() / targets.calories <= 0.10) 1 else 0
-            dayScores[day] = Pair(current.first + hit, current.second + 1)
-        }
-        val weakestDay = dayScores.entries
-            .filter { it.value.second > 0 }
-            .minByOrNull { it.value.first.toDouble() / it.value.second }?.key
-
-        return ComplianceResult(calScore, proteinScore, trainingScore, overall, weakestDay)
+        val overall = if (available.isEmpty()) 0 else
+            (available.sumOf { it.first * it.second } / available.sumOf { it.second }).roundToInt()
+        val weakestDay = if (validTargets && count >= 2) {
+            comparable.entries.groupBy { LocalDate.parse(it.key).dayOfWeek }
+                .mapValues { (_, rows) -> percent(rows.count { calorieHit(it.value) && proteinHit(it.value) }, rows.size) }
+                .filterValues { it < 100 }.entries.minWithOrNull(compareBy({ it.value }, { it.key.value }))
+                ?.key?.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.US)
+        } else null
+        return ComplianceResult(cal, protein, training, overall, weakestDay,
+            confirmedNutritionDays = count, evaluatedDays = evaluated, nutritionCoverage = coverage,
+            nutritionComparisonAvailable = validTargets && count > 0, trainingComparisonAvailable = expected > 0)
     }
 
+    // A nutrition streak now measures confirmed logging, not historical target adherence.
     fun calcStreaks(
         nutritionLog: List<NutritionEntry>,
         trainingLog: List<TrainingSession>,
-        targets: NutritionTargets
+        targets: NutritionTargets,
+        nutritionConfirmations: Map<String, String> = emptyMap(),
+        today: LocalDate = LocalDate.parse(getCurrentDate())
     ): StreakResult {
-        if (targets.calories <= 0 || targets.protein <= 0) {
-            return StreakResult(StreakInfo(0), StreakInfo(0))
+        val confirmed = confirmedDates(nutritionLog, nutritionConfirmations)
+        var cursor = today.minusDays(1)
+        var current = 0
+        while (cursor.toString() in confirmed) {
+            current++
+            cursor = cursor.minusDays(1)
         }
-        var currentStreak = 0
-        val todayStr = getCurrentDate()
-        val yesterdayStr = try {
-            java.time.LocalDate.parse(todayStr).minusDays(1).toString()
-        } catch (e: Exception) { "" }
-        
-        val dailyNutritionMap = nutritionLog
-            .groupBy { it.date }
-            .mapValues { (_, e) -> Pair(e.sumOf { it.calories }, e.sumOf { it.protein }) }
-
-        var checkDate = yesterdayStr
-        val todayTotals = dailyNutritionMap[todayStr]
-        if (todayTotals != null &&
-            todayTotals.second >= targets.protein * 0.9 &&
-            Math.abs(todayTotals.first - targets.calories).toDouble() / targets.calories <= 0.15) {
-            checkDate = todayStr
-        }
-        
-        var tempDate = checkDate
-        val sortedEntries = dailyNutritionMap.entries.sortedByDescending { it.key }
-        for (entry in sortedEntries) {
-            if (entry.key > tempDate) continue
-            if (entry.key != tempDate) break
-            val dayTotals = entry.value
-            if (dayTotals.second >= targets.protein * 0.9 &&
-                Math.abs(dayTotals.first - targets.calories).toDouble() / targets.calories <= 0.15) {
-                currentStreak++
-                val nextDate: String? = try {
-                    java.time.LocalDate.parse(tempDate).minusDays(1).toString()
-                } catch (e: Exception) {
-                    null
-                }
-                if (nextDate == null) break
-                tempDate = nextDate
-            } else {
-                break
-            }
-        }
-
-        // Weekly adherence: how many of this week's planned sessions are completed
-        val currentWeekStart = getDateDaysAgo(java.time.DayOfWeek.from(
-            java.time.LocalDate.parse(getCurrentDate())).value - 1)
-        val completedThisWeek = trainingLog
-            .filter { it.completed && it.date >= currentWeekStart }
-            .map { it.date }
-            .distinct()
-            .size
-        val trainingStreak = completedThisWeek
-        
-        return StreakResult(
-            nutrition = StreakInfo(currentStreak),
-            training = StreakInfo(trainingStreak)
-        )
+        val weekStart = today.minusDays((today.dayOfWeek.value - 1).toLong())
+        val trainingDays = validTrainingDates(trainingLog, today).count { it in weekStart..today }
+        return StreakResult(StreakInfo(current), StreakInfo(trainingDays))
     }
 }

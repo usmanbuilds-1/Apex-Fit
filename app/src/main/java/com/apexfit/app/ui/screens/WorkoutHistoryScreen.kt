@@ -78,7 +78,7 @@ internal fun WorkoutHistoryDetail(
     units: String,
     onBack: () -> Unit
 ) {
-    val exercises = remember(sets) { sets.orEmpty().groupBy { it.exerciseId }.values.toList() }
+    val exercises = remember(sets) { sets.orEmpty().groupBy { set -> set.occurrenceIndex?.let { "occurrence:$it" } ?: "catalog:${set.exerciseId}" }.values.toList() }
     LazyColumn(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(horizontal = 20.dp),
         contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -91,7 +91,7 @@ internal fun WorkoutHistoryDetail(
         }
         if (sets == null) item { Text("Loading logged sets…", color = ApexColors.TextSecondary) }
         else if (sets.isEmpty()) item { Text("No sets recorded.", color = ApexColors.TextSecondary) }
-        items(exercises, key = { group -> group.first().exerciseId }) { group ->
+        items(exercises, key = { group -> group.first().occurrenceIndex?.let { "occurrence:$it" } ?: "catalog:${group.first().exerciseId}" }) { group ->
             HorizontalDivider(color = ApexColors.BorderSubtle)
             Column(Modifier.padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(group.first().exerciseName.ifBlank { "Exercise" }, style = MaterialTheme.typography.titleMedium)

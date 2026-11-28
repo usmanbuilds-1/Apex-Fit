@@ -34,6 +34,38 @@ class NutritionViewModel @Inject constructor(
     .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState.Loading)
 
+    data class DayConfirmation(val date: String, val fingerprint: String?, val confirmed: Boolean)
+
+    val dayConfirmation: StateFlow<DayConfirmation?> = _selectedNutritionDate.flatMapLatest { date ->
+        combine(dao.getNutritionForDateFlow(date), dataStore.nutritionDayConfirmationsFlow) { entries, saved ->
+            val fingerprint = NutritionDayEvidence.snapshots(entries)[date]
+            DayConfirmation(date, fingerprint, fingerprint != null && saved[date] == fingerprint)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    private val _confirmationError = MutableStateFlow<String?>(null)
+    val confirmationError = _confirmationError.asStateFlow()
+
+    fun toggleDayConfirmation(expected: DayConfirmation) {
+        viewModelScope.launch {
+            _confirmationError.value = null
+            try {
+                if (expected.date != _selectedNutritionDate.value ||
+                    expected.date >= getTodayDateString()) return@launch
+                val actual = NutritionDayEvidence.snapshots(dao.getNutritionForDate(expected.date))[expected.date]
+                if (actual == null || actual != expected.fingerprint) {
+                    _confirmationError.value = "Meals changed. Review them before confirming."
+                    return@launch
+                }
+                dataStore.setNutritionDayConfirmation(expected.date, if (expected.confirmed) null else actual)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _confirmationError.value = "Could not update day confirmation. Try again."
+            }
+        }
+    }
+
     // Log meal and delete meal
     fun logNutrition(
         calories: Int,
