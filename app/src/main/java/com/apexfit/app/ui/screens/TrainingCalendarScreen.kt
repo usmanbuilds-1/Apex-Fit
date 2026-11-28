@@ -72,6 +72,12 @@ private fun logLabel(day: TrainingCalendarDay): String = when (day.logKind) {
     CalendarLogKind.PARTIAL -> "Partial"
     CalendarLogKind.NONE -> "No saved workout"
 }
+private fun occurrenceLabel(day: TrainingCalendarDay): String? = when (day.occurrenceStatus) {
+    RecordedOccurrenceStatus.NOT_APPLICABLE -> null
+    RecordedOccurrenceStatus.COMPLETED -> "Scheduled workout completed"
+    RecordedOccurrenceStatus.PARTIAL -> "Scheduled workout partially completed"
+    RecordedOccurrenceStatus.UNRESOLVED -> "Scheduled workout · outcome unconfirmed"
+}
 private fun scheduleLabel(day: TrainingCalendarDay): String = when (day.scheduleKind) {
     CalendarScheduleKind.TRAINING -> if (day.scheduleSource == CalendarScheduleSource.RECORDED)
         "Recorded schedule: ${day.plannedLabel}" else "Projected: ${day.plannedLabel}"
@@ -122,6 +128,13 @@ internal fun TrainingCalendarContent(
                     }
                 }
             }
+            if (data.recordedOccurrences > 0) item {
+                Text("Recorded schedule outcomes", style = MaterialTheme.typography.titleMedium)
+                Text("${data.recordedCompletedOccurrences} completed · ${data.recordedPartialOccurrences} partial · ${data.unresolvedOccurrences} unconfirmed",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                Text("Based on ${data.recordedOccurrences} recorded training days before today. Unconfirmed is not a missed workout.",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+            }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Row(Modifier.fillMaxWidth()) {
@@ -146,7 +159,7 @@ internal fun TrainingCalendarContent(
                 }
                 Text("C saved completed · P saved partial · T scheduled · R rest · — unknown",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
-                Text("Past schedules use recorded revisions where available. Saved workouts are not matched to scheduled occurrences yet; no log is not proof of a missed workout. Today and future dates show the live plan.",
+                Text("Past schedules use recorded revisions where available. Only exact linked workouts establish scheduled completion. No log is not proof of a missed workout. Today and future dates show the live plan.",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
             }
             if (day == null) item { Text("Select a day for details.", color = ApexColors.TextSecondary) }
@@ -161,9 +174,8 @@ internal fun TrainingCalendarContent(
                         Text(if (day.scheduleSource == CalendarScheduleSource.RECORDED) "Recorded plan: $it"
                             else "Current plan: $it", style = MaterialTheme.typography.bodySmall)
                     }
-                    if (day.recordedOccurrenceId != null) {
-                        Text("Scheduled occurrence · completion not yet linked", style = MaterialTheme.typography.bodySmall,
-                            color = ApexColors.TextSecondary)
+                    occurrenceLabel(day)?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                     }
                 }
                 items(day.sessions, key = { it.id }) { session ->
@@ -174,6 +186,16 @@ internal fun TrainingCalendarContent(
                             Text(session.sessionType.ifBlank { "Workout" }, style = MaterialTheme.typography.titleMedium)
                             Text((if (session.completed) "Completed" else "Partial") +
                                 " · ${session.durationMinutes.coerceAtLeast(0)} min", color = ApexColors.TextSecondary)
+                            if (day.recordedOccurrenceId != null) {
+                                val linked = session.scheduleOccurrenceId == day.recordedOccurrenceId &&
+                                    session.planSessionId == day.plannedSessionId &&
+                                    session.startedAt != null && session.completedAt != null &&
+                                    session.completedAt >= session.startedAt &&
+                                    ((session.completed && session.status == "completed") ||
+                                        (!session.completed && session.status == "partial"))
+                                Text(if (linked) "Linked to recorded schedule" else "Not verified against recorded schedule",
+                                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                            }
                         }
                         Text("›", color = ApexColors.TextSecondary)
                     }
