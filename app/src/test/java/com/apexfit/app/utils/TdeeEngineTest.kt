@@ -139,6 +139,7 @@ class TdeeEngineTest {
         val result = TdeeEngine.calcAdaptiveTDEE(
             weightLog = weightLog(15, 80.0),
             nutritionLog = nutritionLog(15, 2500),
+            nutritionConfirmations = NutritionDayEvidence.snapshots(nutritionLog(15, 2500)),
             heightCm = 175.0, ageYears = 25,
             biologicalSex = "male", weeklyWorkouts = 4
         )
@@ -151,6 +152,7 @@ class TdeeEngineTest {
         val result = TdeeEngine.calcAdaptiveTDEE(
             weightLog = weightLog(15, 80.0),
             nutritionLog = nutritionLog(15, 2500),
+            nutritionConfirmations = NutritionDayEvidence.snapshots(nutritionLog(15, 2500)),
             heightCm = 175.0, ageYears = 25,
             biologicalSex = "male", weeklyWorkouts = 4
         )
@@ -164,6 +166,7 @@ class TdeeEngineTest {
         val result = TdeeEngine.calcAdaptiveTDEE(
             weightLog = weightLog(3, 80.0),
             nutritionLog = nutritionLog(15, 2500),
+            nutritionConfirmations = NutritionDayEvidence.snapshots(nutritionLog(15, 2500)),
             heightCm = 175.0, ageYears = 25,
             biologicalSex = "male", weeklyWorkouts = 4
         )
@@ -355,4 +358,105 @@ class TdeeEngineTest {
         // But not too aggressive: max rate is 0.70 kg/week = 770 kcal/day
         assertTrue("Cut $target should not exceed 770 kcal below TDEE", target >= 3500 - 780)
     }
+
+    @Test
+    fun fallbackIgnoresFutureWeightEvenWhenItIsTheOnlyEntry() {
+        val future = WeightEntry(date = java.time.LocalDate.parse(getCurrentDate()).plusDays(1).toString(), weight = 110.0)
+        val current = WeightEntry(date = getCurrentDate(), weight = 70.0)
+        val withCurrent = TdeeEngine.calcAdaptiveTDEE(listOf(current, future), emptyList(), fallbackWeightKg = 80.0)
+        assertEquals(TdeeEngine.calcAdaptiveTDEE(listOf(current), emptyList(), fallbackWeightKg = 80.0), withCurrent)
+        assertEquals(TdeeEngine.calcAdaptiveTDEE(emptyList(), emptyList(), fallbackWeightKg = 80.0),
+            TdeeEngine.calcAdaptiveTDEE(listOf(future), emptyList(), fallbackWeightKg = 80.0))
+    }
+
+    @Test
+    fun adaptiveIgnoresFutureWeightsAndNutrition() {
+        val weights = weightLog(14, 80.0)
+        val meals = nutritionLog(14, 2500)
+        val futureDate = java.time.LocalDate.parse(getCurrentDate()).plusDays(1).toString()
+        val confirmations = NutritionDayEvidence.snapshots(meals)
+        val expected = TdeeEngine.calcAdaptiveTDEE(weights, meals, nutritionConfirmations = confirmations)
+        assertEquals(2500, expected.tdee)
+        assertEquals(expected, TdeeEngine.calcAdaptiveTDEE(
+            weights + WeightEntry(date = futureDate, weight = 110.0),
+            meals + NutritionEntry(date = futureDate, calories = 8000, protein = 150, carbs = 200, fat = 60),
+            nutritionConfirmations = confirmations
+        ))
+    }
+
+    @Test
+    fun adaptiveExcludesIntakeOnAndAfterLastWeightDate() {
+        val weights = weightLog(14, 80.0).filter { it.date <= getDateDaysAgo(2) }
+        val terminal = weights.last().date
+        val meals = nutritionLog(14, 2500)
+        val changed = meals.map { if (it.date >= terminal) it.copy(calories = 100) else it }
+        val confirmations = NutritionDayEvidence.snapshots(meals)
+        val expected = TdeeEngine.calcAdaptiveTDEE(weights, meals, nutritionConfirmations = confirmations)
+        assertEquals(2500, expected.tdee)
+        assertEquals(2500, expected.avgCalories)
+        assertEquals(expected, TdeeEngine.calcAdaptiveTDEE(weights, changed, nutritionConfirmations = confirmations))
+    }
+
+    @Test
+    fun adaptiveCoverageDoesNotCountTerminalDay() {
+        val weights = weightLog(14, 80.0)
+        // 10 of 13 elapsed days are logged; a terminal-day meal cannot
+        // increase that 76.9% coverage above the existing 80% gate.
+        val meals = nutritionLog(14, 2500).filter {
+            it.date >= getDateDaysAgo(9) && it.date < getCurrentDate() ||
+                it.date == getDateDaysAgo(13) || it.date == getCurrentDate()
+        }
+        val result = TdeeEngine.calcAdaptiveTDEE(weights, meals)
+        assertTrue(result.confidence.contains("sparse nutrition coverage"))
+    }
+
+    @Test
+    fun partialMealLogsCannotUnlockAdaptiveTdee() {
+        val weights = weightLog(14, 80.0)
+        val meals = nutritionLog(14, 400)
+        val result = TdeeEngine.calcAdaptiveTDEE(weights, meals)
+        assertTrue(result.confidence.contains("unconfirmed nutrition days"))
+        assertEquals(TdeeEngine.calcAdaptiveTDEE(weights, emptyList()).tdee, result.tdee)
+    }
+
+    @Test
+    fun confirmationRequiresEveryElapsedDayAndUnchangedMealSnapshot() {
+        val weights = weightLog(14, 80.0)
+        val meals = nutritionLog(14, 2500)
+        val confirmed = NutritionDayEvidence.snapshots(meals)
+        val result = TdeeEngine.calcAdaptiveTDEE(weights, meals, nutritionConfirmations = confirmed)
+        assertEquals(2500, result.tdee)
+        assertEquals("medium", result.confidence)
+        val missingDate = meals.first().date
+        val missing = TdeeEngine.calcAdaptiveTDEE(weights, meals, nutritionConfirmations = confirmed - missingDate)
+        assertTrue(missing.confidence.contains("unconfirmed"))
+        val modified = meals.map { if (it.date == missingDate) it.copy(calories = 400) else it }
+        assertTrue(TdeeEngine.calcAdaptiveTDEE(weights, modified, nutritionConfirmations = confirmed).confidence.contains("unconfirmed"))
+        val removed = meals.filter { it.date != missingDate }
+        assertTrue(TdeeEngine.calcAdaptiveTDEE(weights, removed, nutritionConfirmations = confirmed).confidence.contains("unconfirmed"))
+    }
+
+    @Test
+    fun fingerprintsAreOrderIndependentAndDetectAddedMeals() {
+        val meals = nutritionLog(14, 2500)
+        assertEquals(NutritionDayEvidence.snapshots(meals), NutritionDayEvidence.snapshots(meals.reversed()))
+        val added = meals + meals.first().copy(calories = 100)
+        assertTrue(NutritionDayEvidence.snapshots(meals)[meals.first().date] !=
+            NutritionDayEvidence.snapshots(added)[meals.first().date])
+    }
+
+    @Test
+    fun noAutomaticDeficitForLowCurrentOrGoalWeight() {
+        assertEquals(2200, TdeeEngine.suggestCaloricTarget(2200, "lose fat", 55.0, 50.0, 180.0, 26, "male"))
+        assertEquals(2500, TdeeEngine.suggestCaloricTarget(2500, "lose fat", 70.0, 55.0, 180.0, 26, "male"))
+        assertEquals(2200, TdeeEngine.suggestCaloricTarget(2200, "lose fat", 55.0, null, 180.0, 26, "male"))
+        assertFalse(GoalEngine.calcGoalTimeline(70.0, 55.0, "lose fat", 180.0, "male").isRealistic)
+    }
+    @Test
+    fun buildMuscleAliasMatchesGainMuscle() {
+        assertEquals(TdeeEngine.suggestCaloricTarget(2500, "gain muscle", 80.0, 85.0),
+            TdeeEngine.suggestCaloricTarget(2500, "build muscle", 80.0, 85.0))
+    }
+
+
 }
