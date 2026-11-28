@@ -3,6 +3,7 @@ package com.apexfit.app.utils
 import com.apexfit.app.data.CalendarPlanSnapshot
 import com.apexfit.app.data.RescheduledWorkoutSnapshot
 import com.apexfit.app.data.ScheduleDisposition
+import com.apexfit.app.data.ScheduleMoveReservation
 import com.apexfit.app.data.ScheduleRevisionSnapshot
 import com.apexfit.app.data.TrainingSession
 import java.time.LocalDate
@@ -25,7 +26,9 @@ data class TrainingCalendarDay(
     val recordedOccurrenceId: String? = null,
     val explicitDecision: OccurrenceDecision? = null,
     val rescheduledWorkout: TrainingSession? = null,
-    val hasManualAssociation: Boolean = false
+    val hasManualAssociation: Boolean = false,
+    val futureMoveOccurrenceId: String? = null,
+    val reservations: List<CalendarReservation> = emptyList()
 ) {
     val completedCount: Int get() = sessions.count { it.completed }
     val partialCount: Int get() = sessions.count { !it.completed && it.status == "partial" }
@@ -56,6 +59,9 @@ data class TrainingCalendarDay(
     }
 }
 
+data class CalendarReservation(val row: ScheduleMoveReservation, val state: ReservationState,
+                               val isOriginal: Boolean, val label: String?)
+
 data class TrainingCalendarMonth(val month: YearMonth, val days: List<TrainingCalendarDay>) {
     val completedDays: Int get() = days.count { it.completedCount > 0 }
     val partialOnlyDays: Int get() = days.count { it.logKind == CalendarLogKind.PARTIAL }
@@ -75,7 +81,8 @@ object TrainingCalendar {
               activePlans: List<CalendarPlanSnapshot>, nowMs: Long = System.currentTimeMillis(),
               revisions: List<ScheduleRevisionSnapshot> = emptyList(),
               dispositions: List<ScheduleDisposition> = emptyList(),
-              associations: List<RescheduledWorkoutSnapshot> = emptyList()): TrainingCalendarMonth {
+              associations: List<RescheduledWorkoutSnapshot> = emptyList(),
+              reservations: List<ScheduleMoveReservation> = emptyList()): TrainingCalendarMonth {
         val byOccurrence = associations.groupBy { it.association.occurrenceId }
         val duplicateSessions = associations.groupingBy { it.association.sessionId }.eachCount()
         val revisionsById = revisions.associateBy { it.revision.id }
@@ -96,6 +103,13 @@ object TrainingCalendar {
         }
         return TrainingCalendarMonth(month, (1..month.lengthOfMonth()).map { n ->
             val date = month.atDay(n)
+            val reservationRows = reservations.filter { it.originalDate == date.toString() || it.targetDate == date.toString() }
+                .map { row ->
+                    val original = runCatching { LocalDate.parse(row.originalDate) }.getOrNull()
+                    CalendarReservation(row, ScheduleMoveStore.state(row, revisions, today, nowMs),
+                        row.originalDate == date.toString(),
+                        original?.let { ScheduleLedger.resolve(it, revisions).label })
+                }
             val actual = logged[date.toString()].orEmpty().sortedWith(
                 compareBy<TrainingSession> { it.completedAt ?: it.startedAt ?: Long.MIN_VALUE }.thenBy { it.id })
             // Past schedules must come from the immutable ledger, never the live plan.
@@ -117,7 +131,8 @@ object TrainingCalendar {
                         if (a == null || slotId == null || recordedAt == null ||
                             duplicateSessions[a.association.sessionId] != 1) null
                         else RescheduledWorkouts.verified(a, id, date, slotId, recordedAt, today, nowMs)
-                    }, recorded.occurrenceId?.let { byOccurrence[it]?.isNotEmpty() == true } ?: false)
+                    }, recorded.occurrenceId?.let { byOccurrence[it]?.isNotEmpty() == true } ?: false,
+                    reservations = reservationRows)
             }
             // Today follows live execution; future slots are projections, not promises.
             val current = snapshot?.takeIf { date >= today }
@@ -127,8 +142,16 @@ object TrainingCalendar {
                 slot == null || !WorkoutSchedule.isTraining(slot) -> CalendarScheduleKind.REST
                 else -> CalendarScheduleKind.TRAINING
             }
+            val projected = ScheduleLedger.resolve(date, revisions)
+            val moveId = projected.occurrenceId?.takeIf {
+                date > today && kind == CalendarScheduleKind.TRAINING &&
+                    projected.slotId == slot?.id && projected.label == slot?.label &&
+                    revisionsById[projected.revisionId]?.revision?.planId == current?.plan?.id &&
+                    reservationRows.isEmpty()
+            }
             TrainingCalendarDay(date, actual, kind, slot?.label, slot?.id, current?.plan?.name,
-                if (current == null) CalendarScheduleSource.UNKNOWN else CalendarScheduleSource.LIVE_PROJECTION)
+                if (current == null) CalendarScheduleSource.UNKNOWN else CalendarScheduleSource.LIVE_PROJECTION,
+                futureMoveOccurrenceId = moveId, reservations = reservationRows)
         })
     }
 }
