@@ -171,11 +171,9 @@ class HomeViewModel @Inject constructor(
 
     val exercisesForPlan: Flow<List<com.apexfit.app.data.PlanExercise>> = dao.getAllPlanExercisesFlow()
 
-    val estimatedWorkoutDuration: StateFlow<Int> = combine(
-        todayExercisesFlow, units
-    ) { exercises, units ->
+    val estimatedWorkoutDuration: StateFlow<Int> = todayExercisesFlow.map { exercises ->
         com.apexfit.app.utils.WorkoutDurationEstimate.estimate(exercises).minutes
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    }.distinctUntilChanged().flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val lastTrainedDateMap: StateFlow<Map<String, String>> = combine(
         completedSessions, exercisesForPlan
