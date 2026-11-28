@@ -85,6 +85,10 @@ interface FitnessDao {
     suspend fun getLatestScheduleRevision(): ScheduleRevisionSnapshot?
 
     @Transaction
+    @Query("SELECT * FROM schedule_revisions WHERE effectiveFrom <= :date ORDER BY effectiveFrom DESC, id DESC LIMIT 1")
+    suspend fun getScheduleRevisionForDate(date: String): ScheduleRevisionSnapshot?
+
+    @Transaction
     @Query("""
         SELECT * FROM schedule_revisions
         WHERE effectiveFrom <= :end AND
