@@ -67,6 +67,8 @@ fun NutritionScreen(
 ) {
     val selectedDate by nutritionViewModel.selectedNutritionDate.collectAsStateWithLifecycle()
     val loggedMealsState by nutritionViewModel.loggedMeals.collectAsStateWithLifecycle()
+    val dayConfirmation by nutritionViewModel.dayConfirmation.collectAsStateWithLifecycle()
+    val confirmationError by nutritionViewModel.confirmationError.collectAsStateWithLifecycle()
     
     if (loggedMealsState is UiState.Loading) {
         Box(Modifier.fillMaxSize().background(ApexColors.Canvas), contentAlignment = Alignment.Center) {
@@ -85,6 +87,7 @@ fun NutritionScreen(
     val calorieTargetManual by fitnessViewModel.calorieTargetManual.collectAsStateWithLifecycle()
     val calorieTargetValue by fitnessViewModel.calorieTargetValue.collectAsStateWithLifecycle()
     val tdeeResult by algorithmViewModel.tdeeResult.collectAsStateWithLifecycle()
+    val compliance by algorithmViewModel.complianceScores.collectAsStateWithLifecycle()
     val hasCalorieTarget = if (calorieTargetManual) calorieTargetValue > 0 else (tdeeResult.tdee ?: 0) > 0
     val userGoal by fitnessViewModel.goal.collectAsStateWithLifecycle()
     val currentWeight by fitnessViewModel.currentWeight.collectAsStateWithLifecycle()
@@ -244,6 +247,30 @@ fun NutritionScreen(
             )
         }
 
+        // A new or deleted meal invalidates its saved confirmation.
+        if (selectedDate < todayDateStr) {
+            item {
+                val evidence = dayConfirmation?.takeIf { it.date == selectedDate }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        if (evidence?.confirmed == true) "Full day confirmed" else "Is this your complete food log?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ApexColors.TextPrimary
+                    )
+                    Text("Confirm only after logging everything you ate and drank. Meal changes require reconfirmation.",
+                        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                    OutlinedButton(
+                        onClick = { evidence?.let(nutritionViewModel::toggleDayConfirmation) },
+                        enabled = evidence?.fingerprint != null && pendingDeletions.isEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (evidence?.confirmed == true) "Reopen day" else "Confirm complete day")
+                    }
+                    confirmationError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
+
         // Meals details lists
         item {
             Text(
@@ -324,11 +351,37 @@ fun NutritionScreen(
             }
         }
 
+        item {
+            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                HorizontalDivider(color = ApexColors.BorderSubtle)
+                Text("Food log coverage", style = MaterialTheme.typography.titleMedium, color = ApexColors.TextPrimary)
+                Text(
+                    if (compliance.evaluatedDays > 0)
+                        "${compliance.confirmedNutritionDays} of ${compliance.evaluatedDays} past days confirmed"
+                    else "No finished days to evaluate yet",
+                    style = MaterialTheme.typography.bodyMedium, color = ApexColors.TextSecondary
+                )
+                if (compliance.nutritionComparisonAvailable) {
+                    Text("Against current targets: calories ${compliance.calories}% · protein ${compliance.protein}%",
+                        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                } else {
+                    Text("Target comparison unavailable until complete days are confirmed.",
+                        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                }
+                Text("Past targets are not recorded. This is not historical adherence.",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+            }
+        }
+
         // Adaptive calorie target card
         item {
             AdaptiveCalorieTargetCard(
                 tdeeResult = tdeeResult,
                 userGoal = userGoal,
+                suggestedTarget = suggestedFromTdee,
+                blockedWeightLoss = userGoal.trim().equals("lose fat", ignoreCase = true) &&
+                    com.apexfit.app.utils.GoalEngine.blocksAutomaticWeightLoss(currentWeight, goalWeight, userHeight),
+                restrictedBudget = hasCalorieTarget && com.apexfit.app.utils.MacroEngine.hasRestrictedBudget(baseCalorieTarget, currentWeight, userGoal),
                 fitnessViewModel = fitnessViewModel,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
@@ -908,6 +961,9 @@ fun AddFoodSheet(
 fun AdaptiveCalorieTargetCard(
     tdeeResult: com.apexfit.app.utils.TDEEResult,
     userGoal: String,
+    suggestedTarget: Int,
+    blockedWeightLoss: Boolean,
+    restrictedBudget: Boolean,
     fitnessViewModel: FitnessViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -934,26 +990,28 @@ fun AdaptiveCalorieTargetCard(
                 )
             }
 
+            if (blockedWeightLoss) {
+                Text("Automatic weight-loss targets are unavailable at a low current or goal weight. Review your goal with a qualified clinician.",
+                    color = ApexColors.Amber, style = MaterialTheme.typography.bodySmall)
+            }
+            if (restrictedBudget) {
+                Text("Your calorie budget is too low for the app's recommended nutrition targets. Review your intake target; cycling is disabled.",
+                    color = ApexColors.Amber, style = MaterialTheme.typography.bodySmall)
+            }
+
             when {
                 // ─ HIGH CONFIDENCE ─────────────────────────────────────
                 tdeeResult.confidence == "high" && tdeeResult.tdee != null -> {
-                    val (targetCals, goalLabel) = remember(tdeeResult.tdee, userGoal) {
-                        val suggestedCals = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES
-                        val label = when (userGoal) {
-                            "Gain Muscle" -> "Lean Gain"
-                            "Lose Fat" -> "Fat Loss"
-                            else -> "Maintenance"
-                        }
-                        val cals = when (userGoal) {
-                            "Gain Muscle" -> suggestedCals + 300
-                            "Lose Fat" -> suggestedCals - 400
-                            else -> suggestedCals
-                        }
-                        cals to label
+                    val targetCals = suggestedTarget
+                    val goalLabel = when {
+                        blockedWeightLoss -> "Maintenance"
+                        userGoal.equals("Gain Muscle", true) || userGoal.equals("Build Muscle", true) -> "Lean Gain"
+                        userGoal.equals("Lose Fat", true) -> "Fat Loss"
+                        else -> "Maintenance"
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(stringResource(R.string.nutrition_your_real_calorie_burn_this_we, tdeeResult.tdee),
+                        Text(stringResource(R.string.nutrition_estimated_burn_kcal, tdeeResult.tdee),
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = ApexColors.Victory,
@@ -973,6 +1031,7 @@ fun AdaptiveCalorieTargetCard(
 
                         Button(
                             onClick = { showAcceptDialog = true },
+                            enabled = !blockedWeightLoss && !restrictedBudget,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(36.dp),
@@ -1017,13 +1076,13 @@ fun AdaptiveCalorieTargetCard(
                             color = ApexColors.TextPrimary,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(stringResource(R.string.nutrition_accuracy_improving_keep_loggin),
+                        Text("Estimate based on confirmed meal logs and scale trend.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = ApexColors.Amber,
                             fontWeight = FontWeight.Medium
                         )
-                        Text(stringResource(R.string.nutrition_you_have_4_6_days_of_data_a_pr),
+                        Text("Water weight and logging error can still affect this estimate.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = ApexColors.TextSecondary,
@@ -1041,13 +1100,13 @@ fun AdaptiveCalorieTargetCard(
                             color = ApexColors.TextPrimary,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(stringResource(R.string.nutrition_log_7_more_days_to_activate_ad),
+                        Text("Log your weight and confirm complete past food-log days to enable adaptive estimates.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = ApexColors.TextSecondary,
                             fontWeight = FontWeight.Medium
                         )
-                        Text(stringResource(R.string.nutrition_the_system_learns_your_metabol),
+                        Text("Until then, calorie estimates use your profile and estimated activity.",
                             fontFamily = JetBrainsMonoFamily,
                             fontSize = 11.sp,
                             color = ApexColors.TextSecondary,
