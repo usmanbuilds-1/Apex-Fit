@@ -446,6 +446,9 @@ class FitnessRepositoryImpl @Inject constructor(
 
     override suspend fun updateWorkoutPlan(plan: WorkoutPlan, sessions: List<PlanSession>, exercises: List<PlanExercise>) = db.withTransaction {
         require(WorkoutSchedule.validationError(plan, sessions) == null) { WorkoutSchedule.validationError(plan, sessions).orEmpty() }
+        require(com.apexfit.app.utils.PermanentWorkoutGroups.validationError(exercises) == null) {
+            com.apexfit.app.utils.PermanentWorkoutGroups.validationError(exercises).orEmpty()
+        }
         if (plan.isActive) {
             dao.deactivateAllPlans()
         }
