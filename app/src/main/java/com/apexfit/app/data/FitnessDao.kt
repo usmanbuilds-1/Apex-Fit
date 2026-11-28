@@ -98,6 +98,18 @@ interface FitnessDao {
     """)
     fun observeScheduleRevisions(start: String, end: String): Flow<List<ScheduleRevisionSnapshot>>
 
+    @Upsert
+    suspend fun upsertScheduleDisposition(disposition: ScheduleDisposition)
+
+    @Query("DELETE FROM schedule_dispositions WHERE occurrenceId = :occurrenceId")
+    suspend fun clearScheduleDisposition(occurrenceId: String)
+
+    @Query("SELECT * FROM schedule_dispositions WHERE scheduledDate BETWEEN :start AND :end")
+    fun observeScheduleDispositions(start: String, end: String): Flow<List<ScheduleDisposition>>
+
+    @Query("SELECT * FROM workout_sessions WHERE date = :date AND schedule_occurrence_id = :occurrenceId")
+    suspend fun getOccurrenceWorkouts(date: String, occurrenceId: String): List<TrainingSession>
+
     // Training Sessions
     @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     suspend fun getAllTrainingSessions(): List<TrainingSession>
