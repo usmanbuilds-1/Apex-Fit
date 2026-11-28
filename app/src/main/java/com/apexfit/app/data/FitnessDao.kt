@@ -213,6 +213,7 @@ interface FitnessDao {
         SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
                ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
                ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               ts.training_format AS analyticsTrainingFormat,
                COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
                (e.id IS NOT NULL) AS analyticsCatalogPresent
         FROM workout_sessions ts
@@ -243,6 +244,7 @@ interface FitnessDao {
         SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
                ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
                ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               ts.training_format AS analyticsTrainingFormat,
                COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
                (e.id IS NOT NULL) AS analyticsCatalogPresent
         FROM exercise_sets es
@@ -268,6 +270,7 @@ interface FitnessDao {
         SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
                ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
                ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               ts.training_format AS analyticsTrainingFormat,
                COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
                (e.id IS NOT NULL) AS analyticsCatalogPresent
         FROM exercise_sets es JOIN workout_sessions ts ON es.sessionId = ts.id
