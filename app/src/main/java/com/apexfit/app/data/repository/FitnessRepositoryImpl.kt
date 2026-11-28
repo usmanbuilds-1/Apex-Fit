@@ -334,15 +334,17 @@ class FitnessRepositoryImpl @Inject constructor(
         }.debounce(300L).flowOn(Dispatchers.IO).shareIn(appScope, SharingStarted.WhileSubscribed(5_000), 1)
     }
 
+    override val todayWorkoutChoiceFlow: StateFlow<com.apexfit.app.utils.TodayWorkoutChoice?> by lazy {
+        todayDateFlow.flatMapLatest { date ->
+            com.apexfit.app.utils.TodayWorkoutResolver.observe(dao, LocalDate.parse(date))
+                .map<com.apexfit.app.utils.TodayWorkoutChoice, com.apexfit.app.utils.TodayWorkoutChoice?> { it }
+                .onStart { emit(null) }
+        }.flowOn(Dispatchers.IO).stateIn(appScope, SharingStarted.WhileSubscribed(5_000), null)
+    }
+
     override val todayExercisesFlow: StateFlow<List<PlanExercise>> by lazy {
-        getActivePlan().flatMapLatest { plan ->
-            val sessions = if (plan != null) dao.getSessionsForPlanFlow(plan.id) else flowOf(emptyList())
-            sessions.flatMapLatest { sessionList ->
-                todayDateFlow.flatMapLatest { todayDate ->
-                    val todaySession = plan?.let { WorkoutSchedule.sessionForDate(it, sessionList, LocalDate.parse(todayDate)) }
-                    if (todaySession != null) dao.getExercisesForSessionFlow(todaySession.id) else flowOf(emptyList())
-                }
-            }
+        todayWorkoutChoiceFlow.flatMapLatest { choice ->
+            choice?.session?.let { dao.getExercisesForSessionFlow(it.id) } ?: flowOf(emptyList())
         }
         .flowOn(Dispatchers.IO)
         .catch { e ->
