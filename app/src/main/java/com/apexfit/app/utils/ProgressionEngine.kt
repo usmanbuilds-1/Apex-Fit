@@ -214,7 +214,7 @@ data class ProgressionResult(
             2 -> 8                     // 2 reps left -> RPE 8
             1 -> 9                     // 1 rep left -> RPE 9
             0 -> 10                    // 0 reps left -> RPE 10
-            else -> 8                  // Default to sweet spot RPE 8
+            else -> 0                  // Unrated or invalid input: never invent an effort rating
         }
     }
 

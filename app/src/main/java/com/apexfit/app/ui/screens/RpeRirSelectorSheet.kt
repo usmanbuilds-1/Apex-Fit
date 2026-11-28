@@ -44,6 +44,7 @@ import com.apexfit.app.data.LastSetWithDate
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.AppConstants
 import com.apexfit.app.utils.ProgressionEngine
+import com.apexfit.app.utils.EffortSelection
 
 private val RIR_OPTIONS = listOf(0, 1, 2, 3, 4, 5)
 
@@ -149,16 +150,20 @@ fun RpeRirSelectorSheet(
                 Spacer(Modifier.height(14.dp))
                 RirOptions(selectedRir = selectedRir, onSelect = { if (!isSavingSet) onSelectRirOption(it) })
                 Spacer(Modifier.height(9.dp))
-                val rpe = ProgressionEngine.calculateRPEFromRIR(selectedRir)
+                val rated = EffortSelection.isRated(selectedRir)
+                val rpe = EffortSelection.rpe(selectedRir)
                 val repStatus = when {
                     reps < targetRepsMin -> "Below target"
                     reps > targetRepsMax -> "Above target"
                     else -> "On target"
                 }
-                Text("RPE $rpe · $repStatus", style = MaterialTheme.typography.bodyMedium,
+                Text(if (rated) "RPE $rpe · $repStatus" else "Effort unrated · $repStatus", style = MaterialTheme.typography.bodyMedium,
                     color = ApexColors.TextSecondary, fontWeight = FontWeight.Medium)
                 if (!hasLoggedSet) {
+                    if (!rated) Text("Choose an effort rating or log without one. Unrated sets do not establish effort-based progression.",
+                        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                     TextButton(
+                        enabled = rated && !isSavingSet,
                         onClick = onConfirmRirSelection,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     ) {
@@ -373,7 +378,7 @@ fun RirSelectorOverlay(
     val isWorkoutComplete = isLastSet && exerciseIndex >= 0 && exerciseIndex == activeExercises.lastIndex
     val nextAction = when {
         state.isShowingHistory -> "Back to workout"
-        !state.hasLoggedSet -> "Log set ${state.setIndex + 1}"
+        !state.hasLoggedSet -> if (EffortSelection.isRated(state.selectedRir)) "Log set ${state.setIndex + 1}" else "Log set ${state.setIndex + 1} unrated"
         !isLastSet -> "Start set ${state.setIndex + 2}"
         nextExercise != null -> "Start ${nextExercise.name}"
         else -> "Review workout"

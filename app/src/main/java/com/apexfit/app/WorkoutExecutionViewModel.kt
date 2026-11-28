@@ -189,7 +189,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         val weight: Double = 0.0,
         val reps: Int = 0,
         val totalSets: Int = 0,
-        val selectedRir: Int = 2,
+        val selectedRir: Int = com.apexfit.app.utils.EffortSelection.UNRATED,
         val hasLoggedSet: Boolean = false,
         val isShowingHistory: Boolean = false,
         val historicalSets: List<com.apexfit.app.data.LastSetWithDate> = emptyList()
@@ -226,7 +226,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     val selectedRir: StateFlow<Int> = _rirOverlayState.map { it.selectedRir }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 2)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, com.apexfit.app.utils.EffortSelection.UNRATED)
 
     val rirHistoricalSets: StateFlow<List<com.apexfit.app.data.LastSetWithDate>> = _rirOverlayState.map { it.historicalSets }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -427,7 +427,7 @@ class WorkoutExecutionViewModel @Inject constructor(
             weight = weight,
             reps = reps,
             totalSets = totalSets,
-            selectedRir = 2,
+            selectedRir = com.apexfit.app.utils.EffortSelection.UNRATED,
             hasLoggedSet = false,
             isShowingHistory = false,
             historicalSets = emptyList(),
@@ -438,7 +438,8 @@ class WorkoutExecutionViewModel @Inject constructor(
     fun selectRirOption(rir: Int, onSaved: (() -> Unit)? = null): Job? {
         if (_isSavingSet.value || isCommitting.get()) return null
         val current = _rirOverlayState.value
-        val next = current.copy(selectedRir = rir.coerceIn(0, 5))
+        if (!com.apexfit.app.utils.EffortSelection.isRated(rir)) return null
+        val next = current.copy(selectedRir = rir)
         if (!current.hasLoggedSet) {
             _rirOverlayState.value = next
             onSaved?.invoke()
@@ -458,7 +459,8 @@ class WorkoutExecutionViewModel @Inject constructor(
     fun confirmRirSelection() {
         val state = _rirOverlayState.value
         val exerciseId = sessionManager.activeSession.value?.exercises?.firstOrNull { it.executionKey == state.exerciseId }?.exerciseId ?: return
-        val rpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(_rirOverlayState.value.selectedRir)
+        if (!com.apexfit.app.utils.EffortSelection.isRated(state.selectedRir)) return
+        val rpe = com.apexfit.app.utils.EffortSelection.rpe(state.selectedRir)
 
         viewModelScope.launch {
             val lastSets = dao.getExerciseSetsByExerciseIdAndRPE(exerciseId, rpe, 5)
@@ -486,8 +488,8 @@ class WorkoutExecutionViewModel @Inject constructor(
         val w = s.weight
         val r = s.reps
         val totalSets = s.totalSets
-        val repsInReserve = s.selectedRir
-        val calculatedRpe = com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(repsInReserve)
+        val repsInReserve = com.apexfit.app.utils.EffortSelection.actualRir(s.selectedRir)
+        val calculatedRpe = com.apexfit.app.utils.EffortSelection.rpe(s.selectedRir)
 
         return persistConfirmedSet(exId, sIdx, w, r, calculatedRpe, completed = true,
             restTakenSeconds = 0, repsInReserve = repsInReserve, advanceAfterCompletion = true) {
