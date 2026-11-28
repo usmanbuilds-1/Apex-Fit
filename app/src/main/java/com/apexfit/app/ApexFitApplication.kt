@@ -57,6 +57,7 @@ class ApexFitApplication : Application(), Configuration.Provider {
         // Startup initialization: seed exercises and schedule coaching sequentially
         if (Build.FINGERPRINT == "robolectric") return
         appScope.launch {
+            com.apexfit.app.utils.SecureUserExport.cleanupStale(app)
             val dataStore = DataStoreManager.getInstance(app)
 
             // Seeding check
