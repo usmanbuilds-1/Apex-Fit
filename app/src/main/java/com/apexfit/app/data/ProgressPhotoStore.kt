@@ -48,7 +48,11 @@ class ProgressPhotoStore(context: Context) {
         cleanup()
         root.listFiles().orEmpty().mapNotNull(::parse).sortedWith(compareByDescending<ProgressPhoto> { it.date }.thenBy { it.id })
     } }
-    suspend fun add(uri: Uri, date: LocalDate, pose: PhotoPose): ProgressPhoto = withContext(Dispatchers.IO) { synchronized(lock) {
+    suspend fun add(uri: Uri, date: LocalDate, pose: PhotoPose): ProgressPhoto {
+        val generation = com.apexfit.app.utils.LocalResetCoordinator.currentGeneration()
+        return com.apexfit.app.utils.LocalDataGate.exclusive {
+            check(com.apexfit.app.utils.LocalResetCoordinator.permits(app, generation)) { "Local data changed; select the photo again" }
+            withContext(Dispatchers.IO) { synchronized(lock) {
         require(date <= LocalDate.now())
         ensureRoot()
         cleanup()
@@ -113,7 +117,9 @@ class ProgressPhotoStore(context: Context) {
         } finally {
             if (staging.exists()) check(staging.deleteRecursively()) { "Could not remove temporary image." }
         }
-    } }
+            } }
+        }
+    }
     private fun writeJpeg(bitmap: Bitmap, file: File, quality: Int) {
         FileOutputStream(file).use { stream ->
             check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream))
