@@ -12,6 +12,17 @@ import java.time.LocalDate
  * Today's workout execution continues to use the live plan.
  */
 object ScheduleLedger {
+    /** Upgrade baseline is captured once, without inferring earlier plan history.
+     * An empty installation is left untouched until a real plan is saved.
+     */
+    suspend fun ensureBaseline(db: AppDatabase, today: LocalDate = LocalDate.now(),
+                               recordedAt: Long = System.currentTimeMillis()): Unit = db.withTransaction {
+        val dao = db.fitnessDao()
+        if (dao.getLatestScheduleRevision() != null ||
+            dao.getAllPlans().none { it.isActive }) return@withTransaction
+        capture(db, today, recordedAt)
+    }
+
     suspend fun capture(db: AppDatabase, today: LocalDate = LocalDate.now(),
                         recordedAt: Long = System.currentTimeMillis()): Unit = db.withTransaction {
         val dao = db.fitnessDao()
