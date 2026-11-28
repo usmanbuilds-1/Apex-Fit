@@ -27,6 +27,7 @@ import java.time.format.FormatStyle
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 private sealed interface CalendarLoad {
     data object Loading : CalendarLoad
@@ -44,6 +45,9 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
     var selectedDate by rememberSaveable { mutableStateOf<String?>(null) }
     var sessionId by rememberSaveable { mutableStateOf<String?>(null) }
     var retry by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    var decisionBusy by remember { mutableStateOf(false) }
+    var decisionError by remember { mutableStateOf<String?>(null) }
     val loaded by key(month, today, retry) {
         produceState<CalendarLoad>(CalendarLoad.Loading) {
             try {
@@ -64,7 +68,21 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
         loadError = loaded is CalendarLoad.Failed, onBack = onBack, onRetry = { retry++ },
         onMonthChange = { chosenMonth = it.toString(); selectedDate = null; sessionId = null },
         onDaySelected = { selectedDate = it.toString(); sessionId = null },
-        onSessionSelected = { sessionId = it.id })
+        onSessionSelected = { sessionId = it.id },
+        decisionBusy = decisionBusy, decisionError = decisionError,
+        onDecision = { target, decision ->
+            val id = target.recordedOccurrenceId
+            if (!decisionBusy && id != null) {
+                decisionBusy = true
+                decisionError = null
+                scope.launch {
+                    try { progressViewModel.setOccurrenceDecision(target.date, id, decision) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { decisionError = "Could not update schedule outcome. Try again." }
+                    finally { decisionBusy = false }
+                }
+            }
+        })
 }
 
 private fun logLabel(day: TrainingCalendarDay): String = when (day.logKind) {
@@ -76,6 +94,8 @@ private fun occurrenceLabel(day: TrainingCalendarDay): String? = when (day.occur
     RecordedOccurrenceStatus.NOT_APPLICABLE -> null
     RecordedOccurrenceStatus.COMPLETED -> "Scheduled workout completed"
     RecordedOccurrenceStatus.PARTIAL -> "Scheduled workout partially completed"
+    RecordedOccurrenceStatus.MISSED -> "Marked missed"
+    RecordedOccurrenceStatus.EXCUSED -> "Marked excused"
     RecordedOccurrenceStatus.UNRESOLVED -> "Scheduled workout · outcome unconfirmed"
 }
 private fun scheduleLabel(day: TrainingCalendarDay): String = when (day.scheduleKind) {
@@ -91,7 +111,9 @@ internal fun TrainingCalendarContent(
     month: YearMonth, today: LocalDate, data: TrainingCalendarMonth?, selectedDate: LocalDate?,
     loadError: Boolean = false, onBack: () -> Unit, onRetry: () -> Unit = {},
     onMonthChange: (YearMonth) -> Unit = {}, onDaySelected: (LocalDate) -> Unit = {},
-    onSessionSelected: (TrainingSession) -> Unit = {}
+    onSessionSelected: (TrainingSession) -> Unit = {},
+    decisionBusy: Boolean = false, decisionError: String? = null,
+    onDecision: (TrainingCalendarDay, OccurrenceDecision?) -> Unit = { _, _ -> }
 ) {
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val monthFormat = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()) }
@@ -131,6 +153,8 @@ internal fun TrainingCalendarContent(
             if (data.recordedOccurrences > 0) item {
                 Text("Recorded schedule outcomes", style = MaterialTheme.typography.titleMedium)
                 Text("${data.recordedCompletedOccurrences} completed · ${data.recordedPartialOccurrences} partial · ${data.unresolvedOccurrences} unconfirmed",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                Text("${data.missedOccurrences} missed · ${data.excusedOccurrences} excused",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                 Text("Based on ${data.recordedOccurrences} recorded training days before today. Unconfirmed is not a missed workout.",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
@@ -177,6 +201,22 @@ internal fun TrainingCalendarContent(
                     occurrenceLabel(day)?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                     }
+                    if (day.occurrenceStatus in setOf(RecordedOccurrenceStatus.UNRESOLVED,
+                            RecordedOccurrenceStatus.MISSED, RecordedOccurrenceStatus.EXCUSED)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(enabled = !decisionBusy && day.explicitDecision != OccurrenceDecision.MISSED,
+                                onClick = { onDecision(day, OccurrenceDecision.MISSED) }) { Text("Mark missed") }
+                            TextButton(enabled = !decisionBusy && day.explicitDecision != OccurrenceDecision.EXCUSED,
+                                onClick = { onDecision(day, OccurrenceDecision.EXCUSED) }) { Text("Excuse") }
+                        }
+                    }
+                    if (day.explicitDecision != null) {
+                        TextButton(enabled = !decisionBusy, onClick = { onDecision(day, null) }) {
+                            Text("Clear manual decision")
+                        }
+                    }
+                    decisionError?.let { Text(it, color = ApexColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall) }
                 }
                 items(day.sessions, key = { it.id }) { session ->
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) {
