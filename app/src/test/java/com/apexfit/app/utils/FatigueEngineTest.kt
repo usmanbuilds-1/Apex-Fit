@@ -26,7 +26,7 @@ class FatigueEngineTest {
             sessionType = "UPPER",
             completed = completed,
             sessionFeel = sessionFeel,
-            exercises = listOf(ExerciseLog("ex1", "Squat", "legs", workingSets))
+            exercises = listOf(ExerciseLog("ex1", "Squat", "quads", workingSets))
         )
     }
 
@@ -113,88 +113,42 @@ class FatigueEngineTest {
     // ── Load calculation factors ──────────────────────────────
 
     @Test
-    fun heavierWeight_producesHigherLoadThanLighterWeight() {
-        // Two identical training histories, one at 60kg and one at 90kg
-        // The heavier one should produce a higher ratio (more acute relative to same chronic)
-        fun historyAtWeight(kg: Double): List<TrainingSession> = listOf(
-            session(daysAgo = 1, avgWeightKg = kg),
-            session(daysAgo = 3, avgWeightKg = kg),
-            session(daysAgo = 5, avgWeightKg = kg),
-            session(daysAgo = 8,  avgWeightKg = 60.0), session(daysAgo = 10, avgWeightKg = 60.0),
-            session(daysAgo = 12, avgWeightKg = 60.0), session(daysAgo = 15, avgWeightKg = 60.0),
-            session(daysAgo = 17, avgWeightKg = 60.0), session(daysAgo = 19, avgWeightKg = 60.0),
-            session(daysAgo = 22, avgWeightKg = 60.0), session(daysAgo = 24, avgWeightKg = 60.0),
-            session(daysAgo = 26, avgWeightKg = 60.0)
-        )
-        val lightResult = FatigueEngine.calcFatigueToFitnessRatio(historyAtWeight(60.0))
-        val heavyResult = FatigueEngine.calcFatigueToFitnessRatio(historyAtWeight(90.0))
-        assertNotNull(lightResult.ratio)
-        assertNotNull(heavyResult.ratio)
-        assertTrue("Heavy ratio ${heavyResult.ratio} should exceed light ratio ${lightResult.ratio}",
-            heavyResult.ratio!! > lightResult.ratio!!)
+    fun absoluteWeightAndSessionFeelDoNotChangeLoggedSetRatio() {
+        val original = balancedHistory()
+        val changed = original.map { session ->
+            session.copy(sessionFeel = 1, exercises = session.exercises.map { exercise ->
+                exercise.copy(sets = exercise.sets.map { it.copy(weight = 0.0, rpe = 10) })
+            })
+        }
+        val expected = FatigueEngine.calcFatigueToFitnessRatio(original)
+        val actual = FatigueEngine.calcFatigueToFitnessRatio(changed)
+        assertEquals(1.0, expected.ratio!!, 0.001)
+        assertEquals(expected, actual)
     }
 
     @Test
-    fun extremelyHeavyWeight_weightFactorClampedAt4() {
-        // 400kg and 240kg should produce the same load per session
-        // because weightFactor is clamped at (240/60 = 4.0)
-        fun historyWithAcuteWeight(kg: Double): Double {
-            val history = listOf(
-                session(daysAgo = 1, avgWeightKg = kg),
-                session(daysAgo = 3, avgWeightKg = 60.0),
-                session(daysAgo = 5, avgWeightKg = 60.0),
-                session(daysAgo = 8,  avgWeightKg = 60.0), session(daysAgo = 10, avgWeightKg = 60.0),
-                session(daysAgo = 13, avgWeightKg = 60.0), session(daysAgo = 16, avgWeightKg = 60.0),
-                session(daysAgo = 19, avgWeightKg = 60.0), session(daysAgo = 22, avgWeightKg = 60.0)
-            )
-            return FatigueEngine.calcFatigueToFitnessRatio(history).ratio ?: 0.0
-        }
-        val ratio240kg = historyWithAcuteWeight(240.0)
-        val ratio400kg = historyWithAcuteWeight(400.0)
-        assertEquals("240kg and 400kg should produce the same ratio (both clamped at 4x)",
-            ratio240kg, ratio400kg, 0.001)
+    fun missingBaselineWeekSuppressesRatioEvenWithManyRecentWorkouts() {
+        val history = balancedHistory().filter { it.date >= getDateDaysAgo(20) }
+        assertNull(FatigueEngine.calcFatigueToFitnessRatio(history).ratio)
     }
 
     @Test
-    fun poorSessionFeel_increasesPerceivedLoad() {
-        // Feel=1 (terrible) multiplies load by 1.4
-        // Feel=3 (normal) multiplies by 1.0
-        // A session with feel=1 should produce higher ratio than feel=3
-        fun historyWithFeel(feel: Int): Double {
-            val history = listOf(
-                session(daysAgo = 1, sessionFeel = feel),
-                session(daysAgo = 3, sessionFeel = feel),
-                session(daysAgo = 5, sessionFeel = feel),
-                session(daysAgo = 8,  sessionFeel = 3), session(daysAgo = 10, sessionFeel = 3),
-                session(daysAgo = 13, sessionFeel = 3), session(daysAgo = 16, sessionFeel = 3),
-                session(daysAgo = 19, sessionFeel = 3), session(daysAgo = 22, sessionFeel = 3)
-            )
-            return FatigueEngine.calcFatigueToFitnessRatio(history).ratio ?: 0.0
-        }
-        val normalFeel = historyWithFeel(3)
-        val poorFeel = historyWithFeel(1)
-        assertTrue("Poor feel ratio $poorFeel should be higher than normal feel ratio $normalFeel",
-            poorFeel > normalFeel)
-    }
-
-    @Test
-    fun greatSessionFeel_decreasesPerceivedLoad() {
-        // Feel=5 (great) multiplies load by 0.6 — user found it easy
-        fun historyWithFeel(feel: Int): Double {
-            val history = listOf(
-                session(daysAgo = 1, sessionFeel = feel),
-                session(daysAgo = 3, sessionFeel = feel),
-                session(daysAgo = 5, sessionFeel = feel),
-                session(daysAgo = 8,  sessionFeel = 3), session(daysAgo = 10, sessionFeel = 3),
-                session(daysAgo = 13, sessionFeel = 3), session(daysAgo = 16, sessionFeel = 3),
-                session(daysAgo = 19, sessionFeel = 3), session(daysAgo = 22, sessionFeel = 3)
-            )
-            return FatigueEngine.calcFatigueToFitnessRatio(history).ratio ?: 0.0
-        }
-        val normalFeel = historyWithFeel(3)
-        val greatFeel = historyWithFeel(5)
-        assertTrue("Great feel ratio $greatFeel should be lower than normal feel ratio $normalFeel",
-            greatFeel < normalFeel)
+    fun duplicatePersistedSetsAndInvalidOrFutureSetsDoNotInflateVolume() {
+        val base = session(0)
+        val exercise = base.exercises.single()
+        val valid = exercise.sets.first().copy(id = 1L, weight = 0.0)
+        val other = valid.copy(id = 2L)
+        val modified = base.copy(exercises = listOf(exercise.copy(sets = listOf(
+            valid, valid, other, other.copy(id = 3L, reps = 0),
+            other.copy(id = 4L, weight = Double.NaN), other.copy(id = 5L, isWarmup = true)
+        ))))
+        val future = modified.copy(date = java.time.LocalDate.parse(getCurrentDate()).plusDays(1).toString())
+        val history = listOf(modified, modified, future)
+        assertEquals(2.0, FatigueEngine.calcFatigueToFitnessRatio(history).acuteLoad, 0.0)
+        assertEquals(2, FatigueEngine.calcMuscleHeatmap(history).values.sumOf { it.volume })
+        assertEquals(1.5, AlgorithmEngine.calcEffectiveSets(history).values.sum(), 0.001)
+        assertEquals(2, MuscleVolumeSummary.calculate(history,
+            java.time.LocalDate.parse(getCurrentDate()), MuscleVolumePeriod.MONTH).sumOf { it.directSets })
     }
 
     // ── Output fields ─────────────────────────────────────────

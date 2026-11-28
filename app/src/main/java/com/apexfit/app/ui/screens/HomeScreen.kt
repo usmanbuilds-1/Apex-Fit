@@ -504,7 +504,7 @@ private fun TodayWorkoutCard(
                         Text(readiness.label, color = TextMuted, fontSize = 13.sp)
                     } else {
                         Text(
-                            readiness.score.coerceIn(0, 100).toString(),
+                            readiness.label,
                             color = MineralBlue,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold

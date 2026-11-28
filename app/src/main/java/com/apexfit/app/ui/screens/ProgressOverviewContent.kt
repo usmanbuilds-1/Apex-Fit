@@ -172,8 +172,8 @@ internal fun ProgressOverviewContent(
         HorizontalDivider(color = ApexColors.BorderSubtle)
         Text("Recovery", style = MaterialTheme.typography.titleLarge)
         when (recovery) {
-            UiState.Loading -> Text("Loading recovery estimates…", color = ApexColors.TextSecondary)
-            is UiState.Error -> Text("Recovery estimates are unavailable.", color = ApexColors.Alert)
+            UiState.Loading -> Text("Loading training history…", color = ApexColors.TextSecondary)
+            is UiState.Error -> Text("Training history is unavailable.", color = ApexColors.Alert)
             is UiState.Success -> {
                 val recentMuscles = remember(recovery.data) {
                     recovery.data.mapNotNull { status ->
@@ -181,20 +181,20 @@ internal fun ProgressOverviewContent(
                     }.sortedByDescending { it.first }.take(3).map { it.second }
                 }
                 if (recentMuscles.isEmpty()) {
-                    Text("Log a completed workout to see recovery estimates.", color = ApexColors.TextSecondary)
+                    Text("Log a completed workout to see muscle training history.", color = ApexColors.TextSecondary)
                 } else {
                     recentMuscles.forEachIndexed { index, status ->
                         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(status.muscleGroup, style = MaterialTheme.typography.titleMedium)
                             Text(
-                                if (status.hoursRemaining > 0) "Recovering · ~${status.hoursRemaining} hr" else "Ready",
+                                "Last trained ${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(status.lastTrainedDate)}",
                                 color = ApexColors.TextSecondary
                             )
                         }
                         if (index < recentMuscles.lastIndex) HorizontalDivider(color = ApexColors.BorderSubtle)
                     }
-                    Text("Recovery times are estimates from recent training.",
+                    Text("Training dates do not establish recovery.",
                         color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                 }
             }

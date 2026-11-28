@@ -60,6 +60,41 @@ fun TrainTab(
     val libraryScope = rememberCoroutineScope()
     var libraryDetail by remember { mutableStateOf<Pair<com.apexfit.app.data.Exercise, FormGuideContent>?>(null) }
     var libraryError by remember { mutableStateOf(false) }
+    val recoveryRequired by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
+    var recoveryDismissed by remember(recoveryRequired, subTab) { mutableStateOf(false) }
+    var discardingRecovery by remember { mutableStateOf(false) }
+    var recoveryError by remember { mutableStateOf(false) }
+    // Functional recovery gate only: no redesign or navigation changes.
+    if (recoveryRequired && !recoveryDismissed) {
+        AlertDialog(
+            onDismissRequest = { if (!discardingRecovery) recoveryDismissed = true },
+            title = { Text("Saved workout needs attention") },
+            text = {
+                Text(
+                    if (recoveryError) "Could not discard the saved draft. Try again."
+                    else "The previous workout could not be safely restored. Its saved data has been kept. Keep it for recovery, or discard the saved draft to start a new workout. Workouts already in your history are not deleted."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !discardingRecovery,
+                    onClick = {
+                        discardingRecovery = true
+                        libraryScope.launch {
+                            try {
+                                recoveryError = !workoutExecutionViewModel.sessionManager.discardUnrestorableSession()
+                            } finally {
+                                discardingRecovery = false
+                            }
+                        }
+                    }
+                ) { Text("Discard draft") }
+            },
+            dismissButton = {
+                TextButton(enabled = !discardingRecovery, onClick = { recoveryDismissed = true }) { Text("Keep for now") }
+            }
+        )
+    }
 
     if (showLibrary) {
         val library by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
@@ -342,14 +377,15 @@ fun WorkoutExecutionSubTab(
     val liveSession by workoutExecutionViewModel.sessionManager.activeSession.collectAsStateWithLifecycle()
     val volumeAdjustments = remember(liveSession) {
         liveSession?.exercises.orEmpty().mapNotNull { exercise ->
-            exercise.volumeAdjustment?.let { exercise.exerciseId to it }
+            exercise.volumeAdjustment?.let { exercise.executionKey to it }
         }.toMap()
     }
     val preferredUnits by workoutExecutionViewModel.units.collectAsStateWithLifecycle()
     val saveError by workoutExecutionViewModel.saveError.collectAsStateWithLifecycle()
+    val setSaveError by workoutExecutionViewModel.setSaveError.collectAsStateWithLifecycle()
+    val savingSet by workoutExecutionViewModel.isSavingSet.collectAsStateWithLifecycle()
     val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
-    val sessionRestoreFailed by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
+     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val currentExercise = exercises.getOrNull(currentIdx)
     val currentExerciseEquipment by produceState<String?>(
@@ -384,17 +420,7 @@ fun WorkoutExecutionSubTab(
         }
     }
 
-    LaunchedEffect(sessionRestoreFailed) {
-        if (sessionRestoreFailed) {
-            snackbarHostState.showSnackbar(
-                message = "Your previous session could not be restored.",
-                actionLabel = "OK",
-                duration = SnackbarDuration.Long
-            )
-        }
-    }
-
-    var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
+     var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
     var showNormalFinishFeelDialog by rememberSaveable { mutableStateOf(false) }
     var selectedFeelRating by rememberSaveable { mutableStateOf(4) }
     var showExitDialog by rememberSaveable { mutableStateOf(false) }
@@ -409,6 +435,13 @@ fun WorkoutExecutionSubTab(
                     formGuideContent = content
                 }
             }
+        }
+    }
+
+    LaunchedEffect(setSaveError, showRirOverlay) {
+        if (setSaveError != null && !showRirOverlay) {
+            snackbarHostState.showSnackbar(setSaveError.orEmpty())
+            workoutExecutionViewModel.dismissSetSaveError()
         }
     }
 
@@ -477,7 +510,6 @@ fun WorkoutExecutionSubTab(
                     TextButton(
                         onClick = {
                             showExitDialog = false
-                            restTimerViewModel.cancelRestTimer()
                             workoutExecutionViewModel.cancelActiveWorkout()
                         }
                     ) {
@@ -770,7 +802,7 @@ fun WorkoutExecutionSubTab(
                         volumeAdjustments = volumeAdjustments,
                         onUndoVolumeAdjustment = workoutExecutionViewModel.sessionManager::undoSetVolumeAdjustment,
                         preferredUnits = preferredUnits,
-                        showRirOverlay = showRirOverlay,
+                        showRirOverlay = showRirOverlay || savingSet,
                         onOpenFormGuide = onOpenFormGuide,
                         onToggleWarmupItem = { workoutExecutionViewModel.toggleWarmupItem(it) },
                         onLogSetState = { exId, sIdx, w, r, rpe, comp, restTaken ->
@@ -799,9 +831,10 @@ fun WorkoutExecutionSubTab(
                         onAddCustomLogSet = { workoutExecutionViewModel.addCustomLogSet(it) },
                         onNextExercise = { workoutExecutionViewModel.nextExercise() },
                         onSkipExercise = { ex ->
-                            workoutExecutionViewModel.skipExercise()
-                            scope.launch {
-                                snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
+                            workoutExecutionViewModel.skipExercise {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
+                                }
                             }
                         },
                         onShowNormalFinishFeelDialog = { showNormalFinishFeelDialog = true },

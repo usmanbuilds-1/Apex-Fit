@@ -161,7 +161,7 @@ class ReadinessEngineTest {
         )
         assertNotEquals("Building Baseline", res.label)
         assertTrue(res.overallPercent in 0..100)
-        assertEquals("full", res.dataConfidence)
+        assertEquals("limited - some muscles lack history", res.dataConfidence)
     }
 
     @Test
@@ -194,6 +194,44 @@ class ReadinessEngineTest {
             acuteLoad = 0.0,
             chronicLoad = 0.0
         )
-        assertEquals(89, res.overallPercent)
+        assertNull(res.finalScore)
+        assertEquals("Building Baseline", res.label)
     }
+    @Test
+    fun nutritionLoggingDoesNotDetermineTrainingLoadIndex() {
+        fun result(nutrition: Int?) = ReadinessFinal.calculate(
+            totalCompletedSessions = 5,
+            todaysMuscleGroups = listOf("chest"),
+            muscleFatigueHistory = mapOf("chest" to listOf(MuscleFatigueSnapshot("chest", 1.0, 100.0))),
+            muscleSessionHistory = mapOf("chest" to listOf(100.0, 120.0, 110.0)),
+            systemicHistory = listOf(SystemicFatigueCalculator.SystemicSnapshot(1.0, 200.0)),
+            systemicCapacity = 1500.0,
+            nutritionScore = nutrition,
+            acuteLoad = 0.0, chronicLoad = 0.0
+        )
+        assertEquals(result(null).finalScore, result(0).finalScore)
+        assertEquals(result(null).finalScore, result(100).finalScore)
+        assertNotNull(result(null).finalScore)
+    }
+
+    @Test
+    fun unknownScheduledMuscleDoesNotCreateOptimisticScore() {
+        val result = ReadinessFinal.calculate(
+            totalCompletedSessions = 5,
+            todaysMuscleGroups = listOf("chest", "back"),
+            muscleFatigueHistory = mapOf("chest" to listOf(MuscleFatigueSnapshot("chest", 1.0, 100.0))),
+            muscleSessionHistory = mapOf("chest" to listOf(100.0, 120.0, 110.0)),
+            systemicHistory = listOf(SystemicFatigueCalculator.SystemicSnapshot(1.0, 200.0)),
+            systemicCapacity = 1500.0,
+            nutritionScore = null, acuteLoad = 0.0, chronicLoad = 0.0
+        )
+        assertNull(result.finalScore)
+    }
+
+    @Test
+    fun invalidRecoveryConstantUsesDefault() {
+        assertEquals(MuscleRecoveryData.tauFor("Chest"), MuscleRecoveryData.tauFor("Chest", 0.0), 0.0)
+        assertEquals(MuscleRecoveryData.tauFor("Chest"), MuscleRecoveryData.tauFor("Chest", Double.NaN), 0.0)
+    }
+
 }

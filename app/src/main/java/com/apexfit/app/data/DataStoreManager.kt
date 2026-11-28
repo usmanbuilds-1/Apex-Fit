@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -28,6 +29,7 @@ class DataStoreManager(context: Context) {
             instance ?: synchronized(this) {
                 instance ?: DataStoreManager(context.applicationContext).also { instance = it }
             }
+        private val NUTRITION_DAY_CONFIRMATIONS_KEY = stringSetPreferencesKey("nutrition_day_confirmations_v1")
         val ONBOARDED_KEY = booleanPreferencesKey("onboarded")
         val USER_NAME_KEY = stringPreferencesKey("username")
         val GOAL_KEY = stringPreferencesKey("goal")
@@ -50,6 +52,8 @@ class DataStoreManager(context: Context) {
         val SUPPLEMENTS_KEY = stringPreferencesKey("supplements")
         val EXERCISES_SEEDED_KEY = booleanPreferencesKey("exercises_seeded")
         val ACTIVE_SESSION_JSON_KEY = stringPreferencesKey("active_session_json")
+        private val WORKOUT_RECEIPT_ID_KEY = stringPreferencesKey("workout_receipt_id_v1")
+        private val WORKOUT_RECEIPT_JSON_KEY = stringPreferencesKey("workout_receipt_json_v1")
         val WEIGHTS_NORMALIZED_KEY = booleanPreferencesKey("weights_normalized_v1")
         val EXERCISE_SEED_VERSION_KEY = intPreferencesKey("exercise_seed_version")
         val EXERCISE_SETS_CANONICALIZED_KEY = booleanPreferencesKey("exercise_sets_canonicalized_v1")
@@ -287,6 +291,56 @@ class DataStoreManager(context: Context) {
         }
     }
 
+    /** Compare the exact saved draft, so cleanup cannot erase a newer workout. */
+    suspend fun clearActiveDraftIfMatches(expectedJson: String): Boolean {
+        val result = context.dataStore.edit { preferences ->
+            if (preferences[ACTIVE_SESSION_JSON_KEY] == expectedJson) {
+                preferences.remove(ACTIVE_SESSION_JSON_KEY)
+            }
+        }
+        return result[ACTIVE_SESSION_JSON_KEY] == null
+    }
+
+    /** A staged receipt is visible only if Room confirms the matching workout ID. */
+    val workoutReceiptFlow: Flow<Pair<String, String>?> = context.dataStore.data.map { preferences ->
+        val id = preferences[WORKOUT_RECEIPT_ID_KEY]
+        val json = preferences[WORKOUT_RECEIPT_JSON_KEY]
+        if (id != null && json != null) id to json else null
+    }.distinctUntilChanged()
+
+    suspend fun stageWorkoutReceipt(sessionId: String, json: String) {
+        context.dataStore.edit { preferences ->
+            preferences[WORKOUT_RECEIPT_ID_KEY] = sessionId
+            preferences[WORKOUT_RECEIPT_JSON_KEY] = json
+        }
+    }
+
+    suspend fun dismissWorkoutReceipt(sessionId: String) {
+        context.dataStore.edit { preferences ->
+            if (preferences[WORKOUT_RECEIPT_ID_KEY] == sessionId) {
+                preferences.remove(WORKOUT_RECEIPT_ID_KEY)
+                preferences.remove(WORKOUT_RECEIPT_JSON_KEY)
+            }
+        }
+    }
+
+    /** Clear only the workout recovery journal before a confirmed full reset. */
+    suspend fun clearWorkoutRecoveryData() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(ACTIVE_SESSION_JSON_KEY)
+            preferences.remove(WORKOUT_RECEIPT_ID_KEY)
+            preferences.remove(WORKOUT_RECEIPT_JSON_KEY)
+        }
+    }
+
+    suspend fun beginWorkoutDraft(json: String) {
+        context.dataStore.edit { preferences ->
+            preferences[ACTIVE_SESSION_JSON_KEY] = json
+            preferences.remove(WORKOUT_RECEIPT_ID_KEY)
+            preferences.remove(WORKOUT_RECEIPT_JSON_KEY)
+        }
+    }
+
     suspend fun saveOnboardingData(
         username: String,
         goal: String,
@@ -372,6 +426,24 @@ class DataStoreManager(context: Context) {
     suspend fun saveEquipment(equipment: String) {
         context.dataStore.edit { preferences ->
             preferences[EQUIPMENT_KEY] = equipment
+        }
+    }
+
+    val nutritionDayConfirmationsFlow: Flow<Map<String, String>> = context.dataStore.data.map { preferences ->
+        preferences[NUTRITION_DAY_CONFIRMATIONS_KEY].orEmpty().mapNotNull { value ->
+            val parts = value.split(":", limit = 2)
+            if (parts.size == 2) parts[0] to parts[1] else null
+        }.toMap()
+    }.distinctUntilChanged()
+
+    suspend fun setNutritionDayConfirmation(date: String, fingerprint: String?) {
+        require(java.time.LocalDate.parse(date).isBefore(java.time.LocalDate.now()))
+        require(fingerprint == null || fingerprint.matches(Regex("[0-9a-f]{64}")))
+        context.dataStore.edit { preferences ->
+            val updated = preferences[NUTRITION_DAY_CONFIRMATIONS_KEY].orEmpty()
+                .filterNot { it.substringBefore(':') == date }.toMutableSet()
+            if (fingerprint != null) updated.add("$date:$fingerprint")
+            preferences[NUTRITION_DAY_CONFIRMATIONS_KEY] = updated
         }
     }
 
