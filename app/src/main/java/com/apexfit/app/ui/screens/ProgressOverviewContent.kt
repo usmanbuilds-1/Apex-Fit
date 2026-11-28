@@ -43,7 +43,8 @@ internal fun ProgressOverviewContent(
     onOpenMeasurements: () -> Unit,
     onOpenVolume: () -> Unit,
     onOpenRecovery: () -> Unit,
-    onOpenFatigue: () -> Unit
+    onOpenFatigue: () -> Unit,
+    onOpenStrength: (() -> Unit)? = null
 ) {
     val rawHistory = (weights as? UiState.Success)?.data.orEmpty()
     val latest = remember(rawHistory) { rawHistory.maxWithOrNull(com.apexfit.app.utils.BodyWeightHistory.uiChronological) }
@@ -106,7 +107,11 @@ internal fun ProgressOverviewContent(
             }
         }
         HorizontalDivider(color = ApexColors.BorderSubtle)
-        Text("Strength", style = MaterialTheme.typography.titleLarge)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Strength", style = MaterialTheme.typography.titleLarge)
+            if (onOpenStrength != null) TextButton(onClick = onOpenStrength) { Text("Exercise trends") }
+        }
         val recentRecords = remember(strengthRecords) {
             strengthRecords.groupBy { it.record.exerciseId }
                 .mapNotNull { (_, entries) ->

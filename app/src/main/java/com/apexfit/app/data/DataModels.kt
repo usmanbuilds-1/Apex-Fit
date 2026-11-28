@@ -516,6 +516,8 @@ data class RichTrainingSession(
     val savedPartial: Boolean = false
 )
 
+data class StrengthExerciseOption(val exerciseId: String, val name: String, val category: String, val equipment: String)
+
 /** Read projection only; does not change the Room schema. */
 data class AnalyticsWorkingSet(
     @androidx.room.Embedded val set: ExerciseSet,

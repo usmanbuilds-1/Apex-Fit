@@ -29,6 +29,14 @@ class ProgressViewModel @Inject constructor(
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
+    fun observeStrengthExercises(today: java.time.LocalDate): Flow<List<StrengthExerciseOption>> =
+        dao.observeStrengthExercises(today.toString()).distinctUntilChanged()
+
+    fun observeStrengthHistory(exerciseId: String, start: java.time.LocalDate, end: java.time.LocalDate):
+        Flow<List<StrengthSessionPoint>> = dao.observeStrengthSets(exerciseId, start.toString(), end.toString())
+            .map { StrengthAnalytics.calculate(it, exerciseId, start, end) }
+            .distinctUntilChanged().flowOn(Dispatchers.Default)
+
     val personalRecords = dao.getPersonalRecordsWithNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

@@ -118,6 +118,36 @@ interface FitnessDao {
     """)
     fun observeAnalyticsWorkingSets(startDate: String, endDate: String): Flow<List<AnalyticsWorkingSet>>
 
+    @Query("""
+        SELECT e.id AS exerciseId, e.name AS name, e.category AS category,
+               e.equipment_required AS equipment
+        FROM exercises e
+        WHERE EXISTS (
+            SELECT 1 FROM exercise_sets es JOIN workout_sessions ts ON ts.id = es.sessionId
+            WHERE es.exerciseId = e.id AND es.completed = 1 AND es.isWarmup = 0
+              AND es.reps > 0 AND (ts.completed = 1 OR ts.status = 'partial')
+              AND ts.date <= :endDate
+        )
+        ORDER BY e.name COLLATE NOCASE, e.id
+    """)
+    fun observeStrengthExercises(endDate: String): Flow<List<StrengthExerciseOption>>
+
+    @Query("""
+        SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
+               ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
+               ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles
+        FROM exercise_sets es
+        JOIN workout_sessions ts ON es.sessionId = ts.id
+        LEFT JOIN exercises e ON e.id = es.exerciseId
+        WHERE es.exerciseId = :exerciseId AND ts.date BETWEEN :startDate AND :endDate
+          AND (ts.completed = 1 OR ts.status = 'partial')
+          AND es.completed = 1 AND es.isWarmup = 0 AND es.reps > 0
+        ORDER BY ts.date ASC, ts.id ASC, es.id ASC
+    """)
+    fun observeStrengthSets(exerciseId: String, startDate: String, endDate: String): Flow<List<AnalyticsWorkingSet>>
+
+
     // Exercise Sets
     @Query("SELECT * FROM exercise_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     fun getSetsForSessionFlow(sessionId: String): Flow<List<ExerciseSet>>
