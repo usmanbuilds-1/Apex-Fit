@@ -464,6 +464,9 @@ class WorkoutSessionManager(
             com.apexfit.app.utils.ScheduleLedger.occurrenceForStart(
                 java.time.LocalDate.parse(startDate), startedAt, planSession, dao.getScheduleRevisionForDate(startDate))
             else null
+        val permanentGroups = com.apexfit.app.utils.PermanentWorkoutGroups.resolve(exercises).map {
+            ActiveWorkoutGroup(it.key, it.firstIndex, it.memberCount, it.transitionRestSeconds, it.roundRestSeconds)
+        }.takeIf { it.isNotEmpty() }
         val newSession = ActiveSession(
             cursorIndex = 0,
             skippedOccurrenceIndices = emptyList(),
@@ -475,8 +478,10 @@ class WorkoutSessionManager(
             startedLocalDate = startDate,
             scheduleOccurrenceId = scheduleOccurrence,
             reservedOccurrenceId = reservation?.occurrenceId,
-            reservationRecordedAt = reservation?.recordedAt
+            reservationRecordedAt = reservation?.recordedAt,
+            permanentGroups = permanentGroups
         )
+        require(CircuitExecution.valid(newSession)) { "Invalid permanent group in workout plan" }
         // Do not expose a workout that has not received its durable identity.
         // A cancelled caller must not leave a saved draft hidden from the
         // current process, allowing a subsequent Start to overwrite it.
@@ -560,7 +565,7 @@ class WorkoutSessionManager(
         val original = session.exercises.getOrNull(indexBefore)?.sets?.getOrNull(setIndex) ?: return@mutateDraftDurably null
         if (original.advancedDetails != null) return@mutateDraftDurably null
         if (advanced != null && (original.completed || original.isWarmup || !completed || !advanceAfterCompletion ||
-            session.circuit != null || session.restCheckpoint != null ||
+            CircuitExecution.hasGroups(session) || session.restCheckpoint != null ||
             indexBefore != WorkoutResumeState.cursor(session) ||
             setIndex != session.exercises[indexBefore].sets.indexOfFirst { !it.completed && !it.isWarmup } ||
             !AdvancedSets.valid(weight.fromDisplayWeightToKg(original.weightUnit), advanced))) return@mutateDraftDurably null
@@ -629,7 +634,7 @@ class WorkoutSessionManager(
         if (current.copy(suggestedKg = proposal.suggestedKg) != proposal ||
             kotlin.math.abs(current.suggestedKg - proposal.suggestedKg) > 0.000001) return false
         val applied = mutateDraftDurably(expectedSessionId) { session ->
-            if (session.circuit != null || session.restCheckpoint != null) return@mutateDraftDurably null
+            if (CircuitExecution.hasGroups(session) || session.restCheckpoint != null) return@mutateDraftDurably null
             val index = WorkoutResumeState.cursor(session)
             val exercise = session.exercises.getOrNull(index) ?: return@mutateDraftDurably null
             if (exercise.executionKey != exerciseKey) return@mutateDraftDurably null
@@ -958,10 +963,10 @@ class WorkoutSessionManager(
                 "${exercise.exerciseName}: ${it.baseSets} → ${it.adjustedSets} planned sets. ${it.reason}"
             }
         }
-        val groupNote = session.circuit?.let {
-            "Session-local circuit: first ${it.memberCount} exercise occurrences; configured transition rest ${it.transitionRestSeconds}s, round rest ${it.roundRestSeconds}s."
+        val groupNotes = CircuitExecution.groups(session).map {
+            "Group ${it.key}: exercise occurrences ${it.firstIndex + 1}–${it.firstIndex + it.memberCount}; configured transition rest ${it.transitionRestSeconds}s, round rest ${it.roundRestSeconds}s."
         }
-        val sessionNotes = (listOfNotNull(session.notes?.takeIf(String::isNotBlank), groupNote) + volumeNotes)
+        val sessionNotes = (listOfNotNull(session.notes?.takeIf(String::isNotBlank)) + groupNotes + volumeNotes)
             .joinToString("\n").takeIf(String::isNotBlank)
 
         val partial = isPartial || session.skippedOccurrenceIndices.orEmpty().isNotEmpty() ||

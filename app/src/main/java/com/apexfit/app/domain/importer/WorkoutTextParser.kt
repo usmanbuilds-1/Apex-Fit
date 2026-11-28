@@ -344,7 +344,7 @@ class WorkoutTextParser(
         if (draft.groupTag != null) {
             warnings += ImportWarning(
                 ImportWarning.SUPERSET_FLATTENED,
-                "Superset/circuit grouping will be preserved in notes because Apex Fit does not model exercise groups yet.",
+                "Imported group is a suggestion. Confirm it in review to execute it as a permanent group; otherwise it stays sequential.",
                 ImportWarningSeverity.INFO,
                 draft.lineIndex
             )

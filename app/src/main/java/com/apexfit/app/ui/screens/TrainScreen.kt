@@ -382,6 +382,7 @@ fun WorkoutExecutionSubTab(
     var roundRest by rememberSaveable { mutableStateOf("90") }
     val circuitSession = liveSession
     val circuit = circuitSession?.circuit
+    val hasGroups = circuitSession?.let { com.apexfit.app.utils.CircuitExecution.hasGroups(it) } == true
     if (showCircuitEditor && circuitSession != null) {
         val count = circuitCount.toIntOrNull()
         val between = transitionRest.toIntOrNull()
@@ -437,7 +438,7 @@ fun WorkoutExecutionSubTab(
     val advancedExercise = liveSession?.exercises?.getOrNull(currentIdx)
     val advancedIndex = advancedExercise?.sets?.indexOfFirst { !it.completed && !it.isWarmup } ?: -1
     val advancedSet = advancedExercise?.sets?.getOrNull(advancedIndex)
-    if (advancedEditor && advancedExercise != null && advancedSet != null && liveSession?.circuit == null) {
+    if (advancedEditor && advancedExercise != null && advancedSet != null && !hasGroups) {
         AdvancedBoutEditor(advancedSet, onDismiss = { advancedEditor = false }, onSave = { weight, reps, details ->
             if (workoutExecutionViewModel.logAdvancedBout(advancedExercise.executionKey, advancedIndex, weight, reps, details) != null)
                 advancedEditor = false
@@ -860,7 +861,7 @@ fun WorkoutExecutionSubTab(
                     val proposalExercise = liveSession?.exercises?.getOrNull(currentIdx)
                     val proposal = proposalExercise?.progressionProposal
                     var showProgressionConfirm by remember { mutableStateOf(false) }
-                    if (proposal != null && proposalExercise != null && liveSession?.circuit == null &&
+                    if (proposal != null && proposalExercise != null && !hasGroups &&
                         proposalExercise.sets.none { it.completed }) {
                         TextButton(enabled = !savingSet && !showRirOverlay && liveSession?.restCheckpoint == null,
                             onClick = { showProgressionConfirm = true }) {
@@ -877,12 +878,13 @@ fun WorkoutExecutionSubTab(
                             dismissButton = { TextButton(onClick = { showProgressionConfirm = false }) { Text("Keep plan load") } })
                     }
                     val grouped = circuitSession != null && com.apexfit.app.utils.CircuitExecution.contains(circuitSession, currentIdx)
-                    if (grouped && circuit != null) {
-                        Text("Circuit · ${currentIdx + 1} of ${circuit.memberCount} members · ${circuit.transitionRestSeconds}s transition / ${circuit.roundRestSeconds}s round rest",
+                    val activeGroup = circuitSession?.let { com.apexfit.app.utils.CircuitExecution.groupAt(it, currentIdx) }
+                    if (activeGroup != null) {
+                        Text("Group ${activeGroup.key} · ${currentIdx - activeGroup.firstIndex + 1} of ${activeGroup.memberCount} members · ${activeGroup.transitionRestSeconds}s transition / ${activeGroup.roundRestSeconds}s round rest",
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                     }
-                    if (advancedSet != null && circuitSession?.circuit == null && liveSession?.restCheckpoint == null) {
+                    if (advancedSet != null && !hasGroups && liveSession?.restCheckpoint == null) {
                         TextButton(enabled = !savingSet && !showRirOverlay, onClick = { advancedEditor = true }) {
                             Text("Log drop set / rest-pause / failure")
                         }

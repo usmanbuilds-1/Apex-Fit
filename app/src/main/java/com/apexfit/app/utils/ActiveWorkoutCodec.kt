@@ -57,6 +57,7 @@ internal object ActiveWorkoutCodec {
         }
         val migrated = version != ActiveSession.CURRENT_VERSION
         if (migrated) {
+            if (version < 9) json.remove("permanentGroups")
             if (version < 8) {
                 json.remove("reservedOccurrenceId")
                 json.remove("reservationRecordedAt")
@@ -84,7 +85,7 @@ internal object ActiveWorkoutCodec {
         val session = if (normalized) decoded.copy(exercises = decoded.exercises.mapIndexed { index, exercise ->
             exercise.copy(occurrenceKey = keys[index].takeIf { it != exercise.exerciseId })
         }.toMutableList()) else decoded
-        require(session.circuit == null || CircuitExecution.valid(session)) { "Invalid saved circuit" }
+        require(CircuitExecution.valid(session)) { "Invalid saved circuit or permanent group" }
         return Decoded(session, migrated, normalized, version == 1)
     }
 }

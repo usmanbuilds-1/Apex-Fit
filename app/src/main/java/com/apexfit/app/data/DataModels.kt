@@ -275,7 +275,10 @@ data class PlanExercise(
     @ColumnInfo(name = "weight_unit", defaultValue = "'kg'")
     val weightUnit: String = "kg",
     val restSeconds: Int,
-    val notes: String
+    val notes: String,
+    @ColumnInfo(name = "group_key") val groupKey: String? = null,
+    @ColumnInfo(name = "group_transition_rest") val groupTransitionRest: Int? = null,
+    @ColumnInfo(name = "group_round_rest") val groupRoundRest: Int? = null
 )
 
 @Entity(
@@ -395,6 +398,11 @@ data class ActiveCircuit(
     val roundRestSeconds: Int
 )
 
+/** Frozen occurrence range copied from an explicitly grouped plan at workout start. */
+@Keep
+data class ActiveWorkoutGroup(val key: String, val firstIndex: Int, val memberCount: Int,
+                              val transitionRestSeconds: Int, val roundRestSeconds: Int)
+
 @Keep
 data class ActiveSession(
     val planSessionId: String,
@@ -403,7 +411,7 @@ data class ActiveSession(
     val readinessScore: Int? = null,
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
-    val schemaVersion: Int = 8,
+    val schemaVersion: Int = 9,
     val sessionId: String = java.util.UUID.randomUUID().toString(),
     val cursorIndex: Int? = null,
     val skippedOccurrenceIndices: List<Int>? = null,
@@ -412,10 +420,11 @@ data class ActiveSession(
     val startedLocalDate: String? = null,
     val scheduleOccurrenceId: String? = null,
     val reservedOccurrenceId: String? = null,
-    val reservationRecordedAt: Long? = null
+    val reservationRecordedAt: Long? = null,
+    val permanentGroups: List<ActiveWorkoutGroup>? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 8
+        const val CURRENT_VERSION = 9
     }
 }
 

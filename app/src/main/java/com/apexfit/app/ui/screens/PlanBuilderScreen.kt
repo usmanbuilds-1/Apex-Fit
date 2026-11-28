@@ -535,6 +535,8 @@ fun PlanBuilderScreen(
     var selectedPlanSessionId by rememberSaveable(planId) { mutableStateOf<Long?>(null) }
     var editingSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingExerciseId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var groupEditorSession by rememberSaveable { mutableStateOf<Long?>(null) }
+    var groupEditorKey by rememberSaveable { mutableStateOf<String?>(null) }
     var sessionToDelete by rememberSaveable { mutableStateOf<PlanSession?>(null) }
     var exerciseToDelete by rememberSaveable { mutableStateOf<PlanExercise?>(null) }
     var isSaving by remember { mutableStateOf(false) }
@@ -600,6 +602,10 @@ fun PlanBuilderScreen(
         planNameError = null
         if (sessionsList.isEmpty() || sessionsList.any { day -> exercisesList.none { it.planSessionId == day.id } }) {
             coroutineScope.launch { snackbarHostState.showSnackbar("Add at least one exercise to every training day.") }
+            return
+        }
+        com.apexfit.app.utils.PermanentWorkoutGroups.validationError(exercisesList)?.let { error ->
+            coroutineScope.launch { snackbarHostState.showSnackbar(error) }
             return
         }
         isSaving = true
@@ -814,6 +820,29 @@ fun PlanBuilderScreen(
                     }
                 }
 
+                item(key = "groups_${selectedSession.id}") {
+                    val groups = selectedSessionExercises.filter { it.groupKey != null }.groupBy { requireNotNull(it.groupKey) }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        groups.forEach { (key, members) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(if (members.size == 2) "Superset" else "Circuit", style = MaterialTheme.typography.titleSmall)
+                                    Text(members.joinToString(" → ") { it.name }, style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                                    Text("${members.first().groupTransitionRest}s transition · ${members.first().groupRoundRest}s round rest",
+                                        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                                }
+                                TextButton(enabled = !isSaving, onClick = {
+                                    groupEditorKey = key; groupEditorSession = selectedSession.id
+                                }) { Text("Edit") }
+                            }
+                        }
+                        if (selectedSessionExercises.zipWithNext().any { (a, b) -> a.groupKey == null && b.groupKey == null }) {
+                            TextButton(enabled = !isSaving, onClick = {
+                                groupEditorKey = null; groupEditorSession = selectedSession.id
+                            }) { Text("Create superset / circuit") }
+                        }
+                    }
+                }
                 item(key = "add_exercise_${selectedSession.id}") {
                     TextButton(
                         onClick = {
@@ -883,6 +912,24 @@ fun PlanBuilderScreen(
                 }
             }
         )
+    }
+
+    groupEditorSession?.let { sessionId ->
+        val rows = exercisesList.filter { it.planSessionId == sessionId }
+        key(sessionId, groupEditorKey) {
+            PermanentGroupEditor(rows, groupEditorKey,
+                onDismiss = { groupEditorSession = null; groupEditorKey = null },
+                onRemove = { groupKey ->
+                    planBuilderViewModel.removePermanentGroup(sessionId, groupKey)
+                    groupEditorSession = null; groupEditorKey = null
+                },
+                onConfirm = { ids, members, transition, round ->
+                    val groupKey = groupEditorKey ?: java.util.UUID.randomUUID().toString()
+                    if (planBuilderViewModel.configurePermanentGroup(sessionId, ids, groupKey, members, transition, round)) {
+                        groupEditorSession = null; groupEditorKey = null
+                    } else coroutineScope.launch { snackbarHostState.showSnackbar("Group changed or overlaps another group. Review the exercises and try again.") }
+                })
+        }
     }
 
     // Add / Edit Exercise Dialog
@@ -1176,7 +1223,8 @@ fun PlanBuilderScreen(
             },
             text = {
                 Text(
-                    text = "Are you sure you want to delete '${exerciseToDelete?.name}'? This cannot be undone.",
+                    text = "Are you sure you want to delete '${exerciseToDelete?.name}'? This cannot be undone." +
+                        if (exerciseToDelete?.groupKey != null) " If only one group member remains, the group will be removed." else "",
                     fontFamily = JetBrainsMonoFamily,
                     color = SecondaryText,
                     fontSize = 13.sp
@@ -1201,3 +1249,56 @@ fun PlanBuilderScreen(
     }
 }
 
+
+@Composable
+private fun PermanentGroupEditor(rows: List<PlanExercise>, existingKey: String?,
+                                 onDismiss: () -> Unit, onRemove: (String) -> Unit,
+                                 onConfirm: (List<Long>, List<Long>, Int, Int) -> Unit) {
+    val existing = rows.filter { existingKey != null && it.groupKey == existingKey }
+    val snapshotIds = remember { rows.map { it.id } }
+    val eligible = rows.map { it.groupKey == null || it.groupKey == existingKey }
+    val defaultStart = if (existing.isNotEmpty()) rows.indexOf(existing.first()) else
+        eligible.zipWithNext().indexOfFirst { (a, b) -> a && b }.coerceAtLeast(0)
+    var first by rememberSaveable { mutableIntStateOf(defaultStart) }
+    var count by rememberSaveable { mutableIntStateOf(existing.size.coerceAtLeast(2)) }
+    var transition by rememberSaveable { mutableStateOf(existing.firstOrNull()?.groupTransitionRest?.toString() ?: "15") }
+    var round by rememberSaveable { mutableStateOf(existing.firstOrNull()?.groupRoundRest?.toString() ?: "120") }
+    val maxCount = eligible.drop(first.coerceIn(0, eligible.size)).takeWhile { it }.size
+    val selected = rows.drop(first.coerceAtLeast(0)).take(count.coerceAtLeast(0))
+    val between = transition.toIntOrNull()
+    val after = round.toIntOrNull()
+    val valid = rows.map { it.id } == snapshotIds && count in 2..maxCount &&
+        between != null && between in 1..3600 && after != null && after in 1..3600
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (existingKey == null) "Create exercise group" else "Edit exercise group") },
+        text = {
+            Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Choose consecutive exercises. Existing groups cannot overlap.")
+                rows.forEachIndexed { index, exercise ->
+                    val canStart = eligible.getOrNull(index) == true && eligible.getOrNull(index + 1) == true
+                    Row(Modifier.fillMaxWidth().clickable(enabled = canStart, role = Role.RadioButton) {
+                        first = index; count = 2
+                    }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = index == first, onClick = null, enabled = canStart)
+                        Text(exercise.name, color = if (canStart) ApexColors.TextPrimary else ApexColors.TextSecondary)
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Members: $count", Modifier.weight(1f))
+                    TextButton(enabled = count > 2, onClick = { count-- }) { Text("−") }
+                    TextButton(enabled = count < maxCount, onClick = { count++ }) { Text("+") }
+                }
+                Text(selected.joinToString(" → ") { it.name }, style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(transition, { transition = it.filter(Char::isDigit).take(4) },
+                    label = { Text("Transition rest (sec)") }, singleLine = true)
+                OutlinedTextField(round, { round = it.filter(Char::isDigit).take(4) },
+                    label = { Text("Round rest (sec)") }, singleLine = true)
+            }
+        },
+        confirmButton = { TextButton(enabled = valid, onClick = {
+            onConfirm(snapshotIds, selected.map { it.id }, requireNotNull(between), requireNotNull(after))
+        }) { Text("Save group") } },
+        dismissButton = { Row {
+            if (existingKey != null) TextButton(onClick = { onRemove(existingKey) }) { Text("Remove group") }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        } })
+}
