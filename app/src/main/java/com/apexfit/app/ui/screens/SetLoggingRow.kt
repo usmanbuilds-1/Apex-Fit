@@ -54,14 +54,15 @@ fun SetLoggingRow(
     nightLedgerPresentation: Boolean = false,
     previousSet: UiExerciseSet? = null,
     displaySetNumber: Int = sIdx + 1,
-    displayTotalSets: Int = totalSets
+    displayTotalSets: Int = totalSets,
+    executionKey: String = ex.exerciseId
 ) {
     val hapticFeedback = LocalHapticFeedback.current
 
     // Local editing state keyed to stable set id to avoid reset when the session model updates
-    var rawWeight by rememberSaveable(ex.exerciseId, setObj.id) { mutableStateOf(setObj.weight.toString()) }
-    var rawReps by rememberSaveable(ex.exerciseId, setObj.id) { mutableStateOf(setObj.reps.toString()) }
-    var selectedRpe by remember(ex.exerciseId, setObj.id, setObj.rpe) { mutableStateOf(setObj.rpe) }
+    var rawWeight by rememberSaveable(executionKey, setObj.id) { mutableStateOf(setObj.weight.toString()) }
+    var rawReps by rememberSaveable(executionKey, setObj.id) { mutableStateOf(setObj.reps.toString()) }
+    var selectedRpe by remember(executionKey, setObj.id, setObj.rpe) { mutableStateOf(setObj.rpe) }
 
     LaunchedEffect(setObj.weight) {
         val current = rawWeight.toDoubleOrNull()
@@ -77,8 +78,8 @@ fun SetLoggingRow(
     }
 
     // Error strings keyed to set id (and set index)
-    var weightError by remember(ex.exerciseId, setObj.id, sIdx) { mutableStateOf("") }
-    var repsError by remember(ex.exerciseId, setObj.id, sIdx) { mutableStateOf("") }
+    var weightError by remember(executionKey, setObj.id, sIdx) { mutableStateOf("") }
+    var repsError by remember(executionKey, setObj.id, sIdx) { mutableStateOf("") }
 
     val weightMin = 0.0
     val weightMax = if (unitSuffix.lowercase() in listOf("lb", "lbs")) 660.0 else 300.0
@@ -90,7 +91,7 @@ fun SetLoggingRow(
             if (w != null && w in weightMin..weightMax) {
                 val r = rawReps.toIntOrNull() ?: setObj.reps
                 onLogSetState(
-                    ex.exerciseId, sIdx, w, r, selectedRpe,
+                    executionKey, sIdx, w, r, selectedRpe,
                     setObj.completed, setObj.restTaken
                 )
             }
@@ -102,7 +103,7 @@ fun SetLoggingRow(
             if (r != null && r in 1..50) {
                 val w = rawWeight.toDoubleOrNull() ?: setObj.weight
                 onLogSetState(
-                    ex.exerciseId, sIdx, w, r, selectedRpe,
+                    executionKey, sIdx, w, r, selectedRpe,
                     setObj.completed, setObj.restTaken
                 )
             }
@@ -132,8 +133,8 @@ fun SetLoggingRow(
             }
             val previousText = when {
                 previousSet != null -> "Previous ${previousSet.weight} $unitSuffix × ${previousSet.reps} · RPE ${previousSet.rpe}"
-                lastWeights[ex.exerciseId] != null -> {
-                    val lastWeight = lastWeights.getValue(ex.exerciseId)
+                lastWeights[executionKey] != null -> {
+                    val lastWeight = lastWeights.getValue(executionKey)
                     val displayed = if (isImperial) lastWeight * AppConstants.KG_TO_LBS else lastWeight
                     "Previous ${String.format(java.util.Locale.US, "%.1f", displayed)} $unitSuffix"
                 }
@@ -161,7 +162,7 @@ fun SetLoggingRow(
                                 val rounded = kotlin.math.round(value / step) * step
                                 rawWeight = String.format(java.util.Locale.US, "%.2f", rounded).trimEnd('0').trimEnd('.')
                                 weightError = ""
-                                onLogSetState(ex.exerciseId, sIdx, rounded, currentReps, selectedRpe,
+                                onLogSetState(executionKey, sIdx, rounded, currentReps, selectedRpe,
                                     setObj.completed, setObj.restTaken)
                             }, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)
                         ) { Text("−", color = ApexColors.TextSecondary, fontSize = 22.sp) }
@@ -196,7 +197,7 @@ fun SetLoggingRow(
                                 val rounded = kotlin.math.round(value / step) * step
                                 rawWeight = String.format(java.util.Locale.US, "%.2f", rounded).trimEnd('0').trimEnd('.')
                                 weightError = ""
-                                onLogSetState(ex.exerciseId, sIdx, rounded, currentReps, selectedRpe,
+                                onLogSetState(executionKey, sIdx, rounded, currentReps, selectedRpe,
                                     setObj.completed, setObj.restTaken)
                             }, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)
                         ) { Text("+", color = ApexColors.TextSecondary, fontSize = 22.sp) }
@@ -218,7 +219,7 @@ fun SetLoggingRow(
                             onClick = {
                                 val value = (currentReps - 1).coerceAtLeast(1)
                                 rawReps = value.toString(); repsError = ""
-                                onLogSetState(ex.exerciseId, sIdx, currentWeight, value, selectedRpe,
+                                onLogSetState(executionKey, sIdx, currentWeight, value, selectedRpe,
                                     setObj.completed, setObj.restTaken)
                             }, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)
                         ) { Text("−", color = ApexColors.TextSecondary, fontSize = 22.sp) }
@@ -240,7 +241,7 @@ fun SetLoggingRow(
                             onClick = {
                                 val value = (currentReps + 1).coerceAtMost(50)
                                 rawReps = value.toString(); repsError = ""
-                                onLogSetState(ex.exerciseId, sIdx, currentWeight, value, selectedRpe,
+                                onLogSetState(executionKey, sIdx, currentWeight, value, selectedRpe,
                                     setObj.completed, setObj.restTaken)
                             }, modifier = Modifier.size(48.dp), contentPadding = PaddingValues(0.dp)
                         ) { Text("+", color = ApexColors.TextSecondary, fontSize = 22.sp) }
@@ -255,10 +256,10 @@ fun SetLoggingRow(
                 onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                     if (setObj.completed) {
-                        onLogSetState(ex.exerciseId, sIdx, currentWeight, currentReps, selectedRpe,
+                        onLogSetState(executionKey, sIdx, currentWeight, currentReps, selectedRpe,
                             false, setObj.restTaken)
                     } else if (isSetValid && !showRirOverlay) {
-                        onCompleteSet(ex.exerciseId, ex.name, ex.muscleGroup, sIdx, currentWeight,
+                        onCompleteSet(executionKey, ex.name, ex.muscleGroup, sIdx, currentWeight,
                             currentReps, totalSets, selectedRpe)
                     }
                 },
@@ -401,7 +402,7 @@ fun SetLoggingRow(
                         decorationBox = { innerTextField ->
                             Box(contentAlignment = Alignment.CenterStart) {
                                 if (rawWeight.isEmpty()) {
-                                    val rawSuggested = lastWeights[ex.exerciseId]
+                                    val rawSuggested = lastWeights[executionKey]
                                     val suggested = if (rawSuggested != null) {
                                         if (isImperial) {
                                             Math.round(rawSuggested * AppConstants.KG_TO_LBS * 10.0) / 10.0
@@ -422,7 +423,7 @@ fun SetLoggingRow(
                             }
                         }
                     )
-                    val contextLineInside = weightContextLines[ex.exerciseId] ?: ""
+                    val contextLineInside = weightContextLines[executionKey] ?: ""
                     if (contextLineInside.isNotEmpty()) {
                         val shortNote = if (contextLineInside.contains(" → Suggested:")) {
                             contextLineInside.substringBefore(" → Suggested:")
@@ -511,10 +512,10 @@ fun SetLoggingRow(
 
                             if (newCompleted) {
                                 // Smart RIR dynamic selector instead of instant log
-                                onCompleteSet(ex.exerciseId, ex.name, ex.muscleGroup, sIdx, w, r, totalSets, selectedRpe)
+                                onCompleteSet(executionKey, ex.name, ex.muscleGroup, sIdx, w, r, totalSets, selectedRpe)
                             } else {
                                 // Simple uncheck log state
-                                onLogSetState(ex.exerciseId, sIdx, w, r, selectedRpe, false, setObj.restTaken)
+                                onLogSetState(executionKey, sIdx, w, r, selectedRpe, false, setObj.restTaken)
                             }
                         }
                     },

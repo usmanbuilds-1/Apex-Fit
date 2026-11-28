@@ -48,7 +48,7 @@ object MuscleRecoveryData {
     )
 
     fun tauFor(muscleGroup: String, tauOverrideDays: Double? = null): Double {
-        if (tauOverrideDays != null) return tauOverrideDays
+        if (tauOverrideDays != null && tauOverrideDays.isFinite() && tauOverrideDays > 0.0) return tauOverrideDays
         val norm = muscleGroup.lowercase().trim()
         val canonical = com.apexfit.app.utils.MuscleAliases.getCanonical(norm)
         return sizeMap.entries.firstOrNull { 
@@ -63,9 +63,8 @@ object MuscleRecoveryData {
         // If structured data available, use it with a flat 25% dose share
         if (secondaryMuscles.isNotEmpty()) {
             val share = 0.25 / secondaryMuscles.size
-            return secondaryMuscles.map { muscle ->
-                MuscleAliases.getCanonical(muscle.lowercase()) to share
-            }
+            return secondaryMuscles.map { MuscleAliases.getCanonical(it.lowercase()) }
+                .filter { it.isNotBlank() }.distinct().map { it to share }
         }
         // Fallback to the substring map for exercises without structured data
         val normalized = exerciseName.lowercase().replace(" ", "_")
@@ -125,7 +124,7 @@ object FatigueDoseCalculator {
         exerciseName: String,
         bodyWeightKg: Double
     ): Double {
-        val externalLoad = set.weight.coerceAtLeast(0.0)
+        val externalLoad = set.weight.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
         val fraction = bodyweightLoadFraction(exerciseName)
         return if (fraction != null && bodyWeightKg > 0.0) {
             bodyWeightKg * fraction + externalLoad
@@ -247,7 +246,7 @@ data class ReadinessScore(
     val recommendation: String,
     val muscleDetails: List<MuscleReadinessDetail>,
     val systemicReadiness: Int,
-    val nutritionScore: Int,
+    val nutritionScore: Int?,
     val sleepScore: Int?,
     val acrModifier: Double,
     val dataConfidence: String,
@@ -282,8 +281,11 @@ object ReadinessFinal {
         metadata: Map<String, ExerciseMetadata> = emptyMap()
     ): ReadinessScore {
         val nowMs = System.currentTimeMillis()
+        val today = getCurrentDate()
         val completedLast30 = completedSessions.filter { session ->
-            session.completed && trainingSessionAgeDays(session, nowMs) <= 30.0
+            val timestamp = session.completedAt ?: session.startedAt ?: DateTimeUtils.parseDate(session.date)?.time
+            session.completed && session.date <= today &&
+                timestamp != null && timestamp <= nowMs && trainingSessionAgeDays(session, nowMs) <= 30.0
         }
 
         // Consolidated single pass over completedLast30 (Fix V-M8)
@@ -308,7 +310,8 @@ object ReadinessFinal {
                 val secondaryTotalPct = secondaries.sumOf { it.second }
 
                 for (set in exercise.sets) {
-                    if (set.isWarmup || !set.completed) continue
+                    if (set.isWarmup || !set.completed || set.reps <= 0 ||
+                        !set.weight.isFinite() || set.weight < 0.0) continue
 
                     // 1) Muscle fatigue dose & secondary muscle distributions
                     val dose = FatigueDoseCalculator.doseForSet(
@@ -316,6 +319,7 @@ object ReadinessFinal {
                         exerciseName = exercise.name,
                         bodyWeightKg = bodyWeightKg
                     )
+                    if (!dose.isFinite() || dose <= 0.0) continue
                     val primaryDose = dose * (1.0 - secondaryTotalPct.coerceAtMost(1.0))
                     val primaryList = muscleFatigueHistory.getOrPut(canonicalExerciseMuscle) { mutableListOf() }
                     primaryList.add(MuscleFatigueSnapshot(canonicalExerciseMuscle, daysAgo, primaryDose))
@@ -357,7 +361,8 @@ object ReadinessFinal {
                 val list = muscleSessionHistory.getOrPut(muscle) { mutableListOf() }
                 list.add(totalDose)
             }
-            systemicPastSessionDoses.add(sessionSystemicDose)
+            if (sessionSystemicDose.isFinite() && sessionSystemicDose > 0.0)
+                systemicPastSessionDoses.add(sessionSystemicDose)
         }
         val systemicCapacity = if (systemicPastSessionDoses.size < 3) {
             1500.0
@@ -368,19 +373,16 @@ object ReadinessFinal {
         // e) todaysMuscleGroups
         val todaysMuscleGroups = todayExercises.map { MuscleAliases.getCanonical(it.muscleGroup) }.distinct()
 
-        // f) nutritionScore
-        val compliance = ComplianceEngine.calcComplianceScores(nutritionLog, completedLast30, targets)
-        val nutritionScore = (compliance.calories + compliance.protein) / 2
-
-        // h) acuteLoad and chronicLoad
-        val fatigueResult = FatigueEngine.calcFatigueToFitnessRatio(completedLast30)
-        val acuteLoad = fatigueResult.acuteLoad
-        val chronicLoad = fatigueResult.chronicLoad
+        // Intake completeness, adherence and actual recovery are different concepts.
+        // Neither incomplete nor confirmed nutrition logs establish readiness.
+        // Preserve the public signature for compatibility, but do not score intake.
+        val nutritionScore: Int? = null
 
         // i) totalCompletedSessions
         val totalCompletedSessions = completedLast30.asSequence()
             .filter { session -> session.completed && session.exercises.any { exercise ->
-                exercise.sets.any { it.completed && !it.isWarmup && it.reps > 0 }
+                exercise.sets.any { it.completed && !it.isWarmup && it.reps > 0 &&
+                    FatigueDoseCalculator.doseForSet(it, exercise.name, bodyWeightKg).let { dose -> dose.isFinite() && dose > 0.0 } }
             } }
             .map { it.date }.distinct().count()
 
@@ -406,8 +408,8 @@ object ReadinessFinal {
             systemicHistory = systemicHistory,
             systemicCapacity = systemicCapacity,
             nutritionScore = nutritionScore,
-            acuteLoad = acuteLoad,
-            chronicLoad = chronicLoad,
+            acuteLoad = 0.0,
+            chronicLoad = 0.0,
             metadata = metadata,
             tauOverrides = tauOverrides
         )
@@ -420,7 +422,7 @@ object ReadinessFinal {
         muscleSessionHistory: Map<String, List<Double>>,
         systemicHistory: List<SystemicFatigueCalculator.SystemicSnapshot>,
         systemicCapacity: Double,
-        nutritionScore: Int,
+        nutritionScore: Int?,
         acuteLoad: Double, // from calcFatigueToFitness(trainingLog).acuteLoad
         chronicLoad: Double, // from calcFatigueToFitness(trainingLog).chronicLoad
         metadata: Map<String, ExerciseMetadata> = emptyMap(),
@@ -450,31 +452,25 @@ object ReadinessFinal {
             }
             MuscleReadinessDetail(muscle, readiness, sessionHist.size, confidence)
         }
-        val avgMuscle = when {
-            muscleDetails.isNotEmpty() -> muscleDetails.map { it.readinessPercent }.average()
-            todaysMuscleGroups.isEmpty() -> 75.0  // non-training day — neutral
-            else -> 75.0  // Unknown muscle — neutral until training history exists
-        }
+        val knownMuscles = muscleDetails.filter { it.confidence != "none" }
+        val avgMuscle = knownMuscles.map { it.readinessPercent }.average()
 
         val systemicScore = SystemicFatigueCalculator.readinessPercent(systemicHistory, systemicCapacity)
         // Workload ratios are not validated as individual readiness or injury predictors.
         val acrModifier = 1.0
 
-        val wMuscle = 0.45
-        val wSystemic = 0.25
-        val wNutrition = 0.30
-
-        val musclePart = (avgMuscle * wMuscle + systemicScore * wSystemic) * acrModifier
-        val otherPart = nutritionScore * wNutrition
-        val combined = musclePart + otherPart
-
+        // Retain the relative weighting of the existing training components.
+        // This is a heuristic index, not a calibrated probability or measurement.
+        val combined = if (knownMuscles.isEmpty()) systemicScore.toDouble()
+            else (avgMuscle * 45.0 + systemicScore * 25.0) / 70.0
         val computedScore = combined.roundToInt().coerceIn(0, 100)
         var finalScore: Int? = computedScore
 
         // Cold start: fewer than 3 sessions ever -> override label/copy only, not the raw score.
         // The score is mathematically "100%" because there's no fatigue data, not because
         // we've verified they're actually recovered. Be honest about that in the UI.
-        if (totalCompletedSessions < 3 || muscleDetails.isNotEmpty() && muscleDetails.all { it.confidence == "none" }) {
+        if (totalCompletedSessions < 3 || systemicHistory.isEmpty() ||
+            muscleDetails.any { it.confidence == "none" }) {
             finalScore = null
             return ReadinessScore(
                 overallPercent = computedScore,
@@ -492,15 +488,13 @@ object ReadinessFinal {
         }
 
         val (label, color, rec) = when {
-            computedScore >= 85 -> Triple("Excellent", "#34D399", "Estimated readiness is high. Consider sleep, soreness and how you feel before increasing effort.")
-            computedScore >= 70 -> Triple("Good", "#6366F1", "Consider your energy, sleep and soreness when choosing today's effort.")
-            computedScore >= 55 -> Triple("Moderate", "#A78BFA", "Consider a lighter session if you feel fatigued or unusually sore.")
-            computedScore >= 35 -> Triple("Low", "#F59E0B", "Consider reducing your training or taking a recovery day if you feel fatigued.")
-            else             -> Triple("Poor", "#E84040", "Consider rest or a lighter session, especially if you feel fatigued.")
+            computedScore >= 70 -> Triple("Lower estimated load", "#34D399", "Check your energy, soreness and warm-up performance before choosing today's effort.")
+            computedScore >= 50 -> Triple("Moderate estimated load", "#6366F1", "Check your energy, soreness and warm-up performance before choosing today's effort.")
+            else -> Triple("Higher estimated load", "#F59E0B", "Consider a lighter session if you feel fatigued or unusually sore.")
         }
 
         val confidenceFlag = when {
-            muscleDetails.any { it.confidence == "none" } -> "limited - some muscles lack history"
+            muscleDetails.any { it.confidence != "full" } -> "limited - some muscles lack history"
             else -> "full"
         }
 

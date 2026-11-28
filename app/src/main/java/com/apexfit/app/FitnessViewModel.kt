@@ -21,7 +21,8 @@ class FitnessViewModel @Inject constructor(
     application: Application,
     private val repository: FitnessRepository,
     private val dataStore: DataStoreManager,
-    private val dao: FitnessDao
+    private val dao: FitnessDao,
+    private val sessionManager: WorkoutSessionManager
 ) : AndroidViewModel(application) {
 
     data class SettingsSnapshot(
@@ -200,19 +201,20 @@ class FitnessViewModel @Inject constructor(
     val resetError = _resetError.asStateFlow()
 
     fun resetAllData() {
+        if (!_isResetting.compareAndSet(false, true)) return
+        _resetError.value = null
         viewModelScope.launch {
-            _isResetting.value = true
-            _resetError.value = null
-            com.apexfit.app.utils.WorkoutForegroundService.stop(getApplication())
-            com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(getApplication())
             try {
-                withContext(Dispatchers.IO) {
+                sessionManager.resetWorkoutData {
+                    com.apexfit.app.data.ProgressPhotoStore(getApplication()).clear()
                     db.clearAllTables()
                     dataStore.clearAllData()
                     com.apexfit.app.utils.SeedService.seed(getApplication())
                     seedDefaultWorkoutPlan()
                     dataStore.setExercisesSeeded(true)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("FitnessViewModel", "resetAllData seeding failed", e)
                 _resetError.value = "Reset failed: ${e.message}. Please try again."
