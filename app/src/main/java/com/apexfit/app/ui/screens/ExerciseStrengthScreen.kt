@@ -72,6 +72,7 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
     }
     val options = (exercises as? StrengthLoad.Ready)?.value
     val selected = options?.firstOrNull { it.exerciseId == selectedId }
+    val filteredOptions = remember(options, query) { options.orEmpty().filter { it.name.contains(query.trim(), ignoreCase = true) } }
     BackHandler(enabled = selectedId != null) { selectedId = null }
     val start = when (rangeIndex) {
         0 -> today.minusDays(89)
@@ -169,7 +170,7 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
                 OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Find a logged exercise") })
             }
-            val filtered = remember(options, query) { options.filter { it.name.contains(query.trim(), ignoreCase = true) } }
+            val filtered = filteredOptions
             if (filtered.isEmpty()) item { Text("No matching logged exercises.", color = ApexColors.TextSecondary) }
             items(filtered, key = { it.exerciseId }) { exercise ->
                 Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) {
