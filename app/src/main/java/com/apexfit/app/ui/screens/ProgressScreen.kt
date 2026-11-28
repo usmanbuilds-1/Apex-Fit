@@ -94,6 +94,7 @@ fun ProgressScreen(
         label = "progressSubscreen"
     ) { screen ->
         when (screen) {
+            "custom_goals" -> CustomFitnessGoalsScreen(progressViewModel, onBack = { subScreen = "main" })
             "training_calendar" -> TrainingCalendarScreen(progressViewModel, onBack = { subScreen = "main" })
             "strength_history" -> ExerciseStrengthScreen(progressViewModel, onBack = { subScreen = "main" })
             "personal_records" -> {
@@ -130,6 +131,7 @@ fun ProgressScreen(
                     onOpenPersonalRecords = { subScreen = "personal_records" },
                     onOpenStrength = { subScreen = "strength_history" },
                     onOpenCalendar = { subScreen = "training_calendar" },
+                    onOpenGoals = { subScreen = "custom_goals" },
                     onOpenMeasurementDetail = { part ->
                         selectedPart = part
                         subScreen = "measurement_detail"
@@ -384,7 +386,8 @@ fun ProgressMainTabContent(
     onOpenPersonalRecords: () -> Unit,
     onOpenMeasurementDetail: (String) -> Unit,
     onOpenStrength: (() -> Unit)? = null,
-    onOpenCalendar: (() -> Unit)? = null
+    onOpenCalendar: (() -> Unit)? = null,
+    onOpenGoals: (() -> Unit)? = null
 ) {
     // Collect only the history required by the visible section. Room otherwise opens
     // all three queries on every visit to Progress, and an unrelated Loading state
@@ -518,7 +521,8 @@ fun ProgressMainTabContent(
                 onOpenRecovery = onOpenMuscleRecovery,
                 onOpenFatigue = { activeSubTab = 1 },
                 onOpenStrength = onOpenStrength,
-                onOpenCalendar = onOpenCalendar
+                onOpenCalendar = onOpenCalendar,
+                onOpenGoals = onOpenGoals
             )
         }
 

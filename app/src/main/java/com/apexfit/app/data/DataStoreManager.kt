@@ -30,6 +30,7 @@ class DataStoreManager(context: Context) {
                 instance ?: DataStoreManager(context.applicationContext).also { instance = it }
             }
         private val SET_LOAD_CONFIRMATIONS_KEY = stringSetPreferencesKey("strength_set_load_confirmations_v1")
+        private val CUSTOM_FITNESS_GOALS_KEY = stringSetPreferencesKey("custom_fitness_goals_v1")
         private val MUSCLE_TARGET_HISTORY_KEY = stringSetPreferencesKey("muscle_target_history_v1")
         private val NUTRITION_DAY_CONFIRMATIONS_KEY = stringSetPreferencesKey("nutrition_day_confirmations_v1")
         val ONBOARDED_KEY = booleanPreferencesKey("onboarded")
@@ -481,6 +482,38 @@ class DataStoreManager(context: Context) {
                 .filterNot { it.substringBefore('|') == id.toString() }.toMutableSet()
             if (confirmation != null) next.add(com.apexfit.app.utils.LoadConfirmations.encode(confirmation))
             preferences[SET_LOAD_CONFIRMATIONS_KEY] = next
+        }
+    }
+
+    val customFitnessGoalsFlow: Flow<List<com.apexfit.app.utils.FitnessGoal>> =
+        context.dataStore.data.map {
+            com.apexfit.app.utils.CustomFitnessGoals.decodeAll(it[CUSTOM_FITNESS_GOALS_KEY].orEmpty())
+        }.distinctUntilChanged()
+
+    suspend fun insertCustomFitnessGoal(goal: com.apexfit.app.utils.FitnessGoal) {
+        require(goal.start == java.time.LocalDate.now().plusDays(1))
+        require(com.apexfit.app.utils.CustomFitnessGoals.decode(com.apexfit.app.utils.CustomFitnessGoals.encode(goal)) == goal)
+        context.dataStore.edit { preferences ->
+            val history = com.apexfit.app.utils.CustomFitnessGoals.decodeAll(preferences[CUSTOM_FITNESS_GOALS_KEY].orEmpty())
+            check(history.none { it.id == goal.id })
+            preferences[CUSTOM_FITNESS_GOALS_KEY] = (history + goal).map(com.apexfit.app.utils.CustomFitnessGoals::encode).toSet()
+        }
+    }
+
+    suspend fun archiveCustomFitnessGoal(id: String) {
+        context.dataStore.edit { preferences ->
+            val history = com.apexfit.app.utils.CustomFitnessGoals.decodeAll(preferences[CUSTOM_FITNESS_GOALS_KEY].orEmpty())
+            preferences[CUSTOM_FITNESS_GOALS_KEY] = history.map {
+                if (it.id == id && it.archivedOn == null) it.copy(archivedOn = java.time.LocalDate.now()) else it
+            }.map(com.apexfit.app.utils.CustomFitnessGoals::encode).toSet()
+        }
+    }
+
+    suspend fun deleteCustomFitnessGoal(id: String) {
+        context.dataStore.edit { preferences ->
+            val history = com.apexfit.app.utils.CustomFitnessGoals.decodeAll(preferences[CUSTOM_FITNESS_GOALS_KEY].orEmpty())
+            preferences[CUSTOM_FITNESS_GOALS_KEY] = history.filterNot { it.id == id }
+                .map(com.apexfit.app.utils.CustomFitnessGoals::encode).toSet()
         }
     }
 

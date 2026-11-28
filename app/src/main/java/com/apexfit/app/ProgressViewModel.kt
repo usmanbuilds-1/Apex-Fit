@@ -63,6 +63,44 @@ class ProgressViewModel @Inject constructor(
         EstimatedStrength.calculate(points, confirmations, weights)
     }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
+    fun observeCustomGoals(today: java.time.LocalDate): Flow<List<FitnessGoalProgress>> =
+        dataStore.customFitnessGoalsFlow.flatMapLatest { goals ->
+            if (goals.isEmpty()) flowOf(emptyList())
+            else {
+                val start = minOf(today, goals.minOf { it.start })
+                combine(dao.observeAnalyticsWorkingSets(start.toString(), today.toString()),
+                    dao.observeCalendarSessions(start.toString(), today.toString()), dao.observeAllWeightEntries(),
+                    setLoadConfirmations) { rows, sessions, weights, confirmations ->
+                    val pointsByExercise = goals.filter { it.spec.exerciseGoal }.map { it.spec.exerciseId }.distinct()
+                        .associateWith { id -> StrengthAnalytics.calculate(rows, id, start, today) }
+                    goals.map { goal ->
+                        val end = listOfNotNull(today, goal.spec.deadline, goal.archivedOn).minOrNull()!!
+                        CustomFitnessGoals.progress(goal, today, CustomFitnessGoals.observations(
+                            goal.spec, pointsByExercise[goal.spec.exerciseId].orEmpty(), confirmations, sessions, weights,
+                            goal.start, end))
+                    }
+                }
+            }
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
+    suspend fun createCustomGoal(spec: FitnessGoalSpec) {
+        require(spec.valid())
+        val today = java.time.LocalDate.now()
+        val end = today.minusDays(1)
+        val start = java.time.LocalDate.of(1, 1, 1)
+        val baseline = withContext(Dispatchers.Default) {
+            val points = if (spec.exerciseGoal) observeStrengthHistory(spec.exerciseId, start, end).first() else emptyList()
+            val confirmations = if (spec.exerciseGoal) setLoadConfirmations.first() else emptyMap()
+            val weights = if (spec.kind == FitnessGoalKind.WEIGHT_UP || spec.kind == FitnessGoalKind.WEIGHT_DOWN)
+                dao.observeAllWeightEntries().first() else emptyList()
+            CustomFitnessGoals.observations(spec, points, confirmations, emptyList(), weights, start, end)
+        }
+        dataStore.insertCustomFitnessGoal(CustomFitnessGoals.create(spec, today, baseline))
+    }
+
+    suspend fun archiveCustomGoal(id: String) = dataStore.archiveCustomFitnessGoal(id)
+    suspend fun deleteCustomGoal(id: String) = dataStore.deleteCustomFitnessGoal(id)
+
     val personalRecords = dao.getPersonalRecordsWithNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

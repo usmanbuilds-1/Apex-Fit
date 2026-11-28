@@ -312,6 +312,7 @@ class HomeViewModel @Inject constructor(
                 val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
                 val muscleTargets = dataStore.muscleTargetHistoryFlow.first()
                 val setLoadConfirmations = dataStore.setLoadConfirmationsFlow.first()
+                val customGoals = dataStore.customFitnessGoalsFlow.first()
 
                 val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
@@ -346,6 +347,13 @@ class HomeViewModel @Inject constructor(
                         writer.appendLine("set_id,fingerprint,basis,setup,free_weight_rep_limit")
                         setLoadConfirmations.values.sortedBy { it.setId }.forEach {
                             writer.appendLine("${it.setId},${it.fingerprint},${it.basis.name},${csvEscape(it.setup)},${it.freeWeightRepLimit}")
+                        }
+                        writer.appendLine()
+                        writer.appendLine("## Custom Fitness Goals")
+                        writer.appendLine("id,kind,target,exercise_id,basis,setup,minimum,deadline,start,baseline,baseline_date,archived_on")
+                        customGoals.forEach { g ->
+                            val spec = g.spec
+                            writer.appendLine("${g.id},${spec.kind.name},${spec.target},${csvEscape(spec.exerciseId)},${spec.basis?.name.orEmpty()},${csvEscape(spec.setup)},${spec.minimum},${spec.deadline ?: ""},${g.start},${g.baseline ?: ""},${g.baselineDate ?: ""},${g.archivedOn ?: ""}")
                         }
                         writer.appendLine()
                         writer.appendLine("## Muscle Target History")

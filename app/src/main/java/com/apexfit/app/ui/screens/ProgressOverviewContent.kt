@@ -45,7 +45,8 @@ internal fun ProgressOverviewContent(
     onOpenRecovery: () -> Unit,
     onOpenFatigue: () -> Unit,
     onOpenStrength: (() -> Unit)? = null,
-    onOpenCalendar: (() -> Unit)? = null
+    onOpenCalendar: (() -> Unit)? = null,
+    onOpenGoals: (() -> Unit)? = null
 ) {
     val rawHistory = (weights as? UiState.Success)?.data.orEmpty()
     val latest = remember(rawHistory) { rawHistory.maxWithOrNull(com.apexfit.app.utils.BodyWeightHistory.uiChronological) }
@@ -213,6 +214,8 @@ internal fun ProgressOverviewContent(
             "Muscle recovery" to onOpenRecovery, "Fatigue & deload" to onOpenFatigue
         ).let { actions ->
             if (onOpenCalendar != null) actions + ("Training calendar" to onOpenCalendar) else actions
+        }.let { actions ->
+            if (onOpenGoals != null) actions + ("Custom goals" to onOpenGoals) else actions
         }.forEach { (label, action) ->
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClick = action),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
