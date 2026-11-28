@@ -65,4 +65,13 @@ class ProgressionEvidenceTest {
         assertNull(ProgressionEvidence.apply(exercise, proposal))
         assertNull(ProgressionEvidence.apply(exercise.copy(sets = mutableListOf(ActiveSet(1, 20.0, 8))), proposal))
     }
+
+    @Test fun groupedWorkoutCannotDriveSequentialProgression() {
+        val rows = listOf(set(1), set(2))
+        assertNull(propose(rows.map { it.copy(groupedExecution = true) }))
+        assertNull(propose(listOf(rows[0].copy(groupedExecution = false), rows[1].copy(groupedExecution = true))))
+        assertNotNull(propose(rows.map { it.copy(groupedExecution = false) }))
+        // Preserve the previous legacy compatibility policy; known historical circuits are filtered in DAO.
+        assertNotNull(propose(rows))
+    }
 }
