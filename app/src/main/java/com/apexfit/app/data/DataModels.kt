@@ -578,7 +578,8 @@ data class AnalyticsWorkingSet(
     val analyticsStartedAt: Long?,
     val analyticsCompletedAt: Long?,
     val analyticsSecondaryMuscles: List<String>,
-    val analyticsCatalogPresent: Boolean = true
+    val analyticsCatalogPresent: Boolean = true,
+    val analyticsTrainingFormat: String? = null
 )
 
 @Entity(
