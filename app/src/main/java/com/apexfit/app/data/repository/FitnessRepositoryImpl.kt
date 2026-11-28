@@ -102,8 +102,9 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val recent90DaySessionsFlow: StateFlow<List<TrainingSession>> by lazy {
-        dao.getRecentCompletedSessionsFlow(getWindowStartDate(90))
-            .flowOn(Dispatchers.IO)
+        todayDateFlow.flatMapLatest { date ->
+            dao.getRecentCompletedSessionsFlow(LocalDate.parse(date).minusDays(89).toString()).distinctUntilChanged()
+        }.flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
                 started = SharingStarted.WhileSubscribed(5_000),
@@ -112,8 +113,9 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val recent90DaySetsFlow: StateFlow<List<ExerciseSet>> by lazy {
-        dao.getRecentExerciseSetsFlow(getWindowStartDate(90))
-            .flowOn(Dispatchers.IO)
+        todayDateFlow.flatMapLatest { date ->
+            dao.getRecentExerciseSetsFlow(LocalDate.parse(date).minusDays(89).toString()).distinctUntilChanged()
+        }.flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
                 started = SharingStarted.WhileSubscribed(5_000),
@@ -148,8 +150,9 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val nutritionEntriesFlow: StateFlow<List<NutritionEntry>> by lazy {
-        dao.getNutritionEntriesSinceFlow(getWindowStartDate(90))
-            .flowOn(Dispatchers.IO)
+        todayDateFlow.flatMapLatest { date ->
+            dao.getNutritionEntriesSinceFlow(LocalDate.parse(date).minusDays(89).toString()).distinctUntilChanged()
+        }.flowOn(Dispatchers.IO)
             .stateIn(
                 scope = appScope,
                 started = SharingStarted.WhileSubscribed(5000),
@@ -626,12 +629,15 @@ class FitnessRepositoryImpl @Inject constructor(
         return dataStore.goalFlow
     }
 
-    override fun getCurrentWeightFlow(): Flow<Double> {
-        return combine(dao.observeAllWeightEntries(), dataStore.weightBaselineFlow, todayDateFlow) { entries, fallback, today ->
+    private val currentWeightShared: Flow<Double> by lazy {
+        combine(dao.observeAllWeightEntries().distinctUntilChanged(), dataStore.weightBaselineFlow, todayDateFlow) { entries, fallback, today ->
             BodyWeightHistory.latest(entries.filter { it.date <= today })?.weight
                 ?: fallback ?: com.apexfit.app.UserDefaults.WEIGHT_KG
-        }.distinctUntilChanged().flowOn(Dispatchers.IO)
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+            .shareIn(appScope, SharingStarted.WhileSubscribed(5_000, 0), replay = 1)
     }
+
+    override fun getCurrentWeightFlow(): Flow<Double> = currentWeightShared
 
     override suspend fun scanAndSaveWeeklyPatterns() {
         val cutoffDate = getWindowStartDate(90)
