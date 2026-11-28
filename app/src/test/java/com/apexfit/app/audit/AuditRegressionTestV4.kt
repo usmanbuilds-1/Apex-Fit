@@ -15,6 +15,10 @@ import com.apexfit.app.data.TrainingSession
 import com.apexfit.app.data.WorkoutPlan
 import com.apexfit.app.ui.models.UiExerciseSet
 import com.apexfit.app.utils.AppConstants
+import com.apexfit.app.utils.RecordedLoadBasis
+import com.apexfit.app.utils.SetObservation
+import com.apexfit.app.utils.SetObservationCodec
+import org.junit.Assert.assertNull
 import com.apexfit.app.data.DetectedPattern
 import com.apexfit.app.utils.PatternDetector
 import com.apexfit.app.utils.exerciseNameToSlug
@@ -265,21 +269,34 @@ class AuditRegressionTestV4 {
         assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 
+    private fun confirmedSet(set: ExerciseSet, planId: Long, number: Int, basis: RecordedLoadBasis = RecordedLoadBasis.TOTAL): ExerciseSet =
+        set.copy(occurrenceIndex = 0, sourcePlanExerciseId = planId, setNumber = number,
+            setObservation = SetObservationCodec.encode(SetObservation(set.weight, set.reps,
+                10 - set.rpe, basis, "Test gym setup")))
+
     @Test
     fun progressionUsesAllWorkingSetsFromLatestCompletedSession() = runBlocking {
         repeat(3) { index ->
-            dao.insertExerciseSet(ExerciseSet(id = 3000L + index, sessionId = "session_1", exerciseId = "bench-press",
+            dao.insertExerciseSet(confirmedSet(ExerciseSet(id = 3000L + index, sessionId = "session_1", exerciseId = "bench-press",
                 exerciseName = "Bench Press", muscleGroup = "Chest", weight = 100.0, reps = 12, rpe = 8,
-                isWarmup = false, completed = true))
+                isWarmup = false, completed = true), 5L, index + 1))
         }
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context))
         val manager = com.apexfit.app.WorkoutSessionManager(repo, DataStoreManager.getInstance(context),
             sessionScope, dao, context)
-        val exercise = PlanExercise(planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
+        val exercise = PlanExercise(id = 5L, planSessionId = 1, exerciseId = "bench-press", name = "Bench Press",
             muscleGroup = "Chest", sets = 3, repsMin = 8, repsMax = 12, weight = 100.0, restSeconds = 180, notes = "")
         manager.startSession(PlanSession(id = 1, planId = 1, label = "Upper", day = "Monday", focus = "Chest"),
             listOf(exercise), 70.0, 175.0, "kg")
-        assertTrue("Three successful sets should progress the load", manager.activeSession.value!!.exercises.single().sets.first().weight > 100.0)
+        val active = manager.activeSession.value!!
+        val ex = active.exercises.single()
+        assertEquals(100.0, ex.sets.first().weight, 0.001)
+        val proposal = requireNotNull(ex.progressionProposal)
+        assertEquals(listOf(3000L, 3001L, 3002L), proposal.sourceSetIds)
+        assertTrue(proposal.suggestedKg > 100.0)
+        assertTrue(manager.applyProgressionDurably(active.sessionId, ex.executionKey, proposal))
+        assertTrue(manager.activeSession.value!!.exercises.single().sets.all { it.weight > 100.0 })
+        assertFalse(manager.applyProgressionDurably(active.sessionId, ex.executionKey, proposal))
         assertTrue(manager.discardDraftDurably(manager.activeSession.value!!.sessionId))
     }
 
@@ -631,7 +648,7 @@ class AuditRegressionTestV4 {
     }
 
     @Test
-    fun testMetricProgressionSuggestions_successAdvancesAndSnapsToGrid() = runBlocking {
+    fun testLegacyMetricHistoryDoesNotSilentlyAdvancePlanLoad() = runBlocking {
         val dataStore = DataStoreManager.getInstance(context)
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
@@ -642,7 +659,7 @@ class AuditRegressionTestV4 {
             appContext = context
         )
 
-        // 1. Acceptance: a metric user at 100.0 kg compound_upper with a SUCCESS outcome is suggested 102.5 kg (not 100.0)
+        // Legacy success without recorded setup/effort provenance cannot authorize an increase.
         dao.insertExerciseSet(
             ExerciseSet(
                 id = 101L,
@@ -672,9 +689,10 @@ class AuditRegressionTestV4 {
         val planSession = PlanSession(id = 1L, planId = 1L, label = "Upper", day = "Monday", focus = "Chest")
         sessionManager.startSession(planSession, listOf(benchExercise), 75.0, 175.0, "kg")
         val benchActive = sessionManager.activeSession.value?.exercises?.first()
-        assertEquals(102.5, benchActive?.sets?.first()?.weight ?: 0.0, 0.001)
+        assertEquals(100.0, benchActive?.sets?.first()?.weight ?: 0.0, 0.001)
+        assertNull(benchActive?.progressionProposal)
 
-        // 2. Acceptance: a metric user at 30.0 kg isolation with SUCCESS is suggested 31.25 kg (not 30.0)
+        // The same rule applies to isolation exercises.
         dao.insertExercises(
             listOf(
                 Exercise(
@@ -719,11 +737,13 @@ class AuditRegressionTestV4 {
         assertTrue(sessionManager.discardDraftDurably(sessionManager.activeSession.value!!.sessionId))
         sessionManager.startSession(armsSession, listOf(curlExercise), 75.0, 175.0, "kg")
         val curlActive = sessionManager.activeSession.value?.exercises?.first()
-        assertEquals(31.25, curlActive?.sets?.first()?.weight ?: 0.0, 0.001)
+        assertEquals(30.0, curlActive?.sets?.first()?.weight ?: 0.0, 0.001)
+        assertNull(curlActive?.progressionProposal)
+        assertTrue(sessionManager.discardDraftDurably(sessionManager.activeSession.value!!.sessionId))
     }
 
     @Test
-    fun testMetricTenSessionSuccessChain_strictlyIncreasesAllFiveExerciseTypes() = runBlocking {
+    fun testMetricTenSessionConfirmedSuccessChain_strictlyIncreasesAllFiveExerciseTypes() = runBlocking {
         val dataStore = DataStoreManager.getInstance(context)
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
@@ -759,10 +779,11 @@ class AuditRegressionTestV4 {
             var currentWeight = initialWeight
             for (sessionIdx in 1..10) {
                 val sessionId = "session_${slug}_$sessionIdx"
+                val stablePlanId = (5000 + exercisesToTest.indexOfFirst { it.first == name }).toLong()
                 dao.insertTrainingSession(
                     TrainingSession(
                         id = sessionId,
-                        date = "2024-01-01",
+                        date = java.time.LocalDate.of(2024, 1, sessionIdx).toString(),
                         sessionType = "Custom",
                         completed = true,
                         durationMinutes = 45,
@@ -770,7 +791,7 @@ class AuditRegressionTestV4 {
                     )
                 )
                 dao.insertExerciseSet(
-                    ExerciseSet(
+                    confirmedSet(ExerciseSet(
                         id = (1000 * exercisesToTest.indexOfFirst { it.first == name } + sessionIdx).toLong(),
                         sessionId = sessionId,
                         exerciseId = slug,
@@ -781,11 +802,11 @@ class AuditRegressionTestV4 {
                         rpe = 7,
                         isWarmup = false,
                         completed = true
-                    )
+                    ), stablePlanId, 1)
                 )
 
                 val planEx = PlanExercise(
-                    id = (5000 + sessionIdx).toLong(),
+                    id = stablePlanId,
                     planSessionId = 1L,
                     name = name,
                     muscleGroup = muscle,
@@ -798,9 +819,14 @@ class AuditRegressionTestV4 {
                 )
                 val planSession = PlanSession(id = (100 + sessionIdx).toLong(), planId = 1L, label = "Custom", day = "Monday", focus = muscle)
                 sessionManager.startSession(planSession, listOf(planEx), 75.0, 175.0, "kg")
-                val suggested = sessionManager.activeSession.value?.exercises?.first()?.sets?.first()?.weight ?: 0.0
+                val draft = requireNotNull(sessionManager.activeSession.value)
+                val ex = draft.exercises.single()
+                assertEquals(currentWeight, ex.sets.single().weight, 0.001)
+                val proposal = requireNotNull(ex.progressionProposal)
+                assertTrue(sessionManager.applyProgressionDurably(draft.sessionId, ex.executionKey, proposal))
+                val suggested = sessionManager.activeSession.value!!.exercises.single().sets.single().weight
                 assertTrue(
-                    "Session $sessionIdx for $name should strictly increase: suggested $suggested > current $currentWeight",
+                    "Session $sessionIdx for $name should strictly increase after confirmation: suggested $suggested > current $currentWeight",
                     suggested > currentWeight
                 )
                 currentWeight = suggested
@@ -810,7 +836,7 @@ class AuditRegressionTestV4 {
     }
 
     @Test
-    fun testImperialSuggestionsSnapToPlateGrid() = runBlocking {
+    fun testImperialConfirmedProgressionPreservesExactIncrements() = runBlocking {
         val dataStore = DataStoreManager.getInstance(context)
         val repo = com.apexfit.app.data.repository.FitnessRepositoryImpl(db, dao, dataStore)
         val sessionManager = com.apexfit.app.WorkoutSessionManager(
@@ -822,18 +848,18 @@ class AuditRegressionTestV4 {
         )
 
         dao.insertExerciseSet(
-            ExerciseSet(
+            confirmedSet(ExerciseSet(
                 id = 201L,
                 sessionId = "session_1",
                 exerciseId = "bench-press",
                 exerciseName = "Bench Press",
                 muscleGroup = "Chest",
-                weight = 45.4,
+                weight = 100.0 / AppConstants.KG_TO_LBS,
                 reps = 10,
                 rpe = 7,
                 isWarmup = false,
                 completed = true
-            )
+            ), 201L, 1)
         )
         val planEx = PlanExercise(
             id = 201L,
@@ -844,14 +870,18 @@ class AuditRegressionTestV4 {
             repsMin = 8,
             repsMax = 10,
             weight = 100.0,
+            weightUnit = "lbs",
             restSeconds = 90,
             notes = ""
         )
         val planSession = PlanSession(id = 10L, planId = 1L, label = "Upper", day = "Monday", focus = "Chest")
         sessionManager.startSession(planSession, listOf(planEx), 165.0, 175.0, "lbs")
-        val suggested = sessionManager.activeSession.value?.exercises?.first()?.sets?.first()?.weight ?: 0.0
-        val rem = (suggested % 2.5)
-        assertTrue("Imperial bench press suggestion $suggested must be on 2.5 lb grid", rem == 0.0 || Math.abs(rem - 2.5) < 0.001)
+        val benchDraft = requireNotNull(sessionManager.activeSession.value)
+        val bench = benchDraft.exercises.single()
+        assertEquals(100.0, bench.sets.single().weight, 0.001)
+        assertTrue(sessionManager.applyProgressionDurably(benchDraft.sessionId, bench.executionKey, requireNotNull(bench.progressionProposal)))
+        assertEquals(102.5, sessionManager.activeSession.value!!.exercises.single().sets.single().weight, 0.001)
+        assertTrue(sessionManager.discardDraftDurably(benchDraft.sessionId))
 
         dao.insertExercises(
             listOf(
@@ -865,18 +895,18 @@ class AuditRegressionTestV4 {
             )
         )
         dao.insertExerciseSet(
-            ExerciseSet(
+            confirmedSet(ExerciseSet(
                 id = 202L,
                 sessionId = "session_1",
                 exerciseId = "bicep-curl",
                 exerciseName = "Bicep Curl",
                 muscleGroup = "Biceps",
-                weight = 13.7,
+                weight = 30.0 / AppConstants.KG_TO_LBS,
                 reps = 10,
                 rpe = 7,
                 isWarmup = false,
                 completed = true
-            )
+            ), 202L, 1, RecordedLoadBasis.PER_HAND)
         )
         val curlEx = PlanExercise(
             id = 202L,
@@ -887,14 +917,18 @@ class AuditRegressionTestV4 {
             repsMin = 8,
             repsMax = 10,
             weight = 30.0,
+            weightUnit = "lbs",
             restSeconds = 60,
             notes = ""
         )
         val armsSession = PlanSession(id = 11L, planId = 1L, label = "Arms", day = "Tuesday", focus = "Arms")
         sessionManager.startSession(armsSession, listOf(curlEx), 165.0, 175.0, "lbs")
-        val curlSuggested = sessionManager.activeSession.value?.exercises?.first()?.sets?.first()?.weight ?: 0.0
-        val curlRem = (curlSuggested % 1.25)
-        assertTrue("Imperial bicep curl suggestion $curlSuggested must be on 1.25 lb grid", curlRem == 0.0 || Math.abs(curlRem - 1.25) < 0.001)
+        val curlDraft = requireNotNull(sessionManager.activeSession.value)
+        val curl = curlDraft.exercises.single()
+        assertEquals(30.0, curl.sets.single().weight, 0.001)
+        assertTrue(sessionManager.applyProgressionDurably(curlDraft.sessionId, curl.executionKey, requireNotNull(curl.progressionProposal)))
+        assertEquals(31.25, sessionManager.activeSession.value!!.exercises.single().sets.single().weight, 0.001)
+        assertTrue(sessionManager.discardDraftDurably(curlDraft.sessionId))
     }
 
     @Test
