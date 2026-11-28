@@ -502,25 +502,10 @@ fun HomeNutritionRingCard(
     val completedSessions by algorithmViewModel.completedSessions.collectAsStateWithLifecycle()
 
     val targets = (macroTargetsState as? UiState.Success)?.data
-    val activePlanSessions = (activePlanSessionsState as? UiState.Success)?.data ?: emptyList()
-    val todayDayString = remember {
-        java.time.LocalDate.now().dayOfWeek
-            .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)
-    }
-    val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-
-    val isTodayWorkoutCompleted by remember(completedSessions) {
-        derivedStateOf {
-            val todayDateStr = DateTimeUtils.todayDateString()
-            completedSessions.any { it.date == todayDateStr }
-        }
-    }
-    val isPlannedTrainingToday = remember(todaySession) {
-        todaySession != null &&
-            !todaySession.label.contains("Rest", ignoreCase = true) &&
-            todaySession.focus != "Muscle Recovery & Rest"
-    }
-    val isTodayTrainingDay = isTodayWorkoutCompleted || isPlannedTrainingToday
+    val choice by homeViewModel.todayWorkoutChoice.collectAsStateWithLifecycle()
+    val todayDate by homeViewModel.todayDate.collectAsStateWithLifecycle()
+    val isTodayTrainingDay = com.apexfit.app.utils.ScheduleConsumerPolicy.isTrainingDay(
+        java.time.LocalDate.parse(todayDate), choice, completedSessions.count { it.date == todayDate })
 
     val loggedCaloriesTotal = remember(todayNutrition) {
         todayNutrition.sumOf { it.calories }
