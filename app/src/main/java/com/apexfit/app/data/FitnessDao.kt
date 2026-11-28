@@ -126,6 +126,14 @@ interface FitnessDao {
     @Query("SELECT * FROM schedule_workout_associations WHERE scheduledDate BETWEEN :start AND :end")
     fun observeScheduleWorkoutAssociations(start: String, end: String): Flow<List<RescheduledWorkoutSnapshot>>
 
+    @Transaction
+    @Query("""
+        SELECT a.* FROM schedule_workout_associations a
+        JOIN workout_sessions ws ON ws.id = a.sessionId
+        WHERE a.scheduledDate BETWEEN :start AND :end OR ws.date BETWEEN :start AND :end
+    """)
+    fun observeScheduleAssociationsForNutritionWeek(start: String, end: String): Flow<List<RescheduledWorkoutSnapshot>>
+
     @Query("""
         SELECT ws.* FROM workout_sessions ws
         WHERE ws.plan_session_id = :slotId AND ws.date != :scheduledDate AND ws.date <= :today
