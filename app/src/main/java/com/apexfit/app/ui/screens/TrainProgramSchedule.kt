@@ -125,7 +125,7 @@ internal fun TrainProgramSchedule(
                         } else {
                             allExercises.filter { it.planSessionId == session.id }.sortedBy { it.id }
                         }
-                        val estimatedMinutes = exercises.sumOf { AlgorithmEngine.estimateSetDurationMinutes(it, unit) }
+                        val estimatedMinutes = com.apexfit.app.utils.WorkoutDurationEstimate.estimate(exercises).minutes
 
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Row(
