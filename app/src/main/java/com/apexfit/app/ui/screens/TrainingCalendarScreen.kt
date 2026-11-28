@@ -73,8 +73,10 @@ private fun logLabel(day: TrainingCalendarDay): String = when (day.logKind) {
     CalendarLogKind.NONE -> "No saved workout"
 }
 private fun scheduleLabel(day: TrainingCalendarDay): String = when (day.scheduleKind) {
-    CalendarScheduleKind.TRAINING -> "Planned: ${day.plannedLabel}"
-    CalendarScheduleKind.REST -> "Projected rest day"
+    CalendarScheduleKind.TRAINING -> if (day.scheduleSource == CalendarScheduleSource.RECORDED)
+        "Recorded schedule: ${day.plannedLabel}" else "Projected: ${day.plannedLabel}"
+    CalendarScheduleKind.REST -> if (day.scheduleSource == CalendarScheduleSource.RECORDED)
+        "Recorded rest day" else "Projected rest day"
     CalendarScheduleKind.UNKNOWN -> "Schedule unknown"
 }
 
@@ -142,9 +144,9 @@ internal fun TrainingCalendarContent(
                         }
                     }
                 }
-                Text("C completed · P partial · T planned · R projected rest · — unknown",
+                Text("C saved completed · P saved partial · T scheduled · R rest · — unknown",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
-                Text("Past dates without saved workouts are unknown, not missed. Today's and future plans reflect the current schedule only.",
+                Text("Past schedules use recorded revisions where available. Saved workouts are not matched to scheduled occurrences yet; no log is not proof of a missed workout. Today and future dates show the live plan.",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
             }
             if (day == null) item { Text("Select a day for details.", color = ApexColors.TextSecondary) }
@@ -155,7 +157,14 @@ internal fun TrainingCalendarContent(
                         modifier = Modifier.padding(top = 8.dp))
                     Text(logLabel(day), color = ApexColors.TextSecondary)
                     Text(scheduleLabel(day), color = ApexColors.TextSecondary)
-                    day.planName?.let { Text("Current plan: $it", style = MaterialTheme.typography.bodySmall) }
+                    day.planName?.let {
+                        Text(if (day.scheduleSource == CalendarScheduleSource.RECORDED) "Recorded plan: $it"
+                            else "Current plan: $it", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (day.recordedOccurrenceId != null) {
+                        Text("Scheduled occurrence · completion not yet linked", style = MaterialTheme.typography.bodySmall,
+                            color = ApexColors.TextSecondary)
+                    }
                 }
                 items(day.sessions, key = { it.id }) { session ->
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) {
