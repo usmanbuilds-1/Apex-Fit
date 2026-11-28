@@ -9,6 +9,7 @@ import java.time.YearMonth
 enum class CalendarScheduleKind { TRAINING, REST, UNKNOWN }
 enum class CalendarLogKind { COMPLETED, PARTIAL, NONE }
 enum class CalendarScheduleSource { RECORDED, LIVE_PROJECTION, UNKNOWN }
+enum class RecordedOccurrenceStatus { NOT_APPLICABLE, COMPLETED, PARTIAL, UNRESOLVED }
 
 data class TrainingCalendarDay(
     val date: LocalDate,
@@ -22,6 +23,23 @@ data class TrainingCalendarDay(
 ) {
     val completedCount: Int get() = sessions.count { it.completed }
     val partialCount: Int get() = sessions.count { !it.completed && it.status == "partial" }
+    /** Count an occurrence once, independently of the number of saved workouts.
+     * Missing evidence is unresolved, not a confirmed miss. No fractional credit.
+     */
+    val occurrenceStatus: RecordedOccurrenceStatus get() {
+        val occurrence = recordedOccurrenceId ?: return RecordedOccurrenceStatus.NOT_APPLICABLE
+        if (scheduleSource != CalendarScheduleSource.RECORDED || scheduleKind != CalendarScheduleKind.TRAINING ||
+            !ScheduleLedger.validOccurrence(occurrence, date.toString(), plannedSessionId))
+            return RecordedOccurrenceStatus.NOT_APPLICABLE
+        val linked = sessions.filter { it.date == date.toString() && it.scheduleOccurrenceId == occurrence &&
+            it.planSessionId == plannedSessionId && it.startedAt != null && it.completedAt != null &&
+            it.completedAt >= it.startedAt }
+        return when {
+            linked.any { it.completed && it.status == "completed" } -> RecordedOccurrenceStatus.COMPLETED
+            linked.any { !it.completed && it.status == "partial" } -> RecordedOccurrenceStatus.PARTIAL
+            else -> RecordedOccurrenceStatus.UNRESOLVED
+        }
+    }
     val logKind: CalendarLogKind get() = when {
         completedCount > 0 -> CalendarLogKind.COMPLETED
         partialCount > 0 -> CalendarLogKind.PARTIAL
@@ -34,6 +52,10 @@ data class TrainingCalendarMonth(val month: YearMonth, val days: List<TrainingCa
     val partialOnlyDays: Int get() = days.count { it.logKind == CalendarLogKind.PARTIAL }
     val completedSessions: Int get() = days.sumOf { it.completedCount }
     val partialSessions: Int get() = days.sumOf { it.partialCount }
+    val recordedCompletedOccurrences: Int get() = days.count { it.occurrenceStatus == RecordedOccurrenceStatus.COMPLETED }
+    val recordedPartialOccurrences: Int get() = days.count { it.occurrenceStatus == RecordedOccurrenceStatus.PARTIAL }
+    val unresolvedOccurrences: Int get() = days.count { it.occurrenceStatus == RecordedOccurrenceStatus.UNRESOLVED }
+    val recordedOccurrences: Int get() = recordedCompletedOccurrences + recordedPartialOccurrences + unresolvedOccurrences
 }
 
 object TrainingCalendar {
