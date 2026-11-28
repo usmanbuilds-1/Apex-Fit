@@ -142,6 +142,30 @@ class HomeViewModel @Inject constructor(
 
     val completedSessions: Flow<List<com.apexfit.app.data.RichTrainingSession>> = richSessionsFlow
 
+    val muscleTargetHistory: Flow<List<MuscleTargetRevision>> = dataStore.muscleTargetHistoryFlow
+
+    suspend fun scheduleMuscleTarget(muscle: String, target: Int?, expectedWeek: java.time.LocalDate) =
+        dataStore.scheduleMuscleTarget(muscle, target, expectedWeek)
+
+    fun observeMuscleHistory(start: java.time.LocalDate, end: java.time.LocalDate):
+        Flow<List<com.apexfit.app.data.RichTrainingSession>> =
+        dao.observeAnalyticsWorkingSets(start.toString(), end.toString())
+            .map(AnalyticsHistory::sessions)
+            .distinctUntilChanged()
+            .flowOn(Dispatchers.Default)
+
+    val currentWeekMuscleHeatmap: StateFlow<Map<String, HeatmapEntry>> = todayDate
+        .flatMapLatest { date ->
+            val today = java.time.LocalDate.parse(date)
+            val start = MuscleVolumePeriod.WEEK.window(today).start
+            observeMuscleHistory(start, today).map {
+                FatigueEngine.directHeatmap(MuscleVolumeSummary.calculateWindow(it, start, today))
+            }
+        }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+
     val exercisesForPlan: Flow<List<com.apexfit.app.data.PlanExercise>> = dao.getAllPlanExercisesFlow()
 
     val estimatedWorkoutDuration: StateFlow<Int> = combine(
@@ -287,6 +311,7 @@ class HomeViewModel @Inject constructor(
                 val exerciseSets = dao.getRecentExerciseSets(cutoff365)
                 val personalRecords = dao.getRecentPersonalRecordsWithNames(limit = 500).first()
                 val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
+                val muscleTargets = dataStore.muscleTargetHistoryFlow.first()
 
                 val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
@@ -316,6 +341,12 @@ class HomeViewModel @Inject constructor(
                         writer.appendLine("## Body Measurements")
                         writer.appendLine("date,bodyPart,value,unit")
                         bodyMeasurements.forEach { writer.appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }
+                        writer.appendLine()
+                        writer.appendLine("## Muscle Target History")
+                        writer.appendLine("muscle,effective_week,target_direct_sets,state")
+                        muscleTargets.forEach {
+                            writer.appendLine("${csvEscape(it.muscle)},${it.effectiveWeek},${it.target ?: ""},${if (it.target == null) "unset" else "set"}")
+                        }
                     }
                 }
    

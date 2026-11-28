@@ -17,9 +17,8 @@ class MacroEngineTest {
     // ── Protein targets ───────────────────────────────────────
 
     @Test
-    fun gainMuscle_protein_derivedFromLBMAt2gPerKg() {
-        // Male 80kg, 175cm: LBM = (0.407×80) + (0.267×175) - 19.2 = 60.085
-        // gain muscle multiplier = 2.0 → protein = round(60.085 × 2.0) = 120g
+    fun gainMuscle_proteinUsesBodyWeight() {
+        // 80 kg × 1.8 g/kg = 144 g.
         val result = MacroEngine.calcMacroTargets(
             calorieTarget = 2800,
             bodyWeightKg = 80.0,
@@ -27,13 +26,12 @@ class MacroEngineTest {
             heightCm = 175.0,
             sex = "male"
         )
-        assertEquals(120, result.protein)
+        assertEquals(144, result.protein)
     }
 
     @Test
-    fun loseFat_protein_derivedFromLBMAt2pt4gPerKg() {
-        // Female 60kg, 165cm: LBM = (0.252×60) + (0.473×165) - 48.3 = 44.865
-        // lose fat multiplier = 2.4 → protein = round(44.865 × 2.4) = round(107.676) = 108g
+    fun loseFat_proteinUsesBodyWeight() {
+        // 60 kg × 2.2 g/kg = 132 g.
         val result = MacroEngine.calcMacroTargets(
             calorieTarget = 1600,
             bodyWeightKg = 60.0,
@@ -41,12 +39,11 @@ class MacroEngineTest {
             heightCm = 165.0,
             sex = "female"
         )
-        assertEquals(108, result.protein)
+        assertEquals(132, result.protein)
     }
 
     @Test
-    fun recomposition_protein_highestMultiplier() {
-        // Recomposition = 2.8 g/kg LBM — highest of all goals
+    fun recomposition_proteinAtLeastGainMuscle() {
         val recomposition = MacroEngine.calcMacroTargets(2500, 75.0, "recomposition", 175.0, "male")
         val gainMuscle   = MacroEngine.calcMacroTargets(2500, 75.0, "gain muscle",   175.0, "male")
         assertTrue("Recomp protein ${recomposition.protein} should be >= gain muscle ${gainMuscle.protein}",
@@ -54,8 +51,7 @@ class MacroEngineTest {
     }
 
     @Test
-    fun protein_alwaysAtLeast100g() {
-        // Very light person with low calorie goal — protein floor must hold
+    fun lighterUserDoesNotGetArbitrary100gProteinFloor() {
         val result = MacroEngine.calcMacroTargets(
             calorieTarget = 1400,
             bodyWeightKg = 40.0,
@@ -63,7 +59,7 @@ class MacroEngineTest {
             heightCm = 155.0,
             sex = "female"
         )
-        assertTrue("Protein ${result.protein} should be >= 100", result.protein >= 100)
+        assertEquals(64, result.protein)
     }
 
     @Test
@@ -96,10 +92,9 @@ class MacroEngineTest {
     }
 
     @Test
-    fun fat_alwaysAtLeast40g() {
-        // Very light person — fat floor must hold
+    fun fatScalesWithWeightAndEnergy() {
         val result = MacroEngine.calcMacroTargets(1200, 40.0, "lose fat", 155.0, "female")
-        assertTrue("Fat ${result.fat} should be >= 40", result.fat >= 40)
+        assertEquals(32, result.fat)
     }
 
     // ── Calorie balance ───────────────────────────────────────
@@ -188,8 +183,7 @@ class MacroEngineTest {
     }
 
     @Test
-    fun calcCycledTargets_restDayCals_neverBelow800() {
-        // The engine has a safety loop to prevent rest days below 800 kcal
+    fun calcCycledTargets_restDayCalsPreserveGuardrails() {
         val result = MacroEngine.calcCycledTargets(
             weeklyCalorieTarget = 1500,
             weeklyTrainingSessions = 5,
@@ -198,12 +192,11 @@ class MacroEngineTest {
             heightCm = 165.0,
             sex = "female"
         )
-        assertTrue("Rest day calories ${result.restDayCalories} should be >= 800",
-            result.restDayCalories >= 800)
+        assertTrue(result.restDayCalories >= 1350)
     }
 
     @Test
-    fun calcCycledTargets_trainingProtein_higherThanRestProtein() {
+    fun calcCycledTargets_proteinEqualAcrossDays() {
         val result = MacroEngine.calcCycledTargets(
             weeklyCalorieTarget = 2500,
             weeklyTrainingSessions = 4,
@@ -212,8 +205,7 @@ class MacroEngineTest {
             heightCm = 175.0,
             sex = "male"
         )
-        assertTrue("Training protein ${result.trainingDayProtein} >= rest protein ${result.restDayProtein}",
-            result.trainingDayProtein >= result.restDayProtein)
+        assertEquals(result.trainingDayProtein, result.restDayProtein)
     }
 
     @Test
@@ -232,6 +224,30 @@ class MacroEngineTest {
             2,
             result.weeklyTrainingSessions
         )
+    }
+
+    @Test
+    fun cyclingPreservesWeeklyEnergyAndGuardrailsAcrossAllFrequencies() {
+        for (days in 0..7) for (base in listOf(800, 1200, 1500, 2500, 4000)) {
+            val targets = MacroEngine.calcCycledTargets(base, days, "gain muscle", 80.0, 175.0, "male")
+            assertTrue(abs(targets.trainingDayCalories * days + targets.restDayCalories * (7 - days) - base * 7) <= 3)
+            assertTrue(targets.restDayCalories >= minOf(base, maxOf(1200, kotlin.math.ceil(base * 0.90).toInt())))
+            assertEquals(targets.trainingDayProtein, targets.restDayProtein)
+            assertTrue(abs(targets.trainingDayProtein * 4 + targets.trainingDayCarbs * 4 + targets.fat * 9 - targets.trainingDayCalories) <= 2)
+            assertTrue(abs(targets.restDayProtein * 4 + targets.restDayCarbs * 4 + targets.fat * 9 - targets.restDayCalories) <= 2)
+            if (days == 0 || days == 7 || base < 1200) {
+                assertEquals(base, targets.trainingDayCalories)
+                assertEquals(base, targets.restDayCalories)
+            }
+        }
+    }
+
+    @Test
+    fun restrictedBudgetIsFlaggedAndBuildMuscleAliasMatches() {
+        assertTrue(MacroEngine.hasRestrictedBudget(900, 90.0, "lose fat"))
+        assertFalse(MacroEngine.hasRestrictedBudget(2500, 80.0, "gain muscle"))
+        assertEquals(MacroEngine.calcMacroTargets(2500, 80.0, "gain muscle"),
+            MacroEngine.calcMacroTargets(2500, 80.0, "Build Muscle"))
     }
 
 }
