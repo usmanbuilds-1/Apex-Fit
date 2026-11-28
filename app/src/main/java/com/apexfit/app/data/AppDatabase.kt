@@ -23,7 +23,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Exercise::class,
         ExerciseMetadata::class,
         ScheduleRevision::class,
-        ScheduleRevisionSlot::class
+        ScheduleRevisionSlot::class,
+        ScheduleDisposition::class
     ],
     version = 34,
     exportSchema = true
@@ -577,6 +578,8 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_33_34 = object : Migration(33, 34) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE workout_sessions ADD COLUMN schedule_occurrence_id TEXT")
+                database.execSQL("CREATE TABLE IF NOT EXISTS schedule_dispositions (occurrenceId TEXT NOT NULL, scheduledDate TEXT NOT NULL, decision TEXT NOT NULL, recordedAt INTEGER NOT NULL, PRIMARY KEY(occurrenceId))")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_schedule_dispositions_scheduledDate ON schedule_dispositions (scheduledDate)")
                 // Existing workouts have no captured occurrence. Preserve their dates and leave the link null.
             }
         }
