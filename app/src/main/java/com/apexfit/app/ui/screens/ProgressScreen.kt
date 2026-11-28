@@ -94,6 +94,7 @@ fun ProgressScreen(
         label = "progressSubscreen"
     ) { screen ->
         when (screen) {
+            "progress_photos" -> ProgressPhotosScreen(onBack = { subScreen = "main" })
             "custom_goals" -> CustomFitnessGoalsScreen(progressViewModel, onBack = { subScreen = "main" })
             "training_calendar" -> TrainingCalendarScreen(progressViewModel, onBack = { subScreen = "main" })
             "strength_history" -> ExerciseStrengthScreen(progressViewModel, onBack = { subScreen = "main" })
@@ -132,6 +133,7 @@ fun ProgressScreen(
                     onOpenStrength = { subScreen = "strength_history" },
                     onOpenCalendar = { subScreen = "training_calendar" },
                     onOpenGoals = { subScreen = "custom_goals" },
+                    onOpenPhotos = { subScreen = "progress_photos" },
                     onOpenMeasurementDetail = { part ->
                         selectedPart = part
                         subScreen = "measurement_detail"
@@ -387,7 +389,8 @@ fun ProgressMainTabContent(
     onOpenMeasurementDetail: (String) -> Unit,
     onOpenStrength: (() -> Unit)? = null,
     onOpenCalendar: (() -> Unit)? = null,
-    onOpenGoals: (() -> Unit)? = null
+    onOpenGoals: (() -> Unit)? = null,
+    onOpenPhotos: (() -> Unit)? = null
 ) {
     // Collect only the history required by the visible section. Room otherwise opens
     // all three queries on every visit to Progress, and an unrelated Loading state
@@ -605,6 +608,11 @@ fun ProgressMainTabContent(
         } // End of activeSubTab == 1
 
         // Category 2 Continued: BODY METRICS - Part 2 (Measurements)
+        if (activeSubTab == 2 && onOpenPhotos != null) {
+            item {
+                TextButton(onClick = onOpenPhotos) { Text("Private progress photos") }
+            }
+        }
         if (activeSubTab == 2 && !isSectionLoading && !isSectionError) {
             // Showcase 1.6: Body Measurements list/entry rows
             item {

@@ -206,6 +206,7 @@ class FitnessViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 sessionManager.resetWorkoutData {
+                    com.apexfit.app.data.ProgressPhotoStore(getApplication()).clear()
                     db.clearAllTables()
                     dataStore.clearAllData()
                     com.apexfit.app.utils.SeedService.seed(getApplication())
