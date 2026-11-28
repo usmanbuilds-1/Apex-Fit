@@ -21,9 +21,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         BodyMeasurement::class,
         DetectedPatternEntity::class,
         Exercise::class,
-        ExerciseMetadata::class
+        ExerciseMetadata::class,
+        ScheduleRevision::class,
+        ScheduleRevisionSlot::class
     ],
-    version = 32,
+    version = 33,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -563,6 +565,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("CREATE TABLE IF NOT EXISTS schedule_revisions (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, effectiveFrom TEXT NOT NULL, recordedAt INTEGER NOT NULL, planId INTEGER, planName TEXT, cycleWeeks INTEGER, anchorMonday TEXT)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_schedule_revisions_effectiveFrom ON schedule_revisions (effectiveFrom)")
+                database.execSQL("CREATE TABLE IF NOT EXISTS schedule_revision_slots (revisionId INTEGER NOT NULL, slotId INTEGER NOT NULL, cycleWeek INTEGER NOT NULL, weekday INTEGER NOT NULL, label TEXT NOT NULL, training INTEGER NOT NULL, PRIMARY KEY(revisionId, slotId), FOREIGN KEY(revisionId) REFERENCES schedule_revisions(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+                // Deliberately no historical reconstruction from the current mutable plan.
+            }
+        }
+
         fun setTestDatabase(db: AppDatabase?) {
             INSTANCE = db
         }
@@ -574,7 +585,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "apex_fit_database"
                 )
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33)
                 // Preserve user data for every supported schema version. Only the
                 // pre-v6 prototype schemas may be recreated because no migration
                 // chain exists for them; missing migrations from v6 onward must fail
