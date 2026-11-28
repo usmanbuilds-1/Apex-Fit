@@ -30,7 +30,8 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
          * is not granted (Android 12+). A late notification is acceptable;
          * no notification is not.
          */
-        fun scheduleAlarm(context: Context, triggerAtMillis: Long, exerciseName: String) {
+        fun scheduleAlarm(context: Context, triggerAtMillis: Long, exerciseName: String, elapsedRealtime: Boolean = false) {
+            val clockType = if (elapsedRealtime) AlarmManager.ELAPSED_REALTIME_WAKEUP else AlarmManager.RTC_WAKEUP
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
             val intent = Intent(context, RestTimerAlarmReceiver::class.java).apply {
@@ -46,7 +47,7 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (alarmManager.canScheduleExactAlarms()) {
                     alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
+                        clockType,
                         triggerAtMillis,
                         pendingIntent
                     )
@@ -55,7 +56,7 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
                     // Permission not granted — fall back to inexact alarm.
                     // May fire late during Doze but will still fire.
                     alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
+                        clockType,
                         triggerAtMillis,
                         pendingIntent
                     )
@@ -64,7 +65,7 @@ class RestTimerAlarmReceiver : BroadcastReceiver() {
             } else {
                 // Android 11 and below — setExactAndAllowWhileIdle doesn't need permission
                 alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
+                    clockType,
                     triggerAtMillis,
                     pendingIntent
                 )

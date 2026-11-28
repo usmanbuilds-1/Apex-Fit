@@ -142,6 +142,30 @@ class HomeViewModel @Inject constructor(
 
     val completedSessions: Flow<List<com.apexfit.app.data.RichTrainingSession>> = richSessionsFlow
 
+    val muscleTargetHistory: Flow<List<MuscleTargetRevision>> = dataStore.muscleTargetHistoryFlow
+
+    suspend fun scheduleMuscleTarget(muscle: String, target: Int?, expectedWeek: java.time.LocalDate) =
+        dataStore.scheduleMuscleTarget(muscle, target, expectedWeek)
+
+    fun observeMuscleHistory(start: java.time.LocalDate, end: java.time.LocalDate):
+        Flow<List<com.apexfit.app.data.RichTrainingSession>> =
+        dao.observeAnalyticsWorkingSets(start.toString(), end.toString())
+            .map(AnalyticsHistory::sessions)
+            .distinctUntilChanged()
+            .flowOn(Dispatchers.Default)
+
+    val currentWeekMuscleHeatmap: StateFlow<Map<String, HeatmapEntry>> = todayDate
+        .flatMapLatest { date ->
+            val today = java.time.LocalDate.parse(date)
+            val start = MuscleVolumePeriod.WEEK.window(today).start
+            observeMuscleHistory(start, today).map {
+                FatigueEngine.directHeatmap(MuscleVolumeSummary.calculateWindow(it, start, today))
+            }
+        }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+
     val exercisesForPlan: Flow<List<com.apexfit.app.data.PlanExercise>> = dao.getAllPlanExercisesFlow()
 
     val estimatedWorkoutDuration: StateFlow<Int> = combine(
@@ -280,13 +304,14 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {  
             try {  
                 val cutoff90 = com.apexfit.app.utils.getWindowStartDate(90)
-                val cutoff365 = com.apexfit.app.utils.getWindowStartDate(365)
                 val weights = dao.observeAllWeightEntries().first()  
                 val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
                 val sessions = dao.getAllTrainingSessions()  
-                val exerciseSets = dao.getRecentExerciseSets(cutoff365)
+                val exerciseSets = dao.getAllExerciseSetsForExport()
                 val personalRecords = dao.getRecentPersonalRecordsWithNames(limit = 500).first()
                 val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
+                val muscleTargets = dataStore.muscleTargetHistoryFlow.first()
+                val setLoadConfirmations = dataStore.setLoadConfirmationsFlow.first()
 
                 val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
@@ -302,12 +327,12 @@ class HomeViewModel @Inject constructor(
                         nutrition.forEach { writer.appendLine("${it.date},${csvEscape(it.name)},${it.calories},${it.protein},${it.carbs},${it.fat}") }
                         writer.appendLine()
                         writer.appendLine("## Workout Sessions")
-                        writer.appendLine("date,type,duration_min,feel")
-                        sessions.forEach { writer.appendLine("${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel}") }
+                        writer.appendLine("session_id,date,type,duration_min,feel,completed,status,started_at,completed_at")
+                        sessions.forEach { writer.appendLine("${csvEscape(it.id)},${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel},${it.completed},${csvEscape(it.status.orEmpty())},${it.startedAt ?: ""},${it.completedAt ?: ""}") }
                         writer.appendLine()
                         writer.appendLine("## Exercise Sets")
-                        writer.appendLine("sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit")
-                        exerciseSets.forEach { writer.appendLine("${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)}") }
+                        writer.appendLine("set_id,sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit,occurrence_index,set_number,set_completed_at")
+                        exerciseSets.forEach { writer.appendLine("${it.id},${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)},${it.occurrenceIndex ?: ""},${it.setNumber ?: ""},${it.setCompletedAt ?: ""}") }
                         writer.appendLine()
                         writer.appendLine("## Personal Records")
                         writer.appendLine("id,exerciseId,type,value,date")
@@ -316,6 +341,18 @@ class HomeViewModel @Inject constructor(
                         writer.appendLine("## Body Measurements")
                         writer.appendLine("date,bodyPart,value,unit")
                         bodyMeasurements.forEach { writer.appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }
+                        writer.appendLine()
+                        writer.appendLine("## Load Setup Confirmations")
+                        writer.appendLine("set_id,fingerprint,basis,setup,free_weight_rep_limit")
+                        setLoadConfirmations.values.sortedBy { it.setId }.forEach {
+                            writer.appendLine("${it.setId},${it.fingerprint},${it.basis.name},${csvEscape(it.setup)},${it.freeWeightRepLimit}")
+                        }
+                        writer.appendLine()
+                        writer.appendLine("## Muscle Target History")
+                        writer.appendLine("muscle,effective_week,target_direct_sets,state")
+                        muscleTargets.forEach {
+                            writer.appendLine("${csvEscape(it.muscle)},${it.effectiveWeek},${it.target ?: ""},${if (it.target == null) "unset" else "set"}")
+                        }
                     }
                 }
    

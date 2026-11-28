@@ -29,11 +29,57 @@ class ProgressViewModel @Inject constructor(
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
+    fun observeStrengthExercises(today: java.time.LocalDate): Flow<List<StrengthExerciseOption>> =
+        dao.observeStrengthExercises(today.toString()).distinctUntilChanged()
+
+    fun observeStrengthHistory(exerciseId: String, start: java.time.LocalDate, end: java.time.LocalDate):
+        Flow<List<StrengthSessionPoint>> = dao.observeStrengthSets(exerciseId, start.toString(), end.toString())
+            .map { StrengthAnalytics.calculate(it, exerciseId, start, end) }
+            .distinctUntilChanged().flowOn(Dispatchers.Default)
+
+    val setLoadConfirmations = dataStore.setLoadConfirmationsFlow
+
+    suspend fun confirmSetLoad(observation: StrengthObservation, basis: RecordedLoadBasis?, setup: String,
+                               freeWeightRepLimit: Boolean = false) {
+        val fingerprint = requireNotNull(observation.fingerprint)
+        require(observation.setId > 0)
+        if (basis != null) require(LoadConfirmations.validSetup(setup) && (observation.loadKg ?: 0.0) > 0)
+        dataStore.confirmSetLoad(observation.setId, basis?.let {
+            SetLoadConfirmation(observation.setId, fingerprint, it, setup.trim(),
+                freeWeightRepLimit && it == RecordedLoadBasis.TOTAL && observation.reps in 2..5)
+        })
+    }
+
+    fun observeRepRecords(exerciseId: String, today: java.time.LocalDate): Flow<RepRecordProjection> =
+        combine(observeStrengthHistory(exerciseId, java.time.LocalDate.of(1, 1, 1), today), setLoadConfirmations) { points, confirmations ->
+            RepRecords.calculate(points, confirmations)
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
+    fun observeEstimatedStrength(exerciseId: String, start: java.time.LocalDate, end: java.time.LocalDate):
+        Flow<List<EstimatedStrengthPoint>> = combine(
+        observeStrengthHistory(exerciseId, start, end), setLoadConfirmations,
+        dao.observeAllWeightEntries()
+    ) { points, confirmations, weights ->
+        EstimatedStrength.calculate(points, confirmations, weights)
+    }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
     val personalRecords = dao.getPersonalRecordsWithNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    fun observeCalendar(month: java.time.YearMonth, today: java.time.LocalDate): Flow<TrainingCalendarMonth> =
+        combine(dao.observeCalendarSessions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
+            dao.observeCalendarPlans()) { sessions, plans ->
+            TrainingCalendar.build(month, today, sessions, plans)
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
     val workoutHistory = dao.getSavedTrainingSessionsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun observeWorkoutReport(sessionId: String, today: java.time.LocalDate): Flow<WorkoutReport?> =
+        combine(dao.observeSavedWorkoutFacts(sessionId), dao.observeWorkoutRecordHistory(sessionId, today.toString()),
+            setLoadConfirmations) { facts, history, confirmations ->
+            facts?.let { WorkoutReports.calculate(it, history, confirmations, today) }
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
     fun setsForSession(sessionId: String): Flow<List<com.apexfit.app.data.ExerciseSet>> = dao.getSetsForSessionFlow(sessionId)
 
@@ -122,65 +168,30 @@ class ProgressViewModel @Inject constructor(
     }
 
     /**
-     * Per-muscle exponential recovery model.
-     * recovery(t) = 1 - e^(-t/tau), where tau is an exponential time constant.
-     * hoursRemaining = max(0, 3*tau - elapsedHours), approximately the time to
-     * 95% recovery under this heuristic model.
-     * Values are heuristic recovery time constants and must not be described as
-     * biological half-lives (a true half-life would be tau * ln(2)).
+     * Progress shows observed training recency rather than a separate
+     * speculative countdown. Legacy numeric recovery fields are not presented.
      */
     private fun calculateMuscleRecovery(
         sessions: List<com.apexfit.app.data.TrainingSession>,
         allSets: List<com.apexfit.app.data.ExerciseSet>
     ): List<MuscleRecoveryStatus> {
-        // Heuristic recovery time constants (hours) by muscle group.
-        // These are calibration values for the app's exponential model, not measured biological half-lives.
-        fun tauForMuscle(muscle: String): Double = when {
-            muscle.contains("core") || muscle.contains("abs") || muscle.contains("oblique") -> 16.0
-            muscle.contains("calf") || muscle.contains("calves") || muscle.contains("forearm") -> 18.0
-            muscle.contains("shoulder") || muscle.contains("delt") ||
-            muscle.contains("bicep") || muscle.contains("tricep") -> 24.0
-            muscle.contains("chest") -> 30.0
-            muscle.contains("lower back") || muscle.contains("lower_back") || muscle.contains("lumbar") -> 60.0
-            muscle.contains("trap") || muscle.contains("upper back") || muscle.contains("upper_back") -> 36.0
-            muscle.contains("back") || muscle.contains("lat") -> 40.0
-            muscle.contains("quad") || muscle.contains("hamstring") ||
-            muscle.contains("glute") || muscle.contains("leg") -> 48.0
-            else -> 36.0  // conservative default for unknown muscles
-        }
-
         val muscles = com.apexfit.app.utils.MuscleGroups.ALL
         val nowMs = System.currentTimeMillis()
-        // Use the actual completion timestamp when available. Falling back to the
-        // date's local midnight is only for legacy sessions that predate timestamps.
+        val today = com.apexfit.app.utils.DateTimeUtils.todayDateString()
         val latestMoments = ProgressDataAggregation.latestSessionMoments(
-            sessions, allSets, muscles, ::isMuscleMatch
+            sessions.filter { it.completed && it.date <= today &&
+                (it.completedAt ?: it.startedAt ?: 0L) <= nowMs },
+            allSets.filter { it.reps > 0 },
+            muscles, ::isMuscleMatch
         )
-
-        return muscles.map { muscle ->
-            val lastMoment = latestMoments[muscle]
-            if (lastMoment == null) {
-                MuscleRecoveryStatus(
-                    muscleGroup = muscle,
-                    hoursRemaining = 0,
-                    recoveryFraction = 1.0f,
-                    lastTrainedDate = ""
-                )
-            } else {
-                val elapsedHours = maxOf(
-                    0.0,
-                    (nowMs - lastMoment.timestampMs).toDouble() / (1000.0 * 60 * 60)
-                )
-                val tau = tauForMuscle(muscle.lowercase())
-                val remainingFatigue = Math.exp(-elapsedHours / tau).toFloat().coerceIn(0f, 1f)
-                val hoursRemaining = maxOf(0, kotlin.math.ceil(3.0 * tau - elapsedHours).toInt())
-                MuscleRecoveryStatus(
-                    muscleGroup = muscle,
-                    hoursRemaining = hoursRemaining,
-                    recoveryFraction = 1.0f - remainingFatigue,
-                    lastTrainedDate = lastMoment.date
-                )
-            }
+        return muscles.mapNotNull { muscle ->
+            val lastMoment = latestMoments[muscle] ?: return@mapNotNull null
+            MuscleRecoveryStatus(
+                muscleGroup = muscle,
+                hoursRemaining = 0,
+                recoveryFraction = 0.0f,
+                lastTrainedDate = lastMoment.date
+            )
         }
     }
 
