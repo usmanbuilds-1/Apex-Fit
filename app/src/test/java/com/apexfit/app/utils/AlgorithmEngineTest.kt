@@ -32,7 +32,7 @@ class AlgorithmEngineTest {
         val nLog = (0..14).map {
             NutritionEntry(date = d(it), calories = 2500, protein = 150, carbs = 250, fat = 80)
         }
-        val res = TdeeEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14)
+        val res = TdeeEngine.calcAdaptiveTDEE(wLog, nLog, windowDays = 14, nutritionConfirmations = NutritionDayEvidence.snapshots(nLog))
 
         val cutoff = getWindowStartDate(14)
         val recentWeight = wLog.filter { it.date >= cutoff }.sortedBy { it.date }
@@ -146,10 +146,10 @@ class AlgorithmEngineTest {
 
     @Test
     fun testCalcFatigueToFitness_normal() {
-        val tLog = (0..14).map { 
+        val tLog = (0..27).map { 
             val exSet = ExerciseSet(weight = 100.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
             val exLog = ExerciseLog(id = "squat", name = "Squat", muscleGroup = "quads", sets = listOf(exSet))
-            RichTrainingSession(date = d(14 - it), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog)) 
+            RichTrainingSession(date = d(27 - it), sessionType = "A", completed = true, durationMinutes = 60, sessionFeel = 3, exercises = listOf(exLog)) 
         }
         val res = FatigueEngine.calcFatigueToFitnessRatio(tLog)
         assertNotNull(res.ratio)
@@ -165,7 +165,7 @@ class AlgorithmEngineTest {
     fun testCalcComplianceScores_normal() {
         val nLog = (0..13).map { NutritionEntry(date = d(13 - it), calories = 2500, protein = 150, carbs = 200, fat = 60) }
         val targets = NutritionTargets(2500, 150, 200, 60, 4)
-        val res = ComplianceEngine.calcComplianceScores(nLog, emptyList(), targets, 14)
+        val res = ComplianceEngine.calcComplianceScores(nLog, emptyList(), targets, 14, NutritionDayEvidence.snapshots(nLog))
         assertEquals(100, res.protein)
         assertEquals(100, res.calories)
     }
@@ -204,7 +204,10 @@ class AlgorithmEngineTest {
                 date = d(it),
                 sessionType = "Upper",
                 completed = true,
-                sessionFeel = 4
+                sessionFeel = 4,
+                exercises = listOf(ExerciseLog("row", "Row", "back", listOf(
+                    ExerciseSet(weight = 20.0, reps = 8, rpe = 8, isWarmup = false, completed = true)
+                )))
             )
         }
 
@@ -227,7 +230,10 @@ class AlgorithmEngineTest {
                 date = d(0),
                 sessionType = "Session $it",
                 completed = true,
-                sessionFeel = 2
+                sessionFeel = 2,
+                exercises = listOf(ExerciseLog("row", "Row", "back", listOf(
+                    ExerciseSet(weight = 20.0, reps = 8, rpe = 8, isWarmup = false, completed = true)
+                )))
             )
         }
 
@@ -250,7 +256,10 @@ class AlgorithmEngineTest {
                 date = d(it),
                 sessionType = "Upper",
                 completed = true,
-                sessionFeel = 2
+                sessionFeel = 2,
+                exercises = listOf(ExerciseLog("row", "Row", "back", listOf(
+                    ExerciseSet(weight = 20.0, reps = 8, rpe = 8, isWarmup = false, completed = true)
+                )))
             )
         }
 
@@ -278,9 +287,9 @@ class AlgorithmEngineTest {
             sex           = "male"
         )
         assertEquals(2400, targets.calories)
-        assertEquals(123, targets.protein)
+        assertEquals(144, targets.protein)
         assertEquals(80, targets.fat)
-        assertEquals(297, targets.carbs)
+        assertEquals(276, targets.carbs)
     }
 
     @Test
@@ -293,11 +302,11 @@ class AlgorithmEngineTest {
             heightCm = 180.0,
             sex = "male"
         )
-        assertEquals(2700, cycled.trainingDayCalories)
-        assertEquals(2233, cycled.restDayCalories)
-        assertEquals(135, cycled.trainingDayProtein)
-        assertEquals(111, cycled.restDayProtein)
-        assertEquals(72, cycled.fat)
+        assertEquals(2687, cycled.trainingDayCalories)
+        assertEquals(2251, cycled.restDayCalories)
+        assertEquals(144, cycled.trainingDayProtein)
+        assertEquals(144, cycled.restDayProtein)
+        assertEquals(80, cycled.fat)
         assertTrue(cycled.trainingDayCarbs > cycled.restDayCarbs)
     }
 
@@ -385,7 +394,7 @@ class AlgorithmEngineTest {
         val nLog = (0..28).map { day ->
             NutritionEntry(date = d(day), calories = 2500, protein = 150, carbs = 250, fat = 80)
         }
-        val resLoss = TdeeEngine.calcAdaptiveTDEE(wLogLoss, nLog, windowDays = 14)
+        val resLoss = TdeeEngine.calcAdaptiveTDEE(wLogLoss, nLog, windowDays = 14, nutritionConfirmations = NutritionDayEvidence.snapshots(nLog))
         assertNotNull(resLoss.tdee)
         assertTrue("TDEE while losing should be within ±30 kcal of 2775, got ${resLoss.tdee}", Math.abs(resLoss.tdee!! - 2775) <= 30)
 
@@ -393,7 +402,7 @@ class AlgorithmEngineTest {
         val wLogGain = (0..28).map { day ->
             WeightEntry(date = d(28 - day), weight = 80.0 + (1.0 / 28.0) * day)
         }
-        val resGain = TdeeEngine.calcAdaptiveTDEE(wLogGain, nLog, windowDays = 14)
+        val resGain = TdeeEngine.calcAdaptiveTDEE(wLogGain, nLog, windowDays = 14, nutritionConfirmations = NutritionDayEvidence.snapshots(nLog))
         assertNotNull(resGain.tdee)
         assertTrue("TDEE while gaining should be within ±30 kcal of 2225, got ${resGain.tdee}", Math.abs(resGain.tdee!! - 2225) <= 30)
     }

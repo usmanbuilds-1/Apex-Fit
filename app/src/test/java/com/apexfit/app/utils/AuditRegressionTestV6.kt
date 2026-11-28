@@ -98,10 +98,10 @@ class AuditRegressionTestV6 {
         // With a two-day/week target, two sessions performed on the same day count
         // as one training day: 1 of 2 expected days = 50%, not 100%.
         val nutrition = listOf(
-            NutritionEntry(date = getDateDaysAgo(6), calories = 2000, protein = 120, carbs = 200, fat = 60),
+            NutritionEntry(date = getDateDaysAgo(7), calories = 2000, protein = 120, carbs = 200, fat = 60),
             NutritionEntry(date = getCurrentDate(), calories = 2000, protein = 120, carbs = 200, fat = 60)
         )
-        val duplicateDaySessions = listOf(session(daysAgo = 0), session(daysAgo = 0))
+        val duplicateDaySessions = listOf(session(daysAgo = 1), session(daysAgo = 1))
 
         val result = ComplianceEngine.calcComplianceScores(
             nutritionLog = nutrition,

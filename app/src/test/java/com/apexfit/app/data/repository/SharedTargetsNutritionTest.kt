@@ -31,7 +31,13 @@ class SharedTargetsNutritionTest {
             val meals = (0..9).map { NutritionEntry(LocalDate.now().minusDays(it.toLong()).toString(), 3000, 150, 300, 100) }
             weights.forEach { db.fitnessDao().insertWeightEntry(it) }
             meals.forEach { db.fitnessDao().insertNutritionEntry(it) }
-            val tdee = TdeeEngine.calcAdaptiveTDEE(weights, meals, heightCm = 175.0, ageYears = 30, biologicalSex = "male", weeklyWorkouts = 3, fallbackWeightKg = 70.0)
+            val persistedMeals = db.fitnessDao().getNutritionEntriesSince(LocalDate.now().minusDays(10).toString())
+            val confirmations = com.apexfit.app.utils.NutritionDayEvidence.snapshots(persistedMeals)
+            confirmations.filterKeys { it < LocalDate.now().toString() }.forEach { (date, fingerprint) ->
+                store.setNutritionDayConfirmation(date, fingerprint)
+            }
+            val tdee = TdeeEngine.calcAdaptiveTDEE(weights, persistedMeals, heightCm = 175.0, ageYears = 30, biologicalSex = "male", weeklyWorkouts = 3, fallbackWeightKg = 70.0, nutritionConfirmations = confirmations)
+            assertEquals(3000, tdee.tdee)
             val base = TdeeEngine.suggestCaloricTarget(tdee.tdee!!, "Maintain", 70.0, 70.0, 175.0, 30, "male")
             val expected = MacroEngine.calcCycledTargets(base, 3, "Maintain", 70.0, 175.0, "male").restDayCalories
             val repository = FitnessRepositoryImpl(db, db.fitnessDao(), store)
