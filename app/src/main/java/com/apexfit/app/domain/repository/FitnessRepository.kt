@@ -17,6 +17,8 @@ interface FitnessRepository {
     val nutritionEntriesFlow: StateFlow<List<NutritionEntry>>
     val sessionReadinessFlow: StateFlow<UiSessionReadiness?>
     val sharedTargetsFlow: Flow<NutritionTargets>
+    val todayWorkoutChoiceFlow: Flow<com.apexfit.app.utils.TodayWorkoutChoice?>
+        get() = kotlinx.coroutines.flow.flowOf(null)
     val todayExercisesFlow: StateFlow<List<PlanExercise>>
     val complianceScoresFlow: StateFlow<UiComplianceResult>
     val streakResultFlow: StateFlow<StreakResult>
