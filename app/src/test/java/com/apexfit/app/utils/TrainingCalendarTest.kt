@@ -100,11 +100,48 @@ class TrainingCalendarTest {
         assertEquals(CalendarScheduleSource.RECORDED, oldB.scheduleSource)
         assertEquals("7:2026-11-09:102", oldB.recordedOccurrenceId)
         assertEquals(1, oldB.completedCount)
+        assertEquals(RecordedOccurrenceStatus.UNRESOLVED, oldB.occurrenceStatus)
         assertEquals(CalendarScheduleKind.REST, result.days[9].scheduleKind)
         assertEquals("Friday", result.days[12].plannedLabel)
         assertEquals(CalendarLogKind.NONE, result.days[12].logKind)
         assertEquals(CalendarScheduleSource.LIVE_PROJECTION, result.days[15].scheduleSource)
         assertNull(result.days[15].recordedOccurrenceId)
+    }
+
+    @Test fun occurrenceCompletionCountsOnceAndNeverInfersFromUnlinkedOrContradictoryLogs() {
+        val revision = ScheduleRevisionSnapshot(
+            ScheduleRevision(7, "2026-11-02", 100, 42, "Old rotation", 1, null),
+            listOf(ScheduleRevisionSlot(7, 101, 1, 1, "Old A", true),
+                ScheduleRevisionSlot(7, 102, 1, 3, "Old B", true)))
+        fun linked(id: String, date: String, slot: Long, completed: Boolean = true,
+                   status: String = if (completed) "completed" else "partial") =
+            session(id, date, completed, status, 300).copy(planSessionId = slot,
+                startedAt = 200, scheduleOccurrenceId = "7:$date:$slot")
+        val records = listOf(
+            linked("full1", "2026-11-02", 101), linked("full2", "2026-11-02", 101),
+            linked("partial1", "2026-11-02", 101, false),
+            linked("partial2", "2026-11-04", 102, false),
+            session("unlinked", "2026-11-04"),
+            linked("wrongSlot", "2026-11-09", 102),
+            linked("wrongStatus", "2026-11-09", 101, true, "partial"),
+            linked("noStart", "2026-11-09", 101).copy(startedAt = null),
+            linked("badTime", "2026-11-09", 101).copy(startedAt = 400),
+            linked("wrongKey", "2026-11-11", 102).copy(scheduleOccurrenceId = "8:2026-11-11:102"))
+        val result = TrainingCalendar.build(month, today, records, emptyList(), nowMs = 1000,
+            revisions = listOf(revision))
+        assertEquals(4, result.recordedOccurrences)
+        assertEquals(1, result.recordedCompletedOccurrences)
+        assertEquals(1, result.recordedPartialOccurrences)
+        assertEquals(2, result.unresolvedOccurrences)
+        assertEquals(RecordedOccurrenceStatus.COMPLETED, result.days[1].occurrenceStatus)
+        assertEquals(RecordedOccurrenceStatus.PARTIAL, result.days[3].occurrenceStatus)
+        assertEquals(RecordedOccurrenceStatus.UNRESOLVED, result.days[8].occurrenceStatus)
+        assertEquals(RecordedOccurrenceStatus.UNRESOLVED, result.days[10].occurrenceStatus)
+        assertEquals(RecordedOccurrenceStatus.NOT_APPLICABLE, result.days[15].occurrenceStatus)
+        val removed = TrainingCalendar.build(month, today, records.filterNot { it.id.startsWith("full") },
+            emptyList(), nowMs = 1000, revisions = listOf(revision))
+        assertEquals(0, removed.recordedCompletedOccurrences)
+        assertEquals(2, removed.recordedPartialOccurrences)
     }
 
     @Test fun leapYearAndDecemberBoundaryUseRealCalendarDates() {
