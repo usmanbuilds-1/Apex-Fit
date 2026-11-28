@@ -1,6 +1,7 @@
 package com.apexfit.app.utils
 
 import com.apexfit.app.data.*
+import com.apexfit.app.data.TrainingSession
 import java.time.LocalDate
 import org.junit.Assert.*
 import org.junit.Test
