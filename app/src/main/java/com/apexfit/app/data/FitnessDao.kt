@@ -73,6 +73,27 @@ interface FitnessDao {
     @Query("DELETE FROM nutrition_logs WHERE date = :date")
     suspend fun deleteNutritionEntry(date: String)
 
+    // Immutable schedule evidence. Only inserts are exposed; reset clears the database.
+    @Insert
+    suspend fun insertScheduleRevision(revision: ScheduleRevision): Long
+
+    @Insert
+    suspend fun insertScheduleRevisionSlots(slots: List<ScheduleRevisionSlot>)
+
+    @Transaction
+    @Query("SELECT * FROM schedule_revisions ORDER BY id DESC LIMIT 1")
+    suspend fun getLatestScheduleRevision(): ScheduleRevisionSnapshot?
+
+    @Transaction
+    @Query("""
+        SELECT * FROM schedule_revisions
+        WHERE effectiveFrom <= :end AND
+            (effectiveFrom >= :start OR id = (SELECT id FROM schedule_revisions
+             WHERE effectiveFrom < :start ORDER BY effectiveFrom DESC, id DESC LIMIT 1))
+        ORDER BY effectiveFrom, id
+    """)
+    fun observeScheduleRevisions(start: String, end: String): Flow<List<ScheduleRevisionSnapshot>>
+
     // Training Sessions
     @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     suspend fun getAllTrainingSessions(): List<TrainingSession>
