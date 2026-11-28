@@ -278,7 +278,7 @@ class WorkoutExecutionViewModel @Inject constructor(
     var lastCompletedSetPointer: Pair<String, Int>? = null
         private set
 
-    fun startWorkoutSession(planSession: PlanSession) {
+    fun startWorkoutSession(planSession: PlanSession, expectedReservation: ScheduleMoveReservation? = null) {
         if (sessionManager.activeSession.value != null || sessionManager.isStartingSession.value) return
         _currentExerciseIdx.value = 0
         _showSessionCompleteScreen.value = false
@@ -298,7 +298,8 @@ class WorkoutExecutionViewModel @Inject constructor(
                     userWeight = currentWeight.value,
                     userHeight = userHeight.value,
                     preferredUnits = units.value,
-                    expectedResetGeneration = generation
+                    expectedResetGeneration = generation,
+                    expectedReservation = expectedReservation
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
