@@ -511,6 +511,7 @@ class FitnessRepositoryImpl @Inject constructor(
 
         // Step 5: insert remapped exercises
         dao.insertPlanExercises(remappedExercises)
+        com.apexfit.app.utils.ScheduleLedger.capture(db)
     }
 
     override fun getWeightHistory(): Flow<List<WeightEntry>> {
