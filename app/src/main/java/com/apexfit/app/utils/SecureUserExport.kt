@@ -119,7 +119,8 @@ internal object SecureUserExport {
         }
     }
 
-    suspend fun save(context: Context, destination: Uri) = LocalDataGate.exclusive {
+    suspend fun save(context: Context, destination: Uri, expectedGeneration: Long = LocalResetCoordinator.currentGeneration()) = LocalDataGate.exclusive {
+        check(LocalResetCoordinator.permits(context, expectedGeneration)) { "Local data changed; choose a new export" }
         saveLocked(context, destination)
     }
 
