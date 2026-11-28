@@ -8,7 +8,8 @@ data class HistoricalStrengthWeight(val date: LocalDate, val kg: Double, val age
 data class EstimatedStrengthPoint(
     val date: LocalDate, val sessionId: String, val setId: Long, val setup: String,
     val loadKg: Double, val reps: Int, val estimated1RmKg: Double,
-    val bodyWeight: HistoricalStrengthWeight?
+    val bodyWeight: HistoricalStrengthWeight?,
+    val trainingFormat: TrainingFormat = TrainingFormat.UNKNOWN
 ) {
     val relativeStrength: Double? get() = bodyWeight?.let { estimated1RmKg / it.kg }
 }
@@ -52,7 +53,7 @@ object EstimatedStrength {
                 val load = observation.loadKg ?: return@mapNotNull null
                 val estimate = epley(load, observation.reps) ?: return@mapNotNull null
                 EstimatedStrengthPoint(point.date, point.sessionId, observation.setId,
-                    LoadConfirmations.normalizedSetup(c.setup), load, observation.reps, estimate, historical)
+                    LoadConfirmations.normalizedSetup(c.setup), load, observation.reps, estimate, historical, point.trainingFormat)
             }
         }.sortedWith(compareBy({ it.date }, { it.sessionId }, { it.setId }))
     }
