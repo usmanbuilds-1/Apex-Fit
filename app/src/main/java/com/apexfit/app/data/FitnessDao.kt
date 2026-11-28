@@ -138,6 +138,28 @@ interface FitnessDao {
     suspend fun getReschedulingCandidates(slotId: Long, scheduledDate: String, today: String,
                                          recordedAt: Long, nowMs: Long): List<TrainingSession>
 
+    @Insert
+    suspend fun insertScheduleMoveReservation(reservation: ScheduleMoveReservation)
+
+    @Query("SELECT * FROM schedule_move_reservations WHERE occurrenceId = :occurrenceId")
+    suspend fun getScheduleMoveReservation(occurrenceId: String): ScheduleMoveReservation?
+
+    @Query("SELECT * FROM schedule_move_reservations WHERE originalDate = :original OR targetDate = :target")
+    suspend fun getScheduleMoveConflicts(original: String, target: String): List<ScheduleMoveReservation>
+
+    @Query("SELECT * FROM schedule_move_reservations WHERE targetDate = :date")
+    suspend fun getScheduleMoveForTarget(date: String): ScheduleMoveReservation?
+
+    @Query("""
+        SELECT * FROM schedule_move_reservations
+        WHERE originalDate BETWEEN :start AND :end OR targetDate BETWEEN :start AND :end
+        ORDER BY originalDate, targetDate, occurrenceId
+    """)
+    fun observeScheduleMoveReservations(start: String, end: String): Flow<List<ScheduleMoveReservation>>
+
+    @Query("DELETE FROM schedule_move_reservations WHERE occurrenceId = :occurrenceId")
+    suspend fun deleteScheduleMoveReservation(occurrenceId: String): Int
+
     // Training Sessions
     @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     suspend fun getAllTrainingSessions(): List<TrainingSession>
