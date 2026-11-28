@@ -62,6 +62,25 @@ class ScheduleLedgerTest {
         } finally { db.close() }
     }
 
+    @Test fun upgradeBaselineIsForwardOnlyIdempotentAndDoesNotSeedEmptyInstall() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext<android.content.Context>(),
+            AppDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val dao = db.fitnessDao()
+            val today = LocalDate.parse("2026-11-23")
+            ScheduleLedger.ensureBaseline(db, today, 100)
+            assertNull(dao.getLatestScheduleRevision())
+            val id = dao.insertWorkoutPlan(WorkoutPlan(name = "Existing", goal = "Strength", isActive = true))
+            dao.insertPlanSession(PlanSession(planId = id, label = "A", day = "Tuesday", focus = "Upper"))
+            ScheduleLedger.ensureBaseline(db, today, 200)
+            val saved = requireNotNull(dao.getLatestScheduleRevision())
+            ScheduleLedger.ensureBaseline(db, today.plusDays(3), 300)
+            assertEquals(saved.revision.id, dao.getLatestScheduleRevision()?.revision?.id)
+            assertEquals(CalendarScheduleKind.UNKNOWN, ScheduleLedger.resolve(today, listOf(saved)).kind)
+            assertEquals("A", ScheduleLedger.resolve(today.plusDays(1), listOf(saved)).label)
+        } finally { db.close() }
+    }
+
     @Test fun transactionRollbackDoesNotPublishRevision() = runBlocking {
         val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext<android.content.Context>(),
             AppDatabase::class.java).allowMainThreadQueries().build()
