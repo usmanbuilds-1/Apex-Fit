@@ -105,15 +105,31 @@ class ProgressViewModel @Inject constructor(
     val personalRecords = dao.getPersonalRecordsWithNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun observeCalendar(month: java.time.YearMonth, today: java.time.LocalDate): Flow<TrainingCalendarMonth> =
-        combine(dao.observeCalendarSessions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
-            dao.observeCalendarPlans(),
-            dao.observeScheduleRevisions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
-            dao.observeScheduleDispositions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
-            dao.observeScheduleWorkoutAssociations(month.atDay(1).toString(), month.atEndOfMonth().toString())) { sessions, plans, revisions, dispositions, associations ->
-            TrainingCalendar.build(month, today, sessions, plans, revisions = revisions, dispositions = dispositions,
-                associations = associations)
+    fun observeCalendar(month: java.time.YearMonth, today: java.time.LocalDate): Flow<TrainingCalendarMonth> {
+        val start = month.atDay(1)
+        val end = month.atEndOfMonth()
+        val reservations = dao.observeScheduleMoveReservations(start.toString(), end.toString()).flatMapLatest { rows ->
+            val dates = rows.mapNotNull(ScheduleMoveStore::decode).flatMap { listOf(it.originalDate, it.targetDate) }
+            val first = minOf(start, dates.minOrNull() ?: start)
+            val last = maxOf(end, dates.maxOrNull() ?: end)
+            dao.observeScheduleRevisions(first.toString(), last.toString()).map { it to rows }
+        }
+        return combine(dao.observeCalendarSessions(start.toString(), end.toString()),
+            dao.observeCalendarPlans(), reservations, dao.observeScheduleDispositions(start.toString(), end.toString()),
+            dao.observeScheduleWorkoutAssociations(start.toString(), end.toString())) { sessions, plans, ledger, dispositions, associations ->
+            TrainingCalendar.build(month, today, sessions, plans, revisions = ledger.first, dispositions = dispositions,
+                associations = associations, reservations = ledger.second)
         }.distinctUntilChanged().flowOn(Dispatchers.Default)
+    }
+
+    suspend fun prospectiveMoveCandidates(date: java.time.LocalDate, occurrenceId: String) =
+        ScheduleMoveStore.candidates(AppDatabase.getDatabase(getApplication()), date, occurrenceId)
+
+    suspend fun reserveProspectiveMove(original: java.time.LocalDate, target: java.time.LocalDate, occurrenceId: String) =
+        ScheduleMoveStore.reserve(AppDatabase.getDatabase(getApplication()), original, target, occurrenceId)
+
+    suspend fun cancelProspectiveMove(occurrenceId: String, recordedAt: Long) =
+        ScheduleMoveStore.cancel(AppDatabase.getDatabase(getApplication()), occurrenceId, recordedAt)
 
     fun observeTrainingPeriodReport(period: TrainingReportPeriod, anchor: java.time.LocalDate,
                                     today: java.time.LocalDate): Flow<TrainingPeriodReport> {
