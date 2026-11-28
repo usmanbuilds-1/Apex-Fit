@@ -403,17 +403,19 @@ data class ActiveSession(
     val readinessScore: Int? = null,
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
-    val schemaVersion: Int = 7,
+    val schemaVersion: Int = 8,
     val sessionId: String = java.util.UUID.randomUUID().toString(),
     val cursorIndex: Int? = null,
     val skippedOccurrenceIndices: List<Int>? = null,
     val restCheckpoint: ActiveRestCheckpoint? = null,
     val circuit: ActiveCircuit? = null,
     val startedLocalDate: String? = null,
-    val scheduleOccurrenceId: String? = null
+    val scheduleOccurrenceId: String? = null,
+    val reservedOccurrenceId: String? = null,
+    val reservationRecordedAt: Long? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 7
+        const val CURRENT_VERSION = 8
     }
 }
 
