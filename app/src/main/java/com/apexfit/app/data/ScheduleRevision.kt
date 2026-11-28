@@ -65,3 +65,15 @@ data class RescheduledWorkoutSnapshot(
     @Embedded val association: ScheduleWorkoutAssociation,
     @Relation(parentColumn = "sessionId", entityColumn = "id") val session: TrainingSession?
 )
+
+/** One-off future reservation. Not workout evidence; no mutable plan foreign key. */
+@Entity(tableName = "schedule_move_reservations", indices = [
+    Index(value = ["originalDate"], unique = true), Index(value = ["targetDate"], unique = true)])
+data class ScheduleMoveReservation(
+    @PrimaryKey val occurrenceId: String,
+    val originalDate: String,
+    val targetDate: String,
+    val revisionId: Long,
+    val slotId: Long,
+    val recordedAt: Long
+)
