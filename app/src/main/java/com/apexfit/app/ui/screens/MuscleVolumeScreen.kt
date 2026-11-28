@@ -85,7 +85,7 @@ internal fun MuscleVolumeContent(
     }
     val showBack = preferredBack ?: (rows.firstOrNull { it.directSets > 0 }?.muscle?.let(::showsOnBackOnly) == true)
     val chosen = rows.find { it.muscle == selected }
-    val directCounts = remember(rows) { rows.associate { it.muscle to it.directSets } }
+    val directCounts = remember(rows) { MuscleVolumeSummary.directCounts(rows) }
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val window = period.window(today)
 
@@ -186,23 +186,39 @@ internal fun MuscleVolumeContent(
                     }
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         ApexAnatomy(showBack, Modifier.widthIn(max = 320.dp).fillMaxWidth(), directSets = directCounts,
-                            onMuscleSelected = { selected = it })
+                            showVolume = true, onMuscleSelected = { selected = it })
                     }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly) {
+                        com.apexfit.app.utils.DirectSetBand.entries.forEach { band ->
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Box(Modifier.size(12.dp).background(com.apexfit.app.ui.components.directSetBandColor(band)))
+                                Text(band.label, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                    Text("Color shows logged direct sets for the selected period, not recovery or a target. A zero means no direct sets logged.",
+                        color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                     Text("Muscles by direct set count", style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(vertical = 12.dp))
                 }
-                items(rows, key = { it.muscle }) { row ->
+                val listedMuscles = (rows.map { it.muscle } + directCounts.keys).distinct()
+                items(listedMuscles, key = { it }) { muscle ->
+                    val row = rows.firstOrNull { it.muscle == muscle }
+                    val direct = row?.directSets ?: 0
+                    val indirect = row?.secondarySets ?: 0
                     HorizontalDivider(color = ApexColors.BorderSubtle)
                     Row(
                         Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                            .clickable(role = Role.Button) { selected = row.muscle }.padding(vertical = 8.dp),
+                            .clickable(role = Role.Button) { selected = muscle }.padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(muscleName(row.muscle), modifier = Modifier.weight(1f))
-                        Text("${row.directSets} direct",
-                            color = if (row.directSets > 0) ApexColors.Primary else ApexColors.TextSecondary)
-                        if (row.secondarySets > 0) Text("${row.secondarySets} secondary", color = ApexColors.TextSecondary)
+                        Text(muscleName(muscle), modifier = Modifier.weight(1f))
+                        Text("$direct direct",
+                            color = if (direct > 0) ApexColors.Primary else ApexColors.TextSecondary)
+                        if (indirect > 0) Text("$indirect indirect", color = ApexColors.TextSecondary)
                     }
                 }
             }

@@ -41,7 +41,27 @@ data class MuscleVolumeRow(
     val exposureDays: Int get() = daily.count { it.directSets > 0 || it.secondarySets > 0 }
 }
 
+/** Fixed presentation bins, not training targets or clinical thresholds. */
+enum class DirectSetBand(val intensity: Int, val label: String) {
+    NONE(0, "0"), ONE_TO_FOUR(30, "1–4"), FIVE_TO_NINE(55, "5–9"), TEN_PLUS(80, "10+");
+
+    companion object {
+        fun of(count: Int): DirectSetBand = when {
+            count >= 10 -> TEN_PLUS
+            count >= 5 -> FIVE_TO_NINE
+            count > 0 -> ONE_TO_FOUR
+            else -> NONE
+        }
+    }
+}
+
 object MuscleVolumeSummary {
+    fun directCounts(rows: List<MuscleVolumeRow>): Map<String, Int> {
+        val counts = (MuscleGroups.ALL.map(MuscleAliases::getCanonical) + "hip_flexors")
+            .associateWith { 0 }.toMutableMap()
+        rows.forEach { counts[it.muscle] = it.directSets }
+        return counts
+    }
     private data class Counts(val key: String, val name: String, var directSets: Int = 0, var secondarySets: Int = 0)
     private data class DayCounts(var direct: Int = 0, var secondary: Int = 0)
 

@@ -76,3 +76,17 @@ fun MuscleVolumeLoadError() {
         )
     }
 }
+
+
+@PreviewTest
+@Preview(widthDp = 320, heightDp = 700, locale = "en-US")
+@Composable
+fun MuscleVolumeHeatmapMixedBandsSmallScreen() {
+    val session = RichTrainingSession("2026-11-16", "Mixed", true, exercises = listOf(
+        ExerciseLog("press", "Press", "Chest", List(10) { ExerciseSet(weight = 20.0, reps = 8) },
+            secondaryMuscles = listOf("Triceps")),
+        ExerciseLog("row", "Row", "Back", List(5) { ExerciseSet(weight = 20.0, reps = 8) }),
+        ExerciseLog("curl", "Curl", "Biceps", List(2) { ExerciseSet(weight = 5.0, reps = 10) })
+    ))
+    ApexFitTheme { MuscleVolumeContent(listOf(session), LocalDate.parse("2026-11-16"), onBack = {}) }
+}

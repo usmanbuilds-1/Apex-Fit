@@ -105,4 +105,48 @@ class MuscleVolumeSummaryTest {
             sessions, today, today.minusDays(1)))
     }
 
+    @Test
+    fun heatmapCountsEqualDetailAndDoNotTreatIndirectWorkAsDirect() {
+        val press = ExerciseLog("press", "Press", "Chest", List(3) {
+            ExerciseSet(weight = 20.0, reps = 8)
+        }, secondaryMuscles = listOf("Triceps"))
+        val pushdown = ExerciseLog("pushdown", "Pushdown", "Triceps", List(2) {
+            ExerciseSet(weight = 15.0, reps = 10)
+        })
+        val rows = MuscleVolumeSummary.calculate(listOf(
+            RichTrainingSession(today.toString(), "Push", true, exercises = listOf(press, pushdown))
+        ), today, MuscleVolumePeriod.WEEK)
+        val map = FatigueEngine.directHeatmap(rows)
+        assertEquals(3, map.getValue("chest").volume)
+        assertEquals(2, map.getValue("triceps").volume)
+        assertEquals(3, rows.first { it.muscle == "triceps" }.secondarySets)
+        assertEquals(0, map.getValue("biceps").volume)
+        assertEquals(MuscleVolumeSummary.directCounts(rows), map.mapValues { it.value.volume })
+    }
+
+    @Test
+    fun colorBandIsFixedAndIndependentOfOtherMuscleVolumes() {
+        assertEquals(DirectSetBand.NONE, DirectSetBand.of(0))
+        assertEquals(DirectSetBand.ONE_TO_FOUR, DirectSetBand.of(1))
+        assertEquals(DirectSetBand.ONE_TO_FOUR, DirectSetBand.of(4))
+        assertEquals(DirectSetBand.FIVE_TO_NINE, DirectSetBand.of(5))
+        assertEquals(DirectSetBand.FIVE_TO_NINE, DirectSetBand.of(9))
+        assertEquals(DirectSetBand.TEN_PLUS, DirectSetBand.of(10))
+        val chest = MuscleVolumeRow("chest", listOf(MuscleVolumeExercise("Press", 3, 0)))
+        val back = MuscleVolumeRow("back", listOf(MuscleVolumeExercise("Row", 100, 0)))
+        assertEquals(FatigueEngine.directHeatmap(listOf(chest)).getValue("chest"),
+            FatigueEngine.directHeatmap(listOf(chest, back)).getValue("chest"))
+    }
+
+    @Test
+    fun rollingHeatmapAndCalendarWeekUseExplicitlyDifferentWindows() {
+        val exercise = ExerciseLog("row", "Row", "Back", listOf(ExerciseSet(weight = 20.0, reps = 8)))
+        val history = listOf("2026-11-15", "2026-11-16", "2026-11-17").map {
+            RichTrainingSession(it, "Pull", true, exercises = listOf(exercise))
+        }
+        assertEquals(2, FatigueEngine.calcMuscleHeatmap(history, today = today).getValue("back").volume)
+        val week = MuscleVolumeSummary.calculate(history, today, MuscleVolumePeriod.WEEK)
+        assertEquals(1, FatigueEngine.directHeatmap(week).getValue("back").volume)
+    }
+
 }

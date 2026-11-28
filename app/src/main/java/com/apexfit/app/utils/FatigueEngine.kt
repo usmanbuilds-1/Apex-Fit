@@ -1,7 +1,6 @@
 package com.apexfit.app.utils
 
 import com.apexfit.app.data.*
-import kotlin.math.roundToInt
 
 object FatigueEngine {
     // ── RECENT-TO-BASELINE LOAD RATIO ─────────────────────────
@@ -48,32 +47,22 @@ object FatigueEngine {
     }
 
     // ── MUSCLE HEATMAP ────────────────────────────────────────
-    fun calcMuscleHeatmap(trainingLog: List<TrainingSession>, days: Int = 7): Map<String, HeatmapEntry> {
-        val cutoff = getWindowStartDate(days)
-        val recent = TrainingEvidence.sessions(trainingLog, java.time.LocalDate.parse(cutoff), java.time.LocalDate.parse(getCurrentDate()))
-        val seenIds = mutableSetOf<Long>()
-        // The UI and accessibility layer describe this value as working sets.
-        // Counting completed sets also keeps bodyweight work visible instead of
-        // treating zero added load as zero training volume.
-        val muscleVolume = mutableMapOf<String, Int>()
-        recent.forEach { session ->
-            session.exercises.forEach { exercise ->
-                val canonicalMuscle = com.apexfit.app.utils.MuscleAliases.getCanonical(exercise.muscleGroup)
-                val volume = exercise.sets.count { TrainingEvidence.isWorkingSet(it) && (it.id == 0L || seenIds.add(it.id)) }
-                muscleVolume[canonicalMuscle] = (muscleVolume[canonicalMuscle] ?: 0) + volume
-            }
-        }
-        val maxVolume = muscleVolume.values.maxOrNull()?.coerceAtLeast(1) ?: 1
-        val allMuscles = MuscleGroups.ALL.map { com.apexfit.app.utils.MuscleAliases.getCanonical(it) }
-        return allMuscles.associateWith { muscle ->
-            val vol = muscleVolume[muscle] ?: 0
-            val intensity = ((vol.toDouble() / maxVolume) * 100).roundToInt()
+    fun calcMuscleHeatmap(
+        trainingLog: List<TrainingSession>,
+        days: Int = 7,
+        today: java.time.LocalDate = java.time.LocalDate.parse(getCurrentDate())
+    ): Map<String, HeatmapEntry> = directHeatmap(MuscleVolumeSummary.calculateWindow(
+        trainingLog, today.minusDays((days.coerceAtLeast(1) - 1).toLong()), today
+    ))
+
+    fun directHeatmap(rows: List<MuscleVolumeRow>): Map<String, HeatmapEntry> =
+        MuscleVolumeSummary.directCounts(rows).mapValues { (_, count) ->
+            val band = DirectSetBand.of(count)
             HeatmapEntry(
-                volume = vol,
-                intensity = intensity,
-                level = when { intensity >= 80 -> "high"; intensity >= 40 -> "medium"; intensity >= 10 -> "low"; else -> "untrained" },
-                colorHex = when { intensity >= 80 -> "#E84040"; intensity >= 40 -> "#E8A020"; intensity >= 10 -> "#2EC46A"; else -> "#252535" }
+                volume = count,
+                intensity = band.intensity,
+                level = band.name.lowercase(),
+                colorHex = if (count > 0) "#7192D3" else "#38423E"
             )
         }
-    }
 }

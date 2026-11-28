@@ -181,17 +181,22 @@ class AlgorithmViewModel @Inject constructor(
         val weeklyVolume: Map<String, Int>
     )
 
-    private val sessionDerived: StateFlow<SessionDerivedResults> = richSessionsFlow
+    private val sessionDerived: StateFlow<SessionDerivedResults> = combine(
+        richSessionsFlow, com.apexfit.app.utils.DateTimeUtils.todayDateFlow()
+    ) { sessions, date -> sessions to java.time.LocalDate.parse(date) }
         .debounce(300L)
-        .map { sessions ->
+        .map { (sessions, today) ->
             withContext(Dispatchers.Default) {
                 val fatigue = com.apexfit.app.utils.FatigueEngine.calcFatigueToFitnessRatio(sessions)
+                val rows = com.apexfit.app.utils.MuscleVolumeSummary.calculate(
+                    sessions, today, com.apexfit.app.utils.MuscleVolumePeriod.WEEK
+                )
                 SessionDerivedResults(
                     fatigueResult = fatigue,
-                    muscleHeatmap = com.apexfit.app.utils.FatigueEngine.calcMuscleHeatmap(sessions, days = 7),
+                    muscleHeatmap = com.apexfit.app.utils.FatigueEngine.directHeatmap(rows),
                     trainingPatternSignals = com.apexfit.app.utils.AlgorithmEngine.detectTrainingPatternSignals(sessions)
                         .ifEmpty { listOf("No unusual training patterns in recent sessions.") },
-                    weeklyVolume = buildMuscleVolumes(sessions)
+                    weeklyVolume = com.apexfit.app.utils.MuscleVolumeSummary.directCounts(rows)
                 )
             }
         }
@@ -303,79 +308,6 @@ class AlgorithmViewModel @Inject constructor(
             SharingStarted.WhileSubscribed(5_000),
             emptyList()
         )
-
-    private fun buildMuscleVolumes(sessions: List<com.apexfit.app.utils.TrainingSession>): Map<String, Int> {
-        val muscleSetsMap = mutableMapOf<String, Int>()
-        val allKeys = listOf(
-            "chest", "back", "shoulders",
-            "biceps", "triceps", "forearms", "trapezius", "neck",
-            "abs", "obliques", "transverse abdominis", "lower back",
-            "glutes", "quadriceps", "hamstrings", "calves",
-            "hip abductors", "hip adductors", "rotator cuff",
-            "serratus anterior", "tibialis anterior"
-        )
-        allKeys.forEach { muscleSetsMap[it] = 0 }
-
-        // 1. Build a precomputed Map<String, String> from exerciseId -> muscleGroup at the start
-        val exerciseIdToMuscleGroup = mutableMapOf<String, String>()
-        sessions.forEach { s ->
-            s.exercises.forEach { e ->
-                if (!exerciseIdToMuscleGroup.containsKey(e.id)) {
-                    val group = e.muscleGroup.lowercase().trim()
-                    val targetGroup = when {
-                        group.contains("chest") || group.contains("pectoral") -> "chest"
-                        group.contains("back") && !group.contains("lower") -> "back"
-                        group.contains("front delt") || group.contains("front_delt") || group.contains("anterior delt") -> "shoulders"
-                        group.contains("rear delt") || group.contains("rear_delt") || group.contains("posterior delt") -> "shoulders"
-                        group.contains("side delt") || group.contains("side_delt") || group.contains("lateral delt") || group.contains("lateral") || group.contains("shoulder") || group.contains("delt") -> "shoulders"
-                        group.contains("bicep") -> "biceps"
-                        group.contains("tricep") -> "triceps"
-                        group.contains("forearm") -> "forearms"
-                        group.contains("trapezius") || group.contains("trap") -> "trapezius"
-                        group.contains("neck") -> "neck"
-                        
-                        group.contains("abs") || group.contains("rectus abdominis") || group.contains("rectus_abdominis") || group.contains("abdom") || group.contains("core") -> "abs"
-                        group.contains("oblique") -> "obliques"
-                        group.contains("transverse abdominis") || group.contains("transverse_abdominis") -> "transverse abdominis"
-                        group.contains("lower back") || group.contains("lower_back") || group.contains("lumbar") || group.contains("spinal erector") || group.contains("erector") -> "lower back"
-                        
-                        group.contains("glute") -> "glutes"
-                        group.contains("quad") || group.contains("quadriceps") -> "quadriceps"
-                        group.contains("hamstring") -> "hamstrings"
-                        group.contains("calf") || group.contains("calves") -> "calves"
-                        group.contains("hip abductor") || group.contains("abductor") -> "hip abductors"
-                        group.contains("hip adductor") || group.contains("adductor") -> "hip adductors"
-                        
-                        group.contains("rotator cuff") || group.contains("rotator") -> "rotator cuff"
-                        group.contains("serratus anterior") || group.contains("serratus") -> "serratus anterior"
-                        group.contains("tibialis anterior") || group.contains("tibialis") -> "tibialis anterior"
-                        
-                        else -> group
-                    }
-                    exerciseIdToMuscleGroup[e.id] = targetGroup
-                }
-            }
-        }
-
-        // No monthly grouping is needed here; count only sessions in the current week.
-
-        val today = java.time.LocalDate.now()
-        val monday = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
-
-        sessions.forEach { s ->
-            val sessionDate = try { java.time.LocalDate.parse(s.date) } catch (e: Exception) { null }
-            if (sessionDate != null && !sessionDate.isBefore(monday) && !sessionDate.isAfter(today)) {
-                s.exercises.forEach { e ->
-                    val workingSetsCount = e.sets.count { !it.isWarmup && it.completed }
-                    val targetGroup = exerciseIdToMuscleGroup[e.id] ?: e.muscleGroup.lowercase().trim()
-                    if (muscleSetsMap.containsKey(targetGroup)) {
-                        muscleSetsMap[targetGroup] = (muscleSetsMap[targetGroup] ?: 0) + workingSetsCount
-                    }
-                }
-            }
-        }
-        return muscleSetsMap
-    }
 
     val hypertrophyQualityScores: StateFlow<Map<String, Double>> = richSessionsFlow
         .map { sessions ->
