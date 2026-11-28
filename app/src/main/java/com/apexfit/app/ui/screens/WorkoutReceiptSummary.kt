@@ -13,7 +13,8 @@ internal data class ExerciseReceiptSummary(
 internal fun summarizeCompletedExercises(sets: List<UiExerciseSet>): List<ExerciseReceiptSummary> =
     sets.filter { it.completed }
         .groupBy { set ->
-            set.exerciseId.takeIf(String::isNotBlank)?.let { "id:$it" }
+            set.occurrenceIndex?.let { "occurrence:$it" }
+                ?: set.exerciseId.takeIf(String::isNotBlank)?.let { "id:$it" }
                 ?: "name:${set.exerciseName.trim().lowercase()}"
         }
         .values
