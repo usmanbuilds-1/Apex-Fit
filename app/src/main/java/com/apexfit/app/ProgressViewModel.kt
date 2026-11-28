@@ -4,6 +4,7 @@ package com.apexfit.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.apexfit.app.data.*
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.ui.models.*
@@ -107,9 +108,33 @@ class ProgressViewModel @Inject constructor(
     fun observeCalendar(month: java.time.YearMonth, today: java.time.LocalDate): Flow<TrainingCalendarMonth> =
         combine(dao.observeCalendarSessions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
             dao.observeCalendarPlans(),
-            dao.observeScheduleRevisions(month.atDay(1).toString(), month.atEndOfMonth().toString())) { sessions, plans, revisions ->
-            TrainingCalendar.build(month, today, sessions, plans, revisions = revisions)
+            dao.observeScheduleRevisions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
+            dao.observeScheduleDispositions(month.atDay(1).toString(), month.atEndOfMonth().toString())) { sessions, plans, revisions, dispositions ->
+            TrainingCalendar.build(month, today, sessions, plans, revisions = revisions, dispositions = dispositions)
         }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
+    suspend fun setOccurrenceDecision(date: java.time.LocalDate, occurrenceId: String,
+                                      decision: OccurrenceDecision?) =
+        AppDatabase.getDatabase(getApplication()).withTransaction {
+            require(date < java.time.LocalDate.now()) { "Only past scheduled workouts can be reviewed" }
+            val revision = dao.getScheduleRevisionForDate(date.toString())
+            val day = ScheduleLedger.resolve(date, listOfNotNull(revision))
+            require(day.kind == CalendarScheduleKind.TRAINING && day.occurrenceId == occurrenceId) {
+                "Schedule occurrence no longer matches"
+            }
+            if (decision == null) {
+                dao.clearScheduleDisposition(occurrenceId)
+            } else {
+                val linked = dao.getOccurrenceWorkouts(date.toString(), occurrenceId)
+                require(linked.none { it.planSessionId == day.slotId &&
+                    it.startedAt != null && it.completedAt != null && it.completedAt >= it.startedAt &&
+                    ((it.completed && it.status == "completed") || (!it.completed && it.status == "partial")) }) {
+                    "A verified workout already exists for this occurrence"
+                }
+                dao.upsertScheduleDisposition(ScheduleDisposition(occurrenceId, date.toString(),
+                    decision.name, System.currentTimeMillis()))
+            }
+        }
 
     val workoutHistory = dao.getSavedTrainingSessionsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
