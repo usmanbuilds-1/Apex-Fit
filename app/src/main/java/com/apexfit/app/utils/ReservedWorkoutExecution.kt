@@ -46,6 +46,20 @@ object ReservedWorkoutExecution {
         row
     }
 
+    /** Journal records intent only. Committed association is the source of recovered credit.
+     * A later removal means credit is no longer present; never claim a missing association.
+     */
+    fun receiptCredit(workout: TrainingSession, expectedOccurrenceId: String?,
+                      association: ScheduleWorkoutAssociation?): Boolean? {
+        if (expectedOccurrenceId == null) return null
+        val original = expectedOccurrenceId.split(':').getOrNull(1)
+        return original != null && ScheduleLedger.validOccurrence(expectedOccurrenceId, original, workout.planSessionId) &&
+            association != null && association.occurrenceId == expectedOccurrenceId &&
+            association.scheduledDate == original && association.sessionId == workout.id &&
+            workout.scheduleOccurrenceId == null && workout.date != original &&
+            RescheduledWorkouts.coherent(workout, association.recordedAt)
+    }
+
     /** Called inside the same outer Room transaction as workout + sets + PRs.
      * A cancelled/changed/conflicting reservation never prevents saving real work.
      * On success consume reservation only after inserting a unique association.
