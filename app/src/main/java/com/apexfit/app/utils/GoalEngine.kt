@@ -13,6 +13,18 @@ data class GoalTimeline(
 )
 
 object GoalEngine {
+    // BMI is a screening threshold, not a diagnosis or body-composition measure.
+    // Do not automatically prescribe a deficit for underweight adults or a goal
+    // that would take an adult below the conventional healthy-weight range.
+    fun blocksAutomaticWeightLoss(currentWeightKg: Double, goalWeightKg: Double?, heightCm: Double): Boolean {
+        if (!heightCm.isFinite() || heightCm <= 0 || !currentWeightKg.isFinite() || currentWeightKg <= 0)
+            return true
+        val heightM = heightCm / 100.0
+        val minimum = 18.5 * heightM * heightM
+        return currentWeightKg <= minimum || (goalWeightKg != null &&
+            (!goalWeightKg.isFinite() || goalWeightKg < minimum))
+    }
+
     fun estimateLBM(weightKg: Double, heightCm: Double, sex: String): Double {
         // Boer formula (Boer, 1984)
         return if (sex.equals("female", ignoreCase = true)) {
@@ -29,7 +41,11 @@ object GoalEngine {
         heightCm: Double,
         sex: String
     ): GoalTimeline {
-        val normalizedGoal = resolvedGoal.trim().lowercase()
+        val normalizedGoal = resolvedGoal.trim().lowercase().let { if (it == "build muscle") "gain muscle" else it }
+        if (normalizedGoal == "lose fat" && blocksAutomaticWeightLoss(currentWeightKg, goalWeightKg, heightCm)) {
+            return GoalTimeline(0, 0.0, false, currentWeightKg,
+                "Automatic weight-loss guidance is unavailable for a low current or goal weight. Review your goal with a qualified clinician.")
+        }
         val isRecomposition = normalizedGoal == "recomposition"
         val isMaintain = normalizedGoal.contains("maintain")
         val contradictoryOrReached = when (normalizedGoal) {

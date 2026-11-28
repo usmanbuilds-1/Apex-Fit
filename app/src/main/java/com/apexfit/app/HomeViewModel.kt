@@ -142,6 +142,25 @@ class HomeViewModel @Inject constructor(
 
     val completedSessions: Flow<List<com.apexfit.app.data.RichTrainingSession>> = richSessionsFlow
 
+    fun observeMuscleHistory(start: java.time.LocalDate, end: java.time.LocalDate):
+        Flow<List<com.apexfit.app.data.RichTrainingSession>> =
+        dao.observeAnalyticsWorkingSets(start.toString(), end.toString())
+            .map(AnalyticsHistory::sessions)
+            .distinctUntilChanged()
+            .flowOn(Dispatchers.Default)
+
+    val currentWeekMuscleHeatmap: StateFlow<Map<String, HeatmapEntry>> = todayDate
+        .flatMapLatest { date ->
+            val today = java.time.LocalDate.parse(date)
+            val start = MuscleVolumePeriod.WEEK.window(today).start
+            observeMuscleHistory(start, today).map {
+                FatigueEngine.directHeatmap(MuscleVolumeSummary.calculateWindow(it, start, today))
+            }
+        }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+
     val exercisesForPlan: Flow<List<com.apexfit.app.data.PlanExercise>> = dao.getAllPlanExercisesFlow()
 
     val estimatedWorkoutDuration: StateFlow<Int> = combine(

@@ -143,6 +143,7 @@ internal fun ApexAnatomy(
     modifier: Modifier = Modifier,
     directSets: Map<String, Int> = emptyMap(),
     selectedMuscle: String? = null,
+    showVolume: Boolean = false,
     onMuscleSelected: (String) -> Unit
 ) {
     val context = LocalContext.current.applicationContext
@@ -168,10 +169,13 @@ internal fun ApexAnatomy(
         modifier = modifier
             .aspectRatio(2f / 3f)
             .semantics {
-                contentDescription = "Muscle anatomy map, $viewName view"
+                contentDescription = if (showVolume) "Logged direct working sets, $viewName view"
+                    else "Muscle anatomy map, $viewName view"
                 stateDescription = selected?.let { "${it.replace('_', ' ')} selected" } ?: "No muscle selected"
                 customActions = currentAnatomy.muscles.mapNotNull { it.muscle }.distinct().map { muscle ->
-                    CustomAccessibilityAction("Select ${muscle.replace('_', ' ')}") {
+                    val name = muscle.replace('_', ' ')
+                    val action = if (showVolume) "Select $name, ${normalizedDirectSets[muscle] ?: 0} logged direct sets" else "Select $name"
+                    CustomAccessibilityAction(action) {
                         onMuscleSelected(muscle)
                         true
                     }
@@ -249,13 +253,12 @@ private fun drawMirrored(
     }
 }
 
-private fun muscleColor(group: String, selected: String?, directSets: Int) = when {
-    group == selected -> ApexColors.Primary
-    directSets >= 10 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, 0.80f)
-    directSets >= 5 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, 0.55f)
-    directSets > 0 -> lerp(ApexColors.PrimaryMist, ApexColors.Primary, 0.30f)
-    else -> ApexColors.BorderStrong
-}
+private fun muscleColor(group: String, selected: String?, directSets: Int) =
+    if (group == selected) ApexColors.Primary else directSetBandColor(com.apexfit.app.utils.DirectSetBand.of(directSets))
+
+internal fun directSetBandColor(band: com.apexfit.app.utils.DirectSetBand) =
+    if (band.intensity == 0) ApexColors.BorderStrong
+    else lerp(ApexColors.PrimaryMist, ApexColors.Primary, band.intensity / 100f)
 
 private fun canonicalApexMuscle(sourceGroup: String): String? = when (sourceGroup.uppercase(Locale.ROOT)) {
     "CHEST" -> "chest"
