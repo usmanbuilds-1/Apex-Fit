@@ -240,6 +240,10 @@ interface FitnessDao {
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     fun getAllExercisesFlow(): Flow<List<Exercise>>
 
+    // Soft-deleted exercises still belong to saved training history.
+    @Query("SELECT * FROM exercises")
+    fun getExerciseAttributionFlow(): Flow<List<Exercise>>
+
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     suspend fun getAllExercises(): List<Exercise>
 

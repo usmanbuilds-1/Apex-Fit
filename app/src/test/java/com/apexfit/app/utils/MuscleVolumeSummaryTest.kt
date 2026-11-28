@@ -52,17 +52,17 @@ class MuscleVolumeSummaryTest {
     @Test
     fun fractionalVolumeAndDailyExposureRemainSeparateFromObservedCounts() {
         val pull = ExerciseLog("row", "Row", "Lats", listOf(
-            ExerciseSet(id = 101, weight = 20.0, reps = 10),
-            ExerciseSet(id = 102, weight = 20.0, reps = 10)
+            ExerciseSet(id = 101, weight = 20.0, reps = 10, rpe = 8, isWarmup = false, completed = true),
+            ExerciseSet(id = 102, weight = 20.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
         ), secondaryMuscles = listOf("Biceps", "biceps", "Back"))
         val curl = ExerciseLog("curl", "Curl", "Biceps", listOf(
-            ExerciseSet(id = 103, weight = 5.0, reps = 10)
+            ExerciseSet(id = 103, weight = 5.0, reps = 10, rpe = 8, isWarmup = false, completed = true)
         ))
         val sessions = listOf(
             RichTrainingSession("2026-11-15", "Pull", true, exercises = listOf(pull)),
             RichTrainingSession("2026-11-15", "Arms", true, exercises = listOf(curl)),
             RichTrainingSession("2026-11-16", "Pull", true, exercises = listOf(pull.copy(
-                sets = listOf(ExerciseSet(id = 104, weight = 20.0, reps = 10))
+                sets = listOf(ExerciseSet(id = 104, weight = 20.0, reps = 10, rpe = 8, isWarmup = false, completed = true))
             )))
         )
         val biceps = MuscleVolumeSummary.calculate(sessions, today, MuscleVolumePeriod.MONTH)
@@ -77,7 +77,7 @@ class MuscleVolumeSummaryTest {
 
     @Test
     fun dailyCountsExcludeDuplicatePersistedIdsAndInvalidWorkingSets() {
-        val valid = ExerciseSet(id = 91, weight = 0.0, reps = 8)
+        val valid = ExerciseSet(id = 91, weight = 0.0, reps = 8, rpe = 8, isWarmup = false, completed = true)
         val exercise = ExerciseLog("pull", "Pull-up", "Back", listOf(
             valid, valid, valid.copy(id = 92, reps = 0), valid.copy(id = 93, weight = Double.NaN),
             valid.copy(id = 94, weight = -1.0), valid.copy(id = 95, isWarmup = true),

@@ -124,10 +124,12 @@ class FitnessRepositoryImpl @Inject constructor(
     override val richSessionsFlow: StateFlow<List<RichTrainingSession>> by lazy {
         combine(
             recent90DaySessionsFlow,
-            recent90DaySetsFlow
-        ) { sessions, sets ->
-            SessionMapper.buildRichSessions(sessions, sets)
+            recent90DaySetsFlow,
+            dao.getExerciseAttributionFlow()
+        ) { sessions, sets, exercises ->
+            SessionMapper.buildRichSessions(sessions, sets, exercises.associate { it.id to it.secondaryMuscles })
         }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = appScope,
             started = SharingStarted.WhileSubscribed(5000),
