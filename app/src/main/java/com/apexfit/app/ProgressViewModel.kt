@@ -115,6 +115,27 @@ class ProgressViewModel @Inject constructor(
                 associations = associations)
         }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
+    fun observeTrainingPeriodReport(period: TrainingReportPeriod, anchor: java.time.LocalDate,
+                                    today: java.time.LocalDate): Flow<TrainingPeriodReport> {
+        val ranges = TrainingPeriodReports.ranges(period, anchor, today)
+        if (ranges.elapsed == null) return flowOf(TrainingPeriodReport(ranges, null, null, null))
+        val start = ranges.queryStart.toString()
+        val end = ranges.queryEnd.toString()
+        val calendars = combine(dao.observeCalendarSessions(start, end), dao.observeCalendarPlans(),
+            dao.observeScheduleRevisions(start, end), dao.observeScheduleDispositions(start, end),
+            dao.observeScheduleWorkoutAssociations(start, end)) { sessions, plans, revisions, dispositions, associations ->
+            val firstMonth = java.time.YearMonth.from(ranges.queryStart)
+            val lastMonth = java.time.YearMonth.from(ranges.queryEnd)
+            generateSequence(firstMonth) { previous -> previous.plusMonths(1).takeIf { it <= lastMonth } }
+                .flatMap { month -> TrainingCalendar.build(month, today, sessions, plans,
+                    revisions = revisions, dispositions = dispositions, associations = associations).days.asSequence() }
+                .filter { it.date in ranges.queryStart..ranges.queryEnd }.toList()
+        }
+        return combine(calendars, dao.observeAnalyticsWorkingSets(start, end)) { days, rows ->
+            TrainingPeriodReports.calculate(ranges, days, rows, today)
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+    }
+
     suspend fun setOccurrenceDecision(date: java.time.LocalDate, occurrenceId: String,
                                       decision: OccurrenceDecision?) =
         AppDatabase.getDatabase(getApplication()).withTransaction {
