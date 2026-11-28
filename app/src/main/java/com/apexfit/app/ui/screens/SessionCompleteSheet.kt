@@ -80,11 +80,23 @@ internal fun SessionCompleteSheet(
                 )
             }
             val duration = if (receipt.durationMinutes > 0) "${receipt.durationMinutes} min · " else ""
-            Text("$duration${receipt.setsCompleted} working sets", color = ApexColors.TextSecondary)
+            Text("$duration${receipt.setsCompleted} working sets · ${receiptWorkingReps(sessionSets)} working reps", color = ApexColors.TextSecondary)
             Text("Total rest ${formatReceiptDuration(totalRestSeconds)}", color = ApexColors.TextSecondary)
+            if (receipt.reservedOccurrenceId != null) {
+                val original = receipt.reservedOccurrenceId.split(':').getOrNull(1)
+                val date = original?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+                val label = date?.let { com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(it) } ?: "original date"
+                Text(when (receipt.reservationCredited) {
+                    true -> if (receipt.isPartial) "Partial workout credited to $label." else "Scheduled workout credited to $label."
+                    false -> "Workout saved. No reservation credit for $label. Review the Training calendar."
+                    null -> "Workout saved. Reservation credit could not be confirmed. Review the Training calendar."
+                }, color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+            }
             HorizontalDivider(color = ApexColors.BorderSubtle)
             if (showDetails) {
-                sessionSets.filter { it.completed }.groupBy { it.exerciseId }.values.forEach { sets ->
+                sessionSets.filter { it.completed }.groupBy { set ->
+                    set.occurrenceIndex?.let { "occurrence:$it" } ?: "catalog:${set.exerciseId}"
+                }.values.forEach { sets ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(sets.first().exerciseName, style = MaterialTheme.typography.titleMedium)
                         sets.forEach { set ->
@@ -93,6 +105,7 @@ internal fun SessionCompleteSheet(
                             val warmup = if (set.isWarmup) " · Warm-up" else ""
                             val rest = " · Rest ${formatReceiptDuration(set.restTaken.toLong())}"
                             Text("$load $units × ${set.reps}$effort$warmup$rest", color = ApexColors.TextSecondary)
+                            ReceiptContinuations(set, units, numberFormat)
                         }
                     }
                 }
@@ -201,7 +214,9 @@ private fun ReceiptSetLines(
     prefix: String
 ) {
     val firstWeight = sets.firstOrNull()?.weight ?: 0.0
-    val sameLoggedLoad = firstWeight > 0.0 && sets.all { kotlin.math.abs(it.weight - firstWeight) < 0.001 }
+    val sameLoggedLoad = firstWeight > 0.0 && sets.all {
+        it.advancedDetails == null && kotlin.math.abs(it.weight - firstWeight) < 0.001
+    }
     if (sameLoggedLoad) {
         val load = numberFormat.format(firstWeight.toDisplayWeight(units))
         Text(
@@ -216,7 +231,24 @@ private fun ReceiptSetLines(
                 "${set.reps} reps · load not logged"
             }
             Text("$prefix ${index + 1} · $loadAndReps", color = ApexColors.TextSecondary)
+            ReceiptContinuations(set, units, numberFormat)
         }
+    }
+}
+
+@Composable
+private fun ReceiptContinuations(set: UiExerciseSet, units: String, format: NumberFormat) {
+    if (set.advancedDetails == null) return
+    val details = com.apexfit.app.utils.AdvancedSets.decode(set.weight, set.advancedDetails)
+    if (details == null) {
+        Text("Continuation details unavailable", color = ApexColors.TextSecondary)
+        return
+    }
+    Text("${details.kind.name.replace('_', ' ')} · initial outcome ${details.outcome.name.lowercase()}",
+        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+    details.continuations.forEachIndexed { index, segment ->
+        Text("Continuation ${index + 1} · ${format.format(segment.kg.toDisplayWeight(units))} $units × ${segment.reps} · ${segment.restSeconds}s preceding rest",
+            style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
     }
 }
 

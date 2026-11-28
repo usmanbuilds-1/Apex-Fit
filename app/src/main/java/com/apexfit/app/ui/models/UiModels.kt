@@ -50,7 +50,10 @@ data class UiExerciseSet(
     val exerciseId: String = "",
     val repsInReserve: Int = 2,
     val effectiveSetValue: Double = 0.0,
-    val restTaken: Int = 0
+    val restTaken: Int = 0,
+    val occurrenceIndex: Int? = null,
+    val setNumber: Int? = null,
+    val advancedDetails: String? = null
 )
 
 @Immutable
@@ -141,7 +144,10 @@ fun com.apexfit.app.data.ExerciseSet.toUi(): UiExerciseSet = UiExerciseSet(
     exerciseId = this.exerciseId,
     repsInReserve = this.repsInReserve,
     effectiveSetValue = try { com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(rpe) } catch(e: Exception) { 0.0 },
-    restTaken = this.restTaken
+    restTaken = this.restTaken,
+    occurrenceIndex = this.occurrenceIndex,
+    setNumber = this.setNumber,
+    advancedDetails = this.advancedDetails
 )
 
 fun com.apexfit.app.data.TrainingSession.toUi(): UiTrainingSession = UiTrainingSession(
@@ -291,7 +297,12 @@ data class UiComplianceResult(
     val protein: Int,
     val training: Int,
     val overall: Int,
-    val weakestDay: String?
+    val weakestDay: String?,
+    val confirmedNutritionDays: Int = 0,
+    val evaluatedDays: Int = 0,
+    val nutritionCoverage: Int = 0,
+    val nutritionComparisonAvailable: Boolean = false,
+    val trainingComparisonAvailable: Boolean = false
 )
 
 @Immutable
@@ -335,7 +346,12 @@ fun com.apexfit.app.utils.ComplianceResult.toUi(): UiComplianceResult = UiCompli
     protein = this.protein,
     training = this.training,
     overall = this.overall,
-    weakestDay = this.weakestDay
+    weakestDay = this.weakestDay,
+    confirmedNutritionDays = this.confirmedNutritionDays,
+    evaluatedDays = this.evaluatedDays,
+    nutritionCoverage = this.nutritionCoverage,
+    nutritionComparisonAvailable = this.nutritionComparisonAvailable,
+    trainingComparisonAvailable = this.trainingComparisonAvailable
 )
 
 fun UiComplianceResult.toData(): com.apexfit.app.utils.ComplianceResult = com.apexfit.app.utils.ComplianceResult(
@@ -343,7 +359,12 @@ fun UiComplianceResult.toData(): com.apexfit.app.utils.ComplianceResult = com.ap
     protein = this.protein,
     training = this.training,
     overall = this.overall,
-    weakestDay = this.weakestDay
+    weakestDay = this.weakestDay,
+    confirmedNutritionDays = this.confirmedNutritionDays,
+    evaluatedDays = this.evaluatedDays,
+    nutritionCoverage = this.nutritionCoverage,
+    nutritionComparisonAvailable = this.nutritionComparisonAvailable,
+    trainingComparisonAvailable = this.trainingComparisonAvailable
 )
 
 fun com.apexfit.app.utils.FatigueResult.toUi(): UiFatigueResult = UiFatigueResult(
@@ -400,23 +421,23 @@ fun com.apexfit.app.utils.SessionReadiness.toUi(): UiSessionReadiness = UiSessio
 )
 
 fun com.apexfit.app.utils.ReadinessScore.toUi(): UiSessionReadiness {
-    val predictionText = "A rough estimate from logged training and nutrition, not a measurement of recovery. Consider sleep, stress, soreness and how you feel."
+    val predictionText = "A training-history estimate, not a measurement of recovery. Consider sleep, stress, soreness and warm-up performance."
 
     val factorList = mutableListOf<UiReadinessFactor>()
     factorList.add(UiReadinessFactor(
         name = "Systemic training load",
         impact = if (this.systemicReadiness >= 70) "positive" else if (this.systemicReadiness >= 50) "neutral" else "negative",
-        value = readinessBand(this.systemicReadiness)
+        value = if (this.finalScore == null) "Needs more training history" else readinessBand(this.systemicReadiness)
     ))
     factorList.add(UiReadinessFactor(
-        name = "Logged nutrition",
-        impact = if (this.nutritionScore >= 70) "positive" else if (this.nutritionScore >= 50) "neutral" else "negative",
-        value = readinessBand(this.nutritionScore)
+        name = "Nutrition and well-being",
+        impact = "neutral",
+        value = "Not measured by this estimate"
     ))
     this.muscleDetails.forEach { md ->
         factorList.add(UiReadinessFactor(
             name = "${md.muscleGroup.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }} Recovery",
-            impact = if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
+            impact = if (md.confidence == "none") "neutral" else if (md.readinessPercent >= 70) "positive" else if (md.readinessPercent >= 50) "neutral" else "negative",
             value = if (md.confidence == "none") "Needs more training history" else "${md.dataPoints} logged exposures"
         ))
     }

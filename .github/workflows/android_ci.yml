@@ -26,8 +26,19 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
+      - name: Generate Room schemas before packaging migration fixtures
+        run: ./gradlew :app:kspDebugKotlin --no-daemon
+
       - name: Build Debug APK
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+
+      - name: Upload generated Room schemas
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ApexFit-Room-schemas
+          path: app/schemas/
+          if-no-files-found: error
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4

@@ -237,6 +237,18 @@ class WorkoutImportViewModel @Inject constructor(
         }
     }
 
+    fun setImportedGroup(dayKey: String, tag: String, expectedMembers: List<String>,
+                         transition: Int?, round: Int?) {
+        updateDay(dayKey) { day ->
+            if (transition == null || round == null) return@updateDay day.copy(groupChoices = day.groupChoices - tag)
+            val group = day.groupCandidates().singleOrNull { it.tag == tag } ?: return@updateDay day
+            if (!group.consecutive || group.members.map { it.key } != expectedMembers ||
+                transition !in 1..3600 || round !in 1..3600) return@updateDay day
+            day.copy(groupChoices = day.groupChoices + (tag to com.apexfit.app.domain.importer.ImportedGroupChoice(
+                expectedMembers, transition, round)))
+        }
+    }
+
     fun moveExercise(dayKey: String, exerciseKey: String, delta: Int) {
         updateDay(dayKey) { day ->
             val list = day.exercises.toMutableList()
@@ -326,7 +338,9 @@ class WorkoutImportViewModel @Inject constructor(
 
                 val exercises = scheduledDays.flatMapIndexed { dayIndex, (_, day) ->
                     val temporarySessionId = temporarySessionIds.getValue(dayIndex)
+                    val groupKeys = day.groupCandidates().mapIndexed { index, candidate -> candidate.tag to "import-${index + 1}" }.toMap()
                     day.exercises.map { exercise ->
+                        val groupChoice = exercise.sourceGroupTag?.let(day::validGroupChoice)
                         val exerciseId = requireNotNull(exercise.selectedExerciseId)
                         val name = requireNotNull(exercise.selectedExerciseName)
                         val muscle = exercise.muscleGroup ?: "Other"
@@ -358,7 +372,10 @@ class WorkoutImportViewModel @Inject constructor(
                             restSeconds = exercise.restSeconds
                                 ?: metadataById[exerciseId]?.defaultRestSeconds
                                 ?: 120,
-                            notes = notes
+                            notes = notes,
+                            groupKey = exercise.sourceGroupTag?.let { tag -> groupKeys[tag].takeIf { groupChoice != null } },
+                            groupTransitionRest = groupChoice?.transitionRest,
+                            groupRoundRest = groupChoice?.roundRest
                         )
                     }
                 }

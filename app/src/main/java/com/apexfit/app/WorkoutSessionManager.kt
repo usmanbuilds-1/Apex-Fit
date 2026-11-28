@@ -2,8 +2,10 @@ package com.apexfit.app
 import androidx.room.withTransaction
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.data.*
-import com.apexfit.app.utils.ProgressionEngine.OutcomeType
+import com.apexfit.app.utils.ProgressionEvidence
+import com.apexfit.app.utils.ConfirmedProgressionProposal
 import com.apexfit.app.utils.toDisplayWeight
+import com.apexfit.app.utils.toEditableWeight
 import com.apexfit.app.utils.fromDisplayWeightToKg
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +20,19 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import com.apexfit.app.utils.ActiveWorkoutCodec
+import com.apexfit.app.utils.WorkoutOccurrenceKeys
+import com.apexfit.app.utils.WorkoutResumeState
+import com.apexfit.app.utils.CircuitExecution
+import com.apexfit.app.utils.AdvancedSets
+import com.apexfit.app.utils.AdvancedSetDetails
+import com.apexfit.app.data.ActiveRestCheckpoint
+import android.os.SystemClock
 import kotlinx.coroutines.isActive
 import java.util.UUID
 import com.google.gson.Gson
@@ -38,10 +53,22 @@ class WorkoutSessionManager(
     private val appContext: android.content.Context,
 ) {
 
-    private var lastProgressionResults: MutableMap<String, Any> = mutableMapOf()
     private var metadataMap: Map<String, ExerciseMetadata> = emptyMap()
     private val gson = Gson()
     private var persistJob: Job? = null
+    private val stateLock = Any()
+    private val commitMutex = Mutex()
+    private val persistenceMutex = Mutex()
+    private var committing = false // guarded by stateLock
+    private var savingCriticalSet = false // guarded by stateLock
+    private val _resetGeneration = MutableStateFlow(0L)
+    val resetGeneration: StateFlow<Long> = _resetGeneration.asStateFlow()
+    private var liveRestIdentity: Pair<String, Long>? = null // guarded by stateLock
+    private data class PendingRest(val sessionId: String, val key: String, val index: Int, val seconds: Int)
+    private val pendingRests = mutableListOf<PendingRest>() // guarded by stateLock
+    private var lastReceipt: SessionCommitResult? = null // guarded by commitMutex
+    private val _recoveredReceipt = MutableStateFlow<SessionCommitResult?>(null)
+    val recoveredReceipt: StateFlow<SessionCommitResult?> = _recoveredReceipt.asStateFlow()
     private val _restoredFromDisk = MutableStateFlow(false)
     val restoredFromDisk: StateFlow<Boolean> = _restoredFromDisk.asStateFlow()
 
@@ -72,34 +99,125 @@ class WorkoutSessionManager(
     private val _currentRestSeconds = MutableStateFlow(0)
     val currentRestSeconds: StateFlow<Int> = _currentRestSeconds.asStateFlow()
 
-    private val restoreJob: Job = scope.launch {
-            val json = dataStore.activeSessionJsonFlow.firstOrNull()
-            if (!json.isNullOrEmpty()) {
-                try {
-                    val restored = gson.fromJson(json, ActiveSession::class.java)
-                    if (restored != null) {
-                        if (restored.schemaVersion != ActiveSession.CURRENT_VERSION) {
-                            throw IllegalStateException(
-                                "ActiveSession schema mismatch: stored v${restored.schemaVersion}, current v${ActiveSession.CURRENT_VERSION}"
-                            )
-                        }
-                        _restoredFromDisk.value = true
-                        _weightContextLines.value = restored.exercises.mapNotNull { exercise ->
-                            exercise.loadContext?.let { exercise.exerciseId to it }
-                        }.toMap()
-                        _activeSession.value = restored
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("WorkoutSessionManager", "Session restore failed — clearing corrupt JSON", e)
-                    _sessionRestoreFailed.value = true
-                    scope.launch {
-                        try { dataStore.saveActiveSessionJson(null) } catch (_: Exception) { }
-                    }
-                }
+    private val restoreJob: Job = scope.launch(Dispatchers.IO) {
+        try {
+            val raw = dataStore.activeSessionJsonFlow.firstOrNull()
+            if (raw == null) {
+                _recoveredReceipt.value = recoverCommittedReceipt()
+                return@launch
             }
+            val decoded = ActiveWorkoutCodec.decode(raw, gson)
+            val restored = decoded.session
+            if (decoded.legacyIdentity) {
+                // A v1 payload had no durable ID. Do not guess whether it is an
+                // already-committed workout left behind by the old save path.
+                check(dao.getTrainingSessionsStartedAt(restored.startTime).isEmpty()) {
+                    "Legacy workout may already exist in history"
+                }
+            } else if (dao.getTrainingSessionById(restored.sessionId) != null) {
+                // Exact stable ID is proof of a previous committed transaction.
+                // Its history is already saved; do not resume or insert it again.
+                val receipt = recoverCommittedReceipt(restored.sessionId)
+                check(dataStore.clearActiveDraftIfMatches(raw)) {
+                    "Saved draft changed during recovery"
+                }
+                // Publish only after cleanup has completed, so recovery is
+                // observable as one completed operation, not two racing flows.
+                _recoveredReceipt.value = receipt
+                return@launch
+            }
+            if (decoded.migrated || decoded.normalized) {
+                dataStore.saveActiveSessionJson(gson.toJson(restored))
+            }
+            _restoredFromDisk.value = true
+            _weightContextLines.value = restored.exercises.mapNotNull { exercise ->
+                exercise.loadContext?.let { exercise.executionKey to it }
+            }.toMap()
+            _activeSession.value = restored
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Saved workout retained for recovery", e)
+            _sessionRestoreFailed.value = true
+        }
     }
 
+    // A journal written before the transaction is not proof of a workout.
+    // Only a matching committed Room row permits recovery. Always take the
+    // set details and counts from Room, not from UI state or the draft.
+    private suspend fun recoverCommittedReceipt(expectedId: String? = null): SessionCommitResult? {
+        try {
+            val (id, json) = dataStore.workoutReceiptFlow.firstOrNull() ?: return null
+            if (expectedId != null && id != expectedId) return null
+            val session = dao.getTrainingSessionById(id) ?: return null
+            val journal = gson.fromJson(json, SessionCommitResult::class.java)
+            check(journal.sessionId == id)
+            val sets = dao.getSetsForSession(id)
+            val catalogIds = sets.filter { it.completed && !it.isWarmup }.map { it.exerciseId }.toSet()
+            val earned = journal.records.filter { it.exerciseId in catalogIds && it.date == session.date }
+            val credit = com.apexfit.app.utils.ReservedWorkoutExecution.receiptCredit(
+                session, journal.reservedOccurrenceId, dao.getAssociationForWorkout(session.id))
+            return buildReceipt(session, sets, earned, journal.reservedOccurrenceId, credit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // History is still saved; a malformed receipt must never block
+            // restoration of the actual workout or invent earned records.
+            android.util.Log.e("WorkoutSessionManager", "Receipt recovery unavailable", e)
+            return null
+        }
+    }
 
+    /** Wait for the same initialization barrier used by startSession. */
+    internal suspend fun awaitRestoration() = restoreJob.join()
+
+    /** Complete the journal write before acknowledging dismissal to the caller. */
+    suspend fun dismissReceipt(sessionId: String) {
+        restoreJob.join()
+        commitMutex.withLock {
+            withContext(Dispatchers.IO + NonCancellable) {
+                dataStore.dismissWorkoutReceipt(sessionId)
+                if (_recoveredReceipt.value?.sessionId == sessionId) _recoveredReceipt.value = null
+            }
+        }
+    }
+
+    private fun buildReceipt(session: TrainingSession, sets: List<ExerciseSet>, earned: List<PersonalRecord>,
+                             reservedOccurrenceId: String? = null, reservationCredited: Boolean? = null): SessionCommitResult {
+        val working = sets.filter(com.apexfit.app.utils.TrainingEvidence::isWorkingSet)
+        return SessionCommitResult(
+            sessionId = session.id,
+            durationMinutes = session.durationMinutes,
+            // Legacy compatibility field: raw recorded load, never a comparable strength metric.
+            totalVolumeTonnes = working.sumOf { AdvancedSets.recordedKgReps(it) ?: 0.0 } / 1000.0,
+            setsCompleted = working.size,
+            confirmedPRs = earned.map { it.exerciseId }.distinct(),
+            sessionType = session.sessionType,
+            records = earned,
+            isPartial = session.status == "partial",
+            savedSets = sets,
+            reservedOccurrenceId = reservedOccurrenceId,
+            reservationCredited = reservationCredited
+        )
+    }
+
+    /** Only an explicit user choice may discard an unreadable/ambiguous payload. */
+    suspend fun discardUnrestorableSession(): Boolean {
+        restoreJob.join()
+        return commitMutex.withLock {
+        if (!_sessionRestoreFailed.value || _activeSession.value != null) return@withLock false
+        try {
+            persistenceMutex.withLock { dataStore.saveActiveSessionJson(null) }
+            _sessionRestoreFailed.value = false
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Unable to discard saved workout", e)
+            false
+        }
+        }
+    }
 
     fun incrementRestSeconds() {
         _currentRestSeconds.value++
@@ -109,31 +227,36 @@ class WorkoutSessionManager(
         _currentRestSeconds.value = 0
     }
 
-    fun commitRestTaken(exerciseId: String, setIndex: Int, seconds: Int) {
+    fun commitRestTaken(exerciseId: String, setIndex: Int, seconds: Int, expectedSessionId: String? = null) {
+        synchronized(stateLock) {
+        if (committing) return
         val session = _activeSession.value ?: return
-        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
-        if (setIndex < exercise.sets.size) {
+        if (expectedSessionId != null && session.sessionId != expectedSessionId) return
+        if (savingCriticalSet) {
+            pendingRests.add(PendingRest(session.sessionId, exerciseId, setIndex, seconds))
+            return
+        }
+        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return
+        if (setIndex in exercise.sets.indices) {
             val set = exercise.sets[setIndex]
-            updateSet(
-                exerciseId = exerciseId,
-                setIndex = setIndex,
-                weight = set.weight,
-                reps = set.reps,
-                rpe = set.rpe,
-                restTakenSeconds = seconds,
-                completed = set.completed,
-                repsInReserve = set.repsInReserve
-            )
+            if (!set.completed) return
+            // Rest-only update may preserve a completed advanced bout; ordinary edits stay gated.
+            val updated = editedSet(session, exerciseId, setIndex, set.weight, set.reps,
+                set.rpe, seconds, true, set.repsInReserve) ?: return
+            _activeSession.value = updated
+            persistSession(immediate = true)
+        }
         }
     }
 
     fun calculateRestTimeSeconds(exerciseId: String, exerciseType: String, rpe: Int): Int {
-        val planned = _activeSession.value?.exercises?.firstOrNull { it.exerciseId == exerciseId }?.restSeconds
+        val exercise = _activeSession.value?.exercises?.firstOrNull { it.executionKey == exerciseId }
+        val planned = exercise?.restSeconds
         if (planned != null && planned > 0) return planned.coerceIn(15, 900)
         return com.apexfit.app.utils.ProgressionEngine.calculateRestTimeSeconds(
             exerciseType = exerciseType,
             rpe = rpe,
-            restSecondsOverride = metadataMap[exerciseId]?.defaultRestSeconds
+            restSecondsOverride = metadataMap[exercise?.exerciseId ?: exerciseId]?.defaultRestSeconds
         )
     }
 
@@ -151,16 +274,25 @@ class WorkoutSessionManager(
         exercises: List<PlanExercise>,
         userWeight: Double,
         userHeight: Double,
-        preferredUnits: String
+        preferredUnits: String,
+        expectedResetGeneration: Long = resetGeneration.value,
+        expectedReservation: com.apexfit.app.data.ScheduleMoveReservation? = null
     ) = withContext(Dispatchers.IO) {
         // Startup restore and a new workout must never race each other. Await the
         // persisted-session read before deciding whether a session is already active.
         restoreJob.join()
-        if (!_isStartingSession.compareAndSet(false, true)) return@withContext
-        val slugByExercise = exercises.associate { it.name to it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
-        val ids = exercises.mapNotNull { slugByExercise[it.name] }
+        val accepted = synchronized(stateLock) {
+            !committing && !savingCriticalSet && !_sessionRestoreFailed.value &&
+                expectedResetGeneration == _resetGeneration.value && _activeSession.value == null && _isStartingSession.compareAndSet(false, true)
+        }
+        if (!accepted) return@withContext
+        val catalogIds = exercises.map { it.exerciseId.ifBlank { exerciseNameToSlug(it.name) } }
+        val occurrenceKeys = WorkoutOccurrenceKeys.allocate(catalogIds)
+        val repeatedCatalogIds = catalogIds.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+        val ids = catalogIds.distinct()
         try {
-            if (_activeSession.value != null) return@withContext
+            persistJob?.join()
+            if (synchronized(stateLock) { committing || savingCriticalSet || _activeSession.value != null }) return@withContext
             val lastWeightMap = mutableMapOf<String, Double>()
             val suggestionsMap = mutableMapOf<String, Double>()
             val contextLinesMap = mutableMapOf<String, String>()
@@ -238,209 +370,60 @@ class WorkoutSessionManager(
                 .associateBy { it.exerciseId }
         }
         val lastSets = dao.getLastSetsWithDateForExercises(ids).groupBy { it.exerciseId }
-        val exerciseCategories = dao.getExercisesByIds(ids).associate { it.id to it.category }
+        // Do not interpret a previous multi-occurrence workout as one prescription.
+        val ambiguousHistoryIds = lastSets.filterValues { history ->
+            history.map { it.occurrenceIndex }.distinct().size > 1 || history.any { it.advancedDetails != null }
+        }.keys
+        val progressionPausedIds = repeatedCatalogIds + ambiguousHistoryIds +
+            if (exercises.any { it.groupKey != null }) ids.toSet() else emptySet()
+        val exerciseCatalog = dao.getExercisesByIds(ids).associateBy { it.id }
+        val exerciseCategories = exerciseCatalog.mapValues { it.value.category }
 
-        val stalledCounts = try {
-            dao.getStalledCountsForExercises(ids).associate { it.exerciseId to it.stalledCount }
-        } catch (e: Exception) {
-            emptyMap()
-        }
-
-        exercises.forEach { ex ->
+        val proposals = mutableMapOf<String, ConfirmedProgressionProposal>()
+        exercises.forEachIndexed { index, ex ->
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
-            val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
+            val exerciseSlug = catalogIds[index]
+            val occurrenceKey = occurrenceKeys[index]
             val exerciseHistory = lastSets[exerciseSlug].orEmpty()
             val lastSet = exerciseHistory.firstOrNull()
             val isBodyweight = exerciseCategories[exerciseSlug].equals("Bodyweight", ignoreCase = true)
             val exType = com.apexfit.app.utils.ProgressionEngine.getExerciseType(ex.name, ex.muscleGroup)
 
-            val suggestedPreferred: Double
-            if (lastSet == null) {
-                val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder
-                    .forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
-                suggestionsMap[exerciseSlug] = calibration.initialLoadKg.toDisplayWeight(exerciseUnit)
-                lastWeightMap[exerciseSlug] = calibration.initialLoadKg
-                contextLinesMap[exerciseSlug] = calibration.guidance
-            } else if (isBodyweight && ex.weight <= 0.0 && lastSet.weight <= 0.0) {
-                suggestionsMap[exerciseSlug] = 0.0
-                lastWeightMap[exerciseSlug] = 0.0
-                contextLinesMap[exerciseSlug] = "Bodyweight · record added load only if you use it."
-            } else {
-                val daysSince = com.apexfit.app.utils.getDaysBetweenClamped(lastSet.date, today)
-
-                val lastWeightLbs = lastSet.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS
-
-                val muscleReadinessDetail = readinessScore?.muscleDetails?.firstOrNull { it.muscleGroup.equals(ex.muscleGroup, ignoreCase = true) }
-                val readinessPercent = muscleReadinessDetail?.readinessPercent.takeIf { readinessScore?.finalScore != null }
-
-                // The DAO returns the latest set first so lastSet above stays the
-                // most recent load for context. Progression, however, must evaluate
-                // the prescribed sets in the order they were performed.
-                val allLastSets = exerciseHistory.sortedBy { it.id }.map { previous ->
-                    com.apexfit.app.ui.models.UiExerciseSet(
-                        id = previous.id,
-                        weight = previous.weight * com.apexfit.app.utils.AppConstants.KG_TO_LBS,
-                        reps = previous.reps,
-                        rpe = previous.rpe,
-                        isWarmup = previous.isWarmup,
-                        completed = previous.completed,
-                        exerciseName = previous.exerciseName,
-                        sessionId = previous.sessionId,
-                        muscleGroup = previous.muscleGroup
-                    )
-                }
-
-                val recoveryMultiplier = readinessPercent  
-                    ?.let { it / 100.0 }  
-                    ?.coerceIn(0.7, 1.0)  
-                    ?: 1.0  
-                  
-                val stalledCount = stalledCounts[exerciseSlug] ?: 0
-                val isImperial = exerciseUnit.lowercase() in listOf("lb", "lbs")
-                val metadataIncrementKg = metadataMap[exerciseSlug]
-                    ?.defaultProgressionIncrementKg
-                    ?.takeIf { it > 0.0 }
-                val fallbackStep = if (exType == "isolation") 1.25 else 2.5
-
-                // The engine's canonical input is kg metadata converted internally
-                // to pounds. Custom exercises have no seed metadata, so derive a
-                // canonical override from the user's actual increment grid instead
-                // of mixing a pound fallback with a kilogram boundary.
-                val progressionIncrementKg = metadataIncrementKg ?: if (isImperial) {
-                    fallbackStep / com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                } else {
-                    fallbackStep
-                }
-
-                val progressionResult = com.apexfit.app.utils.ProgressionEngine.calculateProgressiveWeight(  
-                    exerciseId = exerciseSlug,  
-                    lastSessionSets = allLastSets.ifEmpty {  
-                        listOf(com.apexfit.app.ui.models.UiExerciseSet(  
-                            weight = lastWeightLbs,  
-                            reps = ex.repsMin,  
-                            rpe = 7,  
-                            isWarmup = false,  
-                            completed = true  
-                        ))  
-                    },  
-                    repsMin = ex.repsMin,  
-                    repsMax = ex.repsMax,  
-                    targetSets = ex.sets,  
-                    recoveryMultiplier = recoveryMultiplier,  
-                    currentWeight = lastWeightLbs,  
-                    exerciseType = exType,
-                    consecutiveStalledSessions = stalledCount,
-                    incrementOverrideKg = progressionIncrementKg
-                )
-                lastProgressionResults[exerciseSlug] = progressionResult
-
-                val suggestedLbs = progressionResult.newWeight
-
-                // Quantise once, at the user-facing unit boundary. Metric seed
-                // metadata already describes the intended increment (1 kg, 1.25 kg,
-                // 2 kg, 2.5 kg, 5 kg). For imperial display, map that equivalent to
-                // a practical 1.25/2.5 lb grid rather than quantising in both units.
-                val preferredStep = if (metadataIncrementKg != null) {
-                    if (isImperial) {
-                        val hardwareGrid = fallbackStep
-                        val equivalentLbs = metadataIncrementKg * com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                        (Math.round(equivalentLbs / hardwareGrid) * hardwareGrid)
-                            .coerceAtLeast(hardwareGrid)
-                    } else {
-                        metadataIncrementKg
-                    }
-                } else {
-                    fallbackStep
-                }
-
-                val lastPreferred = if (isImperial) {
-                    lastSet.weight.toDisplayWeight(exerciseUnit)
-                } else {
-                    lastSet.weight
-                }
-
-                val suggestedPreferred = when (progressionResult.outcome) {
-                    OutcomeType.STALLED, OutcomeType.PROGRESSING -> lastPreferred
-                    OutcomeType.SUCCESS -> {
-                        val rawDeltaPreferred = if (isImperial) {
-                            suggestedLbs - lastWeightLbs
-                        } else {
-                            (suggestedLbs - lastWeightLbs) / com.apexfit.app.utils.AppConstants.KG_TO_LBS
-                        }
-                        val quantizedDelta = if (rawDeltaPreferred >= preferredStep / 2.0) {
-                            (Math.round(rawDeltaPreferred / preferredStep) * preferredStep)
-                                .coerceAtLeast(preferredStep)
-                        } else {
-                            0.0
-                        }
-                        val candidate = lastPreferred + quantizedDelta
-                        val finalPreferred = if (isImperial && quantizedDelta > 0.0) {
-                            // Stored history is canonical kg, so converting it to lb
-                            // can produce values such as 100.09. On a successful
-                            // progression, snap the *displayed target* to the imperial
-                            // hardware grid without changing hold semantics.
-                            val snapped = Math.round(candidate / preferredStep) * preferredStep
-                            if (snapped <= lastPreferred) lastPreferred + preferredStep else snapped
-                        } else {
-                            candidate
-                        }
-                        Math.round(finalPreferred * 100.0) / 100.0
-                    }
-                    OutcomeType.PLATEAU -> {
-                        val rawTarget = lastPreferred * 0.9
-                        val quantizedTarget = Math.floor(rawTarget / preferredStep) * preferredStep
-                        Math.round(quantizedTarget.coerceAtLeast(0.0) * 100.0) / 100.0
-                    }
-                }
-
-                suggestionsMap[exerciseSlug] = suggestedPreferred
-                lastWeightMap[exerciseSlug] = lastSet.weight
-                val contextSuffix = if (readinessPercent != null) " (Readiness: $readinessPercent%)" else " ($daysSince days ago)"
-                val lastWeightDisplay = lastSet.weight.toDisplayWeight(exerciseUnit)
-                contextLinesMap[exerciseSlug] = "Last: $lastWeightDisplay $exerciseUnit @ RPE ${lastSet.rpe}$contextSuffix → Suggested: $suggestedPreferred $exerciseUnit. Outcome: ${progressionResult.reason}"
+            val calibration = com.apexfit.app.utils.StartingLoadCalibrationBuilder.forFirstExposure(ex, exerciseCategories[exerciseSlug].orEmpty())
+            val prescribedKg = ex.weight.takeIf { it.isFinite() && it > 0.0 }
+                ?.fromDisplayWeightToKg(ex.weightUnit) ?: 0.0
+            val isImperial = exerciseUnit.lowercase() in listOf("lb", "lbs")
+            val fallbackStep = if (exType == "isolation") 1.25 else 2.5
+            val incrementKg = metadataMap[exerciseSlug]?.defaultProgressionIncrementKg?.takeIf { it.isFinite() && it > 0.0 }
+                ?: if (isImperial) fallbackStep / com.apexfit.app.utils.AppConstants.KG_TO_LBS else fallbackStep
+            // Current equipment cannot be inferred from a prior log or exercise category.
+            // Never auto-apply a load change; require explicit same-setup confirmation first.
+            val proposal = if (exerciseSlug !in progressionPausedIds && !isBodyweight)
+                ProgressionEvidence.proposal(exerciseHistory, ex.id, ex.sets, ex.repsMax, incrementKg,
+                    java.time.LocalDate.parse(today)) else null
+            if (proposal != null) proposals[occurrenceKey] = proposal
+            suggestionsMap[occurrenceKey] = prescribedKg.toEditableWeight(exerciseUnit)
+            val priorKg = lastSet?.let(ProgressionEvidence::kg)
+            lastWeightMap[occurrenceKey] = priorKg ?: prescribedKg
+            contextLinesMap[occurrenceKey] = when {
+                proposal != null -> "Prior comparable sets on ${proposal.sourceDate} · ${proposal.basis.label} · ${proposal.setup}. Confirm same setup to use ${proposal.suggestedKg.toDisplayWeight(exerciseUnit)} $exerciseUnit."
+                lastSet == null -> calibration.guidance
+                isBodyweight -> "Bodyweight · record added load only if used."
+                else -> "Automatic progression paused: prior prescription, effort or load setup is not verified. Use your plan load or enter a suitable load."
             }
         }
 
         _lastWeights.value = lastWeightMap
         _weightContextLines.value = contextLinesMap
 
-        val proposedGoal = dao.getAllPlans().firstOrNull { it.id == planSession.planId }?.goal.orEmpty()
-        val recentSessions = repository.richSessionsFlow.value
-        val fatigueSnapshot = com.apexfit.app.utils.FatigueEngine.calcFatigueToFitnessRatio(recentSessions)
-        val deloadRecommended = com.apexfit.app.utils.PlateauEngine.calcDeloadRecommendation(
-            trainingLog = recentSessions,
-            complianceScore = 0,
-            precomputedFatigue = fatigueSnapshot
-        ).urgency.let { it == "deload_now" || it == "deload_soon" }
-        val readinessByMuscle = readinessScore?.takeIf { it.finalScore != null }
-            ?.muscleDetails.orEmpty().filter { it.confidence != "none" }
-            .associateBy { com.apexfit.app.utils.MuscleAliases.getCanonical(it.muscleGroup) }
-        val adjustedMuscles = mutableSetOf<String>()
         // Build the in-memory session with pre-filled sets
-        val activeExercises = exercises.map { ex ->
+        val activeExercises = exercises.mapIndexed { index, ex ->
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
-            val exerciseSlug = slugByExercise[ex.name] ?: exerciseNameToSlug(ex.name)
-            val suggestedWeight = suggestionsMap[exerciseSlug] ?: ex.weight.toDisplayWeight(exerciseUnit)
-            val muscle = com.apexfit.app.utils.MuscleAliases.getCanonical(ex.muscleGroup)
-            val lastLoggedWeight = lastSets[exerciseSlug]?.firstOrNull()?.weight
-            val readinessForVolume = readinessByMuscle[muscle]?.readinessPercent?.let { local ->
-                minOf(local, readinessScore?.systemicReadiness ?: local)
-            }
-            val adjustment = if (muscle !in adjustedMuscles && lastLoggedWeight != null) {
-                com.apexfit.app.utils.AdaptiveSetVolume.adjustment(
-                    goal = proposedGoal,
-                    exerciseId = exerciseSlug,
-                    baseSets = ex.sets,
-                    repsMin = ex.repsMin,
-                    sessions = recentSessions,
-                    today = java.time.LocalDate.parse(today),
-                    readiness = readinessForVolume,
-                    loadChanged = kotlin.math.abs(suggestedWeight.fromDisplayWeightToKg(exerciseUnit) - lastLoggedWeight) > 0.05,
-                    fatigueRatio = fatigueSnapshot.ratio,
-                    deloadRecommended = deloadRecommended
-                )
-            } else null
-            if (adjustment != null) adjustedMuscles.add(muscle)
+            val exerciseSlug = catalogIds[index]
+            val occurrenceKey = occurrenceKeys[index]
+            val suggestedWeight = suggestionsMap[occurrenceKey] ?: error("Missing initialized load for $occurrenceKey")
+            // Volume adjustments need confirmed current setup and source-aware effort history too.
+            val adjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null
             ActiveExercise(
                 exerciseId = exerciseSlug,
                 exerciseName = ex.name,
@@ -448,8 +431,15 @@ class WorkoutSessionManager(
                 restSeconds = ex.restSeconds.takeIf { it > 0 },
                 targetRepsMin = ex.repsMin,
                 targetRepsMax = ex.repsMax,
-                loadContext = contextLinesMap[exerciseSlug],
+                loadContext = contextLinesMap[occurrenceKey],
                 volumeAdjustment = adjustment,
+                progressionProposal = proposals[occurrenceKey],
+                occurrenceKey = occurrenceKey.takeIf { it != exerciseSlug },
+                sourcePlanExerciseId = ex.id.takeIf { it > 0L },
+                secondaryMuscleSnapshot = exerciseCatalog[exerciseSlug]?.let {
+                    com.apexfit.app.utils.MuscleAttribution.encode(ex.muscleGroup, it.secondaryMuscles)
+                        .takeIf { snapshot -> com.apexfit.app.utils.MuscleAttribution.decode(snapshot) != null }
+                },
                 sets = (1..(adjustment?.adjustedSets ?: ex.sets)).map { setNum ->
                     ActiveSet(
                         setNumber = setNum,
@@ -465,17 +455,43 @@ class WorkoutSessionManager(
             )
         }.toMutableList()
 
-        _activeSession.value = ActiveSession(
+        val startedAt = System.currentTimeMillis()
+        val startDate = com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(startedAt)
+        val reservation = expectedReservation?.let {
+            com.apexfit.app.utils.ReservedWorkoutExecution.validateStart(
+                AppDatabase.getDatabase(appContext), it, planSession, java.time.LocalDate.parse(startDate), startedAt)
+        }
+        val scheduleOccurrence = if (reservation == null)
+            com.apexfit.app.utils.ScheduleLedger.occurrenceForStart(
+                java.time.LocalDate.parse(startDate), startedAt, planSession, dao.getScheduleRevisionForDate(startDate))
+            else null
+        val permanentGroups = com.apexfit.app.utils.PermanentWorkoutGroups.resolve(exercises).map {
+            ActiveWorkoutGroup(it.key, it.firstIndex, it.memberCount, it.transitionRestSeconds, it.roundRestSeconds)
+        }.takeIf { it.isNotEmpty() }
+        val newSession = ActiveSession(
+            cursorIndex = 0,
+            skippedOccurrenceIndices = emptyList(),
             planSessionId = planSession.id.toString(),
             sessionType = planSession.label,
-            startTime = System.currentTimeMillis(),
+            startTime = startedAt,
             readinessScore = readinessScore?.finalScore,
-            exercises = activeExercises
+            exercises = activeExercises,
+            startedLocalDate = startDate,
+            scheduleOccurrenceId = scheduleOccurrence,
+            reservedOccurrenceId = reservation?.occurrenceId,
+            reservationRecordedAt = reservation?.recordedAt,
+            permanentGroups = permanentGroups
         )
-        persistSession()
-
-        val session = _activeSession.value ?: return@withContext
-        com.apexfit.app.utils.WorkoutForegroundService.start(appContext, session.sessionName, session.startTime)
+        require(CircuitExecution.valid(newSession)) { "Invalid permanent group in workout plan" }
+        // Do not expose a workout that has not received its durable identity.
+        // A cancelled caller must not leave a saved draft hidden from the
+        // current process, allowing a subsequent Start to overwrite it.
+        withContext(NonCancellable) {
+            persistenceMutex.withLock { dataStore.beginWorkoutDraft(gson.toJson(newSession)) }
+            _recoveredReceipt.value = null
+            _activeSession.value = newSession
+        }
+        com.apexfit.app.utils.WorkoutForegroundService.start(appContext, newSession.sessionName, newSession.startTime)
         } finally {
             _isStartingSession.value = false
         }
@@ -489,7 +505,8 @@ class WorkoutSessionManager(
      * Called whenever user changes weight, reps, RPE, or checks off a set.
      * Mutates in memory — no database write.
      */
-    fun updateSet(
+    private fun editedSet(
+        session: ActiveSession,
         exerciseId: String,
         setIndex: Int,
         weight: Double,
@@ -497,120 +514,348 @@ class WorkoutSessionManager(
         rpe: Int,
         restTakenSeconds: Int,
         completed: Boolean,
-        repsInReserve: Int? = null
+        repsInReserve: Int?
+    ): ActiveSession? {
+        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return null
+        val old = exercise.sets.getOrNull(setIndex) ?: return null
+        if (!weight.isFinite() || weight < 0.0 || reps < 0 || (completed && reps == 0)) return null
+        val newSets = exercise.sets.toMutableList()
+        newSets[setIndex] = old.copy(
+            weight = weight, reps = reps, rpe = rpe.coerceIn(0, 10),
+            restTakenSeconds = restTakenSeconds.coerceAtLeast(0),
+            completedAt = if (completed) old.completedAt.takeIf { it > 0L } ?: System.currentTimeMillis() else 0L,
+            completed = completed, repsInReserve = repsInReserve ?: old.repsInReserve,
+            setObservation = old.setObservation.takeIf { completed && old.completed && old.weight == weight && old.reps == reps && old.rpe == rpe && (repsInReserve == null || repsInReserve == old.repsInReserve) }
+        )
+        return session.copy(exercises = session.exercises.map {
+            if (it.executionKey == exerciseId) it.copy(sets = newSets) else it
+        }.toMutableList())
+    }
+
+    fun updateSet(
+        exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int,
+        restTakenSeconds: Int, completed: Boolean, repsInReserve: Int? = null
     ) {
-        val session = _activeSession.value ?: return
+        synchronized(stateLock) {
+            if (committing || savingCriticalSet) return
+            val session = _activeSession.value ?: return
+            val old = session.exercises.find { it.executionKey == exerciseId }?.sets?.getOrNull(setIndex) ?: return
+            if (old.advancedDetails != null) return
+            val updated = editedSet(session, exerciseId, setIndex, weight, reps, rpe, restTakenSeconds, completed, repsInReserve) ?: return
+            _activeSession.value = updated
+            persistSession(immediate = completed || old.completed)
+        }
+    }
 
-        // Structural sharing: only copy the affected exercise
-        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
-        if (setIndex !in exercise.sets.indices) return
+    /**
+     * Acknowledge user-confirmed completion/correction only after durable DataStore
+     * write. Failed writes leave the previously published set unchanged.
+     * Serialize against final commit and reject stale-session callbacks.
+     */
+    suspend fun updateSetDurably(
+        expectedSessionId: String, exerciseId: String, setIndex: Int,
+        weight: Double, reps: Int, rpe: Int, restTakenSeconds: Int,
+        completed: Boolean, repsInReserve: Int? = null,
+        advanceAfterCompletion: Boolean = false,
+        advanced: AdvancedSetDetails? = null,
+        observation: com.apexfit.app.utils.SetObservation? = null
+    ): Boolean = mutateDraftDurably(expectedSessionId) { session ->
+        if (!completed && session.restCheckpoint?.let { it.exerciseKey == exerciseId && it.setIndex == setIndex } == true)
+            return@mutateDraftDurably null
+        val indexBefore = session.exercises.indexOfFirst { it.executionKey == exerciseId }
+        val original = session.exercises.getOrNull(indexBefore)?.sets?.getOrNull(setIndex) ?: return@mutateDraftDurably null
+        if (original.advancedDetails != null) return@mutateDraftDurably null
+        if (advanced != null && (original.completed || original.isWarmup || !completed || !advanceAfterCompletion ||
+            CircuitExecution.hasGroups(session) || session.restCheckpoint != null ||
+            indexBefore != WorkoutResumeState.cursor(session) ||
+            setIndex != session.exercises[indexBefore].sets.indexOfFirst { !it.completed && !it.isWarmup } ||
+            !AdvancedSets.valid(weight.fromDisplayWeightToKg(original.weightUnit), advanced))) return@mutateDraftDurably null
+        if (CircuitExecution.contains(session, indexBefore)) {
+            val prior = session.exercises[indexBefore].sets.getOrNull(setIndex) ?: return@mutateDraftDurably null
+            if (!prior.isWarmup && prior.completed != completed && (!advanceAfterCompletion || !completed ||
+                    indexBefore != WorkoutResumeState.cursor(session) || !CircuitExecution.pending(session, indexBefore) ||
+                    setIndex != session.exercises[indexBefore].sets.indexOfFirst { !it.completed && !it.isWarmup }))
+                return@mutateDraftDurably null
+            if (prior.completed && advanceAfterCompletion) return@mutateDraftDurably null
+        }
+        var edited = editedSet(session, exerciseId, setIndex, weight, reps, rpe,
+            restTakenSeconds, completed, repsInReserve) ?: return@mutateDraftDurably null
+        if (observation != null) {
+            if (!completed || original.isWarmup || advanced != null ||
+                !com.apexfit.app.utils.SetObservationCodec.valid(observation) ||
+                observation.kg != weight.fromDisplayWeightToKg(original.weightUnit) || observation.reps != reps ||
+                com.apexfit.app.utils.EffortSelection.rpe(observation.rir ?: -1) != rpe)
+                return@mutateDraftDurably null
+            val ex = edited.exercises[indexBefore]
+            val sets = ex.sets.toMutableList()
+            sets[setIndex] = sets[setIndex].copy(setObservation = com.apexfit.app.utils.SetObservationCodec.encode(observation))
+            edited = edited.copy(exercises = edited.exercises.toMutableList().apply { set(indexBefore, ex.copy(sets = sets)) })
+        }
+        if (advanced != null) {
+            val ex = edited.exercises[indexBefore]
+            val sets = ex.sets.toMutableList()
+            sets[setIndex] = sets[setIndex].copy(advancedDetails =
+                AdvancedSets.encode(weight.fromDisplayWeightToKg(original.weightUnit), advanced))
+            edited = edited.copy(exercises = edited.exercises.toMutableList().apply { set(indexBefore, ex.copy(sets = sets)) })
+        }
+        if (!advanceAfterCompletion || !completed) return@mutateDraftDurably edited
+        val index = edited.exercises.indexOfFirst { it.executionKey == exerciseId }
+        if (index < 0 || WorkoutResumeState.cursor(session) != index || session.restCheckpoint != null)
+            return@mutateDraftDurably null
+        val exercise = edited.exercises[index]
+        val done = exercise.sets.all { it.completed || it.isWarmup }
+        val positioned = edited.copy(cursorIndex = index)
+        val grouped = CircuitExecution.contains(edited, index) && !exercise.sets[setIndex].isWarmup
+        val next = if (grouped || done) WorkoutResumeState.advance(positioned, index, false) else positioned
+        if (grouped && CircuitExecution.terminal(next, index)) return@mutateDraftDurably next
+        if (!grouped && done && index == edited.exercises.lastIndex) return@mutateDraftDurably next
+        val type = com.apexfit.app.utils.ProgressionEngine.getExerciseType(exercise.exerciseName, exercise.muscleGroup)
+        val seconds = if (grouped) requireNotNull(CircuitExecution.restAfter(next, index, WorkoutResumeState.cursor(next)))
+            else calculateRestTimeSeconds(exerciseId, type, rpe).coerceIn(1, 3600)
+        val now = SystemClock.elapsedRealtime()
+        liveRestIdentity = session.sessionId to now
+        next.copy(restCheckpoint = ActiveRestCheckpoint(exerciseId, setIndex, now,
+            now + seconds * 1000L, WorkoutResumeState.bootCount(appContext), seconds))
+    }
 
-        val rpeVal = rpe.coerceIn(0, 10)
-        val updatedExercises = session.exercises.map { ex ->
-            if (ex.exerciseId == exerciseId) {
-                val updatedSets = ex.sets.toMutableList()
-                val rirVal = repsInReserve ?: updatedSets[setIndex].repsInReserve
-                updatedSets[setIndex] = updatedSets[setIndex].copy(
-                    weight = weight,
-                    reps = reps,
-                    rpe = rpeVal,
-                    restTakenSeconds = restTakenSeconds,
-                    completedAt = if (completed) System.currentTimeMillis() else 0L,
-                    completed = completed,
-                    repsInReserve = rirVal
-                )
-                ex.copy(sets = updatedSets)
-            } else {
-                ex
+    fun isLiveRestCheckpoint(sessionId: String, checkpoint: ActiveRestCheckpoint): Boolean =
+        synchronized(stateLock) { liveRestIdentity == (sessionId to checkpoint.startedElapsedMs) }
+
+    suspend fun applyProgressionDurably(expectedSessionId: String, exerciseKey: String,
+                                        proposal: ConfirmedProgressionProposal): Boolean {
+        val before = activeSession.value?.takeIf { it.sessionId == expectedSessionId } ?: return false
+        val exerciseBefore = before.exercises.getOrNull(WorkoutResumeState.cursor(before)) ?: return false
+        if (exerciseBefore.executionKey != exerciseKey || exerciseBefore.progressionProposal != proposal) return false
+        // Revalidate source facts before the durable draft mutation. No suspend call under stateLock.
+        val source = dao.getLastSetsWithDateForExercises(listOf(exerciseBefore.exerciseId))
+        val current = ProgressionEvidence.proposal(source, exerciseBefore.sourcePlanExerciseId ?: 0L,
+            proposal.targetSets, exerciseBefore.targetRepsMax ?: 0,
+            (proposal.suggestedKg - proposal.priorKg).takeIf { it > 0 } ?: 1.0,
+            java.time.LocalDate.now()) ?: return false
+        if (current.copy(suggestedKg = proposal.suggestedKg) != proposal ||
+            kotlin.math.abs(current.suggestedKg - proposal.suggestedKg) > 0.000001) return false
+        val applied = mutateDraftDurably(expectedSessionId) { session ->
+            if (CircuitExecution.hasGroups(session) || session.restCheckpoint != null) return@mutateDraftDurably null
+            val index = WorkoutResumeState.cursor(session)
+            val exercise = session.exercises.getOrNull(index) ?: return@mutateDraftDurably null
+            if (exercise.executionKey != exerciseKey) return@mutateDraftDurably null
+            val updated = ProgressionEvidence.apply(exercise, proposal) ?: return@mutateDraftDurably null
+            session.copy(exercises = session.exercises.toMutableList().apply { set(index, updated) })
+        }
+        if (applied) synchronized(stateLock) {
+            val active = _activeSession.value?.takeIf { it.sessionId == expectedSessionId }
+            val updated = active?.exercises?.firstOrNull { it.executionKey == exerciseKey }
+            updated?.loadContext?.let { _weightContextLines.value = _weightContextLines.value + (exerciseKey to it) }
+        }
+        return applied
+    }
+
+    suspend fun configureCircuitDurably(expectedSessionId: String, group: ActiveCircuit?): Boolean =
+        mutateDraftDurably(expectedSessionId) { CircuitExecution.configure(it, group) }
+
+    suspend fun advanceCursorDurably(expectedSessionId: String, expectedIndex: Int, skipped: Boolean): Boolean =
+        mutateDraftDurably(expectedSessionId) { session ->
+            if (expectedIndex !in session.exercises.indices || WorkoutResumeState.cursor(session) != expectedIndex ||
+                session.restCheckpoint != null ||
+                (!skipped && CircuitExecution.contains(session, expectedIndex) && CircuitExecution.pending(session, expectedIndex))) null
+            else WorkoutResumeState.advance(session, expectedIndex, skipped)
+        }
+
+    suspend fun replaceRestCheckpoint(expectedSessionId: String, expected: ActiveRestCheckpoint,
+        replacement: ActiveRestCheckpoint): Boolean = mutateDraftDurably(expectedSessionId) { session ->
+        if (session.restCheckpoint != expected || !WorkoutResumeState.validRest(session, replacement) ||
+            replacement.exerciseKey != expected.exerciseKey || replacement.setIndex != expected.setIndex ||
+            replacement.startedElapsedMs != expected.startedElapsedMs || replacement.bootCount != expected.bootCount) null
+        else session.copy(restCheckpoint = replacement)
+    }
+
+    suspend fun closeRestCheckpoint(expectedSessionId: String, expected: ActiveRestCheckpoint,
+        observedSeconds: Int?): Boolean = mutateDraftDurably(expectedSessionId) { session ->
+        if (session.restCheckpoint != expected || (observedSeconds != null && observedSeconds !in 0..expected.totalSeconds)) return@mutateDraftDurably null
+        val set = session.exercises.firstOrNull { it.executionKey == expected.exerciseKey }
+            ?.sets?.getOrNull(expected.setIndex)
+        if (observedSeconds == null || set == null || !set.completed) session.copy(restCheckpoint = null)
+        else editedSet(session, expected.exerciseKey, expected.setIndex, set.weight, set.reps, set.rpe,
+            observedSeconds, true, set.repsInReserve)?.copy(restCheckpoint = null)
+    }
+
+    private suspend fun mutateDraftDurably(expectedSessionId: String,
+        transform: (ActiveSession) -> ActiveSession?): Boolean = commitMutex.withLock {
+        val next = synchronized(stateLock) {
+            if (committing || savingCriticalSet) return@synchronized null
+            val session = _activeSession.value?.takeIf { it.sessionId == expectedSessionId } ?: return@synchronized null
+            transform(session)?.also { savingCriticalSet = true }
+        } ?: return@withLock false
+
+        try {
+            withContext(Dispatchers.IO + NonCancellable) {
+                persistJob?.cancelAndJoin()
+                persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(next)) }
+                synchronized(stateLock) { _activeSession.value = next }
             }
-        }.toMutableList()
-
-        _activeSession.value = session.copy(exercises = updatedExercises)
-        persistSession()
+            true
+        } finally {
+            synchronized(stateLock) {
+                savingCriticalSet = false
+                val queued = pendingRests.toList()
+                pendingRests.clear()
+                queued.forEach { rest ->
+                    commitRestTaken(rest.key, rest.index, rest.seconds, rest.sessionId)
+                }
+            }
+        }
     }
 
     /**
      * Adds an extra set to the given exercise in-memory.
      */
-    fun addCustomSet(exerciseId: String) {
-        val session = _activeSession.value ?: return
-
-        val exercise = session.exercises.find { it.exerciseId == exerciseId } ?: return
-        val lastSet = exercise.sets.lastOrNull()
-        val newSetNum = exercise.sets.size + 1
-        val suggestedWeight = lastSet?.weight ?: 50.0
-        val suggestedReps = lastSet?.reps ?: 10
-        val suggestedRpe = lastSet?.rpe?.takeIf { it in 1..10 } ?: 0
-        val suggestedWeightUnit = lastSet?.weightUnit ?: "kg"
-
-        // Structural sharing: only copy the affected exercise
-        val updatedExercises = session.exercises.map { ex ->
-            if (ex.exerciseId == exerciseId) {
-                val updatedSets = ex.sets.toMutableList()
-                updatedSets.add(
-                    ActiveSet(
-                        setNumber = newSetNum,
-                        weight = suggestedWeight,
-                        reps = suggestedReps,
-                        rpe = suggestedRpe,
-                        isWarmup = false,
-                        restTakenSeconds = 0,
-                        completed = false,
-                        weightUnit = suggestedWeightUnit
-                    )
-                )
-                ex.copy(sets = updatedSets)
-            } else {
-                ex
-            }
-        }.toMutableList()
-
-        _activeSession.value = session.copy(exercises = updatedExercises)
-        persistSession()
+    private fun withCustomSet(session: ActiveSession, exerciseId: String): ActiveSession? {
+        val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return null
+        if (CircuitExecution.contains(session, session.exercises.indexOf(exercise))) return null
+        if (exercise.sets.size >= 20) return null
+        val updated = exercise.copy(sets = (exercise.sets +
+            com.apexfit.app.utils.ActiveSetDefaults.extraSet(exercise.sets)).toMutableList())
+        return session.copy(exercises = session.exercises.map {
+            if (it.executionKey == exerciseId) updated else it
+        }.toMutableList())
     }
 
+    fun addCustomSet(exerciseId: String) {
+        synchronized(stateLock) {
+            if (committing || savingCriticalSet) return
+            val session = _activeSession.value ?: return
+            _activeSession.value = withCustomSet(session, exerciseId) ?: return
+            persistSession(immediate = true)
+        }
+    }
+
+    suspend fun addCustomSetDurably(expectedSessionId: String, exerciseId: String): Boolean =
+        mutateDraftDurably(expectedSessionId) { session -> withCustomSet(session, exerciseId) }
 
     fun undoSetVolumeAdjustment(exerciseId: String): Boolean {
+        synchronized(stateLock) {
+        if (committing || savingCriticalSet) return false
         val session = _activeSession.value ?: return false
-        val exercise = session.exercises.firstOrNull { it.exerciseId == exerciseId } ?: return false
+        val exercise = session.exercises.firstOrNull { it.executionKey == exerciseId } ?: return false
+        if (CircuitExecution.contains(session, session.exercises.indexOf(exercise))) return false
         val sets = exercise.volumeAdjustment?.revert(exercise.sets) ?: return false
         val restored = exercise.copy(sets = sets.toMutableList(), volumeAdjustment = null)
         val updated = session.copy(exercises = session.exercises.map {
             if (it === exercise) restored else it
         }.toMutableList())
         if (!_activeSession.compareAndSet(session, updated)) return false
-        persistSession()
+        persistSession(immediate = true)
         return true
+        }
     }
 
-    private fun persistSession() {
+    // Called under stateLock by mutation methods. Serialized writes prevent a
+    // delayed draft from replacing the final snapshot or a later workout.
+    private fun persistSession(immediate: Boolean = false) {
         persistJob?.cancel()
+        val session = _activeSession.value
         persistJob = scope.launch {
-            delay(500)
-            val session = _activeSession.value
+            if (!immediate) delay(500)
             try {
-                if (session != null) {
-                    dataStore.saveActiveSessionJson(gson.toJson(session))
-                } else {
-                    dataStore.saveActiveSessionJson(null)
+                persistenceMutex.withLock {
+                    dataStore.saveActiveSessionJson(session?.let { gson.toJson(it) })
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("WorkoutSessionManager", "Session persist failed", e)
             }
         }
     }
 
-    fun clearPersistedSession() {
-        lastProgressionResults.clear()
-        persistJob?.cancel()
-        com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
-        scope.launch {
-            dataStore.saveActiveSessionJson(null)
-        }
+    private fun resetActiveState() {
+        liveRestIdentity = null
         _activeSession.value = null
         _lastWeights.value = emptyMap()
         _weightContextLines.value = emptyMap()
         _pendingPRWarnings.value = emptyMap()
+        _restoredFromDisk.value = false
+    }
+
+    /**
+     * Explicit full reset owns the same mutation boundary as workout commit,
+     * discard and confirmed set writes. Reject during startup rather than
+     * letting a pre-reset plan snapshot become a new draft after the wipe.
+     * The supplied reset action runs only after the workout journal is erased.
+     */
+    internal suspend fun resetWorkoutData(beforeDelete: suspend () -> Unit = {}, resetOtherData: suspend () -> Unit) {
+        restoreJob.join()
+        commitMutex.withLock {
+            synchronized(stateLock) {
+                check(!committing && !savingCriticalSet && !_isStartingSession.value) {
+                    "Workout is starting. Try resetting again after it finishes starting."
+                }
+                committing = true
+            }
+            try {
+                withContext(Dispatchers.IO + NonCancellable) {
+                    beforeDelete()
+                    persistJob?.cancelAndJoin()
+                    persistenceMutex.withLock { dataStore.clearWorkoutRecoveryData() }
+                    synchronized(stateLock) {
+                        resetActiveState()
+                        pendingRests.clear()
+                        metadataMap = emptyMap()
+                        lastReceipt = null
+                        _recoveredReceipt.value = null
+                        _sessionRestoreFailed.value = false
+                        _resetGeneration.value += 1L
+                    }
+                    try {
+                        com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
+                        com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(appContext)
+                    } catch (e: Exception) {
+                        android.util.Log.e("WorkoutSessionManager", "Reset service cleanup failed", e)
+                    }
+                    resetOtherData()
+                }
+            } finally {
+                synchronized(stateLock) { committing = false }
+            }
+        }
+    }
+
+    suspend fun discardDraftDurably(expectedSessionId: String): Boolean = commitMutex.withLock {
+        val allowed = synchronized(stateLock) {
+            if (committing || savingCriticalSet || _isStartingSession.value || _sessionRestoreFailed.value ||
+                _activeSession.value?.sessionId != expectedSessionId) false
+            else { committing = true; true }
+        }
+        if (!allowed) return@withLock false
+        try {
+            withContext(Dispatchers.IO + NonCancellable) {
+                persistJob?.cancelAndJoin()
+                persistenceMutex.withLock { dataStore.saveActiveSessionJson(null) }
+                synchronized(stateLock) { resetActiveState() }
+                try {
+                    com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
+                    com.apexfit.app.utils.RestTimerAlarmReceiver.cancelAlarm(appContext)
+                } catch (e: Exception) {
+                    android.util.Log.e("WorkoutSessionManager", "Draft discarded; service cleanup failed", e)
+                }
+            }
+            true
+        } finally {
+            synchronized(stateLock) { committing = false }
+        }
+    }
+
+    fun clearPersistedSession() {
+        val id = _activeSession.value?.sessionId ?: return
+        scope.launch {
+            try {
+                discardDraftDurably(id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("WorkoutSessionManager", "Draft retained; discard failed", e)
+            }
+        }
     }
 
     /**
@@ -619,8 +864,9 @@ class WorkoutSessionManager(
      * to show the PR badge in the UI.
      */
     suspend fun checkPRPreview(exerciseId: String, weight: Double, reps: Int) {
+        val catalogId = _activeSession.value?.exercises?.firstOrNull { it.executionKey == exerciseId }?.exerciseId ?: return
         val prs = try {
-            repository.getPRsForExercise(exerciseId)
+            repository.getPRsForExercise(catalogId)
         } catch (e: Exception) {
             android.util.Log.e("ApexFit", "checkPRPreview DB read failed", e)
             return
@@ -651,23 +897,41 @@ class WorkoutSessionManager(
         sessionFeel: Int,
         completedSetsOnly: Boolean = true,
         isPartial: Boolean = false
-    ): SessionCommitResult = withContext(Dispatchers.IO) {
-        // AUDIT FIX (BUG-V4-003): cancel any pending persist before we clear
-        // state, so a debounced saver cannot write stale data after the commit's
-        // null write.
-        persistJob?.cancel()
+    ): SessionCommitResult {
+        val requestedId = _activeSession.value?.sessionId ?: return SessionCommitResult.empty()
+        return withContext(Dispatchers.IO) {
+        commitMutex.withLock {
+        val session = synchronized(stateLock) {
+            _activeSession.value?.takeIf { it.sessionId == requestedId }?.also { committing = true }
+        } ?: return@withLock lastReceipt?.takeIf { it.sessionId == requestedId } ?: SessionCommitResult.empty()
+        try {
+        // Finishing is itself an explicit end to any open rest interval.
+        // Resolve the checkpoint in the same final snapshot; no separate UI
+        // close/write race and no time inferred across a reboot.
+        val finalSession = session.restCheckpoint?.let { rest ->
+            val observed = WorkoutResumeState.observedRestSeconds(rest, SystemClock.elapsedRealtime(),
+                WorkoutResumeState.bootCount(appContext), isLiveRestCheckpoint(session.sessionId, rest))
+            val set = session.exercises.firstOrNull { it.executionKey == rest.exerciseKey }?.sets?.getOrNull(rest.setIndex)
+            val updated = if (observed != null && set?.completed == true)
+                editedSet(session, rest.exerciseKey, rest.setIndex, set.weight, set.reps, set.rpe,
+                    observed, true, set.repsInReserve) ?: session
+            else session
+            updated.copy(restCheckpoint = null)
+        } ?: session
+        persistJob?.cancelAndJoin()
+        // Persist the exact final snapshot before the transaction, so recovery
+        // can distinguish a failed commit from a successful commit + failed clear.
+        persistenceMutex.withLock { dataStore.saveActiveSessionJson(gson.toJson(finalSession)) }
+        synchronized(stateLock) { _activeSession.value = finalSession }
 
-        val session = _activeSession.value
-            ?: return@withContext SessionCommitResult.empty()
-
-        val sessionId = UUID.randomUUID().toString()
+        val sessionId = finalSession.sessionId
         val completedAt = System.currentTimeMillis()
         val durationMinutes = ((completedAt - session.startTime).coerceAtLeast(0L).toDouble() / 60_000.0)
             .let { it.roundToInt() }
             .coerceAtLeast(1)
 
         // Flatten all sets, filter to completed if needed
-        val allSets = session.exercises.flatMap { exercise ->
+        val allSets = finalSession.exercises.flatMapIndexed { occurrenceIndex, exercise ->
             exercise.sets
                 .filter { if (completedSetsOnly) it.completed else true }
                 .map { activeSet ->
@@ -684,7 +948,14 @@ class WorkoutSessionManager(
                         completed = activeSet.completed,
                         repsInReserve = activeSet.repsInReserve,
                         effectiveSetValue = com.apexfit.app.utils.ProgressionEngine.calculateEffectiveSetValue(activeSet.rpe),
-                        weightUnit = "kg"
+                        weightUnit = "kg",
+                        occurrenceIndex = occurrenceIndex,
+                        setNumber = activeSet.setNumber,
+                        sourcePlanExerciseId = exercise.sourcePlanExerciseId,
+                        setCompletedAt = activeSet.completedAt.takeIf { activeSet.completed && it > 0L },
+                        advancedDetails = activeSet.advancedDetails,
+                        secondaryMuscleSnapshot = exercise.secondaryMuscleSnapshot,
+                        setObservation = activeSet.setObservation
                     )
                 }
         }
@@ -694,76 +965,77 @@ class WorkoutSessionManager(
                 "${exercise.exerciseName}: ${it.baseSets} → ${it.adjustedSets} planned sets. ${it.reason}"
             }
         }
-        val sessionNotes = (listOfNotNull(session.notes?.takeIf(String::isNotBlank)) + volumeNotes)
+        val groupNotes = CircuitExecution.groups(session).map {
+            "Group ${it.key}: exercise occurrences ${it.firstIndex + 1}–${it.firstIndex + it.memberCount}; configured transition rest ${it.transitionRestSeconds}s, round rest ${it.roundRestSeconds}s."
+        }
+        val sessionNotes = (listOfNotNull(session.notes?.takeIf(String::isNotBlank)) + groupNotes + volumeNotes)
             .joinToString("\n").takeIf(String::isNotBlank)
 
+        val partial = isPartial || session.skippedOccurrenceIndices.orEmpty().isNotEmpty() ||
+            session.exercises.any { exercise -> exercise.sets.any { !it.completed && !it.isWarmup } }
         val trainingSession = TrainingSession(
             id = sessionId,
-            // Attribute a cross-midnight workout to the local calendar day it began.
-            date = com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(session.startTime),
+            // New drafts preserve the actual local date at Start even across timezone changes.
+            // Legacy drafts have no captured date; retain the old timestamp fallback, never link them.
+            date = finalSession.startedLocalDate
+                ?: com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(finalSession.startTime),
             sessionType = session.sessionType,
-            completed = completedSetsOnly && !isPartial,
+            completed = completedSetsOnly && !partial,
             durationMinutes = durationMinutes,
             sessionFeel = sessionFeel.coerceIn(1, 5),
             planSessionId = session.planSessionId.toLongOrNull(),
-            status = if (isPartial) "partial" else "completed",
+            status = if (partial) "partial" else "completed",
             readinessScoreAtStart = session.readinessScore,
             notes = sessionNotes,
             startedAt = session.startTime,
-            completedAt = completedAt
+            completedAt = completedAt,
+            scheduleOccurrenceId = finalSession.scheduleOccurrenceId,
+            trainingFormat = if (CircuitExecution.hasGroups(finalSession)) "grouped" else "sequential"
         )
 
-        // Single atomic transaction — both rows or neither
-        val prs = try {
-            evaluatePRs(allSets)
-        } catch (e: Exception) {
-            android.util.Log.e("ApexFit", "evaluatePRs failed, proceeding with no PRs", e)
-            emptyList()
-        }
+        // Once the durable draft exists, finish the atomic transaction and
+        // cleanup even if the caller leaves the screen. PR read failure aborts
+        // rather than silently saving inaccurate achievement results.
+        withContext(NonCancellable) {
         val db = AppDatabase.getDatabase(appContext)
-        db.withTransaction {
-            repository.insertSessionWithPRsAtomic(trainingSession, allSets, prs)
-            val exerciseIds = lastProgressionResults.keys.toList()
-            val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
-                .associate { it.exerciseId to it.stalledCount }
-            lastProgressionResults.forEach { (exerciseId, result) ->
-                if (!trainingSession.completed || allSets.none { it.exerciseId == exerciseId && it.completed && !it.isWarmup }) return@forEach
-                val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
-                val current = currentCounts[exerciseId] ?: 0
-                val newCount = when (r.outcome.name) {
-                    "SUCCESS", "PROGRESSING", "PLATEAU" -> 0
-                    "STALLED" -> current + 1
-                    else -> current
-                }
-                dao.updateStalledCount(exerciseId, newCount)
-            }
+        val receipt = db.withTransaction {
+            check(dao.getTrainingSessionById(sessionId) == null) { "Workout already saved; see workout history." }
+            val advancedIds = allSets.filter { it.advancedDetails != null }.map { it.exerciseId }.toSet()
+            val earned = evaluatePRs(allSets.filterNot { it.exerciseId in advancedIds }, trainingSession.date)
+            // Write the exact earned PR snapshot BEFORE committing Room. If
+            // Room rolls back, this staged ID cannot be recovered as a receipt.
+            val staged = buildReceipt(trainingSession, allSets, earned, finalSession.reservedOccurrenceId)
+                .copy(savedSets = emptyList())
+            dataStore.stageWorkoutReceipt(sessionId, gson.toJson(staged))
+            repository.insertSessionWithPRsAtomic(trainingSession, allSets, earned)
+            val attributed = com.apexfit.app.utils.ReservedWorkoutExecution.attributeSavedWorkout(db, finalSession, trainingSession, completedAt)
+            // Legacy stall counters were based on the preceding workout and cannot be
+            // replayed after edits. Do not update or use them until source-linked replay exists.
+            buildReceipt(trainingSession, dao.getSetsForSession(sessionId), earned,
+                finalSession.reservedOccurrenceId, attributed.takeIf { finalSession.reservedOccurrenceId != null })
         }
-        lastProgressionResults.clear()
 
-        val totalVolume = allSets
-            .filter { !it.isWarmup }
-            .sumOf { it.weight * it.reps }
-
-        // Use ACTUAL new PRs from evaluatePRs, not the preview warnings
-        val confirmedPRs = prs.map { it.exerciseId }.distinct()
-
-        // Clear state — ALWAYS runs after successful insert
-        _activeSession.value = null
-        _lastWeights.value = emptyMap()
-        _weightContextLines.value = emptyMap()
-        _pendingPRWarnings.value = emptyMap()
-        dataStore.saveActiveSessionJson(null)
-
-        SessionCommitResult(
-            sessionId = sessionId,
-            durationMinutes = durationMinutes,
-            totalVolumeTonnes = totalVolume / 1000.0,
-            setsCompleted = allSets.count { it.completed && !it.isWarmup },
-            confirmedPRs = confirmedPRs,
-            sessionType = session.sessionType,
-            records = prs,
-            isPartial = isPartial
-        )
+        // A cleanup failure must not be reported as a failed database save.
+        // The staged receipt remains until explicit dismissal or a new workout.
+        lastReceipt = receipt
+        try {
+            persistenceMutex.withLock { dataStore.saveActiveSessionJson(null) }
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Workout saved; cleanup will retry on restore", e)
+        }
+        synchronized(stateLock) { resetActiveState() }
+        try {
+            com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
+        } catch (e: Exception) {
+            android.util.Log.e("WorkoutSessionManager", "Workout saved; could not stop service", e)
+        }
+        receipt
+        }
+        } finally {
+            synchronized(stateLock) { committing = false }
+        }
+        }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -780,10 +1052,7 @@ class WorkoutSessionManager(
     }
 
     /** Called from "Save partial session?" dialog — no path */
-    fun discardAndExit() {
-        com.apexfit.app.utils.WorkoutForegroundService.stop(appContext)
-        clearPersistedSession()
-    }
+    fun discardAndExit() = clearPersistedSession()
 
     val hasCompletedSets: Boolean
         get() = _activeSession.value
@@ -796,7 +1065,7 @@ class WorkoutSessionManager(
     // PR EVALUATION — runs after commit
     // ─────────────────────────────────────────────────────────────
 
-    private suspend fun evaluatePRs(sets: List<ExerciseSet>): List<PersonalRecord> {
+    private suspend fun evaluatePRs(sets: List<ExerciseSet>, workoutDate: String): List<PersonalRecord> {
         val newPRs = mutableListOf<PersonalRecord>()
         sets.filter { !it.isWarmup && it.completed }
             .groupBy { it.exerciseId }
@@ -809,7 +1078,7 @@ class WorkoutSessionManager(
                 } ?: return@forEach
 
                 val existing = repository.getPRsForExercise(exerciseId)
-                val today = com.apexfit.app.utils.DateTimeUtils.todayDateString()
+                val today = workoutDate
 
                 val prevWeight = existing.firstOrNull { it.type == "max_weight" }?.value ?: 0.0
                 val prevVolume = existing.firstOrNull { it.type == "volume" }?.value ?: 0.0
@@ -838,6 +1107,7 @@ class WorkoutSessionManager(
 
 // ── Result returned to the session complete screen ───────────────
 
+@androidx.annotation.Keep
 data class SessionCommitResult(
     val sessionId: String,
     val durationMinutes: Int,
@@ -846,7 +1116,10 @@ data class SessionCommitResult(
     val confirmedPRs: List<String>, // list of exerciseIds with new PRs
     val sessionType: String,
     val records: List<com.apexfit.app.data.PersonalRecord> = emptyList(),
-    val isPartial: Boolean = false
+    val isPartial: Boolean = false,
+    val savedSets: List<ExerciseSet> = emptyList(),
+    val reservedOccurrenceId: String? = null,
+    val reservationCredited: Boolean? = null
 ) {
     companion object {
         fun empty() = SessionCommitResult("", 0, 0.0, 0, emptyList(), "")

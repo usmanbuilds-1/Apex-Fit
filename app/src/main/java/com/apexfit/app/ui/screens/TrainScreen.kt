@@ -1,4 +1,5 @@
 package com.apexfit.app.ui.screens
+import com.apexfit.app.utils.toDisplayWeight
 import com.apexfit.app.ui.theme.ApexIcons
 import androidx.compose.ui.res.painterResource
 
@@ -60,6 +61,41 @@ fun TrainTab(
     val libraryScope = rememberCoroutineScope()
     var libraryDetail by remember { mutableStateOf<Pair<com.apexfit.app.data.Exercise, FormGuideContent>?>(null) }
     var libraryError by remember { mutableStateOf(false) }
+    val recoveryRequired by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
+    var recoveryDismissed by remember(recoveryRequired, subTab) { mutableStateOf(false) }
+    var discardingRecovery by remember { mutableStateOf(false) }
+    var recoveryError by remember { mutableStateOf(false) }
+    // Functional recovery gate only: no redesign or navigation changes.
+    if (recoveryRequired && !recoveryDismissed) {
+        AlertDialog(
+            onDismissRequest = { if (!discardingRecovery) recoveryDismissed = true },
+            title = { Text("Saved workout needs attention") },
+            text = {
+                Text(
+                    if (recoveryError) "Could not discard the saved draft. Try again."
+                    else "The previous workout could not be safely restored. Its saved data has been kept. Keep it for recovery, or discard the saved draft to start a new workout. Workouts already in your history are not deleted."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !discardingRecovery,
+                    onClick = {
+                        discardingRecovery = true
+                        libraryScope.launch {
+                            try {
+                                recoveryError = !workoutExecutionViewModel.sessionManager.discardUnrestorableSession()
+                            } finally {
+                                discardingRecovery = false
+                            }
+                        }
+                    }
+                ) { Text("Discard draft") }
+            },
+            dismissButton = {
+                TextButton(enabled = !discardingRecovery, onClick = { recoveryDismissed = true }) { Text("Keep for now") }
+            }
+        )
+    }
 
     if (showLibrary) {
         val library by planBuilderViewModel.exerciseLibrary.collectAsStateWithLifecycle()
@@ -340,16 +376,75 @@ fun WorkoutExecutionSubTab(
     val lastWeights by workoutExecutionViewModel.lastWeights.collectAsStateWithLifecycle()
     val weightContextLines by workoutExecutionViewModel.weightContextLines.collectAsStateWithLifecycle()
     val liveSession by workoutExecutionViewModel.sessionManager.activeSession.collectAsStateWithLifecycle()
+    var showCircuitEditor by rememberSaveable { mutableStateOf(false) }
+    var circuitCount by rememberSaveable { mutableStateOf("2") }
+    var transitionRest by rememberSaveable { mutableStateOf("15") }
+    var roundRest by rememberSaveable { mutableStateOf("90") }
+    val circuitSession = liveSession
+    val circuit = circuitSession?.circuit
+    val hasGroups = circuitSession?.let { com.apexfit.app.utils.CircuitExecution.hasGroups(it) } == true
+    if (showCircuitEditor && circuitSession != null) {
+        val count = circuitCount.toIntOrNull()
+        val between = transitionRest.toIntOrNull()
+        val round = roundRest.toIntOrNull()
+        val valid = count != null && count in 2..circuitSession.exercises.size &&
+            between != null && between in 1..3600 && round != null && round in 1..3600 &&
+            com.apexfit.app.utils.CircuitExecution.canConfigure(circuitSession)
+        AlertDialog(
+            onDismissRequest = { showCircuitEditor = false },
+            title = { Text("Workout circuit") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Group the first consecutive exercises for this workout only. Sets alternate in rounds; completed or skipped members are bypassed.")
+                    OutlinedTextField(circuitCount, { if (it.length <= 3 && it.all(Char::isDigit)) circuitCount = it },
+                        label = { Text("Number of initial exercises (2 or more)") }, singleLine = true)
+                    if (count != null && count in 2..circuitSession.exercises.size) {
+                        Text(circuitSession.exercises.take(count).joinToString(" → ") { it.exerciseName },
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedTextField(transitionRest, { if (it.length <= 4 && it.all(Char::isDigit)) transitionRest = it },
+                        label = { Text("Between members (seconds)") }, singleLine = true)
+                    OutlinedTextField(roundRest, { if (it.length <= 4 && it.all(Char::isDigit)) roundRest = it },
+                        label = { Text("Between rounds / after group (seconds)") }, singleLine = true)
+                    Text("Rest values must be 1–3600 seconds. Choose enough rest for your exercises; grouping does not guarantee better results.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(enabled = valid, onClick = {
+                workoutExecutionViewModel.configureCircuit(com.apexfit.app.data.ActiveCircuit(count!!, between!!, round!!))
+                showCircuitEditor = false
+            }) { Text("Save group") } },
+            dismissButton = {
+                Row {
+                    if (circuit != null) TextButton(onClick = {
+                        workoutExecutionViewModel.configureCircuit(null); showCircuitEditor = false
+                    }) { Text("Remove group") }
+                    TextButton(onClick = { showCircuitEditor = false }) { Text("Cancel") }
+                }
+            }
+        )
+    }
     val volumeAdjustments = remember(liveSession) {
         liveSession?.exercises.orEmpty().mapNotNull { exercise ->
-            exercise.volumeAdjustment?.let { exercise.exerciseId to it }
+            exercise.volumeAdjustment?.let { exercise.executionKey to it }
         }.toMap()
     }
     val preferredUnits by workoutExecutionViewModel.units.collectAsStateWithLifecycle()
     val saveError by workoutExecutionViewModel.saveError.collectAsStateWithLifecycle()
+    val setSaveError by workoutExecutionViewModel.setSaveError.collectAsStateWithLifecycle()
+    val savingSet by workoutExecutionViewModel.isSavingSet.collectAsStateWithLifecycle()
     val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
-    val sessionRestoreFailed by workoutExecutionViewModel.sessionManager.sessionRestoreFailed.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
+    var advancedEditor by remember { mutableStateOf(false) }
+    val advancedExercise = liveSession?.exercises?.getOrNull(currentIdx)
+    val advancedIndex = advancedExercise?.sets?.indexOfFirst { !it.completed && !it.isWarmup } ?: -1
+    val advancedSet = advancedExercise?.sets?.getOrNull(advancedIndex)
+    if (advancedEditor && advancedExercise != null && advancedSet != null && !hasGroups) {
+        AdvancedBoutEditor(advancedSet, onDismiss = { advancedEditor = false }, onSave = { weight, reps, details ->
+            if (workoutExecutionViewModel.logAdvancedBout(advancedExercise.executionKey, advancedIndex, weight, reps, details) != null)
+                advancedEditor = false
+        })
+    }
+     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val currentExercise = exercises.getOrNull(currentIdx)
     val currentExerciseEquipment by produceState<String?>(
@@ -384,17 +479,7 @@ fun WorkoutExecutionSubTab(
         }
     }
 
-    LaunchedEffect(sessionRestoreFailed) {
-        if (sessionRestoreFailed) {
-            snackbarHostState.showSnackbar(
-                message = "Your previous session could not be restored.",
-                actionLabel = "OK",
-                duration = SnackbarDuration.Long
-            )
-        }
-    }
-
-    var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
+     var showFinishEarlyDialog by rememberSaveable { mutableStateOf(false) }
     var showNormalFinishFeelDialog by rememberSaveable { mutableStateOf(false) }
     var selectedFeelRating by rememberSaveable { mutableStateOf(4) }
     var showExitDialog by rememberSaveable { mutableStateOf(false) }
@@ -409,6 +494,13 @@ fun WorkoutExecutionSubTab(
                     formGuideContent = content
                 }
             }
+        }
+    }
+
+    LaunchedEffect(setSaveError, showRirOverlay) {
+        if (setSaveError != null && !showRirOverlay) {
+            snackbarHostState.showSnackbar(setSaveError.orEmpty())
+            workoutExecutionViewModel.dismissSetSaveError()
         }
     }
 
@@ -477,7 +569,6 @@ fun WorkoutExecutionSubTab(
                     TextButton(
                         onClick = {
                             showExitDialog = false
-                            restTimerViewModel.cancelRestTimer()
                             workoutExecutionViewModel.cancelActiveWorkout()
                         }
                     ) {
@@ -759,6 +850,45 @@ fun WorkoutExecutionSubTab(
                         onBack = { showExitDialog = true },
                         onFinish = { showNormalFinishFeelDialog = true }
                     )
+                    if (circuitSession != null && com.apexfit.app.utils.CircuitExecution.canConfigure(circuitSession)) {
+                        TextButton(enabled = !savingSet && !showRirOverlay, onClick = {
+                            circuitCount = (circuit?.memberCount ?: 2).toString()
+                            transitionRest = (circuit?.transitionRestSeconds ?: 15).toString()
+                            roundRest = (circuit?.roundRestSeconds ?: 90).toString()
+                            showCircuitEditor = true
+                        }) { Text(if (circuit == null) "Configure superset / circuit" else "Edit circuit") }
+                    }
+                    val proposalExercise = liveSession?.exercises?.getOrNull(currentIdx)
+                    val proposal = proposalExercise?.progressionProposal
+                    var showProgressionConfirm by remember { mutableStateOf(false) }
+                    if (proposal != null && proposalExercise != null && !hasGroups &&
+                        proposalExercise.sets.none { it.completed }) {
+                        TextButton(enabled = !savingSet && !showRirOverlay && liveSession?.restCheckpoint == null,
+                            onClick = { showProgressionConfirm = true }) {
+                            Text("Use suggested load · confirm setup")
+                        }
+                        if (showProgressionConfirm) AlertDialog(
+                            onDismissRequest = { showProgressionConfirm = false },
+                            title = { Text("Same equipment setup?") },
+                            text = { Text("Previous setup: ${proposal.basis.label} · ${proposal.setup}. Source workout ${proposal.sourceDate}. Apply ${proposal.suggestedKg.toDisplayWeight(preferredUnits)} $preferredUnits in this same load convention, replacing the weights of all unlogged prescribed sets? Adjust manually if equipment or conditions differ.") },
+                            confirmButton = { TextButton(onClick = {
+                                showProgressionConfirm = false
+                                workoutExecutionViewModel.applyProgression(proposalExercise.executionKey, proposal)
+                            }) { Text("Confirm and apply") } },
+                            dismissButton = { TextButton(onClick = { showProgressionConfirm = false }) { Text("Keep plan load") } })
+                    }
+                    val grouped = circuitSession != null && com.apexfit.app.utils.CircuitExecution.contains(circuitSession, currentIdx)
+                    val activeGroup = circuitSession?.let { com.apexfit.app.utils.CircuitExecution.groupAt(it, currentIdx) }
+                    if (activeGroup != null) {
+                        Text("Group ${activeGroup.key} · ${currentIdx - activeGroup.firstIndex + 1} of ${activeGroup.memberCount} members · ${activeGroup.transitionRestSeconds}s transition / ${activeGroup.roundRestSeconds}s round rest",
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                    }
+                    if (advancedSet != null && !hasGroups && liveSession?.restCheckpoint == null) {
+                        TextButton(enabled = !savingSet && !showRirOverlay, onClick = { advancedEditor = true }) {
+                            Text("Log drop set / rest-pause / failure")
+                        }
+                    }
                     ExerciseListSection(
                         exercises = exercises,
                         currentIdx = currentIdx,
@@ -770,7 +900,7 @@ fun WorkoutExecutionSubTab(
                         volumeAdjustments = volumeAdjustments,
                         onUndoVolumeAdjustment = workoutExecutionViewModel.sessionManager::undoSetVolumeAdjustment,
                         preferredUnits = preferredUnits,
-                        showRirOverlay = showRirOverlay,
+                        showRirOverlay = showRirOverlay || savingSet,
                         onOpenFormGuide = onOpenFormGuide,
                         onToggleWarmupItem = { workoutExecutionViewModel.toggleWarmupItem(it) },
                         onLogSetState = { exId, sIdx, w, r, rpe, comp, restTaken ->
@@ -799,9 +929,10 @@ fun WorkoutExecutionSubTab(
                         onAddCustomLogSet = { workoutExecutionViewModel.addCustomLogSet(it) },
                         onNextExercise = { workoutExecutionViewModel.nextExercise() },
                         onSkipExercise = { ex ->
-                            workoutExecutionViewModel.skipExercise()
-                            scope.launch {
-                                snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
+                            workoutExecutionViewModel.skipExercise {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(context.getString(R.string.train_exercise_skipped, ex.name))
+                                }
                             }
                         },
                         onShowNormalFinishFeelDialog = { showNormalFinishFeelDialog = true },
@@ -814,7 +945,10 @@ fun WorkoutExecutionSubTab(
                             workoutExecutionViewModel.cancelOrCompleteEmptySession()
                         },
                         modifier = Modifier.weight(1f),
-                        currentExerciseEquipment = currentExerciseEquipment
+                        currentExerciseEquipment = currentExerciseEquipment,
+                        groupedExecution = grouped,
+                        terminalExercise = if (grouped && circuitSession != null)
+                            com.apexfit.app.utils.CircuitExecution.terminal(circuitSession, currentIdx) else null
                     )
                 }
             }
@@ -902,4 +1036,88 @@ fun NewPlansSubTab(
         },
         modifier = modifier
     )
+}
+
+
+@Composable
+private fun AdvancedBoutEditor(
+    set: com.apexfit.app.data.ActiveSet,
+    onDismiss: () -> Unit,
+    onSave: (Double, Int, AdvancedSetDetails) -> Unit
+) {
+    var kind by remember { mutableStateOf(AdvancedSetKind.DROP) }
+    var weight by remember { mutableStateOf(set.weight.toString()) }
+    var reps by remember { mutableStateOf(set.reps.toString()) }
+    var outcome by remember { mutableStateOf(SetOutcome.UNKNOWN) }
+    data class SegmentInput(val weight: String, val reps: String, val rest: String, val outcome: SetOutcome)
+    val rows = remember { mutableStateListOf(SegmentInput("", "", "0", SetOutcome.UNKNOWN)) }
+    val parentKg = weight.toDoubleOrNull()?.fromDisplayWeightToKg(set.weightUnit)
+    val segments = if (kind == AdvancedSetKind.WORKING) emptyList() else rows.mapNotNull {
+        val kg = it.weight.toDoubleOrNull()?.fromDisplayWeightToKg(set.weightUnit) ?: return@mapNotNull null
+        val count = it.reps.toIntOrNull() ?: return@mapNotNull null
+        val rest = it.rest.toIntOrNull() ?: return@mapNotNull null
+        SetContinuation(kg, count, rest, it.outcome)
+    }
+    val details = AdvancedSetDetails(kind, outcome, segments)
+    val valid = parentKg != null && reps.toIntOrNull()?.let { it in 1..1000 } == true &&
+        (kind == AdvancedSetKind.WORKING || segments.size == rows.size) && AdvancedSets.valid(parentKg, details)
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Log completed working bout") },
+        text = {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Enter actual completed repetitions. Log the initial set and all continuations together; do not enter planned work.")
+                AdvancedSetKind.entries.forEach { option ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = kind == option, onClick = { kind = option })
+                        Text(when (option) {
+                            AdvancedSetKind.DROP -> "Drop set"
+                            AdvancedSetKind.REST_PAUSE -> "Rest-pause"
+                            AdvancedSetKind.WORKING -> "Straight set · failure status"
+                        })
+                    }
+                }
+                OutlinedTextField(weight, { weight = it.take(14) }, label = { Text("Initial load (${set.weightUnit})") }, singleLine = true)
+                OutlinedTextField(reps, { reps = it.take(4) }, label = { Text("Initial reps") }, singleLine = true)
+                BoutOutcomeSelector(outcome) { outcome = it }
+                if (kind != AdvancedSetKind.WORKING) {
+                    rows.forEachIndexed { i, row ->
+                        HorizontalDivider()
+                        Text("Continuation ${i + 1}")
+                        OutlinedTextField(row.weight, { rows[i] = row.copy(weight = it.take(14)) },
+                            label = { Text("Load (${set.weightUnit})") }, singleLine = true)
+                        OutlinedTextField(row.reps, { rows[i] = row.copy(reps = it.take(4)) },
+                            label = { Text("Completed reps") }, singleLine = true)
+                        OutlinedTextField(row.rest, { rows[i] = row.copy(rest = it.take(4)) },
+                            label = { Text("Actual preceding rest seconds") }, singleLine = true)
+                        BoutOutcomeSelector(row.outcome) { rows[i] = row.copy(outcome = it) }
+                        if (rows.size > 1) TextButton(onClick = { rows.removeAt(i) }) { Text("Remove continuation") }
+                    }
+                    TextButton(enabled = rows.size < 10, onClick = {
+                        rows.add(SegmentInput("", "", if (kind == AdvancedSetKind.REST_PAUSE) "" else "0", SetOutcome.UNKNOWN))
+                    }) { Text("Add continuation") }
+                    Text(if (kind == AdvancedSetKind.DROP) "Each continuation must use a lower load."
+                        else "Rest-pause continuations use the same load and positive rest.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                Text("One working bout. No extra set credit or automatic progression. Failure is optional and is not recommended just to unlock a metric.",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+            }
+        }, confirmButton = { TextButton(enabled = valid, onClick = {
+            onSave(weight.toDouble(), reps.toInt(), details)
+        }) { Text("Save completed bout") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+@Composable
+private fun BoutOutcomeSelector(value: SetOutcome, onChange: (SetOutcome) -> Unit) {
+    SetOutcome.entries.forEach { option ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = value == option, onClick = { onChange(option) })
+            Text(when (option) {
+                SetOutcome.FAILURE -> "Reached failure"
+                SetOutcome.NOT_FAILURE -> "Stopped before failure"
+                SetOutcome.UNKNOWN -> "Failure status unknown"
+            })
+        }
+    }
 }

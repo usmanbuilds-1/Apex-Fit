@@ -124,15 +124,16 @@ fun HomeScreen(
     val todayDate          by homeViewModel.todayDate.collectAsStateWithLifecycle()
     val estimatedWorkoutDuration by homeViewModel.estimatedWorkoutDuration.collectAsStateWithLifecycle()
 
-    // Derive today's session from active plan
-    val todayDayName = remember(todayDate) {
-        LocalDate.parse(todayDate).dayOfWeek.getDisplayName(JavaTextStyle.FULL, Locale.ENGLISH)
-    }
-    val todaySession = remember(planSessionsState, todayDayName) {
-        when (val s = planSessionsState) {
-            is UiState.Success -> s.data?.find { it.day.equals(todayDayName, ignoreCase = true) }
-            else -> null
-        }
+    val rawChoice by homeViewModel.todayWorkoutChoice.collectAsStateWithLifecycle()
+    val choice = rawChoice?.takeIf { it.date.toString() == todayDate }
+    val todaySession = choice?.session
+    val reservation = choice?.reservation
+    val scheduleNote = when (choice?.kind) {
+        com.apexfit.app.utils.TodayWorkoutKind.DEFERRED -> "Workout moved to ${reservation?.targetDate}"
+        com.apexfit.app.utils.TodayWorkoutKind.RESERVED -> "Rescheduled from ${reservation?.originalDate}"
+        com.apexfit.app.utils.TodayWorkoutKind.REVIEW -> "Reservation needs review in Training calendar"
+        null -> "Loading today's schedule"
+        else -> null
     }
     val weeklySessionTarget = remember(planSessionsState) {
         when (val state = planSessionsState) {
@@ -168,6 +169,7 @@ fun HomeScreen(
         todayDate = todayDate,
         sessionLabel = todaySession?.label,
         sessionFocus = todaySession?.focus.orEmpty(),
+        scheduleNote = scheduleNote,
         scheduledExerciseCount = todayExercises.size,
         weeklySessionTarget = weeklySessionTarget,
         hasActiveSession = activeSession != null,
@@ -191,7 +193,8 @@ fun HomeScreen(
             showLogWeight = true
         },
         onStartWorkout = {
-            if (activeSession == null) todaySession?.let(workoutExecutionViewModel::startWorkoutSession)
+            if (activeSession == null && todaySession != null) workoutExecutionViewModel.startWorkoutSession(todaySession,
+                reservation.takeIf { choice?.kind == com.apexfit.app.utils.TodayWorkoutKind.RESERVED })
             fitnessViewModel.setTrainSubTab(if (activeSession != null || todaySession != null) 1 else 0)
             onNavigateTo(1)
         }
@@ -247,7 +250,8 @@ internal fun TodayContent(
     onNutrition: () -> Unit,
     onProgress: () -> Unit,
     onLogWeight: () -> Unit = onProgress,
-    onStartWorkout: () -> Unit
+    onStartWorkout: () -> Unit,
+    scheduleNote: String? = null
 ) {
     var showReadinessExplanation by remember { mutableStateOf(false) }
     var showDurationExplanation by remember { mutableStateOf(false) }
@@ -286,6 +290,7 @@ internal fun TodayContent(
 
                     onStartWorkout = onStartWorkout
                 )
+                scheduleNote?.let { Text(it, color = TextMuted, fontSize = 12.sp) }
 
                 // Nutrition and weight use logged values, never sample data.
                 if (isNarrowScreen) {
@@ -504,7 +509,7 @@ private fun TodayWorkoutCard(
                         Text(readiness.label, color = TextMuted, fontSize = 13.sp)
                     } else {
                         Text(
-                            readiness.score.coerceIn(0, 100).toString(),
+                            readiness.label,
                             color = MineralBlue,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold

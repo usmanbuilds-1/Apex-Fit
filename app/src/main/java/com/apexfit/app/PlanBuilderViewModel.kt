@@ -190,8 +190,24 @@ class PlanBuilderViewModel @Inject constructor(
             }
         }
 
+    fun configurePermanentGroup(sessionId: Long, expectedIds: List<Long>, key: String,
+                                memberIds: List<Long>, transition: Int, round: Int): Boolean {
+        val before = planBuilderExercises.value
+        val after = com.apexfit.app.utils.PermanentWorkoutGroups.configure(
+            before, sessionId, expectedIds, key, memberIds, transition, round) ?: return false
+        return planBuilderExercises.compareAndSet(before, after)
+    }
+
+    fun removePermanentGroup(sessionId: Long, key: String) {
+        val before = planBuilderExercises.value
+        planBuilderExercises.compareAndSet(before,
+            com.apexfit.app.utils.PermanentWorkoutGroups.remove(before, sessionId, key))
+    }
+
     fun deleteExercise(exerciseId: Long) {
-        planBuilderExercises.value = planBuilderExercises.value.filter { it.id != exerciseId }
+        val before = planBuilderExercises.value
+        planBuilderExercises.compareAndSet(before,
+            com.apexfit.app.utils.PermanentWorkoutGroups.deleteOccurrence(before, exerciseId))
     }
 
     fun getSessionById(id: Long): PlanSession? {
@@ -307,6 +323,7 @@ class PlanBuilderViewModel @Inject constructor(
             dao.deactivateAllPlans()
             dao.initializeCycleAnchor(planId, com.apexfit.app.utils.WorkoutSchedule.monday(java.time.LocalDate.now()).toString())
             dao.activatePlan(planId)
+            com.apexfit.app.utils.ScheduleLedger.capture(db)
         }
     }
 
@@ -377,6 +394,7 @@ class PlanBuilderViewModel @Inject constructor(
         }
 
         dao.insertPlanExercises(resolvedExercises)
+        com.apexfit.app.utils.ScheduleLedger.capture(db)
         }
     }
 }

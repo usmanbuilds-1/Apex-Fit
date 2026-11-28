@@ -214,7 +214,7 @@ data class ProgressionResult(
             2 -> 8                     // 2 reps left -> RPE 8
             1 -> 9                     // 1 rep left -> RPE 9
             0 -> 10                    // 0 reps left -> RPE 10
-            else -> 8                  // Default to sweet spot RPE 8
+            else -> 0                  // Unrated or invalid input: never invent an effort rating
         }
     }
 
@@ -236,7 +236,8 @@ data class ProgressionResult(
 
     fun getEffectivenessLabel(rpe: Int): String {
         return when(rpe) {
-            in 0..4 -> "Very low effort"
+            0 -> "Unrated"
+            in 1..4 -> "Very low effort"
             in 5..6 -> "Low effort"
             7 -> "Moderate effort"
             8 -> "Hard set"

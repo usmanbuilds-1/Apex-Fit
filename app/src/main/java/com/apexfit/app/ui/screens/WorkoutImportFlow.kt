@@ -77,7 +77,8 @@ fun WorkoutImportFlow(
                 onUpdateExerciseText = viewModel::updateExerciseText,
                 onUpdateWeightUnit = viewModel::updateWeightUnit,
                 onMoveExercise = viewModel::moveExercise,
-                onDeleteExercise = viewModel::deleteExercise
+                onDeleteExercise = viewModel::deleteExercise,
+                onSetGroup = viewModel::setImportedGroup
             )
         )
     }
@@ -102,7 +103,8 @@ internal data class WorkoutImportReviewActions(
     val onUpdateExerciseText: (dayKey: String, exerciseKey: String, field: ExerciseField, value: String) -> Unit = { _, _, _, _ -> },
     val onUpdateWeightUnit: (dayKey: String, exerciseKey: String, unit: ImportWeightUnit) -> Unit = { _, _, _ -> },
     val onMoveExercise: (dayKey: String, exerciseKey: String, delta: Int) -> Unit = { _, _, _ -> },
-    val onDeleteExercise: (dayKey: String, exerciseKey: String) -> Unit = { _, _ -> }
+    val onDeleteExercise: (dayKey: String, exerciseKey: String) -> Unit = { _, _ -> },
+    val onSetGroup: (String, String, List<String>, Int?, Int?) -> Unit = { _, _, _, _, _ -> }
 )
 
 @Composable
@@ -385,7 +387,8 @@ internal fun WorkoutImportReviewScreen(
                     onDeleteExercise = { exerciseKey ->
                         actions.onDeleteExercise(day.key, exerciseKey)
                     },
-                    onAddExercise = { pickerTarget = day.key to null }
+                    onAddExercise = { pickerTarget = day.key to null },
+                    onSetGroup = { tag, members, transition, round -> actions.onSetGroup(day.key, tag, members, transition, round) }
                 )
             }
 
@@ -421,7 +424,8 @@ private fun ImportedDayCard(
     onUnit: (String, ImportWeightUnit) -> Unit,
     onMoveExercise: (String, Int) -> Unit,
     onDeleteExercise: (String) -> Unit,
-    onAddExercise: () -> Unit
+    onAddExercise: () -> Unit,
+    onSetGroup: (String, List<String>, Int?, Int?) -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = DarkCardSurface),
@@ -456,6 +460,17 @@ private fun ImportedDayCard(
             if (!isScheduledTemplate) WeekdayPicker(day.dayOfWeek, onWeekday)
             else Text("Weekdays assigned by recovered schedule", color = MutedText, fontSize = 11.sp)
 
+            val candidates = day.groupCandidates()
+            candidates.forEach { candidate ->
+                key(candidate.tag) {
+                    ImportedGroupReview(candidate, day.validGroupChoice(candidate.tag),
+                        day.groupChoices.containsKey(candidate.tag), onSetGroup)
+                }
+            }
+            (day.groupChoices.keys - candidates.map { it.tag }.toSet()).forEach { tag ->
+                Text("Group $tag no longer has any members. Remove it before saving.", color = ApexColors.Alert)
+                TextButton(onClick = { onSetGroup(tag, emptyList(), null, null) }) { Text("Remove group $tag") }
+            }
             day.exercises.forEach { exercise ->
                 ImportedExerciseCard(
                     exercise = exercise,
@@ -476,6 +491,41 @@ private fun ImportedDayCard(
                 Text("Add exercise")
             }
         }
+    }
+}
+
+@Composable
+private fun ImportedGroupReview(candidate: com.apexfit.app.domain.importer.ImportedGroupCandidate,
+                                accepted: com.apexfit.app.domain.importer.ImportedGroupChoice?,
+                                hasChoice: Boolean,
+                                onSetGroup: (String, List<String>, Int?, Int?) -> Unit) {
+    val members = candidate.members.map { it.key }
+    var transition by remember(candidate.tag, members, accepted) { mutableStateOf(accepted?.transitionRest?.toString() ?: "15") }
+    var round by remember(candidate.tag, members, accepted) { mutableStateOf(accepted?.roundRest?.toString() ?: "120") }
+    val between = transition.toIntOrNull()
+    val afterRound = round.toIntOrNull()
+    val valid = candidate.consecutive && between != null && between in 1..3600 &&
+        afterRound != null && afterRound in 1..3600
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Imported group ${candidate.tag}", style = MaterialTheme.typography.titleSmall)
+        Text(candidate.members.joinToString(" → ") { it.selectedExerciseName ?: it.sourceName },
+            color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+        Text(when {
+            accepted != null -> "Confirmed · ${accepted.transitionRest}s transition / ${accepted.roundRest}s round rest"
+            hasChoice -> "Group changed. Confirm again or keep sequential."
+            !candidate.consecutive -> "Group needs at least two consecutive exercises. Kept sequential."
+            else -> "Sequential unless you explicitly confirm this group."
+        }, color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+        if (candidate.consecutive) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NumberField("Transition sec", transition, Modifier.weight(1f)) { transition = it.take(4) }
+                NumberField("Round rest sec", round, Modifier.weight(1f)) { round = it.take(4) }
+            }
+            TextButton(enabled = valid, onClick = {
+                onSetGroup(candidate.tag, members, between, afterRound)
+            }) { Text(if (accepted == null) "Confirm group" else "Update group") }
+        }
+        if (hasChoice) TextButton(onClick = { onSetGroup(candidate.tag, members, null, null) }) { Text("Keep sequential") }
     }
 }
 

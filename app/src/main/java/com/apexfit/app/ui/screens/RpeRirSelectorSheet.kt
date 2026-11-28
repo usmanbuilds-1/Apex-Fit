@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +45,7 @@ import com.apexfit.app.data.LastSetWithDate
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.AppConstants
 import com.apexfit.app.utils.ProgressionEngine
+import com.apexfit.app.utils.EffortSelection
 
 private val RIR_OPTIONS = listOf(0, 1, 2, 3, 4, 5)
 
@@ -75,7 +77,15 @@ fun RpeRirSelectorSheet(
     onAddRestTime: (Int) -> Unit,
     onSubtractRestTime: () -> Unit,
     onConfirmRirAndNextSet: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isSavingSet: Boolean = false,
+    setSaveError: String? = null,
+    loadBasis: com.apexfit.app.utils.RecordedLoadBasis? = null,
+    loadSetup: String = "",
+    freeWeightRepLimit: Boolean = false,
+    onLoadBasis: ((com.apexfit.app.utils.RecordedLoadBasis?) -> Unit)? = null,
+    onLoadSetup: (String) -> Unit = {},
+    onRepLimit: (Boolean) -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     Column(
@@ -91,7 +101,7 @@ fun RpeRirSelectorSheet(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = onDismiss, enabled = !isSavingSet, modifier = Modifier.size(48.dp)) {
                     Icon(painterResource(ApexIcons.ArrowLeft), contentDescription = "Back to workout",
                         tint = ApexColors.TextPrimary)
                 }
@@ -145,18 +155,51 @@ fun RpeRirSelectorSheet(
                     lineHeight = 22.sp
                 )
                 Spacer(Modifier.height(14.dp))
-                RirOptions(selectedRir = selectedRir, onSelect = onSelectRirOption)
+                RirOptions(selectedRir = selectedRir, onSelect = { if (!isSavingSet) onSelectRirOption(it) })
                 Spacer(Modifier.height(9.dp))
-                val rpe = ProgressionEngine.calculateRPEFromRIR(selectedRir)
+                val rated = EffortSelection.isRated(selectedRir)
+                val rpe = EffortSelection.rpe(selectedRir)
                 val repStatus = when {
                     reps < targetRepsMin -> "Below target"
                     reps > targetRepsMax -> "Above target"
                     else -> "On target"
                 }
-                Text("RPE $rpe · $repStatus", style = MaterialTheme.typography.bodyMedium,
+                Text(if (rated) "RPE $rpe · $repStatus" else "Effort unrated · $repStatus", style = MaterialTheme.typography.bodyMedium,
                     color = ApexColors.TextSecondary, fontWeight = FontWeight.Medium)
+                if (!hasLoggedSet && onLoadBasis != null) {
+                    var showSetup by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                    TextButton(onClick = { showSetup = !showSetup }, enabled = !isSavingSet) {
+                        Text(if (loadBasis == null) "Load setup · optional" else loadBasis.label + " · " + loadSetup)
+                    }
+                    if (showSetup) {
+                        Text("Confirm only the load you actually recorded.", style = MaterialTheme.typography.bodySmall)
+                        (listOf<com.apexfit.app.utils.RecordedLoadBasis?>(null) +
+                            com.apexfit.app.utils.RecordedLoadBasis.entries).forEach { basis ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.RadioButton(selected = basis == loadBasis,
+                                    enabled = !isSavingSet, onClick = { onLoadBasis(basis) })
+                                Text(basis?.label ?: "Unknown / assisted / bodyweight")
+                            }
+                        }
+                        if (loadBasis != null) {
+                            androidx.compose.material3.OutlinedTextField(loadSetup, onLoadSetup,
+                                enabled = !isSavingSet, singleLine = true,
+                                label = { Text("Setup name (same for comparable sets)") })
+                        }
+                        if (loadBasis == com.apexfit.app.utils.RecordedLoadBasis.TOTAL && selectedRir == 0 && reps in 2..5) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.Checkbox(checked = freeWeightRepLimit,
+                                    enabled = !isSavingSet, onCheckedChange = onRepLimit)
+                                Text("Unassisted free-weight set, full uninterrupted reps at my rep limit.")
+                            }
+                        }
+                    }
+                }
                 if (!hasLoggedSet) {
+                    if (!rated) Text("Choose an effort rating or log without one. Unrated sets do not establish effort-based progression.",
+                        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                     TextButton(
+                        enabled = rated && !isSavingSet,
                         onClick = onConfirmRirSelection,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     ) {
@@ -187,14 +230,16 @@ fun RpeRirSelectorSheet(
             }
         }
 
+        setSaveError?.let { Text(it, color = ApexColors.Alert, modifier = Modifier.padding(bottom = 8.dp)) }
         Button(
+            enabled = !isSavingSet,
             onClick = if (isShowingHistory) onReturnFromHistory else onConfirmRirAndNextSet,
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(bottom = 8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
             shape = RoundedCornerShape(10.dp)
         ) {
             Text(
-                text = if (isShowingHistory) "Back to workout" else primaryActionLabel,
+                text = if (isSavingSet) "Saving set…" else if (isShowingHistory) "Back to workout" else primaryActionLabel,
                 color = ApexColors.OnGlow,
                 fontWeight = FontWeight.Bold
             )
@@ -350,6 +395,8 @@ fun RirSelectorOverlay(
     onDismiss: () -> Unit
 ) {
     val state by workoutExecutionViewModel.rirOverlayState.collectAsStateWithLifecycle()
+    val savingSet by workoutExecutionViewModel.isSavingSet.collectAsStateWithLifecycle()
+    val saveError by workoutExecutionViewModel.setSaveError.collectAsStateWithLifecycle()
     val activeExercises by workoutExecutionViewModel.activeExercises.collectAsStateWithLifecycle()
     val units by fitnessViewModel.units.collectAsStateWithLifecycle()
     val restSeconds by restTimerViewModel.restTimerSeconds.collectAsStateWithLifecycle()
@@ -357,8 +404,9 @@ fun RirSelectorOverlay(
     val lastSetContext by restTimerViewModel.restTimerLastSetContext.collectAsStateWithLifecycle()
     val nextSetPreview by restTimerViewModel.restTimerNextSetPreview.collectAsStateWithLifecycle()
     val isRestVisible by restTimerViewModel.showRestOverlay.collectAsStateWithLifecycle()
-    val exercise = activeExercises.firstOrNull { it.exerciseId == state.exerciseId }
-    val exerciseIndex = activeExercises.indexOfFirst { it.exerciseId == state.exerciseId }
+    val occurrenceKeys = com.apexfit.app.utils.WorkoutOccurrenceKeys.allocate(activeExercises.map { it.exerciseId })
+    val exerciseIndex = occurrenceKeys.indexOf(state.exerciseId)
+    val exercise = activeExercises.getOrNull(exerciseIndex)
     val repMin = exercise?.repsMin?.coerceAtLeast(1) ?: 1
     val repMax = exercise?.repsMax?.coerceAtLeast(repMin) ?: repMin
     val isLastSet = state.setIndex + 1 >= state.totalSets
@@ -366,7 +414,7 @@ fun RirSelectorOverlay(
     val isWorkoutComplete = isLastSet && exerciseIndex >= 0 && exerciseIndex == activeExercises.lastIndex
     val nextAction = when {
         state.isShowingHistory -> "Back to workout"
-        !state.hasLoggedSet -> "Log set ${state.setIndex + 1}"
+        !state.hasLoggedSet -> if (EffortSelection.isRated(state.selectedRir)) "Log set ${state.setIndex + 1}" else "Log set ${state.setIndex + 1} unrated"
         !isLastSet -> "Start set ${state.setIndex + 2}"
         nextExercise != null -> "Start ${nextExercise.name}"
         else -> "Review workout"
@@ -394,7 +442,7 @@ fun RirSelectorOverlay(
         primaryActionLabel = nextAction,
         units = units,
         onSelectRirOption = { rir ->
-            workoutExecutionViewModel.selectRirOption(rir)
+            workoutExecutionViewModel.selectRirOption(rir) {
             if (state.hasLoggedSet) {
                 restTimerViewModel.updateRestTimerForRpe(
                     rpe = ProgressionEngine.calculateRPEFromRIR(rir),
@@ -405,6 +453,7 @@ fun RirSelectorOverlay(
                     units = units,
                     reps = state.reps
                 )
+            }
             }
         },
         onConfirmRirSelection = workoutExecutionViewModel::confirmRirSelection,
@@ -438,7 +487,13 @@ fun RirSelectorOverlay(
                 if (isWorkoutComplete) workoutExecutionViewModel.nextExercise()
             }
         },
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        isSavingSet = savingSet,
+        setSaveError = saveError,
+        loadBasis = state.loadBasis, loadSetup = state.loadSetup, freeWeightRepLimit = state.freeWeightRepLimit,
+        onLoadBasis = workoutExecutionViewModel::selectLoadBasis,
+        onLoadSetup = workoutExecutionViewModel::setLoadSetup,
+        onRepLimit = workoutExecutionViewModel::setFreeWeightRepLimit
     )
 }
 

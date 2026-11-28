@@ -73,12 +73,124 @@ interface FitnessDao {
     @Query("DELETE FROM nutrition_logs WHERE date = :date")
     suspend fun deleteNutritionEntry(date: String)
 
+    // Immutable schedule evidence. Only inserts are exposed; reset clears the database.
+    @Insert
+    suspend fun insertScheduleRevision(revision: ScheduleRevision): Long
+
+    @Insert
+    suspend fun insertScheduleRevisionSlots(slots: List<ScheduleRevisionSlot>)
+
+    @Transaction
+    @Query("SELECT * FROM schedule_revisions ORDER BY id DESC LIMIT 1")
+    suspend fun getLatestScheduleRevision(): ScheduleRevisionSnapshot?
+
+    @Transaction
+    @Query("SELECT * FROM schedule_revisions WHERE effectiveFrom <= :date ORDER BY effectiveFrom DESC, id DESC LIMIT 1")
+    suspend fun getScheduleRevisionForDate(date: String): ScheduleRevisionSnapshot?
+
+    @Transaction
+    @Query("""
+        SELECT * FROM schedule_revisions
+        WHERE effectiveFrom <= :end AND
+            (effectiveFrom >= :start OR id = (SELECT id FROM schedule_revisions
+             WHERE effectiveFrom < :start ORDER BY effectiveFrom DESC, id DESC LIMIT 1))
+        ORDER BY effectiveFrom, id
+    """)
+    fun observeScheduleRevisions(start: String, end: String): Flow<List<ScheduleRevisionSnapshot>>
+
+    @Upsert
+    suspend fun upsertScheduleDisposition(disposition: ScheduleDisposition)
+
+    @Query("DELETE FROM schedule_dispositions WHERE occurrenceId = :occurrenceId")
+    suspend fun clearScheduleDisposition(occurrenceId: String)
+
+    @Query("SELECT * FROM schedule_dispositions WHERE scheduledDate BETWEEN :start AND :end")
+    fun observeScheduleDispositions(start: String, end: String): Flow<List<ScheduleDisposition>>
+
+    @Query("SELECT * FROM workout_sessions WHERE date = :date AND schedule_occurrence_id = :occurrenceId")
+    suspend fun getOccurrenceWorkouts(date: String, occurrenceId: String): List<TrainingSession>
+
+    @Insert
+    suspend fun insertScheduleWorkoutAssociation(association: ScheduleWorkoutAssociation)
+
+    @Query("DELETE FROM schedule_workout_associations WHERE occurrenceId = :occurrenceId")
+    suspend fun clearScheduleWorkoutAssociation(occurrenceId: String)
+
+    @Query("SELECT * FROM schedule_workout_associations WHERE occurrenceId = :occurrenceId")
+    suspend fun getScheduleWorkoutAssociation(occurrenceId: String): ScheduleWorkoutAssociation?
+
+    @Query("SELECT * FROM schedule_workout_associations WHERE sessionId = :sessionId")
+    suspend fun getAssociationForWorkout(sessionId: String): ScheduleWorkoutAssociation?
+
+    @Transaction
+    @Query("SELECT * FROM schedule_workout_associations WHERE scheduledDate BETWEEN :start AND :end")
+    fun observeScheduleWorkoutAssociations(start: String, end: String): Flow<List<RescheduledWorkoutSnapshot>>
+
+    @Transaction
+    @Query("""
+        SELECT a.* FROM schedule_workout_associations a
+        JOIN workout_sessions ws ON ws.id = a.sessionId
+        WHERE a.scheduledDate BETWEEN :start AND :end OR ws.date BETWEEN :start AND :end
+    """)
+    fun observeScheduleAssociationsForNutritionWeek(start: String, end: String): Flow<List<RescheduledWorkoutSnapshot>>
+
+    @Query("""
+        SELECT ws.* FROM workout_sessions ws
+        WHERE ws.plan_session_id = :slotId AND ws.date != :scheduledDate AND ws.date <= :today
+          AND ws.schedule_occurrence_id IS NULL AND ws.started_at >= :recordedAt
+          AND ws.completed_at >= ws.started_at AND ws.completed_at <= :nowMs
+          AND ((ws.completed = 1 AND ws.status = 'completed') OR (ws.completed = 0 AND ws.status = 'partial'))
+          AND NOT EXISTS (SELECT 1 FROM schedule_workout_associations a WHERE a.sessionId = ws.id)
+        ORDER BY ws.date DESC, ws.started_at DESC, ws.id
+    """)
+    suspend fun getReschedulingCandidates(slotId: Long, scheduledDate: String, today: String,
+                                         recordedAt: Long, nowMs: Long): List<TrainingSession>
+
+    @Insert
+    suspend fun insertScheduleMoveReservation(reservation: ScheduleMoveReservation)
+
+    @Query("SELECT * FROM schedule_move_reservations WHERE occurrenceId = :occurrenceId")
+    suspend fun getScheduleMoveReservation(occurrenceId: String): ScheduleMoveReservation?
+
+    @Query("SELECT * FROM schedule_move_reservations WHERE originalDate = :original OR targetDate = :target")
+    suspend fun getScheduleMoveConflicts(original: String, target: String): List<ScheduleMoveReservation>
+
+    @Query("SELECT * FROM schedule_move_reservations WHERE targetDate = :date")
+    suspend fun getScheduleMoveForTarget(date: String): ScheduleMoveReservation?
+
+    @Query("""
+        SELECT * FROM schedule_move_reservations
+        WHERE originalDate BETWEEN :start AND :end OR targetDate BETWEEN :start AND :end
+        ORDER BY originalDate, targetDate, occurrenceId
+    """)
+    fun observeScheduleMoveReservations(start: String, end: String): Flow<List<ScheduleMoveReservation>>
+
+    @Query("DELETE FROM schedule_move_reservations WHERE occurrenceId = :occurrenceId")
+    suspend fun deleteScheduleMoveReservation(occurrenceId: String): Int
+
     // Training Sessions
     @Query("SELECT * FROM workout_sessions ORDER BY date DESC")
     suspend fun getAllTrainingSessions(): List<TrainingSession>
 
     @Query("SELECT * FROM workout_sessions WHERE completed = 1 OR status = 'partial' ORDER BY date DESC, completed_at DESC")
     fun getSavedTrainingSessionsFlow(): Flow<List<TrainingSession>>
+
+    @Query("""
+        SELECT * FROM workout_sessions
+        WHERE date BETWEEN :start AND :end AND (completed = 1 OR status = 'partial')
+        ORDER BY date ASC, completed_at ASC, id ASC
+    """)
+    fun observeCalendarSessions(start: String, end: String): Flow<List<TrainingSession>>
+
+    @Transaction
+    @Query("SELECT * FROM workout_programs WHERE isActive = 1 ORDER BY id")
+    fun observeCalendarPlans(): Flow<List<CalendarPlanSnapshot>>
+
+    @Query("SELECT * FROM workout_sessions WHERE id = :id LIMIT 1")
+    suspend fun getTrainingSessionById(id: String): TrainingSession?
+
+    @Query("SELECT * FROM workout_sessions WHERE started_at = :startedAt")
+    suspend fun getTrainingSessionsStartedAt(startedAt: Long): List<TrainingSession>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTrainingSession(session: TrainingSession): Long
@@ -95,9 +207,83 @@ interface FitnessDao {
     @Query("DELETE FROM workout_sessions WHERE id = :id")
     suspend fun deleteTrainingSession(id: String)
 
+    // A single bounded snapshot of saved work, including completed sets in partial workouts.
+    // Keep this separate from completed-session readiness and adherence inputs.
+    @Query("""
+        SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
+               ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
+               ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               ts.training_format AS analyticsTrainingFormat,
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
+               (e.id IS NOT NULL) AS analyticsCatalogPresent
+        FROM workout_sessions ts
+        JOIN exercise_sets es ON es.sessionId = ts.id
+        LEFT JOIN exercises e ON e.id = es.exerciseId
+        WHERE ts.date BETWEEN :startDate AND :endDate
+          AND (ts.completed = 1 OR ts.status = 'partial')
+          AND es.completed = 1 AND es.isWarmup = 0 AND es.reps > 0
+        ORDER BY ts.date ASC, ts.id ASC, es.id ASC
+    """)
+    fun observeAnalyticsWorkingSets(startDate: String, endDate: String): Flow<List<AnalyticsWorkingSet>>
+
+    @Query("""
+        SELECT e.id AS exerciseId, e.name AS name, e.category AS category,
+               e.equipment_required AS equipment
+        FROM exercises e
+        WHERE EXISTS (
+            SELECT 1 FROM exercise_sets es JOIN workout_sessions ts ON ts.id = es.sessionId
+            WHERE es.exerciseId = e.id AND es.completed = 1 AND es.isWarmup = 0
+              AND es.reps > 0 AND (ts.completed = 1 OR ts.status = 'partial')
+              AND ts.date <= :endDate
+        )
+        ORDER BY e.name COLLATE NOCASE, e.id
+    """)
+    fun observeStrengthExercises(endDate: String): Flow<List<StrengthExerciseOption>>
+
+    @Query("""
+        SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
+               ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
+               ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               ts.training_format AS analyticsTrainingFormat,
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
+               (e.id IS NOT NULL) AS analyticsCatalogPresent
+        FROM exercise_sets es
+        JOIN workout_sessions ts ON es.sessionId = ts.id
+        LEFT JOIN exercises e ON e.id = es.exerciseId
+        WHERE es.exerciseId = :exerciseId AND ts.date BETWEEN :startDate AND :endDate
+          AND (ts.completed = 1 OR ts.status = 'partial')
+          AND es.completed = 1 AND es.isWarmup = 0 AND es.reps > 0
+        ORDER BY ts.date ASC, ts.id ASC, es.id ASC
+    """)
+    fun observeStrengthSets(exerciseId: String, startDate: String, endDate: String): Flow<List<AnalyticsWorkingSet>>
+
+
     // Exercise Sets
     @Query("SELECT * FROM exercise_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     fun getSetsForSessionFlow(sessionId: String): Flow<List<ExerciseSet>>
+
+    @Transaction
+    @Query("SELECT * FROM workout_sessions WHERE id = :sessionId AND (completed = 1 OR status = 'partial')")
+    fun observeSavedWorkoutFacts(sessionId: String): Flow<SavedWorkoutFacts?>
+
+    @Query("""
+        SELECT es.*, ts.date AS analyticsDate, ts.sessionType AS analyticsSessionType,
+               ts.completed AS analyticsSessionCompleted, ts.status AS analyticsStatus,
+               ts.started_at AS analyticsStartedAt, ts.completed_at AS analyticsCompletedAt,
+               ts.training_format AS analyticsTrainingFormat,
+               COALESCE(e.secondary_muscles, '[]') AS analyticsSecondaryMuscles,
+               (e.id IS NOT NULL) AS analyticsCatalogPresent
+        FROM exercise_sets es JOIN workout_sessions ts ON es.sessionId = ts.id
+        LEFT JOIN exercises e ON e.id = es.exerciseId
+        WHERE ts.date <= :endDate AND (ts.completed = 1 OR ts.status = 'partial')
+          AND es.completed = 1 AND es.isWarmup = 0 AND es.reps > 0
+          AND es.exerciseId IN (SELECT exerciseId FROM exercise_sets WHERE sessionId = :sessionId)
+        ORDER BY ts.date, ts.id, es.id
+    """)
+    fun observeWorkoutRecordHistory(sessionId: String, endDate: String): Flow<List<AnalyticsWorkingSet>>
+
+    @Query("SELECT * FROM exercise_sets ORDER BY sessionId, id")
+    suspend fun getAllExerciseSetsForExport(): List<ExerciseSet>
 
     @Query("SELECT * FROM exercise_sets WHERE sessionId = :sessionId ORDER BY id ASC")
     suspend fun getSetsForSession(sessionId: String): List<ExerciseSet>
@@ -233,6 +419,10 @@ interface FitnessDao {
     // Exercise Library
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     fun getAllExercisesFlow(): Flow<List<Exercise>>
+
+    // Soft-deleted exercises still belong to saved training history.
+    @Query("SELECT * FROM exercises")
+    fun getExerciseAttributionFlow(): Flow<List<Exercise>>
 
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     suspend fun getAllExercises(): List<Exercise>
@@ -444,7 +634,9 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
+               es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
+               ts.training_format,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -468,7 +660,9 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
+               es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
+               ts.training_format,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -486,7 +680,9 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
+               es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
+               ts.training_format,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -598,7 +794,9 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
+               es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
+               ts.training_format,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -624,7 +822,7 @@ interface FitnessDao {
         SELECT 
             es.id, es.sessionId, es.exerciseId, es.exerciseName,
             es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-            es.restTaken, es.completed, es.repsInReserve,
+            es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
             ts.date AS date,
             COALESCE(em.stalledSessions, 0) AS stalledSessions
         FROM exercise_sets es
@@ -650,13 +848,13 @@ interface FitnessDao {
 
     @Transaction
     suspend fun insertSessionAtomic(session: TrainingSession, sets: List<ExerciseSet>) {
-        insertTrainingSession(session)
+        check(insertTrainingSession(session) != -1L) { "Workout already saved: ${session.id}" }
         insertExerciseSets(sets)
     }
 
     @Transaction
     suspend fun insertSessionWithPRsAtomic(session: TrainingSession, sets: List<ExerciseSet>, prs: List<PersonalRecord>) {
-        insertTrainingSession(session)
+        check(insertTrainingSession(session) != -1L) { "Workout already saved: ${session.id}" }
         insertExerciseSets(sets)
         insertPersonalRecords(prs)
     }

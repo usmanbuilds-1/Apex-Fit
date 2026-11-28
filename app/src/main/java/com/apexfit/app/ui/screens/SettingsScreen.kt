@@ -68,6 +68,28 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val isExporting by homeViewModel.isExporting.collectAsStateWithLifecycle()
+    var showExportDialog by rememberSaveable { mutableStateOf(false) }
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) homeViewModel.exportUserData(uri) { success ->
+            scope.launch {
+                snackbarHostState.showSnackbar(if (success) "Export saved." else
+                    "Export failed. The selected destination may contain an incomplete file; delete it and retry.")
+            }
+        }
+    }
+    if (showExportDialog) AlertDialog(
+        onDismissRequest = { showExportDialog = false },
+        title = { Text("Export saved data") },
+        text = { Text("Includes saved workouts, sets, plans, measurements, nutrition and profile/goal settings. The JSON file is not encrypted. Choose a trusted destination; anyone with access to the file can read it. In-progress drafts are excluded.") },
+        confirmButton = { TextButton(onClick = {
+            showExportDialog = false
+            exportLauncher.launch("apexfit-data-${java.time.LocalDate.now()}.json")
+        }) { Text("Choose destination") } },
+        dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text("Cancel") } }
+    )
 
     var editName by rememberSaveable { mutableStateOf(username) }
     var editGoal by rememberSaveable { mutableStateOf(goal) }
@@ -597,10 +619,17 @@ fun SettingsScreen(
     var showResetDialog by rememberSaveable { mutableStateOf(false) }
     var hasStartedReset by rememberSaveable { mutableStateOf(false) }
     val isResetting by fitnessViewModel.isResetting.collectAsStateWithLifecycle()
+    val resetError by fitnessViewModel.resetError.collectAsStateWithLifecycle()
 
-    LaunchedEffect(isResetting) {
+    LaunchedEffect(isResetting, resetError, hasStartedReset) {
         if (hasStartedReset && !isResetting) {
-            onNavigateBack()
+            hasStartedReset = false
+            if (resetError == null) {
+                showResetDialog = false
+                onNavigateBack()
+            } else {
+                snackbarHostState.showSnackbar(resetError.orEmpty())
+            }
         }
     }
 
@@ -608,12 +637,11 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { if (!isResetting) showResetDialog = false },
             title = { Text(stringResource(R.string.settings_reset_all_data)) },
-            text = { Text(stringResource(R.string.settings_this_will_permanently_delete_a)) },
+            text = { Text("Deletes saved local workouts, plans, nutrition, measurements, goals, progress photos and unfinished workout data. Previously exported files and original photos outside Apex Fit are not deleted. Only the bundled exercise catalog is restored.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         hasStartedReset = true
-                        workoutExecutionViewModel.cancelActiveWorkout()
                         fitnessViewModel.resetAllData()
                     },
                     enabled = !isResetting
@@ -660,19 +688,10 @@ fun SettingsScreen(
         SettingsActionRow(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             onClick = {
-                homeViewModel.exportUserData(context) { uri ->
-                    if (uri != null) {
-                        val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                            type = "text/csv"
-                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        context.startActivity(android.content.Intent.createChooser(share, "Export Data"))
-                    }
-                }
+                if (!isExporting && !isResetting) showExportDialog = true
             }
         ) {
-            Text("Export My Data (CSV)",
+            Text(if (isExporting) "Exporting…" else "Export My Data (JSON)",
                 fontFamily = InterFamily, fontSize = 14.sp, color = PrimaryText)
         }
 
@@ -702,7 +721,7 @@ fun SettingsScreen(
             onClick = { showResetDialog = true },
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("reset_data_button"),
             contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
-            enabled = !isResetting
+            enabled = !isResetting && !isExporting
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                 Text(

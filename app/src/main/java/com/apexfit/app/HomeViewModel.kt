@@ -112,6 +112,9 @@ class HomeViewModel @Inject constructor(
         .catch { emit(UiState.Error(it.localizedMessage ?: "Unknown error")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
+    val todayWorkoutChoice = repository.todayWorkoutChoiceFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     val todayExercisesFlow: Flow<List<com.apexfit.app.data.PlanExercise>> =
         repository.todayExercisesFlow
 
@@ -142,12 +145,36 @@ class HomeViewModel @Inject constructor(
 
     val completedSessions: Flow<List<com.apexfit.app.data.RichTrainingSession>> = richSessionsFlow
 
+    val muscleTargetHistory: Flow<List<MuscleTargetRevision>> = dataStore.muscleTargetHistoryFlow
+
+    suspend fun scheduleMuscleTarget(muscle: String, target: Int?, expectedWeek: java.time.LocalDate) =
+        dataStore.scheduleMuscleTarget(muscle, target, expectedWeek)
+
+    fun observeMuscleHistory(start: java.time.LocalDate, end: java.time.LocalDate):
+        Flow<List<com.apexfit.app.data.RichTrainingSession>> =
+        dao.observeAnalyticsWorkingSets(start.toString(), end.toString())
+            .map(AnalyticsHistory::sessions)
+            .distinctUntilChanged()
+            .flowOn(Dispatchers.Default)
+
+    val currentWeekMuscleHeatmap: StateFlow<Map<String, HeatmapEntry>> = todayDate
+        .flatMapLatest { date ->
+            val today = java.time.LocalDate.parse(date)
+            val start = MuscleVolumePeriod.WEEK.window(today).start
+            observeMuscleHistory(start, today).map {
+                FatigueEngine.directHeatmap(MuscleVolumeSummary.calculateWindow(it, start, today))
+            }
+        }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+
     val exercisesForPlan: Flow<List<com.apexfit.app.data.PlanExercise>> = dao.getAllPlanExercisesFlow()
 
     val estimatedWorkoutDuration: StateFlow<Int> = combine(
         todayExercisesFlow, units
     ) { exercises, units ->
-        exercises.sumOf { ex -> AlgorithmEngine.estimateSetDurationMinutes(ex, units) }
+        com.apexfit.app.utils.WorkoutDurationEstimate.estimate(exercises).minutes
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val lastTrainedDateMap: StateFlow<Map<String, String>> = combine(
@@ -266,69 +293,24 @@ class HomeViewModel @Inject constructor(
         }
 
 
-    private fun csvEscape(value: String): String {
-        val escaped = value.replace("\"", "\"\"")
-        return if (escaped.contains(',') || escaped.contains('"') ||
-                   escaped.contains('\n') || escaped.contains('\r')) {
-            "\"$escaped\""
-        } else {
-            escaped
+    private val _isExporting = MutableStateFlow(false)
+    val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
+
+    fun exportUserData(destination: android.net.Uri, onComplete: (Boolean) -> Unit) {
+        if (!_isExporting.compareAndSet(false, true)) return
+        val generation = com.apexfit.app.utils.LocalResetCoordinator.currentGeneration()
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                com.apexfit.app.utils.SecureUserExport.save(getApplication<Application>(), destination, generation)
+                withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) { onComplete(false) }
+            } finally {
+                _isExporting.value = false
+            }
         }
-    }
-
-    fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {  
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {  
-            try {  
-                val cutoff90 = com.apexfit.app.utils.getWindowStartDate(90)
-                val cutoff365 = com.apexfit.app.utils.getWindowStartDate(365)
-                val weights = dao.observeAllWeightEntries().first()  
-                val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
-                val sessions = dao.getAllTrainingSessions()  
-                val exerciseSets = dao.getRecentExerciseSets(cutoff365)
-                val personalRecords = dao.getRecentPersonalRecordsWithNames(limit = 500).first()
-                val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
-
-                val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                    file.bufferedWriter().use { writer ->
-                        writer.appendLine("# Apex Fit Data Export — ${java.util.Date()}")
-                        writer.appendLine()
-                        writer.appendLine("## Weight History")
-                        writer.appendLine("date,time,weight_kg")
-                        weights.forEach { writer.appendLine("${it.date},${it.time},${it.weight}") }
-                        writer.appendLine()
-                        writer.appendLine("## Nutrition Log")
-                        writer.appendLine("date,name,calories,protein_g,carbs_g,fat_g")
-                        nutrition.forEach { writer.appendLine("${it.date},${csvEscape(it.name)},${it.calories},${it.protein},${it.carbs},${it.fat}") }
-                        writer.appendLine()
-                        writer.appendLine("## Workout Sessions")
-                        writer.appendLine("date,type,duration_min,feel")
-                        sessions.forEach { writer.appendLine("${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel}") }
-                        writer.appendLine()
-                        writer.appendLine("## Exercise Sets")
-                        writer.appendLine("sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit")
-                        exerciseSets.forEach { writer.appendLine("${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)}") }
-                        writer.appendLine()
-                        writer.appendLine("## Personal Records")
-                        writer.appendLine("id,exerciseId,type,value,date")
-                        personalRecords.forEach { writer.appendLine("${csvEscape(it.record.id)},${csvEscape(it.record.exerciseId)},${csvEscape(it.record.type)},${it.record.value},${csvEscape(it.record.date)}") }
-                        writer.appendLine()
-                        writer.appendLine("## Body Measurements")
-                        writer.appendLine("date,bodyPart,value,unit")
-                        bodyMeasurements.forEach { writer.appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }
-                    }
-                }
-   
-                val uri = androidx.core.content.FileProvider.getUriForFile(  
-                    context, "${context.packageName}.fileprovider", file)  
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(uri) }  
-                kotlinx.coroutines.delay(60_000)
-                file.delete()
-            } catch (e: Exception) {  
-                android.util.Log.e("Export", "Export failed", e)  
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(null) }  
-            }  
-        }  
     }
 
     private fun getTodayDateString(): String {
