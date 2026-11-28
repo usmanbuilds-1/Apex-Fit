@@ -92,7 +92,8 @@ data class TrainingSession(
     @ColumnInfo(name = "readiness_score_at_start") val readinessScoreAtStart: Int? = null,
     @ColumnInfo(name = "notes") val notes: String? = null,
     @ColumnInfo(name = "started_at") val startedAt: Long? = null,
-    @ColumnInfo(name = "completed_at") val completedAt: Long? = null
+    @ColumnInfo(name = "completed_at") val completedAt: Long? = null,
+    @ColumnInfo(name = "schedule_occurrence_id") val scheduleOccurrenceId: String? = null
 )
 
 @Entity(
@@ -402,15 +403,17 @@ data class ActiveSession(
     val readinessScore: Int? = null,
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
-    val schemaVersion: Int = 6,
+    val schemaVersion: Int = 7,
     val sessionId: String = java.util.UUID.randomUUID().toString(),
     val cursorIndex: Int? = null,
     val skippedOccurrenceIndices: List<Int>? = null,
     val restCheckpoint: ActiveRestCheckpoint? = null,
-    val circuit: ActiveCircuit? = null
+    val circuit: ActiveCircuit? = null,
+    val startedLocalDate: String? = null,
+    val scheduleOccurrenceId: String? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 6
+        const val CURRENT_VERSION = 7
     }
 }
 
