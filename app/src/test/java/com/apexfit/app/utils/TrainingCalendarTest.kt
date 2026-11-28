@@ -1,6 +1,7 @@
 package com.apexfit.app.utils
 
 import com.apexfit.app.data.CalendarPlanSnapshot
+import com.apexfit.app.data.ScheduleDisposition
 import com.apexfit.app.data.ScheduleRevision
 import com.apexfit.app.data.ScheduleRevisionSlot
 import com.apexfit.app.data.ScheduleRevisionSnapshot
@@ -142,6 +143,31 @@ class TrainingCalendarTest {
             emptyList(), nowMs = 1000, revisions = listOf(revision))
         assertEquals(0, removed.recordedCompletedOccurrences)
         assertEquals(2, removed.recordedPartialOccurrences)
+    }
+
+    @Test fun explicitDecisionsNeverOverrideVerifiedWorkOrApplyToOtherOccurrences() {
+        val revision = ScheduleRevisionSnapshot(
+            ScheduleRevision(7, "2026-11-02", 100, 42, "Old", 1, null),
+            listOf(ScheduleRevisionSlot(7, 101, 1, 1, "A", true),
+                ScheduleRevisionSlot(7, 102, 1, 3, "B", true)))
+        val decisions = listOf(
+            ScheduleDisposition("7:2026-11-02:101", "2026-11-02", "MISSED", 200),
+            ScheduleDisposition("7:2026-11-04:102", "2026-11-04", "EXCUSED", 200),
+            ScheduleDisposition("7:2026-11-09:101", "2026-11-09", "EXCUSED", 200),
+            ScheduleDisposition("7:2026-11-11:102", "2026-11-10", "MISSED", 200))
+        val linked = session("saved", "2026-11-02", timestamp = 400).copy(
+            startedAt = 300, planSessionId = 101, scheduleOccurrenceId = "7:2026-11-02:101")
+        val initial = TrainingCalendar.build(month, today, listOf(linked), emptyList(), nowMs = 1000,
+            revisions = listOf(revision), dispositions = decisions)
+        assertEquals(1, initial.recordedCompletedOccurrences)
+        assertEquals(2, initial.excusedOccurrences)
+        assertEquals(1, initial.unresolvedOccurrences)
+        assertEquals(0, initial.missedOccurrences)
+        val afterClear = TrainingCalendar.build(month, today, emptyList(), emptyList(), nowMs = 1000,
+            revisions = listOf(revision), dispositions = decisions.filterNot { it.occurrenceId == "7:2026-11-04:102" })
+        assertEquals(1, afterClear.missedOccurrences)
+        assertEquals(1, afterClear.excusedOccurrences)
+        assertEquals(2, afterClear.unresolvedOccurrences)
     }
 
     @Test fun leapYearAndDecemberBoundaryUseRealCalendarDates() {
