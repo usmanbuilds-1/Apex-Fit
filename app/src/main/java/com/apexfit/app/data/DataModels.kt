@@ -93,7 +93,8 @@ data class TrainingSession(
     @ColumnInfo(name = "notes") val notes: String? = null,
     @ColumnInfo(name = "started_at") val startedAt: Long? = null,
     @ColumnInfo(name = "completed_at") val completedAt: Long? = null,
-    @ColumnInfo(name = "schedule_occurrence_id") val scheduleOccurrenceId: String? = null
+    @ColumnInfo(name = "schedule_occurrence_id") val scheduleOccurrenceId: String? = null,
+    @ColumnInfo(name = "grouped_execution") val groupedExecution: Boolean? = null
 )
 
 @Entity(
@@ -447,7 +448,8 @@ data class LastSetWithDate(
     @ColumnInfo(name = "weight_unit") val weightUnit: String = "kg",
     @ColumnInfo(name = "set_observation") val setObservation: String? = null,
     @ColumnInfo(name = "source_plan_exercise_id") val sourcePlanExerciseId: Long? = null,
-    @ColumnInfo(name = "set_number") val setNumber: Int? = null
+    @ColumnInfo(name = "set_number") val setNumber: Int? = null,
+    @ColumnInfo(name = "grouped_execution") val groupedExecution: Boolean? = null
 )
 
 data class EffectiveSetsData(
