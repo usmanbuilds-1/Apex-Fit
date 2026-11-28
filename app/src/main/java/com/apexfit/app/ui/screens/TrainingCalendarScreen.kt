@@ -29,6 +29,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
+private sealed interface RescheduleCandidates {
+    data object Loading : RescheduleCandidates
+    data object Failed : RescheduleCandidates
+    data class Ready(val sessions: List<TrainingSession>) : RescheduleCandidates
+}
+
 private sealed interface CalendarLoad {
     data object Loading : CalendarLoad
     data object Failed : CalendarLoad
@@ -58,7 +64,22 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
     }
     val data = (loaded as? CalendarLoad.Ready)?.month
     val day = data?.days?.firstOrNull { it.date.toString() == selectedDate }
-    val selectedSession = day?.sessions?.firstOrNull { it.id == sessionId }
+    val selectedSession = (day?.sessions.orEmpty() + listOfNotNull(day?.rescheduledWorkout))
+        .firstOrNull { it.id == sessionId }
+    var linkTarget by remember { mutableStateOf<TrainingCalendarDay?>(null) }
+    var candidateRetry by remember { mutableIntStateOf(0) }
+    var selectedCandidate by remember { mutableStateOf<String?>(null) }
+    val target = linkTarget
+    val candidates by produceState<RescheduleCandidates>(RescheduleCandidates.Loading, target, candidateRetry) {
+        value = RescheduleCandidates.Loading
+        if (target != null) {
+            try {
+                value = RescheduleCandidates.Ready(progressViewModel.reschedulingCandidates(
+                    target.date, requireNotNull(target.recordedOccurrenceId)))
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { value = RescheduleCandidates.Failed }
+        }
+    }
     BackHandler(enabled = sessionId != null) { sessionId = null }
     if (selectedSession != null) {
         SavedWorkoutReportScreen(selectedSession.id, progressViewModel, onBack = { sessionId = null })
@@ -66,10 +87,24 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
     }
     TrainingCalendarContent(month, today, data, selectedDate?.let(LocalDate::parse),
         loadError = loaded is CalendarLoad.Failed, onBack = onBack, onRetry = { retry++ },
-        onMonthChange = { chosenMonth = it.toString(); selectedDate = null; sessionId = null },
-        onDaySelected = { selectedDate = it.toString(); sessionId = null },
+        onMonthChange = { chosenMonth = it.toString(); selectedDate = null; sessionId = null; decisionError = null },
+        onDaySelected = { selectedDate = it.toString(); sessionId = null; decisionError = null },
         onSessionSelected = { sessionId = it.id },
         decisionBusy = decisionBusy, decisionError = decisionError,
+        onLinkWorkout = { selectedCandidate = null; decisionError = null; linkTarget = it },
+        onUnlinkWorkout = { targetDay ->
+            val id = targetDay.recordedOccurrenceId
+            if (!decisionBusy && id != null) {
+                decisionBusy = true
+                decisionError = null
+                scope.launch {
+                    try { progressViewModel.unlinkRescheduledWorkout(targetDay.date, id) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { decisionError = "Could not remove association. Try again." }
+                    finally { decisionBusy = false }
+                }
+            }
+        },
         onDecision = { target, decision ->
             val id = target.recordedOccurrenceId
             if (!decisionBusy && id != null) {
@@ -83,6 +118,63 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
                 }
             }
         })
+    if (target != null) {
+        val options = (candidates as? RescheduleCandidates.Ready)?.sessions.orEmpty()
+        val chosen = options.firstOrNull { it.id == selectedCandidate }
+        AlertDialog(
+            onDismissRequest = { if (!decisionBusy) linkTarget = null },
+            title = { Text("Link rescheduled workout") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Credit ${target.plannedLabel ?: "this workout"} scheduled for ${DateTimeUtils.formatDateForDisplay(target.date)}. Your actual training date will not change.")
+                    when (val state = candidates) {
+                        RescheduleCandidates.Loading -> CircularProgressIndicator(Modifier.size(24.dp))
+                        RescheduleCandidates.Failed -> {
+                            Text("Could not load eligible workouts.")
+                            TextButton(onClick = { candidateRetry++ }) { Text("Retry") }
+                        }
+                        is RescheduleCandidates.Ready -> if (state.sessions.isEmpty()) {
+                            Text("No eligible unlinked workouts for this exact plan slot on another date.")
+                        } else LazyColumn(Modifier.heightIn(max = 250.dp)) {
+                            items(state.sessions, key = { it.id }) { workout ->
+                                Row(Modifier.fillMaxWidth().clickable(enabled = !decisionBusy,
+                                    role = Role.RadioButton) { selectedCandidate = workout.id },
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(selected = selectedCandidate == workout.id, onClick = null)
+                                    Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
+                                        Text(workout.sessionType)
+                                        Text("${DateTimeUtils.formatDateForDisplay(workout.date)} · ${if (workout.completed) "Completed" else "Partial"}",
+                                            style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    decisionError?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !decisionBusy && chosen != null, onClick = {
+                    val workout = chosen ?: return@TextButton
+                    decisionBusy = true
+                    decisionError = null
+                    scope.launch {
+                        try {
+                            progressViewModel.linkRescheduledWorkout(target.date,
+                                requireNotNull(target.recordedOccurrenceId), workout.id)
+                            linkTarget = null
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) {
+                            decisionError = "Workout could not be linked. Check the available workouts and retry."
+                            selectedCandidate = null
+                            candidateRetry++
+                        } finally { decisionBusy = false }
+                    }
+                }) { Text(if (decisionBusy) "Saving…" else "Link workout") }
+            },
+            dismissButton = { TextButton(enabled = !decisionBusy, onClick = { linkTarget = null; decisionError = null }) { Text("Cancel") } }
+        )
+    }
 }
 
 private fun logLabel(day: TrainingCalendarDay): String = when (day.logKind) {
@@ -113,7 +205,9 @@ internal fun TrainingCalendarContent(
     onMonthChange: (YearMonth) -> Unit = {}, onDaySelected: (LocalDate) -> Unit = {},
     onSessionSelected: (TrainingSession) -> Unit = {},
     decisionBusy: Boolean = false, decisionError: String? = null,
-    onDecision: (TrainingCalendarDay, OccurrenceDecision?) -> Unit = { _, _ -> }
+    onDecision: (TrainingCalendarDay, OccurrenceDecision?) -> Unit = { _, _ -> },
+    onLinkWorkout: (TrainingCalendarDay) -> Unit = {},
+    onUnlinkWorkout: (TrainingCalendarDay) -> Unit = {}
 ) {
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val monthFormat = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()) }
@@ -204,7 +298,7 @@ internal fun TrainingCalendarContent(
                 }
                 Text("C saved completed · P saved partial · T scheduled · R rest · — unknown",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
-                Text("Past schedules use recorded revisions where available. Only exact linked workouts establish scheduled completion. No log is not proof of a missed workout. Today and future dates show the live plan.",
+                Text("Past schedules use recorded revisions where available. Only exact or explicitly associated workouts establish scheduled completion. No log is not proof of a missed workout. Today and future dates show the live plan.",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
             }
             if (day == null) item { Text("Select a day for details.", color = ApexColors.TextSecondary) }
@@ -222,13 +316,30 @@ internal fun TrainingCalendarContent(
                     occurrenceLabel(day)?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                     }
-                    if (day.occurrenceStatus in setOf(RecordedOccurrenceStatus.UNRESOLVED,
+                    if (!day.hasManualAssociation && day.occurrenceStatus in setOf(RecordedOccurrenceStatus.UNRESOLVED,
                             RecordedOccurrenceStatus.MISSED, RecordedOccurrenceStatus.EXCUSED)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(enabled = !decisionBusy && day.explicitDecision != OccurrenceDecision.MISSED,
                                 onClick = { onDecision(day, OccurrenceDecision.MISSED) }) { Text("Mark missed") }
                             TextButton(enabled = !decisionBusy && day.explicitDecision != OccurrenceDecision.EXCUSED,
                                 onClick = { onDecision(day, OccurrenceDecision.EXCUSED) }) { Text("Excuse") }
+                        }
+                    }
+                    if (day.hasManualAssociation) {
+                        val workout = day.rescheduledWorkout
+                        if (workout != null) {
+                            Text("Linked workout · ${DateTimeUtils.formatDateForDisplay(workout.date)}",
+                                style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { onSessionSelected(workout) }) { Text("View linked workout") }
+                        } else Text("Saved association no longer verifies. Remove it to choose another workout.",
+                            style = MaterialTheme.typography.bodySmall)
+                        TextButton(enabled = !decisionBusy, onClick = { onUnlinkWorkout(day) }) {
+                            Text("Remove workout link")
+                        }
+                    } else if (day.occurrenceStatus in setOf(RecordedOccurrenceStatus.UNRESOLVED,
+                            RecordedOccurrenceStatus.MISSED, RecordedOccurrenceStatus.EXCUSED)) {
+                        TextButton(enabled = !decisionBusy, onClick = { onLinkWorkout(day) }) {
+                            Text("Link workout from another day")
                         }
                     }
                     if (day.explicitDecision != null) {
@@ -286,8 +397,8 @@ private fun CalendarDayCell(day: TrainingCalendarDay, today: LocalDate, selected
     Column(modifier.height(52.dp)
         .background(if (selected) ApexColors.SurfaceSunken else ApexColors.Canvas)
         .clickable(role = Role.Button) { onDaySelected(day.date) }
-        .semantics { contentDescription = "${day.date}, ${logLabel(day)}, ${scheduleLabel(day)}" +
-            if (day.date == today) ", today" else "" },
+        .semantics { contentDescription = listOfNotNull(day.date.toString(), logLabel(day), scheduleLabel(day),
+            occurrenceLabel(day), if (day.date == today) "today" else null).joinToString(", ") },
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text(day.date.dayOfMonth.toString(), color = if (day.date == today) ApexColors.Primary else ApexColors.TextPrimary)
         Text(marker, color = color, style = MaterialTheme.typography.labelSmall)
