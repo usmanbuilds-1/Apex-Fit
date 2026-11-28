@@ -217,7 +217,7 @@ internal fun WorkoutReportSummary(report: WorkoutReport, units: String) {
         report.records.forEach { event ->
             val name = report.exercises.flatMap { it.sets }.firstOrNull { it.id == event.setId }?.exerciseName ?: "Exercise"
             Text("$name · ${event.loadKg.toDisplayWeight(units)} $units × ${event.key.reps}")
-            Text("Source set ${event.setId} · ${event.key.setup}" + if (event.chronologyLimited) " · within-day order unknown" else "",
+            Text("Source set ${event.setId} · ${event.key.setup} · ${event.key.trainingFormat.label}" + if (event.chronologyLimited) " · within-day order unknown" else "",
                 color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
         }
         Text("Records reflect current saved history and setup confirmations; not an immutable original receipt.",
