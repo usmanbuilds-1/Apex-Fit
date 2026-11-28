@@ -174,7 +174,7 @@ class HomeViewModel @Inject constructor(
     val estimatedWorkoutDuration: StateFlow<Int> = combine(
         todayExercisesFlow, units
     ) { exercises, units ->
-        exercises.sumOf { ex -> AlgorithmEngine.estimateSetDurationMinutes(ex, units) }
+        com.apexfit.app.utils.WorkoutDurationEstimate.estimate(exercises).minutes
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val lastTrainedDateMap: StateFlow<Map<String, String>> = combine(
