@@ -139,5 +139,6 @@ object StarterPlanBuilder {
                     notes = "Choose a comfortable load and finish the set with about 2–3 reps in reserve.")
             })
         }
+        ScheduleLedger.capture(db)
     }
 }
