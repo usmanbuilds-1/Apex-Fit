@@ -1,6 +1,9 @@
 package com.apexfit.app.utils
 
 import com.apexfit.app.data.CalendarPlanSnapshot
+import com.apexfit.app.data.ScheduleRevision
+import com.apexfit.app.data.ScheduleRevisionSlot
+import com.apexfit.app.data.ScheduleRevisionSnapshot
 import com.apexfit.app.data.PlanSession
 import com.apexfit.app.data.TrainingSession
 import com.apexfit.app.data.WorkoutPlan
@@ -77,6 +80,31 @@ class TrainingCalendarTest {
             slots.map { it.copy(label = "New plan") })))
         assertEquals(before.days.take(15), after.days.take(15))
         assertNotEquals(before.days[15].plannedLabel, after.days[15].plannedLabel)
+    }
+
+    @Test fun pastUsesRecordedRotationAndNeverMatchesUnlinkedSavedWorkout() {
+        val revision = ScheduleRevisionSnapshot(
+            ScheduleRevision(7, "2026-11-02", 100, 42, "Old rotation", 2, "2026-11-02"),
+            listOf(ScheduleRevisionSlot(7, 101, 1, 1, "Old A", true),
+                ScheduleRevisionSlot(7, 102, 2, 1, "Old B", true)))
+        val replacement = ScheduleRevisionSnapshot(
+            ScheduleRevision(8, "2026-11-11", 200, 43, "New plan", 1, null),
+            listOf(ScheduleRevisionSlot(8, 201, 1, 5, "Friday", true)))
+        val result = TrainingCalendar.build(month, today,
+            listOf(session("unlinked", "2026-11-09")), listOf(CalendarPlanSnapshot(plan, slots)),
+            revisions = listOf(revision, replacement))
+        assertEquals(CalendarScheduleSource.UNKNOWN, result.days[0].scheduleSource)
+        assertEquals("Old A", result.days[1].plannedLabel)
+        val oldB = result.days[8]
+        assertEquals("Old B", oldB.plannedLabel)
+        assertEquals(CalendarScheduleSource.RECORDED, oldB.scheduleSource)
+        assertEquals("7:2026-11-09:102", oldB.recordedOccurrenceId)
+        assertEquals(1, oldB.completedCount)
+        assertEquals(CalendarScheduleKind.REST, result.days[9].scheduleKind)
+        assertEquals("Friday", result.days[12].plannedLabel)
+        assertEquals(CalendarLogKind.NONE, result.days[12].logKind)
+        assertEquals(CalendarScheduleSource.LIVE_PROJECTION, result.days[15].scheduleSource)
+        assertNull(result.days[15].recordedOccurrenceId)
     }
 
     @Test fun leapYearAndDecemberBoundaryUseRealCalendarDates() {
