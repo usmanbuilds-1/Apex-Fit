@@ -142,7 +142,11 @@ data class ExerciseSet(
     val completed: Boolean,
     val repsInReserve: Int = 2,
     val effectiveSetValue: Double = 0.0,
-    @ColumnInfo(name = "weight_unit") val weightUnit: String = "kg"
+    @ColumnInfo(name = "weight_unit") val weightUnit: String = "kg",
+    @ColumnInfo(name = "occurrence_index") val occurrenceIndex: Int? = null,
+    @ColumnInfo(name = "set_number") val setNumber: Int? = null,
+    @ColumnInfo(name = "source_plan_exercise_id") val sourcePlanExerciseId: Long? = null,
+    @ColumnInfo(name = "set_completed_at") val setCompletedAt: Long? = null
 ) {
     constructor(weight: Double, reps: Int, rpe: Int = 7, isWarmup: Boolean = false, completed: Boolean = true) : this(
         id = 0,
@@ -282,6 +286,7 @@ data class PlanExercise(
         )
     ]
 )
+@Keep
 data class PersonalRecord(
     @PrimaryKey val id: String, // exerciseId_type
     val exerciseId: String,
@@ -354,7 +359,24 @@ data class ActiveExercise(
     val targetRepsMin: Int? = null,
     val targetRepsMax: Int? = null,
     val loadContext: String? = null,
-    val volumeAdjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null
+    val volumeAdjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null,
+    val occurrenceKey: String? = null,
+    val sourcePlanExerciseId: Long? = null
+) {
+    /** Execution identity; catalog exerciseId is always preserved for historical records. */
+    val executionKey: String get() = occurrenceKey ?: exerciseId
+}
+
+/** Monotonic checkpoint: only comparable within the same verified boot. */
+@Keep
+data class ActiveRestCheckpoint(
+    val exerciseKey: String,
+    val setIndex: Int,
+    val startedElapsedMs: Long,
+    val deadlineElapsedMs: Long,
+    val bootCount: Int?,
+    val totalSeconds: Int,
+    val adjustmentSeconds: Int = 0
 )
 
 @Keep
@@ -365,10 +387,14 @@ data class ActiveSession(
     val readinessScore: Int? = null,
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
-    val schemaVersion: Int = 1 // <-- Added this line
+    val schemaVersion: Int = 2,
+    val sessionId: String = java.util.UUID.randomUUID().toString(),
+    val cursorIndex: Int? = null,
+    val skippedOccurrenceIndices: List<Int>? = null,
+    val restCheckpoint: ActiveRestCheckpoint? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 1 // <-- Added this block
+        const val CURRENT_VERSION = 2
     }
 }
 
@@ -385,7 +411,8 @@ data class LastSetWithDate(
     val restTaken: Int,
     val completed: Boolean,
     val date: String,
-    val repsInReserve: Int = 2
+    val repsInReserve: Int = 2,
+    @ColumnInfo(name = "occurrence_index") val occurrenceIndex: Int? = null
 )
 
 data class EffectiveSetsData(
@@ -409,7 +436,11 @@ data class TrainingDayTargets(
     val fat: Int  // fat stays constant both days
 )
 data class TDEEResult(val tdee: Int?, val confidence: String, val avgCalories: Int, val weightChangeKg: Double)
-data class ComplianceResult(val calories: Int, val protein: Int, val training: Int, val overall: Int, val weakestDay: String?)
+data class ComplianceResult(
+    val calories: Int, val protein: Int, val training: Int, val overall: Int, val weakestDay: String?,
+    val confirmedNutritionDays: Int = 0, val evaluatedDays: Int = 0, val nutritionCoverage: Int = 0,
+    val nutritionComparisonAvailable: Boolean = false, val trainingComparisonAvailable: Boolean = false
+)
 data class FatigueResult(val ratio: Double?, val status: String, val statusLabel: String, val recommendation: String, val acuteLoad: Double, val chronicLoad: Double)
 data class DiminishingResult(val status: String, val message: String, val suggestions: List<String> = emptyList(), val slope: Double = 0.0)
 data class WeakPoint(val muscle: String, val displayName: String, val overallScore: Int, val trend: String)
@@ -481,7 +512,35 @@ data class RichTrainingSession(
     val durationMinutes: Int = 0,
     val exercises: List<ExerciseLog> = emptyList(),
     val startedAt: Long? = null,
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+    val savedPartial: Boolean = false
+)
+
+/** Atomic active-plan read projection. Not an immutable historical schedule. */
+data class CalendarPlanSnapshot(
+    @Embedded val plan: WorkoutPlan,
+    @androidx.room.Relation(parentColumn = "id", entityColumn = "planId")
+    val sessions: List<PlanSession>
+)
+
+data class SavedWorkoutFacts(
+    @Embedded val session: TrainingSession,
+    @androidx.room.Relation(parentColumn = "id", entityColumn = "sessionId")
+    val sets: List<ExerciseSet>
+)
+
+data class StrengthExerciseOption(val exerciseId: String, val name: String, val category: String, val equipment: String)
+
+/** Read projection only; does not change the Room schema. */
+data class AnalyticsWorkingSet(
+    @androidx.room.Embedded val set: ExerciseSet,
+    val analyticsDate: String,
+    val analyticsSessionType: String,
+    val analyticsSessionCompleted: Boolean,
+    val analyticsStatus: String?,
+    val analyticsStartedAt: Long?,
+    val analyticsCompletedAt: Long?,
+    val analyticsSecondaryMuscles: List<String>
 )
 
 @Entity(

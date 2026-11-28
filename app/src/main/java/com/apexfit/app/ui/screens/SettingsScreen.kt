@@ -597,10 +597,17 @@ fun SettingsScreen(
     var showResetDialog by rememberSaveable { mutableStateOf(false) }
     var hasStartedReset by rememberSaveable { mutableStateOf(false) }
     val isResetting by fitnessViewModel.isResetting.collectAsStateWithLifecycle()
+    val resetError by fitnessViewModel.resetError.collectAsStateWithLifecycle()
 
-    LaunchedEffect(isResetting) {
+    LaunchedEffect(isResetting, resetError, hasStartedReset) {
         if (hasStartedReset && !isResetting) {
-            onNavigateBack()
+            hasStartedReset = false
+            if (resetError == null) {
+                showResetDialog = false
+                onNavigateBack()
+            } else {
+                snackbarHostState.showSnackbar(resetError.orEmpty())
+            }
         }
     }
 
@@ -613,7 +620,6 @@ fun SettingsScreen(
                 TextButton(
                     onClick = {
                         hasStartedReset = true
-                        workoutExecutionViewModel.cancelActiveWorkout()
                         fitnessViewModel.resetAllData()
                     },
                     enabled = !isResetting

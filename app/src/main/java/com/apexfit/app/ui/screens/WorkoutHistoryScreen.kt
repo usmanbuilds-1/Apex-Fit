@@ -19,6 +19,12 @@ import com.apexfit.app.data.ExerciseSet
 import com.apexfit.app.data.TrainingSession
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.toDisplayWeight
+import com.apexfit.app.utils.WorkoutReport
+import com.apexfit.app.utils.DateTimeUtils
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
+import java.time.LocalDate
+import java.util.Locale
 
 @Composable
 fun WorkoutHistoryScreen(progressViewModel: ProgressViewModel, onBack: () -> Unit) {
@@ -29,9 +35,7 @@ fun WorkoutHistoryScreen(progressViewModel: ProgressViewModel, onBack: () -> Uni
     BackHandler(enabled = selectedId != null) { selectedId = null }
 
     if (selected != null) {
-        val setFlow = remember(selected.id) { progressViewModel.setsForSession(selected.id) }
-        val sets by setFlow.collectAsStateWithLifecycle(initialValue = null)
-        WorkoutHistoryDetail(selected, sets, units, onBack = { selectedId = null })
+        SavedWorkoutReportScreen(selected.id, progressViewModel, onBack = { selectedId = null })
         return
     }
     WorkoutHistoryContent(
@@ -76,9 +80,10 @@ internal fun WorkoutHistoryDetail(
     session: TrainingSession,
     sets: List<ExerciseSet>?,
     units: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    report: WorkoutReport? = null
 ) {
-    val exercises = remember(sets) { sets.orEmpty().groupBy { it.exerciseId }.values.toList() }
+    val exercises = remember(sets, report) { report?.exercises?.map { it.sets } ?: sets.orEmpty().groupBy { set -> set.occurrenceIndex?.let { "occurrence:$it:${set.exerciseId}" } ?: "catalog:${set.exerciseId}" }.values.toList() }
     LazyColumn(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(horizontal = 20.dp),
         contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -89,21 +94,30 @@ internal fun WorkoutHistoryDetail(
                 Text(it, color = ApexColors.TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
             }
         }
+        if (report != null) item { WorkoutReportSummary(report, units) }
         if (sets == null) item { Text("Loading logged sets…", color = ApexColors.TextSecondary) }
         else if (sets.isEmpty()) item { Text("No sets recorded.", color = ApexColors.TextSecondary) }
-        items(exercises, key = { group -> group.first().exerciseId }) { group ->
+        items(exercises, key = { group -> group.first().occurrenceIndex?.let { "occurrence:$it:${group.first().exerciseId}" } ?: "catalog:${group.first().exerciseId}" }) { group ->
             HorizontalDivider(color = ApexColors.BorderSubtle)
             Column(Modifier.padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(group.first().exerciseName.ifBlank { "Exercise" }, style = MaterialTheme.typography.titleMedium)
+                report?.exercises?.firstOrNull { it.sets == group }?.let {
+                    Text("${it.workingSets} working sets · ${it.reps} working reps", color = ApexColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 group.forEachIndexed { index, set ->
-                    val weight = set.weight.toDisplayWeight(units)
+                    val weight = when (set.weightUnit.trim().lowercase(Locale.ROOT)) {
+                        "kg" -> "${set.weight.toDisplayWeight(units)} $units"
+                        "lb", "lbs" -> "${(set.weight / com.apexfit.app.utils.AppConstants.KG_TO_LBS).toDisplayWeight(units)} $units"
+                        else -> "Load unavailable"
+                    }
                     val effort = if (set.rpe > 0) " · RPE ${set.rpe}" else ""
                     val state = when {
                         set.isWarmup -> " · Warm-up"
                         !set.completed -> " · Incomplete"
                         else -> ""
                     }
-                    Text("Set ${index + 1} · $weight $units × ${set.reps}$effort$state",
+                    Text("Set ${set.setNumber ?: index + 1} · $weight × ${set.reps}$effort$state",
                         color = ApexColors.TextSecondary)
                 }
             }
@@ -116,3 +130,88 @@ private fun sessionSummary(session: TrainingSession): String = listOfNotNull(
     "Partial".takeIf { session.status == "partial" }
 ).joinToString(" · ")
 
+
+
+private sealed interface ReportState {
+    data object Loading : ReportState
+    data object Failed : ReportState
+    data class Ready(val report: WorkoutReport?) : ReportState
+}
+
+@Composable
+internal fun SavedWorkoutReportScreen(sessionId: String, progressViewModel: ProgressViewModel, onBack: () -> Unit) {
+    val date by remember { DateTimeUtils.todayDateFlow() }
+        .collectAsStateWithLifecycle(initialValue = DateTimeUtils.todayDateString())
+    val units by progressViewModel.units.collectAsStateWithLifecycle()
+    var retry by remember { mutableIntStateOf(0) }
+    val state by key(sessionId, date, retry) {
+        produceState<ReportState>(ReportState.Loading) {
+            try {
+                progressViewModel.observeWorkoutReport(sessionId, LocalDate.parse(date)).collect { value = ReportState.Ready(it) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { value = ReportState.Failed }
+        }
+    }
+    val report = (state as? ReportState.Ready)?.report
+    if (report != null) {
+        WorkoutHistoryDetail(report.session, report.exercises.flatMap { it.sets }, units, onBack, report)
+    } else Column(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(20.dp)) {
+        TextButton(onClick = onBack) { Text("Back") }
+        when (state) {
+            ReportState.Loading -> CircularProgressIndicator()
+            ReportState.Failed -> {
+                Text("Workout report couldn't load.")
+                TextButton(onClick = { retry++ }) { Text("Retry") }
+            }
+            is ReportState.Ready -> Text("This saved workout is no longer available.")
+        }
+    }
+}
+
+@Composable
+internal fun WorkoutReportSummary(report: WorkoutReport, units: String) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Workout report", style = MaterialTheme.typography.titleLarge)
+        Text(if (report.session.completed) "Completed workout" else "Saved partial workout", color = ApexColors.TextSecondary)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Text("${report.workingSets}", style = MaterialTheme.typography.headlineMedium)
+                Text("Working sets", color = ApexColors.TextSecondary)
+            }
+            Column {
+                Text("${report.workingReps}", style = MaterialTheme.typography.headlineMedium)
+                Text("Working reps", color = ApexColors.TextSecondary)
+            }
+            Column {
+                Text(report.durationMinutes?.toString() ?: "—", style = MaterialTheme.typography.headlineMedium)
+                Text("Logged min", color = ApexColors.TextSecondary)
+            }
+        }
+        Text("${report.warmups} completed warm-ups · ${report.incomplete} incomplete · ${report.invalid} invalid working rows",
+            style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+        if (report.legacyGrouping) Text("Some historical exercise occurrences are grouped by catalog ID; exact grouping is unknown.",
+            style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Comparable recorded volume", style = MaterialTheme.typography.titleMedium)
+        if (report.loadGroups.isEmpty()) Text("No confirmed comparable load sets.", color = ApexColors.TextSecondary)
+        report.loadGroups.forEach { group ->
+            val name = report.exercises.flatMap { it.sets }.firstOrNull { it.exerciseId == group.exerciseId }?.exerciseName ?: group.exerciseId
+            Text(name + " · " + group.setup)
+            Text(String.format(Locale.getDefault(), "%.1f %s × reps", group.kgReps.toDisplayWeight(units), units) +
+                " · ${group.sets} sets · ${group.basis.label}", style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+        }
+        Text("${report.unconfirmedWorkingSets} working sets excluded from comparable load totals. Separate setup and basis totals; not energy expenditure.",
+            style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Confirmed exact-rep record events", style = MaterialTheme.typography.titleMedium)
+        if (report.records.isEmpty()) Text("No confirmed record events attributable to this workout.", color = ApexColors.TextSecondary)
+        report.records.forEach { event ->
+            val name = report.exercises.flatMap { it.sets }.firstOrNull { it.id == event.setId }?.exerciseName ?: "Exercise"
+            Text("$name · ${event.loadKg.toDisplayWeight(units)} $units × ${event.key.reps}")
+            Text("Source set ${event.setId} · ${event.key.setup}" + if (event.chronologyLimited) " · within-day order unknown" else "",
+                color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+        }
+        Text("Records reflect current saved history and setup confirmations; not an immutable original receipt.",
+            color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+}

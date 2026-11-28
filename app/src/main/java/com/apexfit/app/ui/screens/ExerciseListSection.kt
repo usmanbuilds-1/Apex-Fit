@@ -100,7 +100,8 @@ fun ExerciseListSection(
     val isImperial = remember(preferredUnits) { preferredUnits.lowercase() in listOf("lb", "lbs") }
     val unitSuffix = if (isImperial) "lb" else "kg"
     val warmupList = remember(warmupComp) { warmupComp.toList() }
-    val currentExerciseId = exercises.getOrNull(currentIdx)?.exerciseId
+    val occurrenceKeys = remember(exercises.map { it.exerciseId }) { com.apexfit.app.utils.WorkoutOccurrenceKeys.allocate(exercises.map { it.exerciseId }) }
+    val currentExerciseId = occurrenceKeys.getOrNull(currentIdx)
     var showPlateCalc by rememberSaveable(currentExerciseId) { mutableStateOf(false) }
     var showMore by rememberSaveable { mutableStateOf(false) }
 
@@ -111,7 +112,8 @@ fun ExerciseListSection(
         // Current Exercise Layout
         if (currentIdx < exercises.size) {
             val ex = exercises[currentIdx]
-            val setsList = loggedSets[ex.exerciseId] ?: emptyList()
+            val executionKey = occurrenceKeys[currentIdx]
+            val setsList = loggedSets[executionKey] ?: emptyList()
             val activeSetIndex = setsList.indexOfFirst { !it.completed && !it.isWarmup }
 
             item {
@@ -155,18 +157,18 @@ fun ExerciseListSection(
                         color = ApexColors.TextSecondary,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(top = 4.dp))
-                    val adjustment = volumeAdjustments[ex.exerciseId]
+                    val adjustment = volumeAdjustments[executionKey]
                     if (adjustment != null) {
-                        var showVolumeReason by rememberSaveable(ex.exerciseId) { mutableStateOf(false) }
+                        var showVolumeReason by rememberSaveable(executionKey) { mutableStateOf(false) }
                         Text("${adjustment.baseSets} → ${adjustment.adjustedSets} sets",
                             color = ApexColors.Primary, style = MaterialTheme.typography.titleMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { showVolumeReason = true }) { Text("Why?") }
                             TextButton(
-                                enabled = loggedSets[ex.exerciseId].orEmpty().let { sets ->
+                                enabled = loggedSets[executionKey].orEmpty().let { sets ->
                                     sets.size == adjustment.adjustedSets && sets.none { it.completed || it.isWarmup }
                                 },
-                                onClick = { onUndoVolumeAdjustment(ex.exerciseId) }
+                                onClick = { onUndoVolumeAdjustment(executionKey) }
                             ) { Text("Undo") }
                         }
                         if (showVolumeReason) {
@@ -181,7 +183,7 @@ fun ExerciseListSection(
                         }
                     }
 
-                    val contextLine = weightContextLines[ex.exerciseId] ?: ""
+                    val contextLine = weightContextLines[executionKey] ?: ""
                     if (contextLine.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -195,7 +197,7 @@ fun ExerciseListSection(
             }
 
             if (activeSetIndex >= 0) {
-                item(key = "active-set-${ex.exerciseId}-${setsList[activeSetIndex].id}") {
+                item(key = "active-set-${executionKey}-${setsList[activeSetIndex].id}") {
                     SetLoggingRow(
                         ex = ex,
                         sIdx = activeSetIndex,
@@ -212,11 +214,12 @@ fun ExerciseListSection(
                         nightLedgerPresentation = true,
                         previousSet = setsList.take(activeSetIndex).lastOrNull { it.completed && !it.isWarmup },
                         displaySetNumber = setsList.take(activeSetIndex).count { !it.isWarmup } + 1,
-                        displayTotalSets = setsList.count { !it.isWarmup }
+                        displayTotalSets = setsList.count { !it.isWarmup },
+                        executionKey = executionKey
                     )
                 }
             } else {
-                item(key = "all-sets-logged-${ex.exerciseId}") {
+                item(key = "all-sets-logged-${executionKey}") {
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         Text("All planned sets logged", color = ApexColors.TextPrimary,
                             fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
@@ -244,7 +247,8 @@ fun ExerciseListSection(
                     currentIdx = currentIdx,
                     loggedSets = loggedSets,
                     preferredUnits = preferredUnits,
-                    showAll = showMore
+                    showAll = showMore,
+                    occurrenceKeys = occurrenceKeys
                 )
             }
 
@@ -288,11 +292,12 @@ fun ExerciseListSection(
                                     preferredUnits = preferredUnits, unitSuffix = unitSuffix, isImperial = isImperial,
                                     lastWeights = lastWeights, weightContextLines = weightContextLines,
                                     showRirOverlay = showRirOverlay, onLogSetState = onLogSetState,
-                                    onCompleteSet = onCompleteSet
+                                    onCompleteSet = onCompleteSet,
+                                    executionKey = executionKey
                                 )
                             }
                         }
-                        effectiveSetsMap[ex.exerciseId]?.let { effData ->
+                        effectiveSetsMap[executionKey]?.let { effData ->
                             val last = setsList.lastOrNull { it.completed }
                             RealTimeEffectiveSetsCard(ex.name, effData,
                                 (activeSetIndex + 1).coerceAtLeast(1), setsList.size,
@@ -300,7 +305,7 @@ fun ExerciseListSection(
                         }
                         val canAddSet = setsList.size < 20
                         OutlinedButton(
-                            onClick = { onAddCustomLogSet(ex.exerciseId) }, enabled = canAddSet,
+                            onClick = { onAddCustomLogSet(executionKey) }, enabled = canAddSet,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexColors.TextPrimary),
                             border = BorderStroke(1.dp, ApexColors.BorderSubtle)
@@ -362,7 +367,8 @@ private fun TrainingRail(
     currentIdx: Int,
     loggedSets: Map<String, List<UiExerciseSet>>,
     preferredUnits: String,
-    showAll: Boolean
+    showAll: Boolean,
+    occurrenceKeys: List<String>
 ) {
     val isImperial = preferredUnits.lowercase() in listOf("lb", "lbs")
     val upcomingExercises = exercises.drop(currentIdx)
@@ -375,7 +381,7 @@ private fun TrainingRail(
             modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
         upcomingExercises.take(visibleCount).forEachIndexed { offset, exercise ->
             val index = currentIdx + offset
-            val sets = loggedSets[exercise.exerciseId].orEmpty()
+            val sets = loggedSets[occurrenceKeys[index]].orEmpty()
             val complete = sets.isNotEmpty() && sets.all { it.completed }
             val isCurrent = index == currentIdx
             val marker = when {

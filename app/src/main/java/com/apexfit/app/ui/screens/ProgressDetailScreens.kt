@@ -61,17 +61,17 @@ internal fun MuscleRecoveryContent(
                 val statuses = state.data.filter { it.lastTrainedDate.isNotBlank() }
                 if (statuses.isEmpty()) {
                     Text(
-                        "Log a workout to see recovery estimates for the muscles you train.",
+                        "Log a workout to see when you last trained each muscle.",
                         color = MutedText,
                         modifier = Modifier.padding(vertical = 24.dp)
                     )
                 } else {
                     Text(
-                        "Estimates reflect recent training. Use how you feel to guide your next session.",
+                        "Training recency is not a recovery measurement. Check soreness and warm-up performance.",
                         color = MutedText,
                         modifier = Modifier.padding(vertical = 16.dp)
                     )
-                    val sorted = statuses.sortedByDescending { it.hoursRemaining }
+                    val sorted = statuses.sortedByDescending { it.lastTrainedDate }
                     LazyColumn {
                         items(sorted.size, key = { sorted[it].muscleGroup }) { index ->
                             val status = sorted[index]
@@ -85,11 +85,7 @@ internal fun MuscleRecoveryContent(
                                     Text(status.muscleGroup, style = MaterialTheme.typography.titleMedium)
                                     Text("Last trained ${com.apexfit.app.utils.DateTimeUtils.formatDateForDisplay(status.lastTrainedDate)}", color = MutedText)
                                 }
-                                if (status.hoursRemaining > 0) {
-                                    Text("~${status.hoursRemaining} h remaining", color = AmberAccent)
-                                } else {
-                                    Text("Likely recovered", color = MutedText)
-                                }
+                                Text("Recovery unknown", color = MutedText)
                             }
                         }
                     }
