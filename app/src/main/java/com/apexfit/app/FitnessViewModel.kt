@@ -5,6 +5,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.SavedStateHandle
+import androidx.room.withTransaction
 import com.apexfit.app.data.*
 import com.apexfit.app.domain.repository.FitnessRepository
 import com.apexfit.app.ui.models.*
@@ -225,7 +226,7 @@ class FitnessViewModel @Inject constructor(
         }
     }
 
-    private suspend fun seedDefaultWorkoutPlan() {
+    private suspend fun seedDefaultWorkoutPlan() = db.withTransaction {
         val plan = WorkoutPlan(
             id = 0,
             name = "Scientific Hypertrophy Split",
@@ -280,6 +281,7 @@ class FitnessViewModel @Inject constructor(
         }
 
         dao.insertPlanExercises(resolvedExercises)
+        com.apexfit.app.utils.ScheduleLedger.capture(db)
     }
 
     private fun getTodayDateString(): String {
