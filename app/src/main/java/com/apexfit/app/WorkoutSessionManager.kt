@@ -180,11 +180,12 @@ class WorkoutSessionManager(
     }
 
     private fun buildReceipt(session: TrainingSession, sets: List<ExerciseSet>, earned: List<PersonalRecord>): SessionCommitResult {
-        val working = sets.filter { it.completed && !it.isWarmup }
+        val working = sets.filter(com.apexfit.app.utils.TrainingEvidence::isWorkingSet)
         return SessionCommitResult(
             sessionId = session.id,
             durationMinutes = session.durationMinutes,
-            totalVolumeTonnes = working.sumOf { it.weight * it.reps } / 1000.0,
+            // Legacy compatibility field: raw recorded load, never a comparable strength metric.
+            totalVolumeTonnes = working.sumOf { AdvancedSets.recordedKgReps(it) ?: 0.0 } / 1000.0,
             setsCompleted = working.size,
             confirmedPRs = earned.map { it.exerciseId }.distinct(),
             sessionType = session.sessionType,
@@ -233,16 +234,11 @@ class WorkoutSessionManager(
         if (setIndex in exercise.sets.indices) {
             val set = exercise.sets[setIndex]
             if (!set.completed) return
-            updateSet(
-                exerciseId = exerciseId,
-                setIndex = setIndex,
-                weight = set.weight,
-                reps = set.reps,
-                rpe = set.rpe,
-                restTakenSeconds = seconds,
-                completed = set.completed,
-                repsInReserve = set.repsInReserve
-            )
+            // Rest-only update may preserve a completed advanced bout; ordinary edits stay gated.
+            val updated = editedSet(session, exerciseId, setIndex, set.weight, set.reps,
+                set.rpe, seconds, true, set.repsInReserve) ?: return
+            _activeSession.value = updated
+            persistSession(immediate = true)
         }
         }
     }

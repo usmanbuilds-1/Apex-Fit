@@ -80,7 +80,7 @@ internal fun SessionCompleteSheet(
                 )
             }
             val duration = if (receipt.durationMinutes > 0) "${receipt.durationMinutes} min · " else ""
-            Text("$duration${receipt.setsCompleted} working sets", color = ApexColors.TextSecondary)
+            Text("$duration${receipt.setsCompleted} working sets · ${receiptWorkingReps(sessionSets)} working reps", color = ApexColors.TextSecondary)
             Text("Total rest ${formatReceiptDuration(totalRestSeconds)}", color = ApexColors.TextSecondary)
             HorizontalDivider(color = ApexColors.BorderSubtle)
             if (showDetails) {
@@ -95,6 +95,7 @@ internal fun SessionCompleteSheet(
                             val warmup = if (set.isWarmup) " · Warm-up" else ""
                             val rest = " · Rest ${formatReceiptDuration(set.restTaken.toLong())}"
                             Text("$load $units × ${set.reps}$effort$warmup$rest", color = ApexColors.TextSecondary)
+                            ReceiptContinuations(set, units, numberFormat)
                         }
                     }
                 }
@@ -203,7 +204,9 @@ private fun ReceiptSetLines(
     prefix: String
 ) {
     val firstWeight = sets.firstOrNull()?.weight ?: 0.0
-    val sameLoggedLoad = firstWeight > 0.0 && sets.all { kotlin.math.abs(it.weight - firstWeight) < 0.001 }
+    val sameLoggedLoad = firstWeight > 0.0 && sets.all {
+        it.advancedDetails == null && kotlin.math.abs(it.weight - firstWeight) < 0.001
+    }
     if (sameLoggedLoad) {
         val load = numberFormat.format(firstWeight.toDisplayWeight(units))
         Text(
@@ -218,7 +221,24 @@ private fun ReceiptSetLines(
                 "${set.reps} reps · load not logged"
             }
             Text("$prefix ${index + 1} · $loadAndReps", color = ApexColors.TextSecondary)
+            ReceiptContinuations(set, units, numberFormat)
         }
+    }
+}
+
+@Composable
+private fun ReceiptContinuations(set: UiExerciseSet, units: String, format: NumberFormat) {
+    if (set.advancedDetails == null) return
+    val details = com.apexfit.app.utils.AdvancedSets.decode(set.weight, set.advancedDetails)
+    if (details == null) {
+        Text("Continuation details unavailable", color = ApexColors.TextSecondary)
+        return
+    }
+    Text("${details.kind.name.replace('_', ' ')} · initial outcome ${details.outcome.name.lowercase()}",
+        style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+    details.continuations.forEachIndexed { index, segment ->
+        Text("Continuation ${index + 1} · ${format.format(segment.kg.toDisplayWeight(units))} $units × ${segment.reps} · ${segment.restSeconds}s preceding rest",
+            style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
     }
 }
 

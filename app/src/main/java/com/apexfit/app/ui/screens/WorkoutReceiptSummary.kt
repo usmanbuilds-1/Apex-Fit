@@ -1,6 +1,19 @@
 package com.apexfit.app.ui.screens
 
 import com.apexfit.app.ui.models.UiExerciseSet
+import com.apexfit.app.utils.AdvancedSets
+
+internal fun receiptWorkingReps(sets: List<UiExerciseSet>): Long =
+    sets.asSequence().filter { it.completed && !it.isWarmup && it.reps > 0 &&
+        it.weight.isFinite() && it.weight >= 0 }.sumOf {
+        it.reps.toLong() + (AdvancedSets.decode(it.weight, it.advancedDetails)
+            ?.continuations?.sumOf { segment -> segment.reps.toLong() } ?: 0L)
+    }
+
+private fun receiptRest(set: UiExerciseSet): Long =
+    set.restTaken.coerceAtLeast(0).toLong() +
+        (AdvancedSets.decode(set.weight, set.advancedDetails)
+            ?.continuations?.sumOf { it.restSeconds.toLong() } ?: 0L)
 
 internal data class ExerciseReceiptSummary(
     val exerciseName: String,
@@ -25,14 +38,14 @@ internal fun summarizeCompletedExercises(sets: List<UiExerciseSet>): List<Exerci
                 workingSets = exerciseSets.filterNot { it.isWarmup },
                 warmupSets = exerciseSets.filter { it.isWarmup },
                 // Rest is stored on the set that was completed before that rest began.
-                actualRestSeconds = exerciseSets.sumOf { it.restTaken.coerceAtLeast(0).toLong() }
+                actualRestSeconds = exerciseSets.sumOf { receiptRest(it) }
             )
         }
 
 internal fun totalActualRestSeconds(sets: List<UiExerciseSet>): Long =
     sets.asSequence()
         .filter { it.completed }
-        .sumOf { it.restTaken.coerceAtLeast(0).toLong() }
+        .sumOf { receiptRest(it) }
 
 internal fun formatReceiptDuration(totalSeconds: Long): String {
     val safeSeconds = totalSeconds.coerceAtLeast(0)

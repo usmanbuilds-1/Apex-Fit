@@ -72,4 +72,12 @@ class AdvancedSetsTest {
             ActiveExercise("curl", "Curl", "Biceps", mutableListOf(bad))))
         assertTrue(runCatching { ActiveWorkoutCodec.decode(Gson().toJson(session)) }.isFailure)
     }
+
+    @Test fun rawRecordedLoadCountsEachSegmentOnceAndRejectsCorruptMetadata() {
+        val set = ExerciseSet(weight = 20.0, reps = 10, advancedDetails = AdvancedSets.encode(20.0, drop),
+            rpe = 0, isWarmup = false, completed = true)
+        assertEquals(340.0, AdvancedSets.recordedKgReps(set)!!, 1e-9)
+        assertNull(AdvancedSets.recordedKgReps(set.copy(advancedDetails = "invalid")))
+        assertEquals(200.0, AdvancedSets.recordedKgReps(set.copy(advancedDetails = null))!!, 1e-9)
+    }
 }

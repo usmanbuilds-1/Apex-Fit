@@ -48,6 +48,20 @@ object AdvancedSets {
 
     fun details(set: ExerciseSet): AdvancedSetDetails? = decode(set.weight, set.advancedDetails)
     fun totalReps(set: ExerciseSet): Long = set.reps.toLong() + (details(set)?.continuations?.sumOf { it.reps.toLong() } ?: 0L)
+    /** Recorded kg-reps only, not comparable resistance or mechanical work. */
+    fun recordedKgReps(set: ExerciseSet): Double? {
+        val kg = when (set.weightUnit.trim().lowercase(java.util.Locale.ROOT)) {
+            "kg" -> set.weight
+            "lb", "lbs" -> set.weight / AppConstants.KG_TO_LBS
+            else -> return null
+        }
+        if (!kg.isFinite() || kg < 0 || set.reps <= 0) return null
+        val details = decode(kg, set.advancedDetails)
+        if (set.advancedDetails != null && details == null) return null
+        return (kg * set.reps + (details?.continuations?.sumOf { it.kg * it.reps } ?: 0.0))
+            .takeIf { it.isFinite() }
+    }
+
     fun isExtended(set: ExerciseSet): Boolean = set.advancedDetails != null &&
         details(set)?.kind != AdvancedSetKind.WORKING
 }

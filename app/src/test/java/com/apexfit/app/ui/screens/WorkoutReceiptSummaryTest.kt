@@ -58,4 +58,21 @@ class WorkoutReceiptSummaryTest {
         assertEquals(1, legacy.size)
         assertEquals(2, legacy.single().workingSets.size)
     }
+
+    @Test
+    fun advancedBoutCountsOneSetButIncludesContinuationRepsAndRest() {
+        val details = com.apexfit.app.utils.AdvancedSetDetails(
+            com.apexfit.app.utils.AdvancedSetKind.DROP,
+            com.apexfit.app.utils.SetOutcome.UNKNOWN,
+            listOf(com.apexfit.app.utils.SetContinuation(15.0, 6, 5, com.apexfit.app.utils.SetOutcome.UNKNOWN),
+                com.apexfit.app.utils.SetContinuation(10.0, 5, 10, com.apexfit.app.utils.SetOutcome.UNKNOWN))
+        )
+        val set = UiExerciseSet(weight = 20.0, reps = 10, rpe = 0, exerciseId = "curl",
+            restTaken = 90, advancedDetails = com.apexfit.app.utils.AdvancedSets.encode(20.0, details))
+        val sets = listOf(set, set.copy(isWarmup = true, advancedDetails = null, restTaken = 0),
+            set.copy(completed = false))
+        assertEquals(1, summarizeCompletedExercises(sets).single().workingSets.size)
+        assertEquals(21L, receiptWorkingReps(sets))
+        assertEquals(105L, totalActualRestSeconds(sets))
+    }
 }
