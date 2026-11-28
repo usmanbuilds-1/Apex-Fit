@@ -37,3 +37,12 @@ data class ScheduleRevisionSnapshot(
     @Embedded val revision: ScheduleRevision,
     @Relation(parentColumn = "id", entityColumn = "revisionId") val slots: List<ScheduleRevisionSlot>
 )
+
+/** Current explicit user decision; independent of mutable plan/session rows. Clearing removes the decision. */
+@Entity(tableName = "schedule_dispositions", indices = [Index(value = ["scheduledDate"])])
+data class ScheduleDisposition(
+    @PrimaryKey val occurrenceId: String,
+    val scheduledDate: String,
+    val decision: String,
+    val recordedAt: Long
+)
