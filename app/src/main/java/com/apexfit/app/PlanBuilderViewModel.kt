@@ -307,6 +307,7 @@ class PlanBuilderViewModel @Inject constructor(
             dao.deactivateAllPlans()
             dao.initializeCycleAnchor(planId, com.apexfit.app.utils.WorkoutSchedule.monday(java.time.LocalDate.now()).toString())
             dao.activatePlan(planId)
+            com.apexfit.app.utils.ScheduleLedger.capture(db)
         }
     }
 
@@ -377,6 +378,7 @@ class PlanBuilderViewModel @Inject constructor(
         }
 
         dao.insertPlanExercises(resolvedExercises)
+        com.apexfit.app.utils.ScheduleLedger.capture(db)
         }
     }
 }
