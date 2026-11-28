@@ -32,6 +32,16 @@ class ApexFitApplication : Application(), Configuration.Provider {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    @javax.inject.Inject lateinit var resetManager: dagger.Lazy<WorkoutSessionManager>
+
+    fun retryPendingReset() {
+        appScope.launch {
+            com.apexfit.app.utils.LocalDataGate.exclusive {
+                com.apexfit.app.utils.LocalResetCoordinator.recoverLocked(this@ApexFitApplication) { resetManager.get() }
+            }
+        }
+    }
+
     override fun onCreate() {
         if (BuildConfig.DEBUG) {
             android.os.StrictMode.setThreadPolicy(
@@ -55,8 +65,14 @@ class ApexFitApplication : Application(), Configuration.Provider {
         com.apexfit.app.utils.WorkoutActiveNotification.createChannel(this)
 
         // Startup initialization: seed exercises and schedule coaching sequentially
-        if (Build.FINGERPRINT == "robolectric") return
+        if (Build.FINGERPRINT == "robolectric") {
+            com.apexfit.app.utils.LocalResetCoordinator.readyForTests()
+            return
+        }
         appScope.launch {
+            com.apexfit.app.utils.LocalDataGate.exclusive {
+            if (!com.apexfit.app.utils.LocalResetCoordinator.recoverLocked(app) { resetManager.get() }) return@exclusive
+            com.apexfit.app.utils.SecureUserExport.cleanupStale(app)
             val dataStore = DataStoreManager.getInstance(app)
 
             // Seeding check
@@ -99,6 +115,7 @@ class ApexFitApplication : Application(), Configuration.Provider {
                 Log.i("ApexFitApplication", "Coaching task scheduled")
             } catch (e: Exception) {
                 Log.e("ApexFitApplication", "Failed to schedule coaching", e)
+            }
             }
         }
     }

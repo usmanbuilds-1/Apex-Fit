@@ -783,7 +783,7 @@ class WorkoutSessionManager(
      * letting a pre-reset plan snapshot become a new draft after the wipe.
      * The supplied reset action runs only after the workout journal is erased.
      */
-    internal suspend fun resetWorkoutData(resetOtherData: suspend () -> Unit) {
+    internal suspend fun resetWorkoutData(beforeDelete: suspend () -> Unit = {}, resetOtherData: suspend () -> Unit) {
         restoreJob.join()
         commitMutex.withLock {
             synchronized(stateLock) {
@@ -794,6 +794,7 @@ class WorkoutSessionManager(
             }
             try {
                 withContext(Dispatchers.IO + NonCancellable) {
+                    beforeDelete()
                     persistJob?.cancelAndJoin()
                     persistenceMutex.withLock { dataStore.clearWorkoutRecoveryData() }
                     synchronized(stateLock) {

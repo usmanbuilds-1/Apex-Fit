@@ -12,6 +12,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -57,7 +64,21 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    ApexFitApp()
+                    val access by com.apexfit.app.utils.LocalResetCoordinator.access.collectAsStateWithLifecycle()
+                    when (access) {
+                        com.apexfit.app.utils.ResetAccess.READY -> ApexFitApp()
+                        else -> Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (access == com.apexfit.app.utils.ResetAccess.FAILED) {
+                                Text("Local data deletion did not finish. Retry to complete it before using Apex Fit.")
+                                TextButton(onClick = { (application as ApexFitApplication).retryPendingReset() }) { Text("Retry deletion") }
+                            } else {
+                                CircularProgressIndicator()
+                                Spacer(Modifier.height(16.dp))
+                                Text(if (access == com.apexfit.app.utils.ResetAccess.RESETTING) "Deleting local data…" else "Checking local data…")
+                            }
+                        }
+                    }
                 }
             }
         }

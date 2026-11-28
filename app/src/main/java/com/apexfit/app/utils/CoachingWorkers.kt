@@ -43,7 +43,10 @@ object CoachingWorkers {
 }
 
 class DelayedNotificationWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = LocalDataGate.exclusive { deliver() }
+
+    private suspend fun deliver(): Result {
+        if (LocalResetCoordinator.pending(applicationContext) || !buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
         var title = inputData.getString("title") ?: "Apex Fit Update"
         var body = inputData.getString("body") ?: "Open Apex Fit to view updates."
         val id = inputData.getString("id") ?: "apex_notification"
@@ -120,7 +123,10 @@ class DelayedNotificationWorker(context: Context, params: WorkerParameters) : Co
 }
 
 class DailyCoachingWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = LocalDataGate.exclusive { runCoaching() }
+
+    private suspend fun runCoaching(): Result {
+        if (LocalResetCoordinator.pending(applicationContext) || !buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
         val repository = buildRepository(applicationContext)
         try {
         val dao = buildDao(applicationContext)
@@ -267,14 +273,21 @@ object CoachingScheduler {
 }
 
 class PatternScanWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = LocalDataGate.exclusive { scan() }
+
+    private suspend fun scan(): Result {
+        if (LocalResetCoordinator.pending(applicationContext) || !buildDataStore(applicationContext).isOnboardedFlow.first()) return Result.success()
         val repository = buildRepository(applicationContext)
         return try {
             repository.scanAndSaveWeeklyPatterns()
             Result.success()
-        } catch (e: Exception) {
-            android.util.Log.e("PatternScanWorker", "Scan failed", e)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            android.util.Log.e("PatternScanWorker", "Scan failed")
             Result.failure()
+        } finally {
+            repository.appScope.cancel()
         }
     }
 }

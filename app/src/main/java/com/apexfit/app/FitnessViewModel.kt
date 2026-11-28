@@ -206,19 +206,14 @@ class FitnessViewModel @Inject constructor(
         _resetError.value = null
         viewModelScope.launch {
             try {
-                sessionManager.resetWorkoutData {
-                    com.apexfit.app.data.ProgressPhotoStore(getApplication()).clear()
-                    db.clearAllTables()
-                    dataStore.clearAllData()
-                    com.apexfit.app.utils.SeedService.seed(getApplication())
-                    seedDefaultWorkoutPlan()
-                    dataStore.setExercisesSeeded(true)
+                com.apexfit.app.utils.LocalDataGate.exclusive {
+                    com.apexfit.app.utils.LocalResetCoordinator.resetLocked(getApplication<Application>(), sessionManager)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                android.util.Log.e("FitnessViewModel", "resetAllData seeding failed", e)
-                _resetError.value = "Reset failed: ${e.message}. Please try again."
+                android.util.Log.e("FitnessViewModel", "Local data reset did not complete")
+                _resetError.value = "Reset did not complete. Some data may already have been deleted. Please retry."
                 // Do NOT call setExercisesSeeded(true) — allows re-seeding on next launch
             } finally {
                 _isResetting.value = false
