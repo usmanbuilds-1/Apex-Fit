@@ -35,7 +35,7 @@ class TrainingPeriodReportsTest {
             planSessionId = 4, startedAt = 200, completedAt = 300)
         val partial = TrainingSession("partial", "2026-12-02", "Lower", false, 0, 3,
             status = "partial", startedAt = 400, completedAt = 500)
-        val original = LocalDate.parse("2026-11-27")
+        val original = LocalDate.parse("2026-11-25") // Inside the matched Mon–Wed prior window
         val days = generateSequence(r.queryStart) { it.plusDays(1).takeIf { d -> d <= r.queryEnd } }
             .map { date ->
                 val sessions = if (date.toString() == actual.date) listOf(actual, partial, actual) else emptyList()
