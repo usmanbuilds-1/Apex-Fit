@@ -5,6 +5,7 @@ import com.apexfit.app.data.*
 import com.apexfit.app.utils.ProgressionEvidence
 import com.apexfit.app.utils.ConfirmedProgressionProposal
 import com.apexfit.app.utils.toDisplayWeight
+import com.apexfit.app.utils.toEditableWeight
 import com.apexfit.app.utils.fromDisplayWeightToKg
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -394,7 +395,7 @@ class WorkoutSessionManager(
                 ProgressionEvidence.proposal(exerciseHistory, ex.id, ex.sets, ex.repsMax, incrementKg,
                     java.time.LocalDate.parse(today)) else null
             if (proposal != null) proposals[occurrenceKey] = proposal
-            suggestionsMap[occurrenceKey] = prescribedKg.toDisplayWeight(exerciseUnit)
+            suggestionsMap[occurrenceKey] = prescribedKg.toEditableWeight(exerciseUnit)
             val priorKg = lastSet?.let(ProgressionEvidence::kg)
             lastWeightMap[occurrenceKey] = priorKg ?: prescribedKg
             contextLinesMap[occurrenceKey] = when {
@@ -413,7 +414,7 @@ class WorkoutSessionManager(
             val exerciseUnit = preferredUnits.ifBlank { "kg" }
             val exerciseSlug = catalogIds[index]
             val occurrenceKey = occurrenceKeys[index]
-            val suggestedWeight = suggestionsMap[occurrenceKey] ?: ex.weight.toDisplayWeight(exerciseUnit)
+            val suggestedWeight = suggestionsMap[occurrenceKey] ?: error("Missing initialized load for $occurrenceKey")
             // Volume adjustments need confirmed current setup and source-aware effort history too.
             val adjustment: com.apexfit.app.utils.SetVolumeAdjustment? = null
             ActiveExercise(
