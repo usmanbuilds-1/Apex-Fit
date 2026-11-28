@@ -37,6 +37,22 @@ class ProgressViewModel @Inject constructor(
             .map { StrengthAnalytics.calculate(it, exerciseId, start, end) }
             .distinctUntilChanged().flowOn(Dispatchers.Default)
 
+    val setLoadConfirmations = dataStore.setLoadConfirmationsFlow
+
+    suspend fun confirmSetLoad(observation: StrengthObservation, basis: RecordedLoadBasis?, setup: String) {
+        val fingerprint = requireNotNull(observation.fingerprint)
+        require(observation.setId > 0)
+        if (basis != null) require(LoadConfirmations.validSetup(setup) && (observation.loadKg ?: 0.0) > 0)
+        dataStore.confirmSetLoad(observation.setId, basis?.let {
+            SetLoadConfirmation(observation.setId, fingerprint, it, setup.trim())
+        })
+    }
+
+    fun observeRepRecords(exerciseId: String, today: java.time.LocalDate): Flow<RepRecordProjection> =
+        combine(observeStrengthHistory(exerciseId, java.time.LocalDate.of(1, 1, 1), today), setLoadConfirmations) { points, confirmations ->
+            RepRecords.calculate(points, confirmations)
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
     val personalRecords = dao.getPersonalRecordsWithNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

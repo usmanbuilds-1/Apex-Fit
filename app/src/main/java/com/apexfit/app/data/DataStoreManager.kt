@@ -29,6 +29,7 @@ class DataStoreManager(context: Context) {
             instance ?: synchronized(this) {
                 instance ?: DataStoreManager(context.applicationContext).also { instance = it }
             }
+        private val SET_LOAD_CONFIRMATIONS_KEY = stringSetPreferencesKey("strength_set_load_confirmations_v1")
         private val MUSCLE_TARGET_HISTORY_KEY = stringSetPreferencesKey("muscle_target_history_v1")
         private val NUTRITION_DAY_CONFIRMATIONS_KEY = stringSetPreferencesKey("nutrition_day_confirmations_v1")
         val ONBOARDED_KEY = booleanPreferencesKey("onboarded")
@@ -463,6 +464,23 @@ class DataStoreManager(context: Context) {
             preferences[MUSCLE_TARGET_HISTORY_KEY] = com.apexfit.app.utils.MuscleTargetHistory.encode(
                 com.apexfit.app.utils.MuscleTargetHistory.schedule(history, muscle, target, today)
             )
+        }
+    }
+
+    val setLoadConfirmationsFlow: Flow<Map<Long, com.apexfit.app.utils.SetLoadConfirmation>> =
+        context.dataStore.data.map {
+            com.apexfit.app.utils.LoadConfirmations.decodeAll(it[SET_LOAD_CONFIRMATIONS_KEY].orEmpty())
+        }.distinctUntilChanged()
+
+    suspend fun confirmSetLoad(id: Long, confirmation: com.apexfit.app.utils.SetLoadConfirmation?) {
+        require(id > 0)
+        require(confirmation == null || (confirmation.setId == id &&
+            com.apexfit.app.utils.LoadConfirmations.decode(com.apexfit.app.utils.LoadConfirmations.encode(confirmation)) != null))
+        context.dataStore.edit { preferences ->
+            val next = preferences[SET_LOAD_CONFIRMATIONS_KEY].orEmpty()
+                .filterNot { it.substringBefore('|') == id.toString() }.toMutableSet()
+            if (confirmation != null) next.add(com.apexfit.app.utils.LoadConfirmations.encode(confirmation))
+            preferences[SET_LOAD_CONFIRMATIONS_KEY] = next
         }
     }
 

@@ -23,6 +23,12 @@ import com.apexfit.app.data.StrengthExerciseOption
 import com.apexfit.app.ui.components.ApexSegmentedControl
 import com.apexfit.app.ui.theme.ApexColors
 import com.apexfit.app.utils.StrengthObservation
+import com.apexfit.app.utils.RecordedLoadBasis
+import com.apexfit.app.utils.LoadConfirmations
+import com.apexfit.app.utils.SetLoadConfirmation
+import com.apexfit.app.utils.RepRecordProjection
+import com.apexfit.app.utils.RepRecordEvent
+import kotlinx.coroutines.launch
 import com.apexfit.app.utils.StrengthSessionPoint
 import com.apexfit.app.utils.DateTimeUtils
 import com.apexfit.app.utils.toDisplayWeight
@@ -73,6 +79,75 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
             catch (_: Exception) { value = StrengthLoad.Failed }
         }
     }
+    val records by key(selectedId, today, retry) {
+        produceState<StrengthLoad<RepRecordProjection>>(StrengthLoad.Loading) {
+            val id = selectedId ?: return@produceState
+            try {
+                progressViewModel.observeRepRecords(id, today).collect { value = StrengthLoad.Ready(it) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { value = StrengthLoad.Failed }
+        }
+    }
+    val confirmations by key(retry) {
+        produceState<StrengthLoad<Map<Long, SetLoadConfirmation>>>(StrengthLoad.Loading) {
+            try {
+                progressViewModel.setLoadConfirmations.collect { value = StrengthLoad.Ready(it) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { value = StrengthLoad.Failed }
+        }
+    }
+    val confirmed = (confirmations as? StrengthLoad.Ready)?.value
+    var editing by remember { mutableStateOf<StrengthObservation?>(null) }
+    var basis by remember { mutableStateOf(RecordedLoadBasis.TOTAL) }
+    var setup by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val edit = editing
+    if (edit != null) {
+        fun save(choice: RecordedLoadBasis?) {
+            if (saving) return
+            saving = true
+            saveError = false
+            scope.launch {
+                try {
+                    progressViewModel.confirmSetLoad(edit, choice, setup)
+                    editing = null
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { saveError = true }
+                finally { saving = false }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { if (!saving) editing = null },
+            title = { Text("Confirm recorded load") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(observedPair(edit, units))
+                    Text("Confirm only if you remember the exact setup. Assisted or bodyweight-only sets must stay unconfirmed.")
+                    RecordedLoadBasis.entries.forEach { choice ->
+                        Row(Modifier.fillMaxWidth().clickable(enabled = !saving) { basis = choice },
+                            verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = choice == basis, onClick = { basis = choice }, enabled = !saving)
+                            Text(choice.label)
+                        }
+                    }
+                    OutlinedTextField(setup, { if (it.length <= 48) setup = it },
+                        label = { Text("Setup name (same for comparable sets)") },
+                        placeholder = { Text("e.g. Gym A flat barbell") }, singleLine = true, enabled = !saving)
+                    if (saveError) Text("Could not save. Try again.", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            confirmButton = { TextButton(onClick = { save(basis) },
+                enabled = !saving && LoadConfirmations.validSetup(setup)) { Text("Confirm") } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { save(null) }, enabled = !saving) { Text("Clear") }
+                    TextButton(onClick = { editing = null }, enabled = !saving) { Text("Cancel") }
+                }
+            }
+        )
+    }
     LazyColumn(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(horizontal = 20.dp),
         contentPadding = PaddingValues(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -112,6 +187,18 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
                 Text("Recorded loads only. Historical load convention and resistance are not verified.",
                     color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
+            when (val recordData = records) {
+                StrengthLoad.Loading -> item { Text("Loading rep records…", color = ApexColors.TextSecondary) }
+                StrengthLoad.Failed -> item {
+                    Text("Rep records couldn't load.")
+                    TextButton(onClick = { retry++ }) { Text("Retry") }
+                }
+                is StrengthLoad.Ready -> item { RepRecordsPanel(recordData.value, units) }
+            }
+            if (confirmations is StrengthLoad.Failed) item {
+                Text("Load confirmations couldn't load.")
+                TextButton(onClick = { retry++ }) { Text("Retry") }
+            }
             when (val data = history) {
                 StrengthLoad.Loading -> item { CircularProgressIndicator() }
                 StrengthLoad.Failed -> item {
@@ -124,7 +211,13 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
                     else {
                         item { StrengthHistorySummary(points, units) }
                         items(points.asReversed(), key = { it.sessionId }) { point ->
-                            StrengthSessionRow(point, units)
+                            StrengthSessionRow(point, units, confirmed) { observation ->
+                                val prior = confirmed?.let { LoadConfirmations.match(observation, it) }
+                                basis = prior?.basis ?: RecordedLoadBasis.TOTAL
+                                setup = prior?.setup.orEmpty()
+                                saveError = false
+                                editing = observation
+                            }
                         }
                     }
                 }
@@ -196,7 +289,11 @@ internal fun StrengthHistorySummary(points: List<StrengthSessionPoint>, units: S
 }
 
 @Composable
-private fun StrengthSessionRow(point: StrengthSessionPoint, units: String) {
+private fun StrengthSessionRow(
+    point: StrengthSessionPoint, units: String,
+    confirmations: Map<Long, SetLoadConfirmation>?,
+    onConfirm: (StrengthObservation) -> Unit
+) {
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         HorizontalDivider(color = ApexColors.BorderSubtle)
         Text(DateTimeUtils.formatDateForDisplay(point.date.toString()) + if (point.partial) " · Partial workout" else "",
@@ -204,6 +301,64 @@ private fun StrengthSessionRow(point: StrengthSessionPoint, units: String) {
         Text("Highest load: ${observedPair(point.heaviestRecorded, units)}", color = ApexColors.TextSecondary)
         Text("Most reps: ${observedPair(point.mostReps, units)}", color = ApexColors.TextSecondary)
         Text("${point.workingSets} sets · ${point.totalReps} reps", style = MaterialTheme.typography.bodySmall)
-        point.observations.forEach { Text(observedPair(it, units), style = MaterialTheme.typography.bodySmall) }
+        point.observations.forEach { observation ->
+            val confirmation = confirmations?.let { LoadConfirmations.match(observation, it) }
+            val canConfirm = confirmations != null && observation.fingerprint != null &&
+                observation.setId > 0 && (observation.loadKg ?: 0.0) > 0
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(observedPair(observation, units), style = MaterialTheme.typography.bodySmall)
+                    if (confirmation != null) Text("${confirmation.basis.label} · ${confirmation.setup}",
+                        color = ApexColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+                }
+                if (canConfirm) TextButton(onClick = { onConfirm(observation) }) {
+                    Text(if (confirmation == null) "Confirm setup" else "Edit setup")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun RepRecordsPanel(projection: RepRecordProjection, units: String) {
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    var source by remember { mutableStateOf<RepRecordEvent?>(null) }
+    source?.let { event ->
+        AlertDialog(onDismissRequest = { source = null }, title = { Text("Source set") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(observedPair(StrengthObservation(event.setId, event.loadKg, event.key.reps), units))
+                    Text(DateTimeUtils.formatDateForDisplay(event.date.toString()))
+                    Text("${event.key.basis.label} · ${event.key.setup}")
+                    Text("Saved session: ${event.sessionId}")
+                    Text("Set ID: ${event.setId}")
+                    if (event.chronologyLimited) Text("Exact within-day order is unavailable.")
+                }
+            }, confirmButton = { TextButton(onClick = { source = null }) { Text("Close") } })
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Exact-rep records · all time", style = MaterialTheme.typography.titleMedium)
+        Text("Only user-confirmed matching setups qualify. Stack settings are not measured external force; one rep is not necessarily a maximal test.",
+            color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+        if (projection.best.isEmpty()) Text("Confirm a saved set's load setup below to start building comparable records.",
+            color = ApexColors.TextSecondary)
+        else {
+            TextButton(onClick = { showHistory = !showHistory }) {
+                Text(if (showHistory) "Show current records" else "Show record history")
+            }
+            val visible = if (showHistory) projection.events.sortedByDescending { it.date } else projection.best
+            visible.forEach { event ->
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { source = event },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(observedPair(StrengthObservation(event.setId, event.loadKg, event.key.reps), units))
+                        Text("${event.key.basis.label} · ${event.key.setup}", color = ApexColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(DateTimeUtils.formatDateForDisplay(event.date.toString()), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
     }
 }

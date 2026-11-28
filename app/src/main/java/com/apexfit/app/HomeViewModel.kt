@@ -312,6 +312,7 @@ class HomeViewModel @Inject constructor(
                 val personalRecords = dao.getRecentPersonalRecordsWithNames(limit = 500).first()
                 val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
                 val muscleTargets = dataStore.muscleTargetHistoryFlow.first()
+                val setLoadConfirmations = dataStore.setLoadConfirmationsFlow.first()
 
                 val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
@@ -341,6 +342,12 @@ class HomeViewModel @Inject constructor(
                         writer.appendLine("## Body Measurements")
                         writer.appendLine("date,bodyPart,value,unit")
                         bodyMeasurements.forEach { writer.appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }
+                        writer.appendLine()
+                        writer.appendLine("## Load Setup Confirmations")
+                        writer.appendLine("set_id,fingerprint,basis,setup")
+                        setLoadConfirmations.values.sortedBy { it.setId }.forEach {
+                            writer.appendLine("${it.setId},${it.fingerprint},${it.basis.name},${csvEscape(it.setup)}")
+                        }
                         writer.appendLine()
                         writer.appendLine("## Muscle Target History")
                         writer.appendLine("muscle,effective_week,target_direct_sets,state")

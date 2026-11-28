@@ -4,7 +4,10 @@ import com.apexfit.app.data.AnalyticsWorkingSet
 import java.time.LocalDate
 
 /** Recorded mass convention is unknown on legacy rows; no inferred per-hand or assistance conversion. */
-data class StrengthObservation(val setId: Long, val loadKg: Double?, val reps: Int)
+data class StrengthObservation(
+    val setId: Long, val loadKg: Double?, val reps: Int,
+    val fingerprint: String? = null, val completedAt: Long? = null
+)
 
 data class StrengthSessionPoint(
     val sessionId: String,
@@ -41,7 +44,8 @@ object StrengthAnalytics {
                         "lb", "lbs" -> s.weight / AppConstants.KG_TO_LBS
                         else -> null
                     }
-                    StrengthObservation(s.id, kg?.takeIf { it.isFinite() }, s.reps)
+                    StrengthObservation(s.id, kg?.takeIf { it.isFinite() }, s.reps,
+                        LoadConfirmations.fingerprint(s), s.setCompletedAt)
                 })
         }.sortedWith(compareBy<StrengthSessionPoint> { it.date }.thenBy { it.sessionId })
     }
