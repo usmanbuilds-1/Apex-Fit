@@ -236,15 +236,6 @@ class FitnessRepositoryImpl @Inject constructor(
             .flatMapLatest { date -> dao.getCompletedSessionCountFlow(date) }
             .distinctUntilChanged()
 
-        val activePlanFlow: Flow<WorkoutPlan?> = dao.getActivePlanFlow()
-
-        val activePlanSessionsFlow: Flow<List<PlanSession>> =
-            activePlanFlow.flatMapLatest { plan ->
-                if (plan != null) combine(dao.getSessionsForPlanFlow(plan.id), todayDateFlow) { sessions, date ->
-                    WorkoutSchedule.weekSessions(plan, sessions, LocalDate.parse(date))
-                } else flowOf(emptyList())
-            }
-
         @Suppress("UNCHECKED_CAST")
         combine(
             dataStore.calorieTargetManualFlow,
@@ -252,7 +243,7 @@ class FitnessRepositoryImpl @Inject constructor(
             dataStore.goalFlow,
             weightFlow,
             completedTodayFlow,
-            activePlanSessionsFlow,
+            todayWorkoutChoiceFlow.filterNotNull(),
             bioProfileFlow,
             nutritionEntriesFlow,
             todayDateFlow,
@@ -265,8 +256,7 @@ class FitnessRepositoryImpl @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             val weights             = values[3] as List<WeightEntry>
             val completedTodayCount = values[4] as Int
-            @Suppress("UNCHECKED_CAST")
-            val planSessions        = values[5] as List<PlanSession>
+            val choice              = values[5] as com.apexfit.app.utils.TodayWorkoutChoice
             val bio                 = values[6] as BioProfile
             @Suppress("UNCHECKED_CAST")
             val nutrition           = values[7] as List<NutritionEntry>
@@ -310,12 +300,8 @@ class FitnessRepositoryImpl @Inject constructor(
                 sex                    = bio.biologicalSex
             )
 
-            val todayDayString = java.time.LocalDate.parse(todayDate).format(DAY_OF_WEEK_FORMAT)
-            val todayPlanned = planSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
-            val isPlannedTraining = todayPlanned != null &&
-                !todayPlanned.label.contains("Rest", ignoreCase = true) &&
-                todayPlanned.focus != "Muscle Recovery & Rest"
-            val isTodayTraining = completedTodayCount > 0 || isPlannedTraining
+            val isTodayTraining = com.apexfit.app.utils.ScheduleConsumerPolicy.isTrainingDay(
+                LocalDate.parse(todayDate), choice, completedTodayCount)
 
             val todayCalories = if (isTodayTraining) cycled.trainingDayCalories else cycled.restDayCalories
             val todayProtein  = if (isTodayTraining) cycled.trainingDayProtein else cycled.restDayProtein
