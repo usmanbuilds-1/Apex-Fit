@@ -3,6 +3,17 @@ package com.apexfit.app.utils
 import com.apexfit.app.data.AnalyticsWorkingSet
 import java.time.LocalDate
 
+enum class TrainingFormat(val label: String) {
+    SEQUENTIAL("Sequential"), GROUPED("Grouped session"), UNKNOWN("Format unknown");
+    companion object {
+        fun fromStored(value: String?): TrainingFormat = when (value) {
+            "sequential" -> SEQUENTIAL
+            "grouped" -> GROUPED
+            else -> UNKNOWN
+        }
+    }
+}
+
 /** Recorded mass convention is unknown on legacy rows; no inferred per-hand or assistance conversion. */
 data class StrengthObservation(
     val setId: Long, val loadKg: Double?, val reps: Int,
@@ -14,7 +25,8 @@ data class StrengthSessionPoint(
     val sessionId: String,
     val date: LocalDate,
     val partial: Boolean,
-    val observations: List<StrengthObservation>
+    val observations: List<StrengthObservation>,
+    val trainingFormat: TrainingFormat = TrainingFormat.UNKNOWN
 ) {
     val heaviestRecorded: StrengthObservation? get() = observations.filter { it.loadKg != null }
         .maxWithOrNull(compareBy<StrengthObservation> { it.loadKg }.thenBy { it.reps }.thenByDescending { it.setId })
@@ -48,7 +60,8 @@ object StrengthAnalytics {
                     StrengthObservation(s.id, kg?.takeIf { it.isFinite() }, s.reps,
                         if (s.advancedDetails == null) LoadConfirmations.fingerprint(s) else null, s.setCompletedAt,
                         SetObservationCodec.confirmation(s))
-                })
+                }, sessionRows.map { TrainingFormat.fromStored(it.analyticsTrainingFormat) }.distinct().singleOrNull()
+                    ?: TrainingFormat.UNKNOWN)
         }.sortedWith(compareBy<StrengthSessionPoint> { it.date }.thenBy { it.sessionId })
     }
 }
