@@ -118,6 +118,7 @@ internal fun TrainingCalendarContent(
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val monthFormat = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()) }
     val day = data?.days?.firstOrNull { it.date == selectedDate }
+    val adherence = data?.let { ScheduleAdherence.summarize(it.days, today) }
     LazyColumn(Modifier.fillMaxSize().background(ApexColors.Canvas).padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -149,6 +150,26 @@ internal fun TrainingCalendarContent(
                             style = MaterialTheme.typography.bodySmall)
                     }
                 }
+            }
+            if (adherence != null && adherence.elapsedDays > 0) item {
+                val s = adherence
+                fun percent(value: Double): String = java.text.NumberFormat.getPercentInstance().format(value)
+                Text("Scheduled completion", style = MaterialTheme.typography.titleMedium)
+                val rate = s.completionRate
+                val low = s.completionLowerBound
+                val high = s.completionUpperBound
+                val description = when {
+                    rate != null -> "${percent(rate)} completed (${s.completed}/${s.eligible})"
+                    low != null && high != null -> "${percent(low)}–${percent(high)} possible completion"
+                    else -> "No eligible recorded training days"
+                }
+                Text(description, style = MaterialTheme.typography.titleLarge)
+                Text("${s.resolvedEligible}/${s.eligible} eligible outcomes resolved · ${s.excused} excused",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                Text("Schedule recorded for ${s.knownScheduleDays}/${s.elapsedDays} elapsed days. Partial workouts are not full completions.",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                if (s.unresolved > 0) Text("Range reflects all possible outcomes of unconfirmed workouts, not a confidence interval.",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
             }
             if (data.recordedOccurrences > 0) item {
                 Text("Recorded schedule outcomes", style = MaterialTheme.typography.titleMedium)
