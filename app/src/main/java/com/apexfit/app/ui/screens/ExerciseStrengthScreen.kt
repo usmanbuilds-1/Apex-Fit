@@ -46,6 +46,12 @@ private sealed interface StrengthLoad<out T> {
     data class Ready<T>(val value: T) : StrengthLoad<T>
 }
 
+private inline fun <T, R> StrengthLoad<T>.mapReady(transform: (T) -> R): StrengthLoad<R> = when (this) {
+    StrengthLoad.Loading -> StrengthLoad.Loading
+    StrengthLoad.Failed -> StrengthLoad.Failed
+    is StrengthLoad.Ready -> StrengthLoad.Ready(transform(value))
+}
+
 @Composable
 internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack: () -> Unit) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -72,42 +78,19 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
         1 -> today.minusDays(364)
         else -> LocalDate.of(1, 1, 1)
     }
-    val history by key(selectedId, start, today, retry) {
-        produceState<StrengthLoad<List<StrengthSessionPoint>>>(StrengthLoad.Loading) {
+    val dashboard by key(selectedId, today, retry) {
+        produceState<StrengthLoad<com.apexfit.app.utils.StrengthDashboardSnapshot>>(StrengthLoad.Loading) {
             val id = selectedId ?: return@produceState
             try {
-                progressViewModel.observeStrengthHistory(id, start, today).collect { value = StrengthLoad.Ready(it) }
+                progressViewModel.observeStrengthDashboard(id, today).collect { value = StrengthLoad.Ready(it) }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { value = StrengthLoad.Failed }
         }
     }
-    val records by key(selectedId, today, retry) {
-        produceState<StrengthLoad<RepRecordProjection>>(StrengthLoad.Loading) {
-            val id = selectedId ?: return@produceState
-            try {
-                progressViewModel.observeRepRecords(id, today).collect { value = StrengthLoad.Ready(it) }
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { value = StrengthLoad.Failed }
-        }
-    }
-    val confirmations by key(retry) {
-        produceState<StrengthLoad<Map<Long, SetLoadConfirmation>>>(StrengthLoad.Loading) {
-            try {
-                progressViewModel.setLoadConfirmations.collect { value = StrengthLoad.Ready(it) }
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { value = StrengthLoad.Failed }
-        }
-    }
-    val estimates by key(selectedId, start, today, retry) {
-        produceState<StrengthLoad<List<EstimatedStrengthPoint>>>(StrengthLoad.Loading) {
-            val id = selectedId ?: return@produceState
-            try {
-                progressViewModel.observeEstimatedStrength(id, start, today).collect { value = StrengthLoad.Ready(it) }
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (_: Exception) { value = StrengthLoad.Failed }
-        }
-    }
-    val confirmed = (confirmations as? StrengthLoad.Ready)?.value
+    val history = remember(dashboard, start) { dashboard.mapReady { it.historyFrom(start) } }
+    val records = remember(dashboard) { dashboard.mapReady { it.records } }
+    val estimates = remember(dashboard, start) { dashboard.mapReady { it.estimatesFrom(start) } }
+    val confirmed = (dashboard as? StrengthLoad.Ready)?.value?.confirmations
     var editing by remember { mutableStateOf<StrengthObservation?>(null) }
     var basis by remember { mutableStateOf(RecordedLoadBasis.TOTAL) }
     var setup by remember { mutableStateOf("") }
@@ -186,7 +169,7 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
                 OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Find a logged exercise") })
             }
-            val filtered = options.filter { it.name.contains(query.trim(), ignoreCase = true) }
+            val filtered = remember(options, query) { options.filter { it.name.contains(query.trim(), ignoreCase = true) } }
             if (filtered.isEmpty()) item { Text("No matching logged exercises.", color = ApexColors.TextSecondary) }
             items(filtered, key = { it.exerciseId }) { exercise ->
                 Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) {
@@ -222,10 +205,6 @@ internal fun ExerciseStrengthScreen(progressViewModel: ProgressViewModel, onBack
                     TextButton(onClick = { retry++ }) { Text("Retry") }
                 }
                 is StrengthLoad.Ready -> item { EstimatedStrengthPanel(estimateData.value, units) }
-            }
-            if (confirmations is StrengthLoad.Failed) item {
-                Text("Load confirmations couldn't load.")
-                TextButton(onClick = { retry++ }) { Text("Retry") }
             }
             when (val data = history) {
                 StrengthLoad.Loading -> item { CircularProgressIndicator() }
