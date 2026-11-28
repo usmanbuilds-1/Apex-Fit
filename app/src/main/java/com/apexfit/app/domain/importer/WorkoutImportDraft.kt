@@ -19,7 +19,8 @@ data class EditableImportedExercise(
     val restSecondsText: String,
     val repTarget: ImportRepTarget,
     val notes: String,
-    val sourcePrescription: String?
+    val sourcePrescription: String?,
+    val sourceGroupTag: String? = null
 ) {
     val sets: Int? get() = setsText.toIntOrNull()?.takeIf { it in 1..99 }
     val repsMin: Int? get() = repsMinText.toIntOrNull()?.takeIf { it in 1..999 }
@@ -36,14 +37,34 @@ data class EditableImportedExercise(
             (repsMin != null && repsMax != null && repsMin!! > repsMax!!)
 }
 
+data class ImportedGroupChoice(val memberKeys: List<String>, val transitionRest: Int, val roundRest: Int)
+
+data class ImportedGroupCandidate(val tag: String, val members: List<EditableImportedExercise>, val consecutive: Boolean)
+
 data class EditableImportedDay(
     val key: String = UUID.randomUUID().toString(),
     val label: String,
     val dayOfWeek: String?,
     val focus: String?,
-    val exercises: List<EditableImportedExercise>
+    val exercises: List<EditableImportedExercise>,
+    val groupChoices: Map<String, ImportedGroupChoice> = emptyMap()
 ) {
-    val needsReview: Boolean get() = dayOfWeek == null || exercises.any { it.needsReview }
+    fun groupCandidates(): List<ImportedGroupCandidate> = exercises.withIndex()
+        .filter { !it.value.sourceGroupTag.isNullOrBlank() }.groupBy { requireNotNull(it.value.sourceGroupTag) }
+        .map { (tag, entries) -> ImportedGroupCandidate(tag, entries.map { it.value },
+            entries.size >= 2 && entries.last().index - entries.first().index + 1 == entries.size) }
+
+    fun validGroupChoice(tag: String): ImportedGroupChoice? {
+        val choice = groupChoices[tag] ?: return null
+        val group = groupCandidates().singleOrNull { it.tag == tag } ?: return null
+        return choice.takeIf { group.consecutive && it.memberKeys == group.members.map { member -> member.key } &&
+            it.transitionRest in 1..3600 && it.roundRest in 1..3600 }
+    }
+
+    fun groupValidationErrors(): List<String> = groupChoices.keys.filter { validGroupChoice(it) == null }
+        .map { "Review or remove group $it in $label after changing its members or order." }
+
+    val needsReview: Boolean get() = dayOfWeek == null || exercises.any { it.needsReview } || groupValidationErrors().isNotEmpty()
 }
 
 data class EditableImportedPlan(
@@ -64,8 +85,12 @@ data class EditableImportedPlan(
         if (training.isEmpty()) return null
         val resolved = training.map { slot ->
             val template = days.singleOrNull { it.label.equals(slot.workout, true) } ?: return null
+            val copied = template.exercises.map { it.copy(key = UUID.randomUUID().toString()) }
+            val keyMap = template.exercises.zip(copied).associate { (old, new) -> old.key to new.key }
             template.copy(key = UUID.randomUUID().toString(), dayOfWeek = slot.weekday,
-                exercises = template.exercises.map { it.copy(key = UUID.randomUUID().toString()) })
+                exercises = copied, groupChoices = template.groupChoices.mapValues { (_, choice) ->
+                    choice.copy(memberKeys = choice.memberKeys.map { keyMap[it] ?: it })
+                })
         }
         // Never silently discard an imported workout template.
         if (days.any { day -> training.none { it.workout.equals(day.label, true) } }) return null
@@ -101,6 +126,7 @@ data class EditableImportedPlan(
 
     fun validationErrors(): List<String> = buildList {
         if (usesRotation && scheduledDays() == null) add("Check the recovered schedule: every week needs seven unique weekdays and every training slot must match a workout template.")
+        days.forEach { addAll(it.groupValidationErrors()) }
         if (name.isBlank()) add("Give the plan a name.")
         if (days.isEmpty()) add("Add at least one training day.")
         if (days.any { it.exercises.isEmpty() }) add("Every training day needs at least one exercise.")
@@ -143,7 +169,8 @@ fun ParsedImportedPlan.toEditablePlan(libraryById: Map<String, ExerciseLibraryEn
                     restSecondsText = exercise.restSeconds?.toString().orEmpty(),
                     repTarget = exercise.repTarget,
                     notes = exercise.notes.joinToString(" · "),
-                    sourcePrescription = exercise.rawPrescription
+                    sourcePrescription = exercise.rawPrescription,
+                    sourceGroupTag = exercise.supersetTag
                 )
             }
         )
