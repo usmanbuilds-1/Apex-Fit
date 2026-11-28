@@ -155,7 +155,9 @@ class WorkoutSessionManager(
             val sets = dao.getSetsForSession(id)
             val catalogIds = sets.filter { it.completed && !it.isWarmup }.map { it.exerciseId }.toSet()
             val earned = journal.records.filter { it.exerciseId in catalogIds && it.date == session.date }
-            return buildReceipt(session, sets, earned)
+            val credit = com.apexfit.app.utils.ReservedWorkoutExecution.receiptCredit(
+                session, journal.reservedOccurrenceId, dao.getAssociationForWorkout(session.id))
+            return buildReceipt(session, sets, earned, journal.reservedOccurrenceId, credit)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -180,7 +182,8 @@ class WorkoutSessionManager(
         }
     }
 
-    private fun buildReceipt(session: TrainingSession, sets: List<ExerciseSet>, earned: List<PersonalRecord>): SessionCommitResult {
+    private fun buildReceipt(session: TrainingSession, sets: List<ExerciseSet>, earned: List<PersonalRecord>,
+                             reservedOccurrenceId: String? = null, reservationCredited: Boolean? = null): SessionCommitResult {
         val working = sets.filter(com.apexfit.app.utils.TrainingEvidence::isWorkingSet)
         return SessionCommitResult(
             sessionId = session.id,
@@ -192,7 +195,9 @@ class WorkoutSessionManager(
             sessionType = session.sessionType,
             records = earned,
             isPartial = session.status == "partial",
-            savedSets = sets
+            savedSets = sets,
+            reservedOccurrenceId = reservedOccurrenceId,
+            reservationCredited = reservationCredited
         )
     }
 
@@ -991,13 +996,15 @@ class WorkoutSessionManager(
             val earned = evaluatePRs(allSets.filterNot { it.exerciseId in advancedIds }, trainingSession.date)
             // Write the exact earned PR snapshot BEFORE committing Room. If
             // Room rolls back, this staged ID cannot be recovered as a receipt.
-            val staged = buildReceipt(trainingSession, allSets, earned).copy(savedSets = emptyList())
+            val staged = buildReceipt(trainingSession, allSets, earned, finalSession.reservedOccurrenceId)
+                .copy(savedSets = emptyList())
             dataStore.stageWorkoutReceipt(sessionId, gson.toJson(staged))
             repository.insertSessionWithPRsAtomic(trainingSession, allSets, earned)
-            com.apexfit.app.utils.ReservedWorkoutExecution.attributeSavedWorkout(db, finalSession, trainingSession, completedAt)
+            val attributed = com.apexfit.app.utils.ReservedWorkoutExecution.attributeSavedWorkout(db, finalSession, trainingSession, completedAt)
             // Legacy stall counters were based on the preceding workout and cannot be
             // replayed after edits. Do not update or use them until source-linked replay exists.
-            buildReceipt(trainingSession, dao.getSetsForSession(sessionId), earned)
+            buildReceipt(trainingSession, dao.getSetsForSession(sessionId), earned,
+                finalSession.reservedOccurrenceId, attributed.takeIf { finalSession.reservedOccurrenceId != null })
         }
 
         // A cleanup failure must not be reported as a failed database save.
@@ -1102,7 +1109,9 @@ data class SessionCommitResult(
     val sessionType: String,
     val records: List<com.apexfit.app.data.PersonalRecord> = emptyList(),
     val isPartial: Boolean = false,
-    val savedSets: List<ExerciseSet> = emptyList()
+    val savedSets: List<ExerciseSet> = emptyList(),
+    val reservedOccurrenceId: String? = null,
+    val reservationCredited: Boolean? = null
 ) {
     companion object {
         fun empty() = SessionCommitResult("", 0, 0.0, 0, emptyList(), "")
