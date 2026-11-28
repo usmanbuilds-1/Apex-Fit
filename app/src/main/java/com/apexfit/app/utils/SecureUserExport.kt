@@ -41,6 +41,16 @@ internal object SecureUserExport {
         context.getExternalFilesDir(null)?.let { File(it, "apexfit_export.csv").delete() }
     }
 
+    /** Must run under LocalDataGate. Files saved to user-selected providers are outside app control. */
+    fun clearStaging(context: Context) {
+        val dir = File(context.cacheDir, DIRECTORY)
+        if (dir.exists()) check(dir.deleteRecursively()) { "Could not delete export staging files" }
+        context.getExternalFilesDir(null)?.let { root ->
+            val legacy = File(root, "apexfit_export.csv")
+            if (legacy.exists()) check(legacy.delete()) { "Could not delete legacy export" }
+        }
+    }
+
     suspend fun writeSnapshot(db: AppDatabase, preferences: Map<String, Any>, output: OutputStream) {
         JsonWriter(output.bufferedWriter(Charsets.UTF_8)).use { writer ->
             writer.serializeNulls = true
@@ -109,7 +119,11 @@ internal object SecureUserExport {
         }
     }
 
-    suspend fun save(context: Context, destination: Uri) {
+    suspend fun save(context: Context, destination: Uri) = LocalDataGate.exclusive {
+        saveLocked(context, destination)
+    }
+
+    private suspend fun saveLocked(context: Context, destination: Uri) {
         require(destination.scheme == "content") { "Expected a document provider URI" }
         cleanupStale(context)
         val directory = File(context.cacheDir, DIRECTORY)
