@@ -36,7 +36,7 @@ class MuscleAnalyticsRepositoryTest {
             val repository = FitnessRepositoryImpl(db, dao, DataStoreManager.getInstance(context), scope)
             val rich = withTimeout(15000) {
                 repository.richSessionsFlow.first { sessions ->
-                    sessions.any { session -> session.exercises.any { it.sets.any { set -> set.id == 701L } && "Biceps" in it.secondaryMuscles } }
+                    sessions.any { session -> session.exercises.any { it.sets.any { set -> set.id == 701L } && "biceps" in it.secondaryMuscles } }
                 }
             }
             val rows = MuscleVolumeSummary.calculate(rich, today, MuscleVolumePeriod.WEEK)
