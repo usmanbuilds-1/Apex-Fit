@@ -293,90 +293,23 @@ class HomeViewModel @Inject constructor(
         }
 
 
-    private fun csvEscape(value: String): String {
-        val escaped = value.replace("\"", "\"\"")
-        return if (escaped.contains(',') || escaped.contains('"') ||
-                   escaped.contains('\n') || escaped.contains('\r')) {
-            "\"$escaped\""
-        } else {
-            escaped
+    private val _isExporting = MutableStateFlow(false)
+    val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
+
+    fun exportUserData(destination: android.net.Uri, onComplete: (Boolean) -> Unit) {
+        if (!_isExporting.compareAndSet(false, true)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                com.apexfit.app.utils.SecureUserExport.save(getApplication<Application>(), destination)
+                withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) { onComplete(false) }
+            } finally {
+                _isExporting.value = false
+            }
         }
-    }
-
-    fun exportUserData(context: android.content.Context, onComplete: (android.net.Uri?) -> Unit) {  
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {  
-            try {  
-                val cutoff90 = com.apexfit.app.utils.getWindowStartDate(90)
-                val weights = dao.observeAllWeightEntries().first()  
-                val nutrition = dao.getNutritionEntriesFromFlow(cutoff90).first()  
-                val sessions = dao.getAllTrainingSessions()  
-                val exerciseSets = dao.getAllExerciseSetsForExport()
-                val personalRecords = dao.getRecentPersonalRecordsWithNames(limit = 500).first()
-                val bodyMeasurements = dao.getBodyMeasurementsFlow().first()
-                val muscleTargets = dataStore.muscleTargetHistoryFlow.first()
-                val setLoadConfirmations = dataStore.setLoadConfirmationsFlow.first()
-                val customGoals = dataStore.customFitnessGoalsFlow.first()
-
-                val file = java.io.File(context.getExternalFilesDir(null), "apexfit_export.csv")
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                    file.bufferedWriter().use { writer ->
-                        writer.appendLine("# Apex Fit Data Export — ${java.util.Date()}")
-                        writer.appendLine()
-                        writer.appendLine("## Weight History")
-                        writer.appendLine("date,time,weight_kg")
-                        weights.forEach { writer.appendLine("${it.date},${it.time},${it.weight}") }
-                        writer.appendLine()
-                        writer.appendLine("## Nutrition Log")
-                        writer.appendLine("date,name,calories,protein_g,carbs_g,fat_g")
-                        nutrition.forEach { writer.appendLine("${it.date},${csvEscape(it.name)},${it.calories},${it.protein},${it.carbs},${it.fat}") }
-                        writer.appendLine()
-                        writer.appendLine("## Workout Sessions")
-                        writer.appendLine("session_id,date,type,duration_min,feel,completed,status,started_at,completed_at")
-                        sessions.forEach { writer.appendLine("${csvEscape(it.id)},${it.date},${csvEscape(it.sessionType)},${it.durationMinutes},${it.sessionFeel},${it.completed},${csvEscape(it.status.orEmpty())},${it.startedAt ?: ""},${it.completedAt ?: ""}") }
-                        writer.appendLine()
-                        writer.appendLine("## Exercise Sets")
-                        writer.appendLine("set_id,sessionId,exerciseId,exerciseName,muscleGroup,weight,reps,rpe,isWarmup,restTaken,completed,repsInReserve,effectiveSetValue,weight_unit,occurrence_index,set_number,set_completed_at,advanced_details,secondary_muscle_snapshot,set_observation")
-                        exerciseSets.forEach { writer.appendLine("${it.id},${csvEscape(it.sessionId)},${csvEscape(it.exerciseId)},${csvEscape(it.exerciseName)},${csvEscape(it.muscleGroup)},${it.weight},${it.reps},${it.rpe},${it.isWarmup},${it.restTaken},${it.completed},${it.repsInReserve},${it.effectiveSetValue},${csvEscape(it.weightUnit)},${it.occurrenceIndex ?: ""},${it.setNumber ?: ""},${it.setCompletedAt ?: ""},${csvEscape(it.advancedDetails.orEmpty())},${csvEscape(it.secondaryMuscleSnapshot.orEmpty())},${csvEscape(it.setObservation.orEmpty())}") }
-                        writer.appendLine()
-                        writer.appendLine("## Personal Records")
-                        writer.appendLine("id,exerciseId,type,value,date")
-                        personalRecords.forEach { writer.appendLine("${csvEscape(it.record.id)},${csvEscape(it.record.exerciseId)},${csvEscape(it.record.type)},${it.record.value},${csvEscape(it.record.date)}") }
-                        writer.appendLine()
-                        writer.appendLine("## Body Measurements")
-                        writer.appendLine("date,bodyPart,value,unit")
-                        bodyMeasurements.forEach { writer.appendLine("${csvEscape(it.date)},${csvEscape(it.bodyPart)},${it.value},${csvEscape(it.unit)}") }
-                        writer.appendLine()
-                        writer.appendLine("## Load Setup Confirmations")
-                        writer.appendLine("set_id,fingerprint,basis,setup,free_weight_rep_limit")
-                        setLoadConfirmations.values.sortedBy { it.setId }.forEach {
-                            writer.appendLine("${it.setId},${it.fingerprint},${it.basis.name},${csvEscape(it.setup)},${it.freeWeightRepLimit}")
-                        }
-                        writer.appendLine()
-                        writer.appendLine("## Custom Fitness Goals")
-                        writer.appendLine("id,kind,target,exercise_id,basis,setup,minimum,deadline,start,baseline,baseline_date,archived_on")
-                        customGoals.forEach { g ->
-                            val spec = g.spec
-                            writer.appendLine("${g.id},${spec.kind.name},${spec.target},${csvEscape(spec.exerciseId)},${spec.basis?.name.orEmpty()},${csvEscape(spec.setup)},${spec.minimum},${spec.deadline ?: ""},${g.start},${g.baseline ?: ""},${g.baselineDate ?: ""},${g.archivedOn ?: ""}")
-                        }
-                        writer.appendLine()
-                        writer.appendLine("## Muscle Target History")
-                        writer.appendLine("muscle,effective_week,target_direct_sets,state")
-                        muscleTargets.forEach {
-                            writer.appendLine("${csvEscape(it.muscle)},${it.effectiveWeek},${it.target ?: ""},${if (it.target == null) "unset" else "set"}")
-                        }
-                    }
-                }
-   
-                val uri = androidx.core.content.FileProvider.getUriForFile(  
-                    context, "${context.packageName}.fileprovider", file)  
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(uri) }  
-                kotlinx.coroutines.delay(60_000)
-                file.delete()
-            } catch (e: Exception) {  
-                android.util.Log.e("Export", "Export failed", e)  
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(null) }  
-            }  
-        }  
     }
 
     private fun getTodayDateString(): String {
