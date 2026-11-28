@@ -719,10 +719,22 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateAll8To37() {
+    fun migrate37To38LeavesLegacyExecutionContextUnknown() {
+        val old = helper.createDatabase(TEST_DB, 37)
+        old.execSQL("INSERT INTO workout_sessions (id, date, sessionType, completed, durationMinutes, sessionFeel) VALUES ('legacy', '2026-11-03', 'Upper', 1, 25, 4)")
+        old.close()
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 38, true, AppDatabase.MIGRATION_37_38)
+        migrated.query("SELECT durationMinutes, grouped_execution FROM workout_sessions WHERE id='legacy'").use {
+            assertTrue(it.moveToFirst()); assertEquals(25, it.getInt(0)); assertTrue(it.isNull(1))
+        }
+        migrated.close()
+    }
+
+    @Test
+    fun migrateAll8To38() {
         helper.createDatabase(TEST_DB, 8).close()
         helper.runMigrationsAndValidate(
-            TEST_DB, 37, true,
+            TEST_DB, 38, true,
             AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
             AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14,
@@ -732,7 +744,7 @@ class MigrationTest {
             AppDatabase.MIGRATION_20_21, AppDatabase.MIGRATION_21_22,
             AppDatabase.MIGRATION_22_23, AppDatabase.MIGRATION_23_24,
             AppDatabase.MIGRATION_24_25, AppDatabase.MIGRATION_25_26,
-            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28, AppDatabase.MIGRATION_28_29, AppDatabase.MIGRATION_29_30, AppDatabase.MIGRATION_30_31, AppDatabase.MIGRATION_31_32, AppDatabase.MIGRATION_32_33, AppDatabase.MIGRATION_33_34, AppDatabase.MIGRATION_34_35, AppDatabase.MIGRATION_35_36, AppDatabase.MIGRATION_36_37
+            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28, AppDatabase.MIGRATION_28_29, AppDatabase.MIGRATION_29_30, AppDatabase.MIGRATION_30_31, AppDatabase.MIGRATION_31_32, AppDatabase.MIGRATION_32_33, AppDatabase.MIGRATION_33_34, AppDatabase.MIGRATION_34_35, AppDatabase.MIGRATION_35_36, AppDatabase.MIGRATION_36_37, AppDatabase.MIGRATION_37_38
         ).close()
     }
 }
