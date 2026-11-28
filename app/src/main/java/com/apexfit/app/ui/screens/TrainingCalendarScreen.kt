@@ -67,13 +67,70 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
     val day = data?.days?.firstOrNull { it.date.toString() == selectedDate }
     val selectedSession = (day?.sessions.orEmpty() + listOfNotNull(day?.rescheduledWorkout))
         .firstOrNull { it.id == sessionId }
+    var moveTarget by remember { mutableStateOf<TrainingCalendarDay?>(null) }
+    var moveRetry by remember { mutableIntStateOf(0) }
+    var chosenMoveDate by remember { mutableStateOf<LocalDate?>(null) }
+    val move = moveTarget
+    val moveOptions by produceState<List<LocalDate>?>(null, move, moveRetry) {
+        value = null
+        if (move != null) {
+            try { value = progressViewModel.prospectiveMoveCandidates(move.date, requireNotNull(move.futureMoveOccurrenceId)) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { decisionError = "Could not load available rest days."; value = emptyList() }
+        }
+    }
     var linkTarget by remember { mutableStateOf<TrainingCalendarDay?>(null) }
     var candidateRetry by remember { mutableIntStateOf(0) }
     var selectedCandidate by remember { mutableStateOf<String?>(null) }
     val target = linkTarget
     val candidates by produceState<RescheduleCandidates>(RescheduleCandidates.Loading, target, candidateRetry) {
         value = RescheduleCandidates.Loading
-        if (target != null) {
+        if (move != null) {
+        AlertDialog(onDismissRequest = { if (!decisionBusy) moveTarget = null },
+            title = { Text("Move scheduled workout") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Choose a later rest day within the next 14 days. The recurring plan stays unchanged.")
+                    val options = moveOptions
+                    when {
+                        options == null -> CircularProgressIndicator(Modifier.size(24.dp))
+                        options.isEmpty() -> {
+                            Text("No eligible rest days available.")
+                            TextButton(onClick = { decisionError = null; moveRetry++ }) { Text("Retry") }
+                        }
+                        else -> LazyColumn(Modifier.heightIn(max = 240.dp)) {
+                            items(options, key = { it.toString() }) { date ->
+                                Row(Modifier.fillMaxWidth().clickable(enabled = !decisionBusy, role = Role.RadioButton) {
+                                    chosenMoveDate = date
+                                }, verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(selected = chosenMoveDate == date, onClick = null)
+                                    Text(DateTimeUtils.formatDateForDisplay(date), Modifier.padding(vertical = 12.dp))
+                                }
+                            }
+                        }
+                    }
+                    decisionError?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !decisionBusy && chosenMoveDate != null &&
+                    moveOptions?.contains(chosenMoveDate) == true, onClick = {
+                    val date = chosenMoveDate ?: return@TextButton
+                    decisionBusy = true
+                    decisionError = null
+                    scope.launch {
+                        try {
+                            progressViewModel.reserveProspectiveMove(move.date, date, requireNotNull(move.futureMoveOccurrenceId))
+                            moveTarget = null
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { decisionError = "Reservation could not be saved; refresh and retry."; chosenMoveDate = null; moveRetry++ }
+                        finally { decisionBusy = false }
+                    }
+                }) { Text(if (decisionBusy) "Saving…" else "Reserve") }
+            },
+            dismissButton = { TextButton(enabled = !decisionBusy, onClick = { moveTarget = null; decisionError = null }) { Text("Cancel") } })
+    }
+    if (target != null) {
             try {
                 value = RescheduleCandidates.Ready(progressViewModel.reschedulingCandidates(
                     target.date, requireNotNull(target.recordedOccurrenceId)))
@@ -98,6 +155,19 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
         onDaySelected = { selectedDate = it.toString(); sessionId = null; decisionError = null },
         onSessionSelected = { sessionId = it.id },
         onOpenReports = { showPeriodReports = true },
+        onReserveMove = { chosenMoveDate = null; decisionError = null; moveTarget = it },
+        onCancelMove = { row ->
+            if (!decisionBusy) {
+                decisionBusy = true
+                decisionError = null
+                scope.launch {
+                    try { progressViewModel.cancelProspectiveMove(row.occurrenceId, row.recordedAt) }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { decisionError = "Could not cancel reservation. Try again." }
+                    finally { decisionBusy = false }
+                }
+            }
+        },
         decisionBusy = decisionBusy, decisionError = decisionError,
         onLinkWorkout = { selectedCandidate = null; decisionError = null; linkTarget = it },
         onUnlinkWorkout = { targetDay ->
@@ -216,7 +286,9 @@ internal fun TrainingCalendarContent(
     onDecision: (TrainingCalendarDay, OccurrenceDecision?) -> Unit = { _, _ -> },
     onLinkWorkout: (TrainingCalendarDay) -> Unit = {},
     onUnlinkWorkout: (TrainingCalendarDay) -> Unit = {},
-    onOpenReports: () -> Unit = {}
+    onOpenReports: () -> Unit = {},
+    onReserveMove: (TrainingCalendarDay) -> Unit = {},
+    onCancelMove: (com.apexfit.app.data.ScheduleMoveReservation) -> Unit = {}
 ) {
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val monthFormat = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()) }
@@ -306,7 +378,7 @@ internal fun TrainingCalendarContent(
                         }
                     }
                 }
-                Text("C saved completed · P saved partial · T scheduled · R rest · — unknown",
+                Text("C saved completed · P saved partial · T scheduled · R rest · ↔ reserved · ! review · — unknown",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                 Text("Past schedules use recorded revisions where available. Only exact or explicitly associated workouts establish scheduled completion. No log is not proof of a missed workout. Today and future dates show the live plan.",
                     style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
@@ -322,6 +394,22 @@ internal fun TrainingCalendarContent(
                     day.planName?.let {
                         Text(if (day.scheduleSource == CalendarScheduleSource.RECORDED) "Recorded plan: $it"
                             else "Current plan: $it", style = MaterialTheme.typography.bodySmall)
+                    }
+                    day.reservations.forEach { reservation ->
+                        val row = reservation.row
+                        val direction = if (reservation.isOriginal) "Moved to ${row.targetDate}" else "Reserved from ${row.originalDate}"
+                        val status = when (reservation.state) {
+                            ReservationState.UPCOMING -> "Upcoming reservation"
+                            ReservationState.DUE -> "Due today"
+                            ReservationState.ELAPSED -> "Reservation elapsed"
+                            ReservationState.STALE -> "Plan changed · review required"
+                        }
+                        Text("${reservation.label ?: "Workout"} · $direction", style = MaterialTheme.typography.titleSmall)
+                        Text(status, color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        TextButton(enabled = !decisionBusy, onClick = { onCancelMove(row) }) { Text("Remove reservation") }
+                    }
+                    if (day.futureMoveOccurrenceId != null) {
+                        TextButton(enabled = !decisionBusy, onClick = { onReserveMove(day) }) { Text("Move to another day") }
                     }
                     occurrenceLabel(day)?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
@@ -391,7 +479,9 @@ internal fun TrainingCalendarContent(
 @Composable
 private fun CalendarDayCell(day: TrainingCalendarDay, today: LocalDate, selected: Boolean,
                             modifier: Modifier, onDaySelected: (LocalDate) -> Unit) {
-    val marker = when (day.logKind) {
+    val marker = if (day.reservations.any { it.state == ReservationState.STALE }) "!"
+        else if (day.reservations.isNotEmpty()) "↔"
+        else when (day.logKind) {
         CalendarLogKind.COMPLETED -> if (day.partialCount > 0) "C+" else "C"
         CalendarLogKind.PARTIAL -> "P"
         CalendarLogKind.NONE -> when (day.scheduleKind) {
@@ -408,7 +498,9 @@ private fun CalendarDayCell(day: TrainingCalendarDay, today: LocalDate, selected
         .background(if (selected) ApexColors.SurfaceSunken else ApexColors.Canvas)
         .clickable(role = Role.Button) { onDaySelected(day.date) }
         .semantics { contentDescription = listOfNotNull(day.date.toString(), logLabel(day), scheduleLabel(day),
-            occurrenceLabel(day), if (day.date == today) "today" else null).joinToString(", ") },
+            occurrenceLabel(day), if (day.reservations.isNotEmpty()) "reservation" else null,
+            if (day.reservations.any { it.state == ReservationState.STALE }) "review required" else null,
+            if (day.date == today) "today" else null).joinToString(", ") },
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text(day.date.dayOfMonth.toString(), color = if (day.date == today) ApexColors.Primary else ApexColors.TextPrimary)
         Text(marker, color = color, style = MaterialTheme.typography.labelSmall)
