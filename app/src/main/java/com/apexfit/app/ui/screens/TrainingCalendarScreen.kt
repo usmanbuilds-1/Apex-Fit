@@ -50,6 +50,7 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
     val month = chosenMonth?.let(YearMonth::parse) ?: YearMonth.from(today)
     var selectedDate by rememberSaveable { mutableStateOf<String?>(null) }
     var sessionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showPeriodReports by rememberSaveable { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     var decisionBusy by remember { mutableStateOf(false) }
@@ -80,7 +81,13 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
             catch (_: Exception) { value = RescheduleCandidates.Failed }
         }
     }
-    BackHandler(enabled = sessionId != null) { sessionId = null }
+    BackHandler(enabled = sessionId != null || showPeriodReports) {
+        if (showPeriodReports) showPeriodReports = false else sessionId = null
+    }
+    if (showPeriodReports) {
+        TrainingPeriodReportScreen(progressViewModel, today, onBack = { showPeriodReports = false })
+        return
+    }
     if (selectedSession != null) {
         SavedWorkoutReportScreen(selectedSession.id, progressViewModel, onBack = { sessionId = null })
         return
@@ -90,6 +97,7 @@ internal fun TrainingCalendarScreen(progressViewModel: ProgressViewModel, onBack
         onMonthChange = { chosenMonth = it.toString(); selectedDate = null; sessionId = null; decisionError = null },
         onDaySelected = { selectedDate = it.toString(); sessionId = null; decisionError = null },
         onSessionSelected = { sessionId = it.id },
+        onOpenReports = { showPeriodReports = true },
         decisionBusy = decisionBusy, decisionError = decisionError,
         onLinkWorkout = { selectedCandidate = null; decisionError = null; linkTarget = it },
         onUnlinkWorkout = { targetDay ->
@@ -207,7 +215,8 @@ internal fun TrainingCalendarContent(
     decisionBusy: Boolean = false, decisionError: String? = null,
     onDecision: (TrainingCalendarDay, OccurrenceDecision?) -> Unit = { _, _ -> },
     onLinkWorkout: (TrainingCalendarDay) -> Unit = {},
-    onUnlinkWorkout: (TrainingCalendarDay) -> Unit = {}
+    onUnlinkWorkout: (TrainingCalendarDay) -> Unit = {},
+    onOpenReports: () -> Unit = {}
 ) {
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val monthFormat = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()) }
@@ -218,6 +227,7 @@ internal fun TrainingCalendarContent(
         item {
             TextButton(onClick = onBack) { Text("Back to Progress") }
             Text("Training calendar", style = MaterialTheme.typography.headlineMedium)
+            TextButton(onClick = onOpenReports) { Text("Weekly and monthly reports") }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { onMonthChange(month.minusMonths(1)) }) { Text("Previous") }
