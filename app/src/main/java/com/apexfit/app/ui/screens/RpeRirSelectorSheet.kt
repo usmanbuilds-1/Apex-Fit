@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,7 +79,13 @@ fun RpeRirSelectorSheet(
     onConfirmRirAndNextSet: () -> Unit,
     onDismiss: () -> Unit,
     isSavingSet: Boolean = false,
-    setSaveError: String? = null
+    setSaveError: String? = null,
+    loadBasis: com.apexfit.app.utils.RecordedLoadBasis? = null,
+    loadSetup: String = "",
+    freeWeightRepLimit: Boolean = false,
+    onLoadBasis: ((com.apexfit.app.utils.RecordedLoadBasis?) -> Unit)? = null,
+    onLoadSetup: (String) -> Unit = {},
+    onRepLimit: (Boolean) -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     Column(
@@ -159,6 +166,35 @@ fun RpeRirSelectorSheet(
                 }
                 Text(if (rated) "RPE $rpe · $repStatus" else "Effort unrated · $repStatus", style = MaterialTheme.typography.bodyMedium,
                     color = ApexColors.TextSecondary, fontWeight = FontWeight.Medium)
+                if (!hasLoggedSet && onLoadBasis != null) {
+                    var showSetup by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                    TextButton(onClick = { showSetup = !showSetup }, enabled = !isSavingSet) {
+                        Text(if (loadBasis == null) "Load setup · optional" else loadBasis.label + " · " + loadSetup)
+                    }
+                    if (showSetup) {
+                        Text("Confirm only the load you actually recorded.", style = MaterialTheme.typography.bodySmall)
+                        (listOf<com.apexfit.app.utils.RecordedLoadBasis?>(null) +
+                            com.apexfit.app.utils.RecordedLoadBasis.entries).forEach { basis ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.RadioButton(selected = basis == loadBasis,
+                                    enabled = !isSavingSet, onClick = { onLoadBasis(basis) })
+                                Text(basis?.label ?: "Unknown / assisted / bodyweight")
+                            }
+                        }
+                        if (loadBasis != null) {
+                            androidx.compose.material3.OutlinedTextField(loadSetup, onLoadSetup,
+                                enabled = !isSavingSet, singleLine = true,
+                                label = { Text("Setup name (same for comparable sets)") })
+                        }
+                        if (loadBasis == com.apexfit.app.utils.RecordedLoadBasis.TOTAL && selectedRir == 0 && reps in 2..5) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.Checkbox(checked = freeWeightRepLimit,
+                                    enabled = !isSavingSet, onCheckedChange = onRepLimit)
+                                Text("Unassisted free-weight set, full uninterrupted reps at my rep limit.")
+                            }
+                        }
+                    }
+                }
                 if (!hasLoggedSet) {
                     if (!rated) Text("Choose an effort rating or log without one. Unrated sets do not establish effort-based progression.",
                         style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
@@ -453,7 +489,11 @@ fun RirSelectorOverlay(
         },
         onDismiss = onDismiss,
         isSavingSet = savingSet,
-        setSaveError = saveError
+        setSaveError = saveError,
+        loadBasis = state.loadBasis, loadSetup = state.loadSetup, freeWeightRepLimit = state.freeWeightRepLimit,
+        onLoadBasis = workoutExecutionViewModel::selectLoadBasis,
+        onLoadSetup = workoutExecutionViewModel::setLoadSetup,
+        onRepLimit = workoutExecutionViewModel::setFreeWeightRepLimit
     )
 }
 

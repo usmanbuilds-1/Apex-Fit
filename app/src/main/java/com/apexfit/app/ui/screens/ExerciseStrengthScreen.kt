@@ -341,7 +341,7 @@ private fun StrengthSessionRow(
                         color = ApexColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
                 }
                 if (canConfirm) TextButton(onClick = { onConfirm(observation) }) {
-                    Text(if (confirmation == null) "Confirm setup" else "Edit setup")
+                    Text(if (confirmation == null) "Confirm setup" else "Edit setup override")
                 }
             }
         }

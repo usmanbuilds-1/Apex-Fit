@@ -64,3 +64,6 @@ This is a data integrity change, not a new physiology claim. Direct muscle is th
 
 ### Integration: explicit RIR selection (2026-11-28)
 RIR is a self-reported effort estimate, not a measurement; prior RIR accuracy evidence in A08 supports distinguishing ratings from missing information. The completion UI no longer selects 2 RIR automatically; unselected effort uses RPE 0 and no actual RIR value is supplied to the save call. The existing 5+ bucket maps to the app's coarse RPE convention, not a calibrated conversion. Legacy non-null RIR storage still requires a separate nullable observation/source field. No new biological claim or training-to-failure recommendation.
+
+### Integration: captured set observations (2026-11-28)
+A08 eligibility and uncertainty policies are unchanged. Actual load convention and RIR are user attestations, not measured resistance or objectively verified proximity to failure. Explicit 5+ is a category; legacy values are not promoted. Setup names identify user-selected comparable conditions, not calibrated machines. Optional explicit free-weight rep-limit check retains narrow estimate eligibility. This is provenance engineering; no new physiological effect or accuracy claim. See A07/A08 evidence and Android Room migration guidance. Existing automated progression consumers still need source-aware review; no new prescriptions.

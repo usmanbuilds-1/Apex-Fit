@@ -6,7 +6,8 @@ import java.time.LocalDate
 /** Recorded mass convention is unknown on legacy rows; no inferred per-hand or assistance conversion. */
 data class StrengthObservation(
     val setId: Long, val loadKg: Double?, val reps: Int,
-    val fingerprint: String? = null, val completedAt: Long? = null
+    val fingerprint: String? = null, val completedAt: Long? = null,
+    val capturedConfirmation: SetLoadConfirmation? = null
 )
 
 data class StrengthSessionPoint(
@@ -45,7 +46,8 @@ object StrengthAnalytics {
                         else -> null
                     }
                     StrengthObservation(s.id, kg?.takeIf { it.isFinite() }, s.reps,
-                        if (s.advancedDetails == null) LoadConfirmations.fingerprint(s) else null, s.setCompletedAt)
+                        if (s.advancedDetails == null) LoadConfirmations.fingerprint(s) else null, s.setCompletedAt,
+                        SetObservationCodec.confirmation(s))
                 })
         }.sortedWith(compareBy<StrengthSessionPoint> { it.date }.thenBy { it.sessionId })
     }

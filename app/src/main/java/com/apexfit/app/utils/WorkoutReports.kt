@@ -31,7 +31,8 @@ object WorkoutReports {
         data class Key(val exerciseId: String, val basis: RecordedLoadBasis, val setup: String)
         val comparable = working.mapNotNull { s ->
             if (s.advancedDetails != null) return@mapNotNull null
-            val c = confirmations[s.id]?.takeIf { it.fingerprint == LoadConfirmations.fingerprint(s) } ?: return@mapNotNull null
+            val c = confirmations[s.id]?.takeIf { it.fingerprint == LoadConfirmations.fingerprint(s) }
+                ?: SetObservationCodec.confirmation(s) ?: return@mapNotNull null
             val kg = when (s.weightUnit.trim().lowercase(java.util.Locale.ROOT)) {
                 "kg" -> s.weight
                 "lb", "lbs" -> s.weight / AppConstants.KG_TO_LBS

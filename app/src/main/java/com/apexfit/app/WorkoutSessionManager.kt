@@ -659,7 +659,8 @@ class WorkoutSessionManager(
             weight = weight, reps = reps, rpe = rpe.coerceIn(0, 10),
             restTakenSeconds = restTakenSeconds.coerceAtLeast(0),
             completedAt = if (completed) old.completedAt.takeIf { it > 0L } ?: System.currentTimeMillis() else 0L,
-            completed = completed, repsInReserve = repsInReserve ?: old.repsInReserve
+            completed = completed, repsInReserve = repsInReserve ?: old.repsInReserve,
+            setObservation = old.setObservation.takeIf { completed && old.completed && old.weight == weight && old.reps == reps && old.rpe == rpe && (repsInReserve == null || repsInReserve == old.repsInReserve) }
         )
         return session.copy(exercises = session.exercises.map {
             if (it.executionKey == exerciseId) it.copy(sets = newSets) else it
@@ -691,7 +692,8 @@ class WorkoutSessionManager(
         weight: Double, reps: Int, rpe: Int, restTakenSeconds: Int,
         completed: Boolean, repsInReserve: Int? = null,
         advanceAfterCompletion: Boolean = false,
-        advanced: AdvancedSetDetails? = null
+        advanced: AdvancedSetDetails? = null,
+        observation: com.apexfit.app.utils.SetObservation? = null
     ): Boolean = mutateDraftDurably(expectedSessionId) { session ->
         if (!completed && session.restCheckpoint?.let { it.exerciseKey == exerciseId && it.setIndex == setIndex } == true)
             return@mutateDraftDurably null
@@ -713,6 +715,17 @@ class WorkoutSessionManager(
         }
         var edited = editedSet(session, exerciseId, setIndex, weight, reps, rpe,
             restTakenSeconds, completed, repsInReserve) ?: return@mutateDraftDurably null
+        if (observation != null) {
+            if (!completed || original.isWarmup || advanced != null ||
+                !com.apexfit.app.utils.SetObservationCodec.valid(observation) ||
+                observation.kg != weight.fromDisplayWeightToKg(original.weightUnit) || observation.reps != reps ||
+                com.apexfit.app.utils.EffortSelection.rpe(observation.rir ?: -1) != rpe)
+                return@mutateDraftDurably null
+            val ex = edited.exercises[indexBefore]
+            val sets = ex.sets.toMutableList()
+            sets[setIndex] = sets[setIndex].copy(setObservation = com.apexfit.app.utils.SetObservationCodec.encode(observation))
+            edited = edited.copy(exercises = edited.exercises.toMutableList().apply { set(indexBefore, ex.copy(sets = sets)) })
+        }
         if (advanced != null) {
             val ex = edited.exercises[indexBefore]
             val sets = ex.sets.toMutableList()
@@ -1047,7 +1060,8 @@ class WorkoutSessionManager(
                         sourcePlanExerciseId = exercise.sourcePlanExerciseId,
                         setCompletedAt = activeSet.completedAt.takeIf { activeSet.completed && it > 0L },
                         advancedDetails = activeSet.advancedDetails,
-                        secondaryMuscleSnapshot = exercise.secondaryMuscleSnapshot
+                        secondaryMuscleSnapshot = exercise.secondaryMuscleSnapshot,
+                        setObservation = activeSet.setObservation
                     )
                 }
         }

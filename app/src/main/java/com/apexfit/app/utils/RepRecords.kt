@@ -47,6 +47,7 @@ object LoadConfirmations {
 
     fun match(observation: StrengthObservation, confirmations: Map<Long, SetLoadConfirmation>): SetLoadConfirmation? =
         confirmations[observation.setId]?.takeIf { it.fingerprint == observation.fingerprint }
+            ?: observation.capturedConfirmation?.takeIf { it.fingerprint == observation.fingerprint }
 
     fun normalizedSetup(setup: String): String = setup.trim().lowercase(Locale.ROOT)
 }

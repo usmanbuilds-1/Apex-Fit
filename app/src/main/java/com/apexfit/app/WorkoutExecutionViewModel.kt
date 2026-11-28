@@ -190,6 +190,9 @@ class WorkoutExecutionViewModel @Inject constructor(
         val reps: Int = 0,
         val totalSets: Int = 0,
         val selectedRir: Int = com.apexfit.app.utils.EffortSelection.UNRATED,
+        val loadBasis: com.apexfit.app.utils.RecordedLoadBasis? = null,
+        val loadSetup: String = "",
+        val freeWeightRepLimit: Boolean = false,
         val hasLoggedSet: Boolean = false,
         val isShowingHistory: Boolean = false,
         val historicalSets: List<com.apexfit.app.data.LastSetWithDate> = emptyList()
@@ -340,6 +343,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         completed: Boolean, restTakenSeconds: Int = 0, repsInReserve: Int? = null,
         advanceAfterCompletion: Boolean = false,
         advanced: com.apexfit.app.utils.AdvancedSetDetails? = null,
+        observation: com.apexfit.app.utils.SetObservation? = null,
         onSaved: () -> Unit = {}
     ): Job? {
         val session = sessionManager.activeSession.value ?: return null
@@ -349,7 +353,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         return viewModelScope.launch {
             try {
                 check(sessionManager.updateSetDurably(session.sessionId, exerciseId, setIndex,
-                    weight, reps, rpe, restTakenSeconds, completed, repsInReserve, advanceAfterCompletion, advanced)) {
+                    weight, reps, rpe, restTakenSeconds, completed, repsInReserve, advanceAfterCompletion, advanced, observation)) {
                     "Workout changed before this set could be saved."
                 }
                 if (sessionManager.activeSession.value?.sessionId != session.sessionId) return@launch
@@ -428,6 +432,7 @@ class WorkoutExecutionViewModel @Inject constructor(
             reps = reps,
             totalSets = totalSets,
             selectedRir = com.apexfit.app.utils.EffortSelection.UNRATED,
+            loadBasis = null, loadSetup = "", freeWeightRepLimit = false,
             hasLoggedSet = false,
             isShowingHistory = false,
             historicalSets = emptyList(),
@@ -435,11 +440,41 @@ class WorkoutExecutionViewModel @Inject constructor(
         )
     }
 
+    fun selectLoadBasis(basis: com.apexfit.app.utils.RecordedLoadBasis?) {
+        val state = _rirOverlayState.value
+        if (_isSavingSet.value || state.hasLoggedSet || !state.isVisible) return
+        _rirOverlayState.value = state.copy(loadBasis = basis, loadSetup = if (basis == null) "" else state.loadSetup,
+            freeWeightRepLimit = false)
+    }
+
+    fun setLoadSetup(setup: String) {
+        val state = _rirOverlayState.value
+        if (_isSavingSet.value || state.hasLoggedSet || !state.isVisible) return
+        _rirOverlayState.value = state.copy(loadSetup = setup.take(48), freeWeightRepLimit = false)
+    }
+
+    fun setFreeWeightRepLimit(confirmed: Boolean) {
+        val state = _rirOverlayState.value
+        if (_isSavingSet.value || state.hasLoggedSet || !state.isVisible) return
+        _rirOverlayState.value = state.copy(freeWeightRepLimit = confirmed && state.selectedRir == 0 &&
+            state.loadBasis == com.apexfit.app.utils.RecordedLoadBasis.TOTAL && state.reps in 2..5)
+    }
+
+    private fun observationFor(state: RirOverlayState): com.apexfit.app.utils.SetObservation? {
+        val set = sessionManager.activeSession.value?.exercises?.firstOrNull { it.executionKey == state.exerciseId }
+            ?.sets?.getOrNull(state.setIndex) ?: return null
+        if (set.isWarmup) return null
+        return com.apexfit.app.utils.SetObservation(state.weight.fromDisplayWeightToKg(set.weightUnit), state.reps,
+            com.apexfit.app.utils.EffortSelection.actualRir(state.selectedRir), state.loadBasis,
+            if (state.loadBasis == null) "" else state.loadSetup.trim(), state.freeWeightRepLimit)
+            .takeIf(com.apexfit.app.utils.SetObservationCodec::valid)
+    }
+
     fun selectRirOption(rir: Int, onSaved: (() -> Unit)? = null): Job? {
         if (_isSavingSet.value || isCommitting.get()) return null
         val current = _rirOverlayState.value
         if (!com.apexfit.app.utils.EffortSelection.isRated(rir)) return null
-        val next = current.copy(selectedRir = rir)
+        val next = current.copy(selectedRir = rir, freeWeightRepLimit = current.freeWeightRepLimit && rir == 0)
         if (!current.hasLoggedSet) {
             _rirOverlayState.value = next
             onSaved?.invoke()
@@ -450,8 +485,10 @@ class WorkoutExecutionViewModel @Inject constructor(
             ?.sets?.getOrNull(current.setIndex)?.restTakenSeconds ?: return null
         return persistConfirmedSet(current.exerciseId, current.setIndex, current.weight, current.reps,
             com.apexfit.app.utils.ProgressionEngine.calculateRPEFromRIR(next.selectedRir),
-            completed = true, restTakenSeconds = recordedRestSeconds, repsInReserve = next.selectedRir) {
-            _rirOverlayState.value = _rirOverlayState.value.copy(selectedRir = next.selectedRir)
+            completed = true, restTakenSeconds = recordedRestSeconds, repsInReserve = next.selectedRir,
+            observation = observationFor(next)) {
+            _rirOverlayState.value = _rirOverlayState.value.copy(selectedRir = next.selectedRir,
+                freeWeightRepLimit = next.freeWeightRepLimit)
             onSaved?.invoke()
         }
     }
@@ -491,8 +528,14 @@ class WorkoutExecutionViewModel @Inject constructor(
         val repsInReserve = com.apexfit.app.utils.EffortSelection.actualRir(s.selectedRir)
         val calculatedRpe = com.apexfit.app.utils.EffortSelection.rpe(s.selectedRir)
 
+        val observation = observationFor(s)
+        if (s.loadBasis != null && observation == null) {
+            _setSaveError.value = "Enter a valid setup name or select unknown load."
+            return null
+        }
         return persistConfirmedSet(exId, sIdx, w, r, calculatedRpe, completed = true,
-            restTakenSeconds = 0, repsInReserve = repsInReserve, advanceAfterCompletion = true) {
+            restTakenSeconds = 0, repsInReserve = repsInReserve, advanceAfterCompletion = true,
+            observation = observation) {
             _rirOverlayState.value = _rirOverlayState.value.copy(hasLoggedSet = true)
             if (sessionManager.activeSession.value?.restCheckpoint != null) {
                 onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, w, r, sIdx, totalSets)
