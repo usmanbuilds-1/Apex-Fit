@@ -29,6 +29,7 @@ class DataStoreManager(context: Context) {
             instance ?: synchronized(this) {
                 instance ?: DataStoreManager(context.applicationContext).also { instance = it }
             }
+        private val MUSCLE_TARGET_HISTORY_KEY = stringSetPreferencesKey("muscle_target_history_v1")
         private val NUTRITION_DAY_CONFIRMATIONS_KEY = stringSetPreferencesKey("nutrition_day_confirmations_v1")
         val ONBOARDED_KEY = booleanPreferencesKey("onboarded")
         val USER_NAME_KEY = stringPreferencesKey("username")
@@ -444,6 +445,24 @@ class DataStoreManager(context: Context) {
                 .filterNot { it.substringBefore(':') == date }.toMutableSet()
             if (fingerprint != null) updated.add("$date:$fingerprint")
             preferences[NUTRITION_DAY_CONFIRMATIONS_KEY] = updated
+        }
+    }
+
+    val muscleTargetHistoryFlow: Flow<List<com.apexfit.app.utils.MuscleTargetRevision>> =
+        context.dataStore.data.map { preferences ->
+            com.apexfit.app.utils.MuscleTargetHistory.decode(preferences[MUSCLE_TARGET_HISTORY_KEY].orEmpty())
+        }.distinctUntilChanged()
+
+    suspend fun scheduleMuscleTarget(muscle: String, target: Int?, expectedWeek: java.time.LocalDate) {
+        context.dataStore.edit { preferences ->
+            val today = java.time.LocalDate.now()
+            require(expectedWeek == com.apexfit.app.utils.MuscleTargetHistory.nextWeek(today)) {
+                "The calendar week changed. Reopen the target editor."
+            }
+            val history = com.apexfit.app.utils.MuscleTargetHistory.decode(preferences[MUSCLE_TARGET_HISTORY_KEY].orEmpty())
+            preferences[MUSCLE_TARGET_HISTORY_KEY] = com.apexfit.app.utils.MuscleTargetHistory.encode(
+                com.apexfit.app.utils.MuscleTargetHistory.schedule(history, muscle, target, today)
+            )
         }
     }
 

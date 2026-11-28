@@ -28,6 +28,9 @@ import com.apexfit.app.utils.MuscleVolumeComparisons
 import com.apexfit.app.utils.MuscleVolumeComparison
 import com.apexfit.app.utils.MuscleVolumeReport
 import com.apexfit.app.utils.LoggedSetChange
+import com.apexfit.app.utils.MuscleTargetHistory
+import com.apexfit.app.utils.MuscleTargetRevision
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -65,6 +68,17 @@ internal fun MuscleVolumeScreen(homeViewModel: HomeViewModel, onBack: () -> Unit
             }
         }
     }
+    val targetState by key(retryAttempt) {
+        produceState<TargetLoadState>(TargetLoadState.Loading) {
+            try {
+                homeViewModel.muscleTargetHistory.collect { value = TargetLoadState.Ready(it) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                value = TargetLoadState.Failed
+            }
+        }
+    }
     MuscleVolumeContent(
         sessions = null,
         today = today,
@@ -75,6 +89,9 @@ internal fun MuscleVolumeScreen(homeViewModel: HomeViewModel, onBack: () -> Unit
         periodAnchor = anchor,
         precomputedRows = (loadState as? MuscleVolumeLoadState.Loaded)?.report?.rows,
         precomputedComparison = (loadState as? MuscleVolumeLoadState.Loaded)?.report?.comparison,
+        targets = (targetState as? TargetLoadState.Ready)?.history,
+        targetLoadError = targetState is TargetLoadState.Failed,
+        onScheduleTarget = homeViewModel::scheduleMuscleTarget,
         onPeriodSelected = { chosen ->
             periodName = chosen.name
             historicalAnchor = null
@@ -85,6 +102,12 @@ internal fun MuscleVolumeScreen(homeViewModel: HomeViewModel, onBack: () -> Unit
                 else shifted.toString()
         }
     )
+}
+
+private sealed interface TargetLoadState {
+    data object Loading : TargetLoadState
+    data class Ready(val history: List<MuscleTargetRevision>) : TargetLoadState
+    data object Failed : TargetLoadState
 }
 
 private sealed interface MuscleVolumeLoadState {
@@ -107,7 +130,10 @@ internal fun MuscleVolumeContent(
     precomputedRows: List<MuscleVolumeRow>? = null,
     precomputedComparison: MuscleVolumeComparison? = null,
     onPeriodSelected: ((MuscleVolumePeriod) -> Unit)? = null,
-    onNavigatePeriod: ((Int) -> Unit)? = null
+    onNavigatePeriod: ((Int) -> Unit)? = null,
+    targets: List<MuscleTargetRevision>? = emptyList(),
+    targetLoadError: Boolean = false,
+    onScheduleTarget: (suspend (String, Int?, LocalDate) -> Unit)? = null
 ) {
     var periodIndex by rememberSaveable(initialPeriod) {
         mutableIntStateOf(MuscleVolumePeriod.entries.indexOf(initialPeriod).coerceAtLeast(0))
@@ -128,6 +154,63 @@ internal fun MuscleVolumeContent(
     val chosen = rows.find { it.muscle == selected }
     val directCounts = remember(rows) { MuscleVolumeSummary.directCounts(rows) }
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    val currentWeek = MuscleTargetHistory.week(today)
+    val isCurrentWeek = period == MuscleVolumePeriod.WEEK && window.start == currentWeek
+    val scope = rememberCoroutineScope()
+    var editMuscle by rememberSaveable { mutableStateOf<String?>(null) }
+    var targetInput by rememberSaveable { mutableStateOf("") }
+    var editWeek by rememberSaveable { mutableStateOf<String?>(null) }
+    var savingTarget by remember { mutableStateOf(false) }
+    var targetError by remember { mutableStateOf<String?>(null) }
+    val editing = editMuscle
+    val effective = editWeek?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    if (editing != null && effective != null && onScheduleTarget != null) {
+        val valid = targetInput.toIntOrNull()?.let { it in 0..MuscleTargetHistory.MAX_TARGET } == true
+        fun save(value: Int?) {
+            if (savingTarget) return
+            savingTarget = true
+            targetError = null
+            scope.launch {
+                try {
+                    onScheduleTarget(editing, value, effective)
+                    editMuscle = null
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    targetError = "Could not save. Reopen the editor if the week has changed."
+                } finally {
+                    savingTarget = false
+                }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { if (!savingTarget) editMuscle = null },
+            title = { Text("Weekly ${muscleName(editing).lowercase()} target") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Effective ${effective.format(dateFormat)}. Previous and current weeks stay unchanged.")
+                    OutlinedTextField(value = targetInput,
+                        onValueChange = { if (it.length <= 3 && it.all(Char::isDigit)) targetInput = it },
+                        label = { Text("Direct working sets per week") },
+                        singleLine = true, enabled = !savingTarget,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        isError = targetInput.isNotEmpty() && !valid)
+                    Text("Choose your own target. This does not modify your workout plan.",
+                        style = MaterialTheme.typography.bodySmall)
+                    targetError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { save(targetInput.toIntOrNull()) },
+                enabled = valid && !savingTarget) { Text(if (savingTarget) "Saving…" else "Save") } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { save(null) }, enabled = !savingTarget) { Text("Clear target") }
+                    TextButton(onClick = { editMuscle = null }, enabled = !savingTarget) { Text("Cancel") }
+                }
+            }
+        )
+    }
     LazyColumn(
         Modifier.fillMaxSize().background(ApexColors.Canvas).padding(horizontal = 20.dp),
         contentPadding = PaddingValues(bottom = 32.dp)
@@ -161,6 +244,31 @@ internal fun MuscleVolumeContent(
         if (!loadError && comparison != null) {
             item {
                 VolumeComparisonHeader(comparison, selected, dateFormat)
+            }
+        }
+        if (!loadError && (sessions != null || precomputedRows != null) && period == MuscleVolumePeriod.WEEK) {
+            val muscle = selected
+            if (targetLoadError) item {
+                Text("Muscle targets couldn't load.", color = ApexColors.TextSecondary)
+                TextButton(onClick = onRetry) { Text("Retry") }
+            } else if (targets == null) item {
+                Text("Loading weekly targets…", color = ApexColors.TextSecondary)
+            } else if (muscle != null && muscle in MuscleTargetHistory.muscles) item {
+                val revision = MuscleTargetHistory.resolve(targets, muscle, window.start)
+                val nextWeek = MuscleTargetHistory.nextWeek(today)
+                val pending = targets.firstOrNull { it.muscle == muscle && it.effectiveWeek == nextWeek }
+                WeeklyTargetCard(chosen?.directSets ?: 0, revision, isCurrentWeek, pending, dateFormat)
+                if (isCurrentWeek && onScheduleTarget != null) {
+                    TextButton(onClick = {
+                        editMuscle = muscle
+                        editWeek = nextWeek.toString()
+                        targetInput = (if (pending != null) pending.target else revision?.target)?.toString().orEmpty()
+                        targetError = null
+                    }) { Text("Edit next week's target") }
+                }
+            } else if (muscle == null) item {
+                Text("Select a muscle to view or edit its weekly direct-set target.",
+                    color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
         when {
@@ -241,11 +349,10 @@ internal fun MuscleVolumeContent(
                     }
                 }
             }
-            rows.isEmpty() -> item {
-                Text("No completed working sets logged in this period.", color = ApexColors.TextSecondary)
-            }
             else -> {
                 item {
+                    if (rows.isEmpty()) Text("No completed working sets logged in this period.",
+                        color = ApexColors.TextSecondary)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(if (showBack) "Back" else "Front", style = MaterialTheme.typography.titleMedium)
@@ -287,6 +394,12 @@ internal fun MuscleVolumeContent(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(muscleName(muscle))
+                            if (period == MuscleVolumePeriod.WEEK && targets != null) {
+                                MuscleTargetHistory.resolve(targets, muscle, window.start)?.target?.let { goal ->
+                                    Text("$direct / $goal direct sets", style = MaterialTheme.typography.labelSmall,
+                                        color = ApexColors.TextSecondary)
+                                }
+                            }
                             comparison?.forMuscle(muscle)?.direct?.takeIf { it.absolute != null }?.let {
                                 Text("${signedChange(it.absolute!!)} vs prior",
                                     color = ApexColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
@@ -375,3 +488,37 @@ private fun VolumeComparisonLine(label: String, change: LoggedSetChange) {
 }
 
 private fun signedChange(delta: Long): String = if (delta > 0) "+$delta" else delta.toString()
+
+@Composable
+private fun WeeklyTargetCard(
+    actual: Int,
+    revision: MuscleTargetRevision?,
+    currentWeek: Boolean,
+    pending: MuscleTargetRevision?,
+    format: DateTimeFormatter
+) {
+    val target = revision?.target
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Weekly direct-set target", style = MaterialTheme.typography.titleMedium)
+        Text(if (target == null) "No target set" else "$actual / $target logged sets",
+            style = MaterialTheme.typography.titleLarge)
+        if (target != null && target > 0) {
+            LinearProgressIndicator(progress = { (actual.toFloat() / target).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth(), color = ApexColors.Primary,
+                trackColor = ApexColors.BorderSubtle)
+        }
+        if (target != null) {
+            Text("Effective ${revision?.effectiveWeek?.format(format) ?: "—"}. " +
+                if (actual >= target) "Logged count meets target." else "${target - actual} more logged sets to target.",
+                color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+        }
+        if (currentWeek && pending != null) {
+            Text(if (pending.target == null) "Target clears on ${pending.effectiveWeek.format(format)}"
+                else "Next target: ${pending.target} from ${pending.effectiveWeek.format(format)}",
+                color = ApexColors.Primary, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text("User-defined tracking goal, not a recovery or muscle-growth prescription.",
+            color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+}

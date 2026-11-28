@@ -132,3 +132,31 @@ fun MuscleVolumeComparisonZeroBaseline() {
             initialPeriod = MuscleVolumePeriod.MONTH)
     }
 }
+
+
+@PreviewTest
+@Preview(widthDp = 390, heightDp = 844, locale = "en-US")
+@Composable
+fun MuscleVolumeWeeklyTargetHistory() {
+    val today = LocalDate.parse("2026-11-16")
+    val history = listOf(
+        com.apexfit.app.utils.MuscleTargetRevision("back", today.minusWeeks(1), 8),
+        com.apexfit.app.utils.MuscleTargetRevision("back", today.plusWeeks(1), 10)
+    )
+    ApexFitTheme {
+        MuscleVolumeContent(listOf(pullSession()), today, onBack = {},
+            initialSelectedMuscle = "back", targets = history, onScheduleTarget = { _, _, _ -> })
+    }
+}
+
+@PreviewTest
+@Preview(widthDp = 320, heightDp = 700, locale = "en-US")
+@Composable
+fun MuscleVolumeWeeklyZeroTarget() {
+    val today = LocalDate.parse("2026-11-16")
+    ApexFitTheme {
+        MuscleVolumeContent(emptyList(), today, onBack = {}, initialSelectedMuscle = "chest",
+            targets = listOf(com.apexfit.app.utils.MuscleTargetRevision("chest", today, 0)),
+            onScheduleTarget = { _, _, _ -> })
+    }
+}
