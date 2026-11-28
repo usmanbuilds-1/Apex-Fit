@@ -24,6 +24,10 @@ import com.apexfit.app.utils.MuscleVolumeDay
 import com.apexfit.app.utils.MuscleVolumeRow
 import com.apexfit.app.utils.MuscleVolumePeriod
 import com.apexfit.app.utils.MuscleVolumeSummary
+import com.apexfit.app.utils.MuscleVolumeComparisons
+import com.apexfit.app.utils.MuscleVolumeComparison
+import com.apexfit.app.utils.MuscleVolumeReport
+import com.apexfit.app.utils.LoggedSetChange
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,15 +47,16 @@ internal fun MuscleVolumeScreen(homeViewModel: HomeViewModel, onBack: () -> Unit
     val period = MuscleVolumePeriod.valueOf(periodName)
     val anchor = historicalAnchor?.let(LocalDate::parse)?.coerceAtMost(today) ?: today
     val window = period.window(anchor)
-    val end = minOf(window.endInclusive, today)
-    val loadState by key(window.start, end, retryAttempt) {
+    val windows = MuscleVolumeComparisons.windows(period, anchor, today)
+    val end = windows.selected.end
+    val loadState by key(windows, retryAttempt) {
         produceState<MuscleVolumeLoadState>(initialValue = MuscleVolumeLoadState.Loading) {
             try {
-                homeViewModel.observeMuscleHistory(window.start, end).collect { sessions ->
-                    val rows = withContext(Dispatchers.Default) {
-                        MuscleVolumeSummary.calculateWindow(sessions, window.start, end)
+                homeViewModel.observeMuscleHistory(windows.queryStart, end).collect { sessions ->
+                    val report = withContext(Dispatchers.Default) {
+                        MuscleVolumeComparisons.calculate(sessions, windows)
                     }
-                    value = MuscleVolumeLoadState.Loaded(rows)
+                    value = MuscleVolumeLoadState.Loaded(report)
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -68,7 +73,8 @@ internal fun MuscleVolumeScreen(homeViewModel: HomeViewModel, onBack: () -> Unit
         onRetry = { retryAttempt++ },
         selectedPeriod = period,
         periodAnchor = anchor,
-        precomputedRows = (loadState as? MuscleVolumeLoadState.Loaded)?.rows,
+        precomputedRows = (loadState as? MuscleVolumeLoadState.Loaded)?.report?.rows,
+        precomputedComparison = (loadState as? MuscleVolumeLoadState.Loaded)?.report?.comparison,
         onPeriodSelected = { chosen ->
             periodName = chosen.name
             historicalAnchor = null
@@ -83,7 +89,7 @@ internal fun MuscleVolumeScreen(homeViewModel: HomeViewModel, onBack: () -> Unit
 
 private sealed interface MuscleVolumeLoadState {
     data object Loading : MuscleVolumeLoadState
-    data class Loaded(val rows: List<MuscleVolumeRow>) : MuscleVolumeLoadState
+    data class Loaded(val report: MuscleVolumeReport) : MuscleVolumeLoadState
     data object Failed : MuscleVolumeLoadState
 }
 
@@ -99,6 +105,7 @@ internal fun MuscleVolumeContent(
     selectedPeriod: MuscleVolumePeriod? = null,
     periodAnchor: LocalDate = today,
     precomputedRows: List<MuscleVolumeRow>? = null,
+    precomputedComparison: MuscleVolumeComparison? = null,
     onPeriodSelected: ((MuscleVolumePeriod) -> Unit)? = null,
     onNavigatePeriod: ((Int) -> Unit)? = null
 ) {
@@ -111,11 +118,12 @@ internal fun MuscleVolumeContent(
     val period = selectedPeriod ?: MuscleVolumePeriod.entries[periodIndex]
     val window = period.window(periodAnchor)
     val end = minOf(window.endInclusive, today)
-    val rows = remember(sessions, precomputedRows, window.start, end) {
-        precomputedRows ?: sessions?.let {
-            MuscleVolumeSummary.calculateWindow(it, window.start, end)
-        }.orEmpty()
+    val previewReport = remember(sessions, period, periodAnchor, today) {
+        sessions?.let { MuscleVolumeComparisons.calculate(it,
+            MuscleVolumeComparisons.windows(period, periodAnchor, today)) }
     }
+    val rows = precomputedRows ?: previewReport?.rows.orEmpty()
+    val comparison = precomputedComparison ?: previewReport?.comparison
     val showBack = preferredBack ?: (rows.firstOrNull { it.directSets > 0 }?.muscle?.let(::showsOnBackOnly) == true)
     val chosen = rows.find { it.muscle == selected }
     val directCounts = remember(rows) { MuscleVolumeSummary.directCounts(rows) }
@@ -148,6 +156,11 @@ internal fun MuscleVolumeContent(
                     style = MaterialTheme.typography.bodySmall)
                 if (onNavigatePeriod != null) TextButton(onClick = { onNavigatePeriod(1) },
                     enabled = window.endInclusive < today) { Text("Next") }
+            }
+        }
+        if (!loadError && comparison != null) {
+            item {
+                VolumeComparisonHeader(comparison, selected, dateFormat)
             }
         }
         when {
@@ -259,7 +272,8 @@ internal fun MuscleVolumeContent(
                     Text("Muscles by direct set count", style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(vertical = 12.dp))
                 }
-                val listedMuscles = (rows.map { it.muscle } + directCounts.keys).distinct()
+                val listedMuscles = (rows.map { it.muscle } +
+                    comparison?.previousRows.orEmpty().map { it.muscle } + directCounts.keys).distinct()
                 items(listedMuscles, key = { it }) { muscle ->
                     val row = rows.firstOrNull { it.muscle == muscle }
                     val direct = row?.directSets ?: 0
@@ -271,7 +285,13 @@ internal fun MuscleVolumeContent(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(muscleName(muscle), modifier = Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text(muscleName(muscle))
+                            comparison?.forMuscle(muscle)?.direct?.takeIf { it.absolute != null }?.let {
+                                Text("${signedChange(it.absolute!!)} vs prior",
+                                    color = ApexColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                         Text("$direct direct",
                             color = if (direct > 0) ApexColors.Primary else ApexColors.TextSecondary)
                         if (indirect > 0) Text("$indirect indirect", color = ApexColors.TextSecondary)
@@ -287,3 +307,71 @@ internal fun muscleName(key: String): String = key.replace('_', ' ').replaceFirs
 }
 
 private fun gapLabel(days: Double?): String = days?.let { String.format(Locale.getDefault(), "%.1f d", it) } ?: "—"
+
+@Composable
+private fun VolumeComparisonHeader(
+    comparison: MuscleVolumeComparison,
+    selected: String?,
+    format: DateTimeFormatter
+) {
+    val current = comparison.windows.current
+    val prior = comparison.windows.previous
+    Column(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        HorizontalDivider(color = ApexColors.BorderSubtle)
+        Text("Period comparison", style = MaterialTheme.typography.titleMedium)
+        if (current == null || prior == null) {
+            Text("Comparison begins after the first calendar day ends.", color = ApexColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall)
+        } else {
+            Text("${current.start.format(format)} – ${current.end.format(format)} (${current.days}d)",
+                style = MaterialTheme.typography.bodySmall)
+            Text("vs ${prior.start.format(format)} – ${prior.end.format(format)} (${prior.days}d)",
+                style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+            Text(if (comparison.windows.matchedElapsed)
+                "Same number of finished days. Today's sets remain in the main totals, not the comparison."
+                else if (current.days != prior.days)
+                    "Full calendar periods of different lengths; changes compare total logged sets."
+                else "Full calendar periods.",
+                color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            if (!comparison.currentHasLogs || !comparison.previousHasLogs) {
+                Text(
+                    when {
+                        !comparison.currentHasLogs && !comparison.previousHasLogs -> "No qualifying work logged in either comparison period."
+                        !comparison.previousHasLogs -> "No qualifying work logged in the prior period. Change unavailable."
+                        else -> "No qualifying work logged in the selected comparison period. Change unavailable."
+                    },
+                    color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if (selected != null) {
+                val change = comparison.forMuscle(selected)
+                VolumeComparisonLine("Direct sets", change.direct)
+                VolumeComparisonLine("Indirect sets", change.indirect)
+            } else if (comparison.currentHasLogs && comparison.previousHasLogs) {
+                Text("Muscle list shows direct-set change for these dates. Select a muscle for direct and indirect details.",
+                    color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            }
+            Text("Logged volume only; unlogged training is unknown.", color = ApexColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun VolumeComparisonLine(label: String, change: LoggedSetChange) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Column(horizontalAlignment = Alignment.End) {
+            Text("${change.current ?: "—"} vs ${change.previous ?: "—"}", style = MaterialTheme.typography.bodyMedium)
+            val delta = change.absolute
+            Text(if (delta == null) "Change unavailable" else {
+                val pct = change.percent?.let { String.format(Locale.getDefault(), "%+.1f%%", it) }
+                    ?: "percentage unavailable"
+                "${signedChange(delta)} sets · $pct"
+            }, style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+        }
+    }
+}
+
+private fun signedChange(delta: Long): String = if (delta > 0) "+$delta" else delta.toString()
