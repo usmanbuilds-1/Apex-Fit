@@ -801,14 +801,8 @@ class WorkoutSessionManager(
         val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return null
         if (CircuitExecution.contains(session, session.exercises.indexOf(exercise))) return null
         if (exercise.sets.size >= 20) return null
-        val lastSet = exercise.sets.lastOrNull()
-        val updated = exercise.copy(sets = (exercise.sets + ActiveSet(
-            setNumber = (exercise.sets.maxOfOrNull { it.setNumber } ?: 0) + 1,
-            weight = lastSet?.weight ?: 50.0,
-            reps = lastSet?.reps ?: 10,
-            rpe = lastSet?.rpe?.takeIf { it in 1..10 } ?: 0,
-            weightUnit = lastSet?.weightUnit ?: "kg"
-        )).toMutableList())
+        val updated = exercise.copy(sets = (exercise.sets +
+            com.apexfit.app.utils.ActiveSetDefaults.extraSet(exercise.sets)).toMutableList())
         return session.copy(exercises = session.exercises.map {
             if (it.executionKey == exerciseId) updated else it
         }.toMutableList())

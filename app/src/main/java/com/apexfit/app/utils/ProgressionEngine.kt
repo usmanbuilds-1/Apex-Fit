@@ -236,7 +236,8 @@ data class ProgressionResult(
 
     fun getEffectivenessLabel(rpe: Int): String {
         return when(rpe) {
-            in 0..4 -> "Very low effort"
+            0 -> "Unrated"
+            in 1..4 -> "Very low effort"
             in 5..6 -> "Low effort"
             7 -> "Moderate effort"
             8 -> "Hard set"
