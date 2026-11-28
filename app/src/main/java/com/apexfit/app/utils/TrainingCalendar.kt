@@ -1,6 +1,7 @@
 package com.apexfit.app.utils
 
 import com.apexfit.app.data.CalendarPlanSnapshot
+import com.apexfit.app.data.ScheduleDisposition
 import com.apexfit.app.data.ScheduleRevisionSnapshot
 import com.apexfit.app.data.TrainingSession
 import java.time.LocalDate
@@ -9,7 +10,8 @@ import java.time.YearMonth
 enum class CalendarScheduleKind { TRAINING, REST, UNKNOWN }
 enum class CalendarLogKind { COMPLETED, PARTIAL, NONE }
 enum class CalendarScheduleSource { RECORDED, LIVE_PROJECTION, UNKNOWN }
-enum class RecordedOccurrenceStatus { NOT_APPLICABLE, COMPLETED, PARTIAL, UNRESOLVED }
+enum class RecordedOccurrenceStatus { NOT_APPLICABLE, COMPLETED, PARTIAL, MISSED, EXCUSED, UNRESOLVED }
+enum class OccurrenceDecision { MISSED, EXCUSED }
 
 data class TrainingCalendarDay(
     val date: LocalDate,
@@ -19,7 +21,8 @@ data class TrainingCalendarDay(
     val plannedSessionId: Long?,
     val planName: String?,
     val scheduleSource: CalendarScheduleSource = CalendarScheduleSource.UNKNOWN,
-    val recordedOccurrenceId: String? = null
+    val recordedOccurrenceId: String? = null,
+    val explicitDecision: OccurrenceDecision? = null
 ) {
     val completedCount: Int get() = sessions.count { it.completed }
     val partialCount: Int get() = sessions.count { !it.completed && it.status == "partial" }
@@ -37,6 +40,8 @@ data class TrainingCalendarDay(
         return when {
             linked.any { it.completed && it.status == "completed" } -> RecordedOccurrenceStatus.COMPLETED
             linked.any { !it.completed && it.status == "partial" } -> RecordedOccurrenceStatus.PARTIAL
+            explicitDecision == OccurrenceDecision.MISSED -> RecordedOccurrenceStatus.MISSED
+            explicitDecision == OccurrenceDecision.EXCUSED -> RecordedOccurrenceStatus.EXCUSED
             else -> RecordedOccurrenceStatus.UNRESOLVED
         }
     }
@@ -55,13 +60,18 @@ data class TrainingCalendarMonth(val month: YearMonth, val days: List<TrainingCa
     val recordedCompletedOccurrences: Int get() = days.count { it.occurrenceStatus == RecordedOccurrenceStatus.COMPLETED }
     val recordedPartialOccurrences: Int get() = days.count { it.occurrenceStatus == RecordedOccurrenceStatus.PARTIAL }
     val unresolvedOccurrences: Int get() = days.count { it.occurrenceStatus == RecordedOccurrenceStatus.UNRESOLVED }
-    val recordedOccurrences: Int get() = recordedCompletedOccurrences + recordedPartialOccurrences + unresolvedOccurrences
+    val missedOccurrences: Int get() = days.count { it.occurrenceStatus == RecordedOccurrenceStatus.MISSED }
+    val excusedOccurrences: Int get() = days.count { it.occurrenceStatus == RecordedOccurrenceStatus.EXCUSED }
+    val recordedOccurrences: Int get() = recordedCompletedOccurrences + recordedPartialOccurrences +
+        missedOccurrences + excusedOccurrences + unresolvedOccurrences
 }
 
 object TrainingCalendar {
     fun build(month: YearMonth, today: LocalDate, sessions: List<TrainingSession>,
               activePlans: List<CalendarPlanSnapshot>, nowMs: Long = System.currentTimeMillis(),
-              revisions: List<ScheduleRevisionSnapshot> = emptyList()): TrainingCalendarMonth {
+              revisions: List<ScheduleRevisionSnapshot> = emptyList(),
+              dispositions: List<ScheduleDisposition> = emptyList()): TrainingCalendarMonth {
+        val decisions = dispositions.filter { it.recordedAt in 1..nowMs }.groupBy { it.occurrenceId }
         val logged = sessions.filter {
             val date = runCatching { LocalDate.parse(it.date) }.getOrNull()
             date != null && YearMonth.from(date) == month && date <= today &&
@@ -87,7 +97,11 @@ object TrainingCalendar {
                 return@map TrainingCalendarDay(date, actual, recorded.kind, recorded.label,
                     recorded.slotId, recorded.planName,
                     if (recorded.kind == CalendarScheduleKind.UNKNOWN) CalendarScheduleSource.UNKNOWN
-                    else CalendarScheduleSource.RECORDED, recorded.occurrenceId)
+                    else CalendarScheduleSource.RECORDED, recorded.occurrenceId,
+                    recorded.occurrenceId?.let { id ->
+                        decisions[id]?.singleOrNull()?.takeIf { it.scheduledDate == date.toString() }
+                            ?.decision?.let { runCatching { OccurrenceDecision.valueOf(it) }.getOrNull() }
+                    })
             }
             // Today follows live execution; future slots are projections, not promises.
             val current = snapshot?.takeIf { date >= today }
