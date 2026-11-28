@@ -46,3 +46,22 @@ data class ScheduleDisposition(
     val decision: String,
     val recordedAt: Long
 )
+
+/** Explicit association, not a change to the original schedule or actual workout date.
+ * One saved session can satisfy at most one manually linked occurrence.
+ */
+@Entity(tableName = "schedule_workout_associations",
+    indices = [Index(value = ["sessionId"], unique = true), Index(value = ["scheduledDate"])],
+    foreignKeys = [ForeignKey(entity = TrainingSession::class, parentColumns = ["id"],
+        childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE)])
+data class ScheduleWorkoutAssociation(
+    @PrimaryKey val occurrenceId: String,
+    val scheduledDate: String,
+    val sessionId: String,
+    val recordedAt: Long
+)
+
+data class RescheduledWorkoutSnapshot(
+    @Embedded val association: ScheduleWorkoutAssociation,
+    @Relation(parentColumn = "sessionId", entityColumn = "id") val session: TrainingSession?
+)
