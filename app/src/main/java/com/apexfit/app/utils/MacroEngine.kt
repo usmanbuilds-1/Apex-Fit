@@ -69,6 +69,27 @@ object MacroEngine {
         )
     }
 
+    /** Exact seven-day projected calorie allocation. Distribute rounding remainder over rest dates.
+     * No carry-forward debt and no claim about previously displayed targets. */
+    fun calcProjectedDayTargets(baseCalories: Int, projection: WeeklyNutritionProjection, date: java.time.LocalDate,
+                                goal: String, bodyWeightKg: Double, heightCm: Double, sex: String): com.apexfit.app.data.NutritionTargets {
+        require(date in projection.monday..projection.monday.plusDays(6))
+        val base = baseCalories.coerceAtLeast(0)
+        val count = projection.frequency
+        val cycle = calcCycledTargets(base, count, goal, bodyWeightKg, heightCm, sex)
+        val restDates = (0L..6L).map(projection.monday::plusDays).filterNot { it in projection.trainingDates }
+        val remainderBudget = base.toLong() * 7 - cycle.trainingDayCalories.toLong() * count
+        val calories = if (date in projection.trainingDates) cycle.trainingDayCalories else {
+            val quotient = remainderBudget / restDates.size
+            val remainder = remainderBudget % restDates.size
+            (quotient + if (restDates.indexOf(date).toLong() < remainder) 1 else 0).toInt()
+        }
+        val protein = cycle.trainingDayProtein
+        val fat = cycle.fat
+        val carbs = ((calories - protein * 4 - fat * 9).coerceAtLeast(0) / 4.0).roundToInt()
+        return com.apexfit.app.data.NutritionTargets(calories, protein, carbs, fat, count)
+    }
+
     fun calcCycledTargets(
         weeklyCalorieTarget: Int,
         weeklyTrainingSessions: Int,
