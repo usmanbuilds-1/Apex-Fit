@@ -379,6 +379,14 @@ data class ActiveRestCheckpoint(
     val adjustmentSeconds: Int = 0
 )
 
+/** Explicit session-local group of consecutive initial exercise occurrences. */
+@Keep
+data class ActiveCircuit(
+    val memberCount: Int,
+    val transitionRestSeconds: Int,
+    val roundRestSeconds: Int
+)
+
 @Keep
 data class ActiveSession(
     val planSessionId: String,
@@ -387,14 +395,15 @@ data class ActiveSession(
     val readinessScore: Int? = null,
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
-    val schemaVersion: Int = 2,
+    val schemaVersion: Int = 3,
     val sessionId: String = java.util.UUID.randomUUID().toString(),
     val cursorIndex: Int? = null,
     val skippedOccurrenceIndices: List<Int>? = null,
-    val restCheckpoint: ActiveRestCheckpoint? = null
+    val restCheckpoint: ActiveRestCheckpoint? = null,
+    val circuit: ActiveCircuit? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 2
+        const val CURRENT_VERSION = 3
     }
 }
 

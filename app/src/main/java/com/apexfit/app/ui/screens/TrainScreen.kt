@@ -375,6 +375,53 @@ fun WorkoutExecutionSubTab(
     val lastWeights by workoutExecutionViewModel.lastWeights.collectAsStateWithLifecycle()
     val weightContextLines by workoutExecutionViewModel.weightContextLines.collectAsStateWithLifecycle()
     val liveSession by workoutExecutionViewModel.sessionManager.activeSession.collectAsStateWithLifecycle()
+    var showCircuitEditor by rememberSaveable { mutableStateOf(false) }
+    var circuitCount by rememberSaveable { mutableStateOf("2") }
+    var transitionRest by rememberSaveable { mutableStateOf("15") }
+    var roundRest by rememberSaveable { mutableStateOf("90") }
+    val circuitSession = liveSession
+    val circuit = circuitSession?.circuit
+    if (showCircuitEditor && circuitSession != null) {
+        val count = circuitCount.toIntOrNull()
+        val between = transitionRest.toIntOrNull()
+        val round = roundRest.toIntOrNull()
+        val valid = count != null && count in 2..circuitSession.exercises.size &&
+            between != null && between in 1..3600 && round != null && round in 1..3600 &&
+            com.apexfit.app.utils.CircuitExecution.canConfigure(circuitSession)
+        AlertDialog(
+            onDismissRequest = { showCircuitEditor = false },
+            title = { Text("Workout circuit") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Group the first consecutive exercises for this workout only. Sets alternate in rounds; completed or skipped members are bypassed.")
+                    OutlinedTextField(circuitCount, { if (it.length <= 3 && it.all(Char::isDigit)) circuitCount = it },
+                        label = { Text("Number of initial exercises (2 or more)") }, singleLine = true)
+                    if (count != null && count in 2..circuitSession.exercises.size) {
+                        Text(circuitSession.exercises.take(count).joinToString(" → ") { it.exerciseName },
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedTextField(transitionRest, { if (it.length <= 4 && it.all(Char::isDigit)) transitionRest = it },
+                        label = { Text("Between members (seconds)") }, singleLine = true)
+                    OutlinedTextField(roundRest, { if (it.length <= 4 && it.all(Char::isDigit)) roundRest = it },
+                        label = { Text("Between rounds / after group (seconds)") }, singleLine = true)
+                    Text("Rest values must be 1–3600 seconds. Choose enough rest for your exercises; grouping does not guarantee better results.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(enabled = valid, onClick = {
+                workoutExecutionViewModel.configureCircuit(com.apexfit.app.data.ActiveCircuit(count!!, between!!, round!!))
+                showCircuitEditor = false
+            }) { Text("Save group") } },
+            dismissButton = {
+                Row {
+                    if (circuit != null) TextButton(onClick = {
+                        workoutExecutionViewModel.configureCircuit(null); showCircuitEditor = false
+                    }) { Text("Remove group") }
+                    TextButton(onClick = { showCircuitEditor = false }) { Text("Cancel") }
+                }
+            }
+        )
+    }
     val volumeAdjustments = remember(liveSession) {
         liveSession?.exercises.orEmpty().mapNotNull { exercise ->
             exercise.volumeAdjustment?.let { exercise.executionKey to it }
@@ -791,6 +838,20 @@ fun WorkoutExecutionSubTab(
                         onBack = { showExitDialog = true },
                         onFinish = { showNormalFinishFeelDialog = true }
                     )
+                    if (circuitSession != null && com.apexfit.app.utils.CircuitExecution.canConfigure(circuitSession)) {
+                        TextButton(enabled = !savingSet && !showRirOverlay, onClick = {
+                            circuitCount = (circuit?.memberCount ?: 2).toString()
+                            transitionRest = (circuit?.transitionRestSeconds ?: 15).toString()
+                            roundRest = (circuit?.roundRestSeconds ?: 90).toString()
+                            showCircuitEditor = true
+                        }) { Text(if (circuit == null) "Configure superset / circuit" else "Edit circuit") }
+                    }
+                    val grouped = circuitSession != null && com.apexfit.app.utils.CircuitExecution.contains(circuitSession, currentIdx)
+                    if (grouped && circuit != null) {
+                        Text("Circuit · ${currentIdx + 1} of ${circuit.memberCount} members · ${circuit.transitionRestSeconds}s transition / ${circuit.roundRestSeconds}s round rest",
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                    }
                     ExerciseListSection(
                         exercises = exercises,
                         currentIdx = currentIdx,
@@ -847,7 +908,10 @@ fun WorkoutExecutionSubTab(
                             workoutExecutionViewModel.cancelOrCompleteEmptySession()
                         },
                         modifier = Modifier.weight(1f),
-                        currentExerciseEquipment = currentExerciseEquipment
+                        currentExerciseEquipment = currentExerciseEquipment,
+                        groupedExecution = grouped,
+                        terminalExercise = if (grouped && circuitSession != null)
+                            com.apexfit.app.utils.CircuitExecution.terminal(circuitSession, currentIdx) else null
                     )
                 }
             }

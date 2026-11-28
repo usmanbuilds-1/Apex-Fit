@@ -95,10 +95,13 @@ fun ExerciseListSection(
     onShowExitDialog: () -> Unit,
     onCancelOrCompleteEmptySession: () -> Unit,
     modifier: Modifier = Modifier,
-    currentExerciseEquipment: String? = null
+    currentExerciseEquipment: String? = null,
+    groupedExecution: Boolean = false,
+    terminalExercise: Boolean? = null
 ) {
     val isImperial = remember(preferredUnits) { preferredUnits.lowercase() in listOf("lb", "lbs") }
     val unitSuffix = if (isImperial) "lb" else "kg"
+    val finalExercise = terminalExercise ?: (currentIdx == exercises.lastIndex)
     val warmupList = remember(warmupComp) { warmupComp.toList() }
     val occurrenceKeys = remember(exercises.map { it.exerciseId }) { com.apexfit.app.utils.WorkoutOccurrenceKeys.allocate(exercises.map { it.exerciseId }) }
     val currentExerciseId = occurrenceKeys.getOrNull(currentIdx)
@@ -228,13 +231,13 @@ fun ExerciseListSection(
                             modifier = Modifier.padding(top = 4.dp))
                         Button(
                             onClick = {
-                                if (currentIdx == exercises.lastIndex) onShowNormalFinishFeelDialog() else onNextExercise()
+                                if (finalExercise) onShowNormalFinishFeelDialog() else onNextExercise()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = ApexColors.Primary),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(top = 8.dp)
                         ) {
-                            Text(if (currentIdx == exercises.lastIndex) "Finish workout" else "Next exercise",
+                            Text(if (finalExercise) "Finish workout" else "Next exercise",
                                 color = ApexColors.OnGlow, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -242,7 +245,7 @@ fun ExerciseListSection(
             }
 
             item {
-                TrainingRail(
+                if (!groupedExecution) TrainingRail(
                     exercises = exercises,
                     currentIdx = currentIdx,
                     loggedSets = loggedSets,
@@ -303,14 +306,15 @@ fun ExerciseListSection(
                                 (activeSetIndex + 1).coerceAtLeast(1), setsList.size,
                                 last?.weight ?: 0.0, last?.reps ?: 0, preferredUnits)
                         }
-                        val canAddSet = setsList.size < 20
+                        val canAddSet = !groupedExecution && setsList.size < 20
                         OutlinedButton(
                             onClick = { onAddCustomLogSet(executionKey) }, enabled = canAddSet,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = ApexColors.TextPrimary),
                             border = BorderStroke(1.dp, ApexColors.BorderSubtle)
                         ) { Text(stringResource(R.string.train_add_extra_set)) }
-                        if (!canAddSet) Text("Sets: 1–20", color = RedAccent,
+                        if (groupedExecution) Text("Circuit set counts are fixed during this workout.", color = ApexColors.TextSecondary)
+                        else if (!canAddSet) Text("Sets: 1–20", color = RedAccent,
                             modifier = Modifier.testTag("sets_error_msg"))
                         OutlinedButton(
                             onClick = { onSkipExercise(ex) },

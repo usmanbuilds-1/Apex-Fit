@@ -16,6 +16,7 @@ internal object WorkoutResumeState {
     fun advance(session: ActiveSession, index: Int, skipped: Boolean): ActiveSession {
         require(index in session.exercises.indices)
         require(cursor(session) == index)
+        if (CircuitExecution.contains(session, index)) return CircuitExecution.advance(session, index, skipped)
         val skippedIndices = session.skippedOccurrenceIndices.orEmpty()
         return session.copy(
             cursorIndex = (index + 1).coerceAtMost(session.exercises.lastIndex),

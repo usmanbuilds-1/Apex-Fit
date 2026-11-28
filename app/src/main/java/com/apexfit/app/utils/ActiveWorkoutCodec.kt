@@ -7,7 +7,7 @@ import java.util.UUID
 
 /** Decode known versions only. The caller must retain the original payload on any failure. */
 internal object ActiveWorkoutCodec {
-    data class Decoded(val session: ActiveSession, val migrated: Boolean, val normalized: Boolean = false)
+    data class Decoded(val session: ActiveSession, val migrated: Boolean, val normalized: Boolean = false, val legacyIdentity: Boolean = false)
 
     fun decode(raw: String, gson: Gson = Gson(), newId: () -> String = { UUID.randomUUID().toString() }): Decoded {
         val json = JsonParser.parseString(raw).asJsonObject
@@ -35,7 +35,7 @@ internal object ActiveWorkoutCodec {
         }
         val migrated = version != ActiveSession.CURRENT_VERSION
         if (migrated) {
-            json.addProperty("sessionId", newId())
+            if (version == 1) json.addProperty("sessionId", newId())
             json.addProperty("schemaVersion", ActiveSession.CURRENT_VERSION)
         }
         val id = json.get("sessionId")?.asString.orEmpty()
@@ -47,6 +47,7 @@ internal object ActiveWorkoutCodec {
         val session = if (normalized) decoded.copy(exercises = decoded.exercises.mapIndexed { index, exercise ->
             exercise.copy(occurrenceKey = keys[index].takeIf { it != exercise.exerciseId })
         }.toMutableList()) else decoded
-        return Decoded(session, migrated, normalized)
+        require(session.circuit == null || CircuitExecution.valid(session)) { "Invalid saved circuit" }
+        return Decoded(session, migrated, normalized, version == 1)
     }
 }

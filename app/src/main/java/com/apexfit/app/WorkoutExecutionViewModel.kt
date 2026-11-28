@@ -18,6 +18,7 @@ import com.apexfit.app.utils.PatternScanWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import com.apexfit.app.utils.WorkoutResumeState
+import com.apexfit.app.utils.CircuitExecution
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
@@ -489,11 +490,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         return persistConfirmedSet(exId, sIdx, w, r, calculatedRpe, completed = true,
             restTakenSeconds = 0, repsInReserve = repsInReserve, advanceAfterCompletion = true) {
             _rirOverlayState.value = _rirOverlayState.value.copy(hasLoggedSet = true)
-            val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
-            val currentIndex = exercises.indexOfFirst { it.executionKey == exId }
-            val exerciseDone = exercises.getOrNull(currentIndex)?.sets?.all { it.completed || it.isWarmup } == true
-            val lastExerciseDone = exerciseDone && currentIndex == exercises.lastIndex
-            if (!lastExerciseDone) {
+            if (sessionManager.activeSession.value?.restCheckpoint != null) {
                 onTriggerRestTimer?.invoke(calculatedRpe, exName, muscleGroup, w, r, sIdx, totalSets)
             }
         }
@@ -505,10 +502,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         onRest: () -> Unit
     ): Job? = persistConfirmedSet(exerciseId, setIndex, weight, reps, rpe, completed = true,
         repsInReserve = (10 - rpe).coerceIn(0, 9), advanceAfterCompletion = true) {
-        val exercises = sessionManager.activeSession.value?.exercises.orEmpty()
-        val index = exercises.indexOfFirst { it.executionKey == exerciseId }
-        val done = exercises.getOrNull(index)?.sets?.all { it.completed || it.isWarmup } == true
-        if (!(done && index == exercises.lastIndex)) onRest()
+        if (sessionManager.activeSession.value?.restCheckpoint != null) onRest()
     }
 
     fun closeRirSelector() {
@@ -524,7 +518,8 @@ class WorkoutExecutionViewModel @Inject constructor(
             return
         }
         val index = WorkoutResumeState.cursor(active)
-        val finalExercise = index == active.exercises.lastIndex
+        val grouped = CircuitExecution.contains(active, index)
+        var finalExercise = index == active.exercises.lastIndex
         viewModelScope.launch {
             var moved = false
             try {
@@ -532,7 +527,10 @@ class WorkoutExecutionViewModel @Inject constructor(
                     "Workout changed or rest is still open."
                 }
                 if (sessionManager.activeSession.value?.sessionId != active.sessionId) return@launch
-                sessionManager.activeSession.value?.let { _currentExerciseIdx.value = WorkoutResumeState.cursor(it) }
+                sessionManager.activeSession.value?.let {
+                    _currentExerciseIdx.value = WorkoutResumeState.cursor(it)
+                    if (grouped) finalExercise = CircuitExecution.terminal(it, index)
+                }
                 moved = true
                 onSaved?.invoke()
             } catch (e: CancellationException) {
@@ -545,6 +543,19 @@ class WorkoutExecutionViewModel @Inject constructor(
             if (moved && finalExercise) {
                 if (skipped) savePartialAndExit(sessionFeel) else finishWorkoutSession(sessionFeel)
             }
+        }
+    }
+
+    fun configureCircuit(group: ActiveCircuit?) {
+        val active = sessionManager.activeSession.value ?: return
+        if (isCommitting.get() || !_isSavingSet.compareAndSet(false, true)) return
+        _setSaveError.value = null
+        viewModelScope.launch {
+            try {
+                check(sessionManager.configureCircuitDurably(active.sessionId, group))
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { _setSaveError.value = "Could not configure circuit. Configure before logging any sets." }
+            finally { _isSavingSet.value = false }
         }
     }
 

@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.withLock
 import com.apexfit.app.utils.ActiveWorkoutCodec
 import com.apexfit.app.utils.WorkoutOccurrenceKeys
 import com.apexfit.app.utils.WorkoutResumeState
+import com.apexfit.app.utils.CircuitExecution
 import com.apexfit.app.data.ActiveRestCheckpoint
 import android.os.SystemClock
 import kotlinx.coroutines.isActive
@@ -104,7 +105,7 @@ class WorkoutSessionManager(
             }
             val decoded = ActiveWorkoutCodec.decode(raw, gson)
             val restored = decoded.session
-            if (decoded.migrated) {
+            if (decoded.legacyIdentity) {
                 // A v1 payload had no durable ID. Do not guess whether it is an
                 // already-committed workout left behind by the old save path.
                 check(dao.getTrainingSessionsStartedAt(restored.startTime).isEmpty()) {
@@ -689,6 +690,15 @@ class WorkoutSessionManager(
     ): Boolean = mutateDraftDurably(expectedSessionId) { session ->
         if (!completed && session.restCheckpoint?.let { it.exerciseKey == exerciseId && it.setIndex == setIndex } == true)
             return@mutateDraftDurably null
+        val indexBefore = session.exercises.indexOfFirst { it.executionKey == exerciseId }
+        if (CircuitExecution.contains(session, indexBefore)) {
+            val prior = session.exercises[indexBefore].sets.getOrNull(setIndex) ?: return@mutateDraftDurably null
+            if (!prior.isWarmup && prior.completed != completed && (!advanceAfterCompletion || !completed ||
+                    indexBefore != WorkoutResumeState.cursor(session) || !CircuitExecution.pending(session, indexBefore) ||
+                    setIndex != session.exercises[indexBefore].sets.indexOfFirst { !it.completed && !it.isWarmup }))
+                return@mutateDraftDurably null
+            if (prior.completed && advanceAfterCompletion) return@mutateDraftDurably null
+        }
         val edited = editedSet(session, exerciseId, setIndex, weight, reps, rpe,
             restTakenSeconds, completed, repsInReserve) ?: return@mutateDraftDurably null
         if (!advanceAfterCompletion || !completed) return@mutateDraftDurably edited
@@ -698,10 +708,13 @@ class WorkoutSessionManager(
         val exercise = edited.exercises[index]
         val done = exercise.sets.all { it.completed || it.isWarmup }
         val positioned = edited.copy(cursorIndex = index)
-        val next = if (done) WorkoutResumeState.advance(positioned, index, false) else positioned
-        if (done && index == edited.exercises.lastIndex) return@mutateDraftDurably next
+        val grouped = CircuitExecution.contains(edited, index) && !exercise.sets[setIndex].isWarmup
+        val next = if (grouped || done) WorkoutResumeState.advance(positioned, index, false) else positioned
+        if (grouped && CircuitExecution.terminal(next, index)) return@mutateDraftDurably next
+        if (!grouped && done && index == edited.exercises.lastIndex) return@mutateDraftDurably next
         val type = com.apexfit.app.utils.ProgressionEngine.getExerciseType(exercise.exerciseName, exercise.muscleGroup)
-        val seconds = calculateRestTimeSeconds(exerciseId, type, rpe).coerceIn(1, 3600)
+        val seconds = if (grouped) requireNotNull(CircuitExecution.restAfter(next, index, WorkoutResumeState.cursor(next)))
+            else calculateRestTimeSeconds(exerciseId, type, rpe).coerceIn(1, 3600)
         val now = SystemClock.elapsedRealtime()
         liveRestIdentity = session.sessionId to now
         next.copy(restCheckpoint = ActiveRestCheckpoint(exerciseId, setIndex, now,
@@ -711,10 +724,14 @@ class WorkoutSessionManager(
     fun isLiveRestCheckpoint(sessionId: String, checkpoint: ActiveRestCheckpoint): Boolean =
         synchronized(stateLock) { liveRestIdentity == (sessionId to checkpoint.startedElapsedMs) }
 
+    suspend fun configureCircuitDurably(expectedSessionId: String, group: ActiveCircuit?): Boolean =
+        mutateDraftDurably(expectedSessionId) { CircuitExecution.configure(it, group) }
+
     suspend fun advanceCursorDurably(expectedSessionId: String, expectedIndex: Int, skipped: Boolean): Boolean =
         mutateDraftDurably(expectedSessionId) { session ->
             if (expectedIndex !in session.exercises.indices || WorkoutResumeState.cursor(session) != expectedIndex ||
-                session.restCheckpoint != null) null
+                session.restCheckpoint != null ||
+                (!skipped && CircuitExecution.contains(session, expectedIndex) && CircuitExecution.pending(session, expectedIndex))) null
             else WorkoutResumeState.advance(session, expectedIndex, skipped)
         }
 
@@ -768,6 +785,7 @@ class WorkoutSessionManager(
      */
     private fun withCustomSet(session: ActiveSession, exerciseId: String): ActiveSession? {
         val exercise = session.exercises.find { it.executionKey == exerciseId } ?: return null
+        if (CircuitExecution.contains(session, session.exercises.indexOf(exercise))) return null
         if (exercise.sets.size >= 20) return null
         val lastSet = exercise.sets.lastOrNull()
         val updated = exercise.copy(sets = (exercise.sets + ActiveSet(
@@ -799,6 +817,7 @@ class WorkoutSessionManager(
         if (committing || savingCriticalSet) return false
         val session = _activeSession.value ?: return false
         val exercise = session.exercises.firstOrNull { it.executionKey == exerciseId } ?: return false
+        if (CircuitExecution.contains(session, session.exercises.indexOf(exercise))) return false
         val sets = exercise.volumeAdjustment?.revert(exercise.sets) ?: return false
         val restored = exercise.copy(sets = sets.toMutableList(), volumeAdjustment = null)
         val updated = session.copy(exercises = session.exercises.map {
@@ -1023,7 +1042,10 @@ class WorkoutSessionManager(
                 "${exercise.exerciseName}: ${it.baseSets} → ${it.adjustedSets} planned sets. ${it.reason}"
             }
         }
-        val sessionNotes = (listOfNotNull(session.notes?.takeIf(String::isNotBlank)) + volumeNotes)
+        val groupNote = session.circuit?.let {
+            "Session-local circuit: first ${it.memberCount} exercise occurrences; configured transition rest ${it.transitionRestSeconds}s, round rest ${it.roundRestSeconds}s."
+        }
+        val sessionNotes = (listOfNotNull(session.notes?.takeIf(String::isNotBlank), groupNote) + volumeNotes)
             .joinToString("\n").takeIf(String::isNotBlank)
 
         val partial = isPartial || session.skippedOccurrenceIndices.orEmpty().isNotEmpty() ||
