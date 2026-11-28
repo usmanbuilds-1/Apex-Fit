@@ -14,6 +14,7 @@ class ProgressionEvidenceTest {
         LastSetWithDate(n.toLong(), "s", "press", "Press", "Chest", kg, reps,
             EffortSelection.rpe(rir ?: -1), false, 90, true, "2026-11-26",
             occurrenceIndex = 0, weightUnit = "kg", sourcePlanExerciseId = 5, setNumber = n,
+            trainingFormat = "sequential",
             setObservation = SetObservationCodec.encode(SetObservation(kg, reps, rir, basis,
                 if (basis == null) "" else setup)))
     private fun propose(rows: List<LastSetWithDate>) =
@@ -50,6 +51,13 @@ class ProgressionEvidenceTest {
         assertNull(propose(listOf(set(1), set(2).copy(occurrenceIndex = 1))))
         assertNull(propose(listOf(set(1), set(2).copy(advancedDetails = "advanced"))))
         assertNull(propose(listOf(set(1), set(2)).map { it.copy(date = "2026-11-29") }))
+    }
+
+    @Test fun groupedUnknownOrMixedTrainingFormatCannotDriveSequentialProgression() {
+        assertNull(propose(listOf(set(1), set(2)).map { it.copy(trainingFormat = "grouped") }))
+        assertNull(propose(listOf(set(1), set(2).copy(trainingFormat = null))))
+        assertNull(propose(listOf(set(1), set(2).copy(trainingFormat = "grouped"))))
+        assertNull(propose(listOf(set(1), set(2).copy(trainingFormat = "other"))))
     }
 
     @Test fun failedOrHighEffortSetOffersOnlySameLoadNotDeload() {
