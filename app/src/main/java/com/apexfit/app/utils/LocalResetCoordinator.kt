@@ -47,6 +47,10 @@ internal enum class ResetAccess { CHECKING, READY, RESETTING, FAILED }
 internal object LocalResetCoordinator {
     private val _access = MutableStateFlow(ResetAccess.CHECKING)
     val access = _access.asStateFlow()
+    private val generation = java.util.concurrent.atomic.AtomicLong(0L)
+    fun currentGeneration(): Long = generation.get()
+    fun permits(context: Context, expectedGeneration: Long): Boolean =
+        !pending(context) && generation.get() == expectedGeneration
     private fun marker(context: Context) = ResetMarker(context.noBackupFilesDir)
     fun pending(context: Context): Boolean = marker(context).pending()
     fun readyForTests() { _access.value = ResetAccess.READY }
@@ -58,6 +62,7 @@ internal object LocalResetCoordinator {
         try {
             manager.resetWorkoutData(beforeDelete = {
                 marker.begin()
+                generation.incrementAndGet()
                 _access.value = ResetAccess.RESETTING
             }) {
                 // Manager's NonCancellable region includes the entire destructive sequence.
