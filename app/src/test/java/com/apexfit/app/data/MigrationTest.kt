@@ -651,6 +651,10 @@ class MigrationTest {
         old.execSQL("INSERT INTO workout_sessions (id, date, sessionType, completed, durationMinutes, sessionFeel) VALUES ('legacy', '2026-11-01', 'Upper', 1, 25, 4)")
         old.close()
         val migrated = helper.runMigrationsAndValidate(TEST_DB, 34, true, AppDatabase.MIGRATION_33_34)
+        migrated.query("SELECT COUNT(*) FROM schedule_dispositions").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(0, it.getInt(0))
+        }
         migrated.query("SELECT date, completed, schedule_occurrence_id FROM workout_sessions WHERE id='legacy'").use {
             assertTrue(it.moveToFirst())
             assertEquals("2026-11-01", it.getString(0))
