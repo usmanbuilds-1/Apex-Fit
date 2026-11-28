@@ -13,7 +13,7 @@ import java.time.LocalDate
  */
 object ScheduleLedger {
     suspend fun capture(db: AppDatabase, today: LocalDate = LocalDate.now(),
-                        recordedAt: Long = System.currentTimeMillis()) = db.withTransaction {
+                        recordedAt: Long = System.currentTimeMillis()): Unit = db.withTransaction {
         val dao = db.fitnessDao()
         val active = dao.getAllPlans().filter { it.isActive }.singleOrNull()
         val sessions = active?.let { dao.getSessionsForPlan(it.id) }.orEmpty()
