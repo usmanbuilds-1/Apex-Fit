@@ -36,4 +36,37 @@ class PermanentWorkoutGroupsTest {
         assertNull(PermanentWorkoutGroups.validationError(listOf(exercise(1, "A"), exercise(2, "A"),
             exercise(3, "A", session = 2), exercise(4, "A", session = 2))))
     }
+
+    @Test fun planEditorCreatesResizesAndRemovesWithoutChangingPrescriptionsOrOrder() {
+        val original = listOf(exercise(1), exercise(2), exercise(3), exercise(4, "B"), exercise(5, "B"))
+        val ids = original.map { it.id }
+        val grouped = requireNotNull(PermanentWorkoutGroups.configure(original, 1, ids, "A",
+            listOf(1L, 2L), 20, 120))
+        assertEquals(listOf("A", "A", null, "B", "B"), grouped.map { it.groupKey })
+        val resized = requireNotNull(PermanentWorkoutGroups.configure(grouped, 1, ids, "A",
+            listOf(2L, 3L), 30, 90))
+        assertEquals(listOf(null, "A", "A", "B", "B"), resized.map { it.groupKey })
+        assertEquals(original, PermanentWorkoutGroups.remove(resized, 1, "A"))
+        assertEquals(ids, resized.map { it.id })
+        assertEquals(original.map { it.sets }, resized.map { it.sets })
+    }
+
+    @Test fun planEditorRejectsStaleOrderOverlapAndNonconsecutiveSelection() {
+        val rows = listOf(exercise(1), exercise(2), exercise(3, "B"), exercise(4, "B"))
+        val ids = rows.map { it.id }
+        assertNull(PermanentWorkoutGroups.configure(rows, 1, ids.reversed(), "A", listOf(1L, 2L), 15, 90))
+        assertNull(PermanentWorkoutGroups.configure(rows, 1, ids, "A", listOf(2L, 3L), 15, 90))
+        assertNull(PermanentWorkoutGroups.configure(rows, 1, ids, "A", listOf(1L, 3L), 15, 90))
+        assertNull(PermanentWorkoutGroups.configure(rows, 1, ids, "A", listOf(1L, 2L), 0, 90))
+    }
+
+    @Test fun deletingMemberDissolvesSingletonButPreservesLargerGroup() {
+        val rows = listOf(exercise(1, "A"), exercise(2, "A"), exercise(3, "B"), exercise(4, "B"), exercise(5, "B"))
+        val after = PermanentWorkoutGroups.deleteOccurrence(rows, 1)
+        assertNull(after.first().groupKey)
+        assertNull(after.first().groupRoundRest)
+        val larger = PermanentWorkoutGroups.deleteOccurrence(after, 4)
+        assertEquals(listOf("B", "B"), larger.drop(1).map { it.groupKey })
+        assertNull(PermanentWorkoutGroups.validationError(larger))
+    }
 }
