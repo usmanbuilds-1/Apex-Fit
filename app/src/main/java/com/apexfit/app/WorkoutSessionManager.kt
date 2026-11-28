@@ -270,7 +270,8 @@ class WorkoutSessionManager(
         userWeight: Double,
         userHeight: Double,
         preferredUnits: String,
-        expectedResetGeneration: Long = resetGeneration.value
+        expectedResetGeneration: Long = resetGeneration.value,
+        expectedReservation: com.apexfit.app.data.ScheduleMoveReservation? = null
     ) = withContext(Dispatchers.IO) {
         // Startup restore and a new workout must never race each other. Await the
         // persisted-session read before deciding whether a session is already active.
@@ -450,8 +451,14 @@ class WorkoutSessionManager(
 
         val startedAt = System.currentTimeMillis()
         val startDate = com.apexfit.app.utils.DateTimeUtils.dateStringForEpochMillis(startedAt)
-        val scheduleOccurrence = com.apexfit.app.utils.ScheduleLedger.occurrenceForStart(
-            java.time.LocalDate.parse(startDate), startedAt, planSession, dao.getScheduleRevisionForDate(startDate))
+        val reservation = expectedReservation?.let {
+            com.apexfit.app.utils.ReservedWorkoutExecution.validateStart(
+                AppDatabase.getDatabase(appContext), it, planSession, java.time.LocalDate.parse(startDate), startedAt)
+        }
+        val scheduleOccurrence = if (reservation == null)
+            com.apexfit.app.utils.ScheduleLedger.occurrenceForStart(
+                java.time.LocalDate.parse(startDate), startedAt, planSession, dao.getScheduleRevisionForDate(startDate))
+            else null
         val newSession = ActiveSession(
             cursorIndex = 0,
             skippedOccurrenceIndices = emptyList(),
@@ -461,7 +468,9 @@ class WorkoutSessionManager(
             readinessScore = readinessScore?.finalScore,
             exercises = activeExercises,
             startedLocalDate = startDate,
-            scheduleOccurrenceId = scheduleOccurrence
+            scheduleOccurrenceId = scheduleOccurrence,
+            reservedOccurrenceId = reservation?.occurrenceId,
+            reservationRecordedAt = reservation?.recordedAt
         )
         // Do not expose a workout that has not received its durable identity.
         // A cancelled caller must not leave a saved draft hidden from the
@@ -985,6 +994,7 @@ class WorkoutSessionManager(
             val staged = buildReceipt(trainingSession, allSets, earned).copy(savedSets = emptyList())
             dataStore.stageWorkoutReceipt(sessionId, gson.toJson(staged))
             repository.insertSessionWithPRsAtomic(trainingSession, allSets, earned)
+            com.apexfit.app.utils.ReservedWorkoutExecution.attributeSavedWorkout(db, finalSession, trainingSession, completedAt)
             // Legacy stall counters were based on the preceding workout and cannot be
             // replayed after edits. Do not update or use them until source-linked replay exists.
             buildReceipt(trainingSession, dao.getSetsForSession(sessionId), earned)
