@@ -88,3 +88,6 @@ Exact sum of planned calories is an arithmetic invariant for a fixed projection,
 
 ### Group context in progression
 Existing superset evidence supports time efficiency but higher exertion under some protocols; it does not establish interchangeable RIR/rep-load progression across grouped versus sequential training. Excluding grouped/unknown sessions from sequential progression is a conservative product policy, not a quantified biological correction. Count actual sets/reps unchanged; no additional effective-set credit or automatic fatigue adjustment for group membership. New structured session format permits later context-specific comparisons; missing legacy context remains unknown.
+
+### Comparable performance across training formats
+Superset evidence cited above supports treating format as context, not a fixed load correction. Stratification by recorded session format is a product comparability safeguard, not a validated adjustment. Even within grouped/unknown buckets, rest and order may differ. Epley estimates remain conditional on explicitly confirmed low-rep free-weight rep-limit sets; grouped estimates are not fresh maximal tests. Raw set totals and actual recorded achievements remain intact.
