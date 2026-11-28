@@ -38,11 +38,22 @@ object EstimatedStrength {
             date to kg
         }.groupBy({ it.first }, { it.second }).map { (date, values) -> date to values.average() }.sortedBy { it.first }
 
+    // Strict lower bound: find the last weigh-in day strictly before the workout.
+    internal fun priorDayIndex(days: List<Pair<LocalDate, Double>>, date: LocalDate): Int {
+        var low = 0
+        var high = days.size
+        while (low < high) {
+            val mid = low + (high - low) / 2
+            if (days[mid].first < date) low = mid + 1 else high = mid
+        }
+        return low - 1
+    }
+
     fun calculate(points: List<StrengthSessionPoint>, confirmations: Map<Long, SetLoadConfirmation>,
                   weights: List<WeightEntry>): List<EstimatedStrengthPoint> {
         val days = dailyWeights(weights)
         return points.flatMap { point ->
-            val historical = days.lastOrNull { it.first < point.date }?.let { (date, kg) ->
+            val historical = days.getOrNull(priorDayIndex(days, point.date))?.let { (date, kg) ->
                 val age = ChronoUnit.DAYS.between(date, point.date)
                 if (age in 1..MAX_WEIGHT_AGE_DAYS) HistoricalStrengthWeight(date, kg, age) else null
             }
