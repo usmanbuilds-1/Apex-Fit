@@ -279,11 +279,20 @@ internal fun StrengthHistorySummary(points: List<StrengthSessionPoint>, units: S
         Text("${points.size} saved sessions · ${points.sumOf { it.workingSets }} working sets",
             color = ApexColors.TextSecondary)
         var metric by rememberSaveable { mutableIntStateOf(0) }
+        var formatName by rememberSaveable { mutableStateOf<String?>(null) }
+        val formats = remember(points) { points.map { it.trainingFormat }.distinct().sortedBy { it.ordinal } }
+        val activeFormat = formats.firstOrNull { it.name == formatName } ?: formats.firstOrNull()
+        if (formats.size > 1) formats.forEach { format ->
+            Row(Modifier.fillMaxWidth().clickable { formatName = format.name }, verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = activeFormat == format, onClick = { formatName = format.name })
+                Text(format.label)
+            }
+        } else activeFormat?.let { Text(it.label, color = ApexColors.TextSecondary) }
         ApexSegmentedControl(labels = listOf("Load", "Reps"), selectedIndex = metric, onSelect = { metric = it })
         Text(if (metric == 0) "Highest recorded load by date" else "Most reps in one set by date",
             style = MaterialTheme.typography.titleMedium)
-        val daily = remember(points, metric) {
-            points.groupBy { it.date }.toSortedMap().mapNotNull { (date, sameDay) ->
+        val daily = remember(points, metric, activeFormat) {
+            points.filter { it.trainingFormat == activeFormat }.groupBy { it.date }.toSortedMap().mapNotNull { (date, sameDay) ->
                 val value = if (metric == 0) sameDay.mapNotNull { it.heaviestRecorded?.loadKg }.maxOrNull()
                     else sameDay.mapNotNull { it.mostReps?.reps?.toDouble() }.maxOrNull()
                 value?.let { date to it }
@@ -327,6 +336,7 @@ private fun StrengthSessionRow(
         HorizontalDivider(color = ApexColors.BorderSubtle)
         Text(DateTimeUtils.formatDateForDisplay(point.date.toString()) + if (point.partial) " · Partial workout" else "",
             style = MaterialTheme.typography.titleMedium)
+        Text(point.trainingFormat.label, color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
         Text("Highest load: ${observedPair(point.heaviestRecorded, units)}", color = ApexColors.TextSecondary)
         Text("Most reps: ${observedPair(point.mostReps, units)}", color = ApexColors.TextSecondary)
         Text("${point.workingSets} sets · ${point.totalReps} reps", style = MaterialTheme.typography.bodySmall)
@@ -358,7 +368,7 @@ internal fun RepRecordsPanel(projection: RepRecordProjection, units: String) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(observedPair(StrengthObservation(event.setId, event.loadKg, event.key.reps), units))
                     Text(DateTimeUtils.formatDateForDisplay(event.date.toString()))
-                    Text("${event.key.basis.label} · ${event.key.setup}")
+                    Text("${event.key.basis.label} · ${event.key.setup} · ${event.key.trainingFormat.label}")
                     Text("Saved session: ${event.sessionId}")
                     Text("Set ID: ${event.setId}")
                     if (event.chronologyLimited) Text("Exact within-day order is unavailable.")
@@ -368,7 +378,7 @@ internal fun RepRecordsPanel(projection: RepRecordProjection, units: String) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         HorizontalDivider(color = ApexColors.BorderSubtle)
         Text("Exact-rep records · all time", style = MaterialTheme.typography.titleMedium)
-        Text("Only user-confirmed matching setups qualify. Stack settings are not measured external force; one rep is not necessarily a maximal test.",
+        Text("Records are separated by confirmed setup, rep count and session format. Grouped and unknown formats may contain different rest/order conditions. Stack settings are not measured external force.",
             color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
         if (projection.best.isEmpty()) Text("Confirm a saved set's load setup below to start building comparable records.",
             color = ApexColors.TextSecondary)
@@ -382,7 +392,7 @@ internal fun RepRecordsPanel(projection: RepRecordProjection, units: String) {
                     verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(observedPair(StrengthObservation(event.setId, event.loadKg, event.key.reps), units))
-                        Text("${event.key.basis.label} · ${event.key.setup}", color = ApexColors.TextSecondary,
+                        Text("${event.key.basis.label} · ${event.key.setup} · ${event.key.trainingFormat.label}", color = ApexColors.TextSecondary,
                             style = MaterialTheme.typography.bodySmall)
                     }
                     Text(DateTimeUtils.formatDateForDisplay(event.date.toString()), style = MaterialTheme.typography.labelSmall)
@@ -397,9 +407,12 @@ internal fun RepRecordsPanel(projection: RepRecordProjection, units: String) {
 internal fun EstimatedStrengthPanel(points: List<EstimatedStrengthPoint>, units: String) {
     var showAll by rememberSaveable { mutableStateOf(false) }
     var selectedSetup by rememberSaveable { mutableStateOf<String?>(null) }
-    val setups = remember(points) { points.map { it.setup }.distinct().sorted() }
+    fun seriesKey(point: EstimatedStrengthPoint) = point.trainingFormat.name + "|" + point.setup
+    val setups = remember(points) { points.map { seriesKey(it) }.distinct().sorted() }
     val activeSetup = selectedSetup?.takeIf { it in setups } ?: setups.firstOrNull()
-    val series = remember(points, activeSetup) { points.filter { it.setup == activeSetup } }
+    val series = remember(points, activeSetup) { points.filter { seriesKey(it) == activeSetup } }
+    fun seriesLabel(key: String): String = key.substringAfter('|') + " · " +
+        com.apexfit.app.utils.TrainingFormat.valueOf(key.substringBefore('|')).label
     val daily = remember(series) {
         series.groupBy { it.date }.toSortedMap().values.map { day ->
             day.maxWithOrNull(compareBy<EstimatedStrengthPoint> { it.estimated1RmKg }.thenByDescending { it.setId })!!
@@ -414,14 +427,14 @@ internal fun EstimatedStrengthPanel(points: List<EstimatedStrengthPoint>, units:
             Text("No eligible confirmed sets in this period.", color = ApexColors.TextSecondary)
         } else {
             if (setups.size > 1) {
-                Text("Compare only within the same setup.", style = MaterialTheme.typography.bodySmall)
+                Text("Compare within the same setup and session format; rest and exercise order can still differ.", style = MaterialTheme.typography.bodySmall)
                 setups.forEach { setup ->
                     Row(Modifier.fillMaxWidth().clickable { selectedSetup = setup }, verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = setup == activeSetup, onClick = { selectedSetup = setup })
-                        Text(setup)
+                        Text(seriesLabel(setup))
                     }
                 }
-            } else Text(activeSetup.orEmpty(), color = ApexColors.TextSecondary)
+            } else Text(activeSetup?.let(::seriesLabel).orEmpty(), color = ApexColors.TextSecondary)
             val latest = daily.lastOrNull()
             if (latest != null) {
                 Text("Latest dated estimate", style = MaterialTheme.typography.bodySmall)
