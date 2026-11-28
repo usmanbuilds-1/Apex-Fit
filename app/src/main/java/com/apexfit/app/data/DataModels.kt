@@ -516,6 +516,13 @@ data class RichTrainingSession(
     val savedPartial: Boolean = false
 )
 
+/** Atomic active-plan read projection. Not an immutable historical schedule. */
+data class CalendarPlanSnapshot(
+    @Embedded val plan: WorkoutPlan,
+    @androidx.room.Relation(parentColumn = "id", entityColumn = "planId")
+    val sessions: List<PlanSession>
+)
+
 data class StrengthExerciseOption(val exerciseId: String, val name: String, val category: String, val equipment: String)
 
 /** Read projection only; does not change the Room schema. */

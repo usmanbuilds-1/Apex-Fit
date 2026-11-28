@@ -80,6 +80,17 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_sessions WHERE completed = 1 OR status = 'partial' ORDER BY date DESC, completed_at DESC")
     fun getSavedTrainingSessionsFlow(): Flow<List<TrainingSession>>
 
+    @Query("""
+        SELECT * FROM workout_sessions
+        WHERE date BETWEEN :start AND :end AND (completed = 1 OR status = 'partial')
+        ORDER BY date ASC, completed_at ASC, id ASC
+    """)
+    fun observeCalendarSessions(start: String, end: String): Flow<List<TrainingSession>>
+
+    @Transaction
+    @Query("SELECT * FROM workout_programs WHERE isActive = 1 ORDER BY id")
+    fun observeCalendarPlans(): Flow<List<CalendarPlanSnapshot>>
+
     @Query("SELECT * FROM workout_sessions WHERE id = :id LIMIT 1")
     suspend fun getTrainingSessionById(id: String): TrainingSession?
 

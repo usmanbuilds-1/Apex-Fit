@@ -66,6 +66,12 @@ class ProgressViewModel @Inject constructor(
     val personalRecords = dao.getPersonalRecordsWithNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    fun observeCalendar(month: java.time.YearMonth, today: java.time.LocalDate): Flow<TrainingCalendarMonth> =
+        combine(dao.observeCalendarSessions(month.atDay(1).toString(), month.atEndOfMonth().toString()),
+            dao.observeCalendarPlans()) { sessions, plans ->
+            TrainingCalendar.build(month, today, sessions, plans)
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
     val workoutHistory = dao.getSavedTrainingSessionsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
