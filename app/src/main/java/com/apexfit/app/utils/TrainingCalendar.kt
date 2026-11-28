@@ -1,12 +1,14 @@
 package com.apexfit.app.utils
 
 import com.apexfit.app.data.CalendarPlanSnapshot
+import com.apexfit.app.data.ScheduleRevisionSnapshot
 import com.apexfit.app.data.TrainingSession
 import java.time.LocalDate
 import java.time.YearMonth
 
 enum class CalendarScheduleKind { TRAINING, REST, UNKNOWN }
 enum class CalendarLogKind { COMPLETED, PARTIAL, NONE }
+enum class CalendarScheduleSource { RECORDED, LIVE_PROJECTION, UNKNOWN }
 
 data class TrainingCalendarDay(
     val date: LocalDate,
@@ -14,7 +16,9 @@ data class TrainingCalendarDay(
     val scheduleKind: CalendarScheduleKind,
     val plannedLabel: String?,
     val plannedSessionId: Long?,
-    val planName: String?
+    val planName: String?,
+    val scheduleSource: CalendarScheduleSource = CalendarScheduleSource.UNKNOWN,
+    val recordedOccurrenceId: String? = null
 ) {
     val completedCount: Int get() = sessions.count { it.completed }
     val partialCount: Int get() = sessions.count { !it.completed && it.status == "partial" }
@@ -34,7 +38,8 @@ data class TrainingCalendarMonth(val month: YearMonth, val days: List<TrainingCa
 
 object TrainingCalendar {
     fun build(month: YearMonth, today: LocalDate, sessions: List<TrainingSession>,
-              activePlans: List<CalendarPlanSnapshot>, nowMs: Long = System.currentTimeMillis()): TrainingCalendarMonth {
+              activePlans: List<CalendarPlanSnapshot>, nowMs: Long = System.currentTimeMillis(),
+              revisions: List<ScheduleRevisionSnapshot> = emptyList()): TrainingCalendarMonth {
         val logged = sessions.filter {
             val date = runCatching { LocalDate.parse(it.date) }.getOrNull()
             date != null && YearMonth.from(date) == month && date <= today &&
@@ -53,7 +58,16 @@ object TrainingCalendar {
             val date = month.atDay(n)
             val actual = logged[date.toString()].orEmpty().sortedWith(
                 compareBy<TrainingSession> { it.completedAt ?: it.startedAt ?: Long.MIN_VALUE }.thenBy { it.id })
-            // Do not back-project mutable current plans. Future slots are projections, not promises.
+            // Past schedules must come from the immutable ledger, never the live plan.
+            // A saved workout on that day does not establish completion of this occurrence.
+            if (date < today) {
+                val recorded = ScheduleLedger.resolve(date, revisions)
+                return@map TrainingCalendarDay(date, actual, recorded.kind, recorded.label,
+                    recorded.slotId, recorded.planName,
+                    if (recorded.kind == CalendarScheduleKind.UNKNOWN) CalendarScheduleSource.UNKNOWN
+                    else CalendarScheduleSource.RECORDED, recorded.occurrenceId)
+            }
+            // Today follows live execution; future slots are projections, not promises.
             val current = snapshot?.takeIf { date >= today }
             val slot = current?.let { WorkoutSchedule.sessionForDate(it.plan, it.sessions, date) }
             val kind = when {
@@ -61,7 +75,8 @@ object TrainingCalendar {
                 slot == null || !WorkoutSchedule.isTraining(slot) -> CalendarScheduleKind.REST
                 else -> CalendarScheduleKind.TRAINING
             }
-            TrainingCalendarDay(date, actual, kind, slot?.label, slot?.id, current?.plan?.name)
+            TrainingCalendarDay(date, actual, kind, slot?.label, slot?.id, current?.plan?.name,
+                if (current == null) CalendarScheduleSource.UNKNOWN else CalendarScheduleSource.LIVE_PROJECTION)
         })
     }
 }
