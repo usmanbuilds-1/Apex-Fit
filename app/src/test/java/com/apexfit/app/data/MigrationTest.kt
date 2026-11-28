@@ -646,10 +646,25 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateAll8To33() {
+    fun migrate33To34KeepsOldWorkoutUnlinked() {
+        val old = helper.createDatabase(TEST_DB, 33)
+        old.execSQL("INSERT INTO workout_sessions (id, date, sessionType, completed, durationMinutes, sessionFeel) VALUES ('legacy', '2026-11-01', 'Upper', 1, 25, 4)")
+        old.close()
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 34, true, AppDatabase.MIGRATION_33_34)
+        migrated.query("SELECT date, completed, schedule_occurrence_id FROM workout_sessions WHERE id='legacy'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("2026-11-01", it.getString(0))
+            assertEquals(1, it.getInt(1))
+            assertTrue(it.isNull(2))
+        }
+        migrated.close()
+    }
+
+    @Test
+    fun migrateAll8To34() {
         helper.createDatabase(TEST_DB, 8).close()
         helper.runMigrationsAndValidate(
-            TEST_DB, 33, true,
+            TEST_DB, 34, true,
             AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
             AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14,
@@ -659,7 +674,7 @@ class MigrationTest {
             AppDatabase.MIGRATION_20_21, AppDatabase.MIGRATION_21_22,
             AppDatabase.MIGRATION_22_23, AppDatabase.MIGRATION_23_24,
             AppDatabase.MIGRATION_24_25, AppDatabase.MIGRATION_25_26,
-            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28, AppDatabase.MIGRATION_28_29, AppDatabase.MIGRATION_29_30, AppDatabase.MIGRATION_30_31, AppDatabase.MIGRATION_31_32, AppDatabase.MIGRATION_32_33
+            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28, AppDatabase.MIGRATION_28_29, AppDatabase.MIGRATION_29_30, AppDatabase.MIGRATION_30_31, AppDatabase.MIGRATION_31_32, AppDatabase.MIGRATION_32_33, AppDatabase.MIGRATION_33_34
         ).close()
     }
 }
