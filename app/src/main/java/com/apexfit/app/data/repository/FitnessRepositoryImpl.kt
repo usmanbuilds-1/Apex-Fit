@@ -124,10 +124,12 @@ class FitnessRepositoryImpl @Inject constructor(
     override val richSessionsFlow: StateFlow<List<RichTrainingSession>> by lazy {
         combine(
             recent90DaySessionsFlow,
-            recent90DaySetsFlow
-        ) { sessions, sets ->
-            SessionMapper.buildRichSessions(sessions, sets)
+            recent90DaySetsFlow,
+            dao.getExerciseAttributionFlow()
+        ) { sessions, sets, exercises ->
+            SessionMapper.buildRichSessions(sessions, sets, exercises.associate { it.id to it.secondaryMuscles })
         }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = appScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -254,7 +256,8 @@ class FitnessRepositoryImpl @Inject constructor(
             bioProfileFlow,
             nutritionEntriesFlow,
             todayDateFlow,
-            getTrainingFrequencyFlow()
+            getTrainingFrequencyFlow(),
+            dataStore.nutritionDayConfirmationsFlow
         ) { values ->
             val isManual            = values[0] as Boolean
             val manualCals          = values[1] as Int
@@ -269,8 +272,10 @@ class FitnessRepositoryImpl @Inject constructor(
             val nutrition           = values[7] as List<NutritionEntry>
             val todayDate           = values[8] as String
             val currentWeekFrequency = values[9] as Int
+            @Suppress("UNCHECKED_CAST")
+            val confirmations = values[10] as Map<String, String>
 
-            val latestWeight = BodyWeightHistory.latest(weights)?.weight
+            val latestWeight = BodyWeightHistory.latest(weights.filter { it.date <= todayDate })?.weight
                 ?: bio.currentWeightKg
             val calories: Int = if (isManual) {
                 manualCals
@@ -282,7 +287,8 @@ class FitnessRepositoryImpl @Inject constructor(
                     ageYears       = bio.ageYears,
                     biologicalSex  = bio.biologicalSex,
                     weeklyWorkouts = bio.weeklyWorkouts,
-                    fallbackWeightKg = latestWeight
+                    fallbackWeightKg = latestWeight,
+                    nutritionConfirmations = confirmations
                 )
                 TdeeEngine.suggestCaloricTarget(
                     tdee            = tdeeResult.tdee ?: com.apexfit.app.UserDefaults.CALORIES,
@@ -351,24 +357,14 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val complianceScoresFlow: StateFlow<UiComplianceResult> by lazy {
-        val mappedNutritionFlow = nutritionEntriesFlow.map { list ->
-            list.map {
-                com.apexfit.app.utils.NutritionEntry(
-                    date = it.date,
-                    calories = it.calories,
-                    protein = it.protein.roundToInt(),
-                    carbs = it.carbs.roundToInt(),
-                    fat = it.fat.roundToInt()
-                )
-            }
-        }
         combine(
-            mappedNutritionFlow,
+            nutritionEntriesFlow,
             richSessionsFlow,
-            sharedTargetsFlow
-        ) { nutrition, sessions, targets ->
-            val res = ComplianceEngine.calcComplianceScores(nutrition, sessions, targets)
-            res.toUi()
+            sharedTargetsFlow,
+            dataStore.nutritionDayConfirmationsFlow,
+            todayDateFlow
+        ) { nutrition, sessions, targets, confirmations, date ->
+            ComplianceEngine.calcComplianceScores(nutrition, sessions, targets, nutritionConfirmations = confirmations, today = LocalDate.parse(date)).toUi()
         }
         .debounce(300L)
         .flowOn(Dispatchers.Default)
@@ -384,23 +380,14 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override val streakResultFlow: StateFlow<StreakResult> by lazy {
-        val mappedNutritionFlow = nutritionEntriesFlow.map { list ->
-            list.map {
-                com.apexfit.app.utils.NutritionEntry(
-                    date = it.date,
-                    calories = it.calories,
-                    protein = it.protein.roundToInt(),
-                    carbs = it.carbs.roundToInt(),
-                    fat = it.fat.roundToInt()
-                )
-            }
-        }
         combine(
-            mappedNutritionFlow,
+            nutritionEntriesFlow,
             richSessionsFlow,
-            sharedTargetsFlow
-        ) { nutrition, sessions, targets ->
-            ComplianceEngine.calcStreaks(nutrition, sessions, targets)
+            sharedTargetsFlow,
+            dataStore.nutritionDayConfirmationsFlow,
+            todayDateFlow
+        ) { nutrition, sessions, targets, confirmations, date ->
+            ComplianceEngine.calcStreaks(nutrition, sessions, targets, nutritionConfirmations = confirmations, today = LocalDate.parse(date))
         }
         .debounce(300L)
         .flowOn(Dispatchers.Default)
@@ -631,8 +618,9 @@ class FitnessRepositoryImpl @Inject constructor(
     }
 
     override fun getCurrentWeightFlow(): Flow<Double> {
-        return combine(dao.observeAllWeightEntries(), dataStore.weightBaselineFlow) { entries, fallback ->
-            BodyWeightHistory.latest(entries)?.weight ?: fallback ?: com.apexfit.app.UserDefaults.WEIGHT_KG
+        return combine(dao.observeAllWeightEntries(), dataStore.weightBaselineFlow, todayDateFlow) { entries, fallback, today ->
+            BodyWeightHistory.latest(entries.filter { it.date <= today })?.weight
+                ?: fallback ?: com.apexfit.app.UserDefaults.WEIGHT_KG
         }.distinctUntilChanged().flowOn(Dispatchers.IO)
     }
 

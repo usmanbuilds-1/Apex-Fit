@@ -1,6 +1,5 @@
 package com.apexfit.app.ui.components
 
-import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -42,21 +41,22 @@ private val EMPTY_FILL           = ApexColors.BorderSubtle  // matches BorderSub
 // PUBLIC COMPOSABLE
 // ─────────────────────────────────────────────────────────────────
 
-private fun buildHeatmapDescription(heatmap: Map<String, HeatmapEntry>, view: String): String {
+private fun buildHeatmapDescription(heatmap: Map<String, HeatmapEntry>, view: String, periodLabel: String): String {
     val active = heatmap.filter { it.value.volume > 0 }
     return if (active.isEmpty()) {
-        "$view body view: no training data in the last 7 days"
+        "$view body preview, $periodLabel: no direct working sets logged"
     } else {
         val topMuscles = active.entries.sortedByDescending { it.value.volume }.take(5)
-            .joinToString(", ") { "${it.key}: ${it.value.volume} sets" }
-        "$view body view: $topMuscles"
+            .joinToString(", ") { "${it.key.replace('_', ' ')}: ${it.value.volume} direct sets" }
+        "$view body preview, $periodLabel. Most logged direct sets: $topMuscles. Full counts in Muscle volume."
     }
 }
 
 @Composable
 fun SingleFrontHeatmapCanvas(
     heatmap: Map<String, HeatmapEntry>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    periodLabel: String = "selected period"
 ) {
     val colorMap = remember(heatmap) { buildColorMap(heatmap) }
     BoxWithConstraints(modifier = modifier) {
@@ -76,7 +76,7 @@ fun SingleFrontHeatmapCanvas(
             modifier = Modifier
                 .fillMaxSize()
                 .semantics {
-                    contentDescription = buildHeatmapDescription(heatmap, "front")
+                    contentDescription = buildHeatmapDescription(heatmap, "front", periodLabel)
                 }
         ) {
             drawFrontView(
@@ -93,7 +93,8 @@ fun SingleFrontHeatmapCanvas(
 @Composable
 fun MuscleHeatmapCanvas(
     heatmap: Map<String, HeatmapEntry>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    periodLabel: String = "selected period"
 ) {
     val colorMap = remember(heatmap) { buildColorMap(heatmap) }
     Column(modifier = modifier.fillMaxWidth()) {
@@ -138,7 +139,7 @@ fun MuscleHeatmapCanvas(
                         modifier = Modifier
                             .fillMaxSize()
                             .semantics {
-                                contentDescription = buildHeatmapDescription(heatmap, "front")
+                                contentDescription = buildHeatmapDescription(heatmap, "front", periodLabel)
                             }
                     ) {
                         drawFrontView(
@@ -188,7 +189,7 @@ fun MuscleHeatmapCanvas(
                         modifier = Modifier
                             .fillMaxSize()
                             .semantics {
-                                contentDescription = buildHeatmapDescription(heatmap, "back")
+                                contentDescription = buildHeatmapDescription(heatmap, "back", periodLabel)
                             }
                     ) {
                         drawBackView(
@@ -313,7 +314,7 @@ private fun DrawScope.drawBackView(
     val trapezius = prebuiltTrapezius ?: buildTrapeziusPath(w, h)
     val leftLat = prebuiltLeftLat ?: buildLeftLatPath(w, h)
     val rightLat = prebuiltRightLat ?: buildRightLatPath(w, h)
-    drawTrapezius(trapezius, back)
+    drawTrapezius(trapezius, colorMap["trapezius"] ?: DEFAULT_COLOR_PAIR)
     drawLat(leftLat, back)
     drawLat(rightLat, back)
 
@@ -700,18 +701,9 @@ private fun buildColorMap(heatmap: Map<String, HeatmapEntry>): Map<String, Pair<
 
 /** Resolves a HeatmapEntry to (fillColor, alpha) */
 private fun HeatmapEntry?.toColorPair(): Pair<Color, Float> {
-    if (this == null || intensity <= 0) return EMPTY_FILL to EMPTY_ALPHA
-    return try {
-        val parsedColor = Color(AndroidColor.parseColor(colorHex))
-        when {
-            intensity >= 80 -> parsedColor to 1.0f
-            intensity >= 40 -> parsedColor to 0.75f
-            intensity >= 10 -> parsedColor to 0.50f
-            else -> parsedColor to 0.25f
-        }
-    } catch (e: Exception) {
-        EMPTY_FILL to EMPTY_ALPHA
-    }
+    val count = this?.volume ?: 0
+    val band = com.apexfit.app.utils.DirectSetBand.of(count)
+    return directSetBandColor(band) to 1.0f
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -727,10 +719,9 @@ fun HeatmapLegend(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        LegendDot(ApexColors.Alert, ">80%")
-        LegendDot(ApexColors.Amber, "40–80%")
-        LegendDot(ApexColors.Victory, "10–40%")
-        LegendDot(ApexColors.BorderSubtle.copy(alpha = 0.9f), "None")
+        com.apexfit.app.utils.DirectSetBand.entries.forEach { band ->
+            LegendDot(directSetBandColor(band), band.label)
+        }
     }
 }
 
