@@ -207,20 +207,7 @@ class FitnessViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 com.apexfit.app.utils.LocalDataGate.exclusive {
-                    sessionManager.resetWorkoutData {
-                        val app = getApplication<Application>()
-                        // Wait for WorkManager's cancellation operation before erasing data.
-                        androidx.work.WorkManager.getInstance(app).cancelAllWork().result.get()
-                        app.getSystemService(android.app.NotificationManager::class.java)?.cancelAll()
-                        com.apexfit.app.utils.SecureUserExport.clearStaging(app)
-                        com.apexfit.app.data.ProgressPhotoStore(app).clear()
-                        db.clearAllTables()
-                        dataStore.clearAllData()
-                        // Restore only bundled exercise catalog; onboarding chooses the new plan.
-                        com.apexfit.app.utils.SeedService.seed(app)
-                        dataStore.setExercisesSeeded(true)
-                        app.getSystemService(android.app.NotificationManager::class.java)?.cancelAll()
-                    }
+                    com.apexfit.app.utils.LocalResetCoordinator.resetLocked(getApplication<Application>(), sessionManager)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
