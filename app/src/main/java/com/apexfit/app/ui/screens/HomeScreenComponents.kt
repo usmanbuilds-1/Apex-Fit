@@ -170,7 +170,9 @@ fun HomeTodayWorkoutCard(
         java.time.LocalDate.parse(todayDate).dayOfWeek
             .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.US)
     }
-    val todaySession = activePlanSessions.firstOrNull { it.day.equals(todayDayString, ignoreCase = true) }
+    val rawChoice by homeViewModel.todayWorkoutChoice.collectAsStateWithLifecycle()
+    val choice = rawChoice?.takeIf { it.date.toString() == todayDate }
+    val todaySession = choice?.session
     val sessionName = todaySession?.label ?: "Rest Day"
     val focusMuscles = (todaySession?.focus ?: "Active Recovery").replace(", ", " • ").replace(",", " • ")
 
@@ -359,7 +361,8 @@ fun HomeTodayWorkoutCard(
                     } else if (todaySession == null) {
                         onNavigateTo(1)
                     } else {
-                        workoutExecutionViewModel.startWorkoutSession(todaySession)
+                        workoutExecutionViewModel.startWorkoutSession(todaySession,
+                            choice?.reservation.takeIf { choice?.kind == com.apexfit.app.utils.TodayWorkoutKind.RESERVED })
                         fitnessViewModel.setTrainSubTab(1)
                         onNavigateTo(1)
                     }
