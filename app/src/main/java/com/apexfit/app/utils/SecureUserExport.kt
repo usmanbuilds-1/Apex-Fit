@@ -3,7 +3,7 @@ package com.apexfit.app.utils
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
-import android.util.JsonWriter
+import com.google.gson.stream.JsonWriter
 import androidx.room.withTransaction
 import com.apexfit.app.data.AppDatabase
 import com.apexfit.app.data.dataStore
