@@ -69,6 +69,15 @@ class ApexFitApplication : Application(), Configuration.Provider {
                 Log.e("ApexFitApplication", "Seeding failed", e)
             }
 
+            // Upgrade installs have no schedule ledger. Capture only forward-looking evidence.
+            try {
+                com.apexfit.app.utils.ScheduleLedger.ensureBaseline(AppDatabase.getDatabase(app))
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                Log.e("ApexFitApplication", "Schedule baseline capture failed", e)
+            }
+
             // Weight normalization (sequential, not parallel)
             try {
                 val alreadyNormalized = dataStore.weightsNormalizedFlow.first()
