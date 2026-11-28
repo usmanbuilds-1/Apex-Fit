@@ -45,7 +45,7 @@ object StrengthAnalytics {
                         else -> null
                     }
                     StrengthObservation(s.id, kg?.takeIf { it.isFinite() }, s.reps,
-                        LoadConfirmations.fingerprint(s), s.setCompletedAt)
+                        if (s.advancedDetails == null) LoadConfirmations.fingerprint(s) else null, s.setCompletedAt)
                 })
         }.sortedWith(compareBy<StrengthSessionPoint> { it.date }.thenBy { it.sessionId })
     }

@@ -533,7 +533,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -557,7 +557,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -575,7 +575,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -687,7 +687,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -713,7 +713,7 @@ interface FitnessDao {
         SELECT 
             es.id, es.sessionId, es.exerciseId, es.exerciseName,
             es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-            es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
+            es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
             ts.date AS date,
             COALESCE(em.stalledSessions, 0) AS stalledSessions
         FROM exercise_sets es

@@ -146,7 +146,8 @@ data class ExerciseSet(
     @ColumnInfo(name = "occurrence_index") val occurrenceIndex: Int? = null,
     @ColumnInfo(name = "set_number") val setNumber: Int? = null,
     @ColumnInfo(name = "source_plan_exercise_id") val sourcePlanExerciseId: Long? = null,
-    @ColumnInfo(name = "set_completed_at") val setCompletedAt: Long? = null
+    @ColumnInfo(name = "set_completed_at") val setCompletedAt: Long? = null,
+    @ColumnInfo(name = "advanced_details") val advancedDetails: String? = null
 ) {
     constructor(weight: Double, reps: Int, rpe: Int = 7, isWarmup: Boolean = false, completed: Boolean = true) : this(
         id = 0,
@@ -346,7 +347,8 @@ data class ActiveSet(
     val completedAt: Long = 0L,
     val completed: Boolean = false,
     val repsInReserve: Int = 2,
-    val weightUnit: String = "kg"
+    val weightUnit: String = "kg",
+    val advancedDetails: String? = null
 )
 
 @Keep
@@ -395,7 +397,7 @@ data class ActiveSession(
     val readinessScore: Int? = null,
     val notes: String? = null,
     val exercises: MutableList<ActiveExercise>,
-    val schemaVersion: Int = 3,
+    val schemaVersion: Int = 4,
     val sessionId: String = java.util.UUID.randomUUID().toString(),
     val cursorIndex: Int? = null,
     val skippedOccurrenceIndices: List<Int>? = null,
@@ -403,7 +405,7 @@ data class ActiveSession(
     val circuit: ActiveCircuit? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 3
+        const val CURRENT_VERSION = 4
     }
 }
 
@@ -421,7 +423,8 @@ data class LastSetWithDate(
     val completed: Boolean,
     val date: String,
     val repsInReserve: Int = 2,
-    @ColumnInfo(name = "occurrence_index") val occurrenceIndex: Int? = null
+    @ColumnInfo(name = "occurrence_index") val occurrenceIndex: Int? = null,
+    @ColumnInfo(name = "advanced_details") val advancedDetails: String? = null
 )
 
 data class EffectiveSetsData(

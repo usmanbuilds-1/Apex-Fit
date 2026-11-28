@@ -27,6 +27,8 @@ import com.apexfit.app.utils.ActiveWorkoutCodec
 import com.apexfit.app.utils.WorkoutOccurrenceKeys
 import com.apexfit.app.utils.WorkoutResumeState
 import com.apexfit.app.utils.CircuitExecution
+import com.apexfit.app.utils.AdvancedSets
+import com.apexfit.app.utils.AdvancedSetDetails
 import com.apexfit.app.data.ActiveRestCheckpoint
 import android.os.SystemClock
 import kotlinx.coroutines.isActive
@@ -367,7 +369,7 @@ class WorkoutSessionManager(
         val lastSets = dao.getLastSetsWithDateForExercises(ids).groupBy { it.exerciseId }
         // Do not interpret a previous multi-occurrence workout as one prescription.
         val ambiguousHistoryIds = lastSets.filterValues { history ->
-            history.map { it.occurrenceIndex }.distinct().size > 1
+            history.map { it.occurrenceIndex }.distinct().size > 1 || history.any { it.advancedDetails != null }
         }.keys
         val progressionPausedIds = repeatedCatalogIds + ambiguousHistoryIds
         val exerciseCategories = dao.getExercisesByIds(ids).associate { it.id to it.category }
@@ -671,6 +673,7 @@ class WorkoutSessionManager(
             if (committing || savingCriticalSet) return
             val session = _activeSession.value ?: return
             val old = session.exercises.find { it.executionKey == exerciseId }?.sets?.getOrNull(setIndex) ?: return
+            if (old.advancedDetails != null) return
             val updated = editedSet(session, exerciseId, setIndex, weight, reps, rpe, restTakenSeconds, completed, repsInReserve) ?: return
             _activeSession.value = updated
             persistSession(immediate = completed || old.completed)
@@ -686,11 +689,19 @@ class WorkoutSessionManager(
         expectedSessionId: String, exerciseId: String, setIndex: Int,
         weight: Double, reps: Int, rpe: Int, restTakenSeconds: Int,
         completed: Boolean, repsInReserve: Int? = null,
-        advanceAfterCompletion: Boolean = false
+        advanceAfterCompletion: Boolean = false,
+        advanced: AdvancedSetDetails? = null
     ): Boolean = mutateDraftDurably(expectedSessionId) { session ->
         if (!completed && session.restCheckpoint?.let { it.exerciseKey == exerciseId && it.setIndex == setIndex } == true)
             return@mutateDraftDurably null
         val indexBefore = session.exercises.indexOfFirst { it.executionKey == exerciseId }
+        val original = session.exercises.getOrNull(indexBefore)?.sets?.getOrNull(setIndex) ?: return@mutateDraftDurably null
+        if (original.advancedDetails != null) return@mutateDraftDurably null
+        if (advanced != null && (original.completed || original.isWarmup || !completed || !advanceAfterCompletion ||
+            session.circuit != null || session.restCheckpoint != null ||
+            indexBefore != WorkoutResumeState.cursor(session) ||
+            setIndex != session.exercises[indexBefore].sets.indexOfFirst { !it.completed && !it.isWarmup } ||
+            !AdvancedSets.valid(weight.fromDisplayWeightToKg(original.weightUnit), advanced))) return@mutateDraftDurably null
         if (CircuitExecution.contains(session, indexBefore)) {
             val prior = session.exercises[indexBefore].sets.getOrNull(setIndex) ?: return@mutateDraftDurably null
             if (!prior.isWarmup && prior.completed != completed && (!advanceAfterCompletion || !completed ||
@@ -699,8 +710,15 @@ class WorkoutSessionManager(
                 return@mutateDraftDurably null
             if (prior.completed && advanceAfterCompletion) return@mutateDraftDurably null
         }
-        val edited = editedSet(session, exerciseId, setIndex, weight, reps, rpe,
+        var edited = editedSet(session, exerciseId, setIndex, weight, reps, rpe,
             restTakenSeconds, completed, repsInReserve) ?: return@mutateDraftDurably null
+        if (advanced != null) {
+            val ex = edited.exercises[indexBefore]
+            val sets = ex.sets.toMutableList()
+            sets[setIndex] = sets[setIndex].copy(advancedDetails =
+                AdvancedSets.encode(weight.fromDisplayWeightToKg(original.weightUnit), advanced))
+            edited = edited.copy(exercises = edited.exercises.toMutableList().apply { set(indexBefore, ex.copy(sets = sets)) })
+        }
         if (!advanceAfterCompletion || !completed) return@mutateDraftDurably edited
         val index = edited.exercises.indexOfFirst { it.executionKey == exerciseId }
         if (index < 0 || WorkoutResumeState.cursor(session) != index || session.restCheckpoint != null)
@@ -1032,7 +1050,8 @@ class WorkoutSessionManager(
                         occurrenceIndex = occurrenceIndex,
                         setNumber = activeSet.setNumber,
                         sourcePlanExerciseId = exercise.sourcePlanExerciseId,
-                        setCompletedAt = activeSet.completedAt.takeIf { activeSet.completed && it > 0L }
+                        setCompletedAt = activeSet.completedAt.takeIf { activeSet.completed && it > 0L },
+                        advancedDetails = activeSet.advancedDetails
                     )
                 }
         }
@@ -1073,7 +1092,8 @@ class WorkoutSessionManager(
         val db = AppDatabase.getDatabase(appContext)
         val receipt = db.withTransaction {
             check(dao.getTrainingSessionById(sessionId) == null) { "Workout already saved; see workout history." }
-            val earned = evaluatePRs(allSets, trainingSession.date)
+            val advancedIds = allSets.filter { it.advancedDetails != null }.map { it.exerciseId }.toSet()
+            val earned = evaluatePRs(allSets.filterNot { it.exerciseId in advancedIds }, trainingSession.date)
             // Write the exact earned PR snapshot BEFORE committing Room. If
             // Room rolls back, this staged ID cannot be recovered as a receipt.
             val staged = buildReceipt(trainingSession, allSets, earned).copy(savedSets = emptyList())
@@ -1083,7 +1103,7 @@ class WorkoutSessionManager(
             val currentCounts = dao.getStalledCountsForExercises(exerciseIds)
                 .associate { it.exerciseId to it.stalledCount }
             lastProgressionResults.forEach { (exerciseId, result) ->
-                if (!trainingSession.completed || allSets.none { it.exerciseId == exerciseId && it.completed && !it.isWarmup }) return@forEach
+                if (!trainingSession.completed || exerciseId in advancedIds || allSets.none { it.exerciseId == exerciseId && it.completed && !it.isWarmup }) return@forEach
                 val r = result as? com.apexfit.app.utils.ProgressionEngine.ProgressionResult ?: return@forEach
                 val current = currentCounts[exerciseId] ?: 0
                 val newCount = when (r.outcome.name) {

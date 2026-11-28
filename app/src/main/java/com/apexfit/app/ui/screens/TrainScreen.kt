@@ -432,6 +432,16 @@ fun WorkoutExecutionSubTab(
     val setSaveError by workoutExecutionViewModel.setSaveError.collectAsStateWithLifecycle()
     val savingSet by workoutExecutionViewModel.isSavingSet.collectAsStateWithLifecycle()
     val showRirOverlay by workoutExecutionViewModel.showRirOverlay.collectAsStateWithLifecycle()
+    var advancedEditor by remember { mutableStateOf(false) }
+    val advancedExercise = liveSession?.exercises?.getOrNull(currentIdx)
+    val advancedIndex = advancedExercise?.sets?.indexOfFirst { !it.completed && !it.isWarmup } ?: -1
+    val advancedSet = advancedExercise?.sets?.getOrNull(advancedIndex)
+    if (advancedEditor && advancedExercise != null && advancedSet != null && liveSession?.circuit == null) {
+        AdvancedBoutEditor(advancedSet, onDismiss = { advancedEditor = false }, onSave = { weight, reps, details ->
+            if (workoutExecutionViewModel.logAdvancedBout(advancedExercise.executionKey, advancedIndex, weight, reps, details) != null)
+                advancedEditor = false
+        })
+    }
      val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val currentExercise = exercises.getOrNull(currentIdx)
@@ -852,6 +862,11 @@ fun WorkoutExecutionSubTab(
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
                     }
+                    if (advancedSet != null && circuitSession?.circuit == null && liveSession?.restCheckpoint == null) {
+                        TextButton(enabled = !savingSet && !showRirOverlay, onClick = { advancedEditor = true }) {
+                            Text("Log drop set / rest-pause / failure")
+                        }
+                    }
                     ExerciseListSection(
                         exercises = exercises,
                         currentIdx = currentIdx,
@@ -999,4 +1014,88 @@ fun NewPlansSubTab(
         },
         modifier = modifier
     )
+}
+
+
+@Composable
+private fun AdvancedBoutEditor(
+    set: com.apexfit.app.data.ActiveSet,
+    onDismiss: () -> Unit,
+    onSave: (Double, Int, AdvancedSetDetails) -> Unit
+) {
+    var kind by remember { mutableStateOf(AdvancedSetKind.DROP) }
+    var weight by remember { mutableStateOf(set.weight.toString()) }
+    var reps by remember { mutableStateOf(set.reps.toString()) }
+    var outcome by remember { mutableStateOf(SetOutcome.UNKNOWN) }
+    data class SegmentInput(val weight: String, val reps: String, val rest: String, val outcome: SetOutcome)
+    val rows = remember { mutableStateListOf(SegmentInput("", "", "0", SetOutcome.UNKNOWN)) }
+    val parentKg = weight.toDoubleOrNull()?.fromDisplayWeightToKg(set.weightUnit)
+    val segments = if (kind == AdvancedSetKind.WORKING) emptyList() else rows.mapNotNull {
+        val kg = it.weight.toDoubleOrNull()?.fromDisplayWeightToKg(set.weightUnit) ?: return@mapNotNull null
+        val count = it.reps.toIntOrNull() ?: return@mapNotNull null
+        val rest = it.rest.toIntOrNull() ?: return@mapNotNull null
+        SetContinuation(kg, count, rest, it.outcome)
+    }
+    val details = AdvancedSetDetails(kind, outcome, segments)
+    val valid = parentKg != null && reps.toIntOrNull()?.let { it in 1..1000 } == true &&
+        (kind == AdvancedSetKind.WORKING || segments.size == rows.size) && AdvancedSets.valid(parentKg, details)
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Log completed working bout") },
+        text = {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Enter actual completed repetitions. Log the initial set and all continuations together; do not enter planned work.")
+                AdvancedSetKind.entries.forEach { option ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = kind == option, onClick = { kind = option })
+                        Text(when (option) {
+                            AdvancedSetKind.DROP -> "Drop set"
+                            AdvancedSetKind.REST_PAUSE -> "Rest-pause"
+                            AdvancedSetKind.WORKING -> "Straight set · failure status"
+                        })
+                    }
+                }
+                OutlinedTextField(weight, { weight = it.take(14) }, label = { Text("Initial load (${set.weightUnit})") }, singleLine = true)
+                OutlinedTextField(reps, { reps = it.take(4) }, label = { Text("Initial reps") }, singleLine = true)
+                BoutOutcomeSelector(outcome) { outcome = it }
+                if (kind != AdvancedSetKind.WORKING) {
+                    rows.forEachIndexed { i, row ->
+                        HorizontalDivider()
+                        Text("Continuation ${i + 1}")
+                        OutlinedTextField(row.weight, { rows[i] = row.copy(weight = it.take(14)) },
+                            label = { Text("Load (${set.weightUnit})") }, singleLine = true)
+                        OutlinedTextField(row.reps, { rows[i] = row.copy(reps = it.take(4)) },
+                            label = { Text("Completed reps") }, singleLine = true)
+                        OutlinedTextField(row.rest, { rows[i] = row.copy(rest = it.take(4)) },
+                            label = { Text("Actual preceding rest seconds") }, singleLine = true)
+                        BoutOutcomeSelector(row.outcome) { rows[i] = row.copy(outcome = it) }
+                        if (rows.size > 1) TextButton(onClick = { rows.removeAt(i) }) { Text("Remove continuation") }
+                    }
+                    TextButton(enabled = rows.size < 10, onClick = {
+                        rows.add(SegmentInput("", "", if (kind == AdvancedSetKind.REST_PAUSE) "" else "0", SetOutcome.UNKNOWN))
+                    }) { Text("Add continuation") }
+                    Text(if (kind == AdvancedSetKind.DROP) "Each continuation must use a lower load."
+                        else "Rest-pause continuations use the same load and positive rest.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                Text("One working bout. No extra set credit or automatic progression. Failure is optional and is not recommended just to unlock a metric.",
+                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+            }
+        }, confirmButton = { TextButton(enabled = valid, onClick = {
+            onSave(weight.toDouble(), reps.toInt(), details)
+        }) { Text("Save completed bout") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+}
+
+@Composable
+private fun BoutOutcomeSelector(value: SetOutcome, onChange: (SetOutcome) -> Unit) {
+    SetOutcome.entries.forEach { option ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = value == option, onClick = { onChange(option) })
+            Text(when (option) {
+                SetOutcome.FAILURE -> "Reached failure"
+                SetOutcome.NOT_FAILURE -> "Stopped before failure"
+                SetOutcome.UNKNOWN -> "Failure status unknown"
+            })
+        }
+    }
 }

@@ -119,6 +119,15 @@ internal fun WorkoutHistoryDetail(
                     }
                     Text("Set ${set.setNumber ?: index + 1} · $weight × ${set.reps}$effort$state",
                         color = ApexColors.TextSecondary)
+                    val details = com.apexfit.app.utils.AdvancedSets.details(set)
+                    if (details != null) {
+                        Text("${details.kind.name.replace('_', ' ')} · initial outcome: ${details.outcome.name.lowercase()}",
+                            style = MaterialTheme.typography.bodySmall)
+                        details.continuations.forEachIndexed { i, segment ->
+                            Text("Continuation ${i + 1}: ${segment.kg.toDisplayWeight(units)} $units × ${segment.reps} · ${segment.restSeconds}s preceding rest · ${segment.outcome.name.lowercase()}",
+                                style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                        }
+                    } else if (set.advancedDetails != null) Text("Advanced segment details unavailable.", color = ApexColors.TextSecondary)
                 }
             }
         }

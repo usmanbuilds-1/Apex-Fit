@@ -339,6 +339,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         exerciseId: String, setIndex: Int, weight: Double, reps: Int, rpe: Int,
         completed: Boolean, restTakenSeconds: Int = 0, repsInReserve: Int? = null,
         advanceAfterCompletion: Boolean = false,
+        advanced: com.apexfit.app.utils.AdvancedSetDetails? = null,
         onSaved: () -> Unit = {}
     ): Job? {
         val session = sessionManager.activeSession.value ?: return null
@@ -348,7 +349,7 @@ class WorkoutExecutionViewModel @Inject constructor(
         return viewModelScope.launch {
             try {
                 check(sessionManager.updateSetDurably(session.sessionId, exerciseId, setIndex,
-                    weight, reps, rpe, restTakenSeconds, completed, repsInReserve, advanceAfterCompletion)) {
+                    weight, reps, rpe, restTakenSeconds, completed, repsInReserve, advanceAfterCompletion, advanced)) {
                     "Workout changed before this set could be saved."
                 }
                 if (sessionManager.activeSession.value?.sessionId != session.sessionId) return@launch
@@ -359,7 +360,8 @@ class WorkoutExecutionViewModel @Inject constructor(
                     lastCompletedSetPointer = Pair(exerciseId, setIndex)
                     // Use the logged set's units, not a possibly changed preference.
                     val weightKg = weight.fromDisplayWeightToKg(set.weightUnit)
-                    viewModelScope.launch { sessionManager.checkPRPreview(exerciseId, weightKg, reps) }
+                    if (advanced == null && set.advancedDetails == null)
+                        viewModelScope.launch { sessionManager.checkPRPreview(exerciseId, weightKg, reps) }
                 }
                 try {
                     onSaved()
@@ -545,6 +547,11 @@ class WorkoutExecutionViewModel @Inject constructor(
             }
         }
     }
+
+    fun logAdvancedBout(exerciseId: String, setIndex: Int, weight: Double, reps: Int,
+                        details: com.apexfit.app.utils.AdvancedSetDetails): Job? =
+        persistConfirmedSet(exerciseId, setIndex, weight, reps, 0, completed = true,
+            advanceAfterCompletion = true, advanced = details)
 
     fun configureCircuit(group: ActiveCircuit?) {
         val active = sessionManager.activeSession.value ?: return

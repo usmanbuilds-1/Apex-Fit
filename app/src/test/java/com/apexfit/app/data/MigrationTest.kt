@@ -565,10 +565,30 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateAll8To29() {
+    fun migrate29To30KeepsOriginalSetAndAddsUnknownAdvancedDetails() {
+        val old = helper.createDatabase(TEST_DB, 29)
+        old.execSQL("INSERT INTO exercises (id, name, category, primary_muscle, secondary_muscles, equipment_required, created_at) VALUES ('bench-press', 'Bench Press', 'Barbell', 'Chest', '[]', 'Barbell', 1000)")
+        old.execSQL("INSERT INTO workout_sessions (id, date, sessionType, completed, durationMinutes, sessionFeel, status) VALUES ('legacy', '2026-11-01', 'Upper', 1, 25, 4, 'completed')")
+        old.execSQL("INSERT INTO exercise_sets (id, sessionId, exerciseId, exerciseName, muscleGroup, weight, reps, rpe, isWarmup, restTaken, completed, repsInReserve, effectiveSetValue, weight_unit, occurrence_index, set_number) VALUES (1, 'legacy', 'bench-press', 'Bench Press', 'Chest', 40.0, 5, 8, 0, 91, 1, 2, 0.75, 'kg', 0, 1)")
+        old.close()
+        val migrated = helper.runMigrationsAndValidate(TEST_DB, 30, true, AppDatabase.MIGRATION_29_30)
+        migrated.query("SELECT weight,reps,occurrence_index,set_number,advanced_details FROM exercise_sets WHERE id=1").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(40.0, it.getDouble(0), 0.0)
+            assertEquals(5, it.getInt(1))
+            assertEquals(0, it.getInt(2))
+            assertEquals(1, it.getInt(3))
+            assertTrue(it.isNull(4))
+        }
+        migrated.query("PRAGMA foreign_key_check").use { assertEquals(0, it.count) }
+        migrated.close()
+    }
+
+    @Test
+    fun migrateAll8To30() {
         helper.createDatabase(TEST_DB, 8).close()
         helper.runMigrationsAndValidate(
-            TEST_DB, 29, true,
+            TEST_DB, 30, true,
             AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
             AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14,
@@ -578,7 +598,7 @@ class MigrationTest {
             AppDatabase.MIGRATION_20_21, AppDatabase.MIGRATION_21_22,
             AppDatabase.MIGRATION_22_23, AppDatabase.MIGRATION_23_24,
             AppDatabase.MIGRATION_24_25, AppDatabase.MIGRATION_25_26,
-            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28, AppDatabase.MIGRATION_28_29
+            AppDatabase.MIGRATION_26_27, AppDatabase.MIGRATION_27_28, AppDatabase.MIGRATION_28_29, AppDatabase.MIGRATION_29_30
         ).close()
     }
 }

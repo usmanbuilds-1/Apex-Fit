@@ -26,10 +26,11 @@ object WorkoutReports {
             it.occurrenceIndex?.let { index -> "occurrence:$index:${it.exerciseId}" } ?: "catalog:${it.exerciseId}"
         }.map { (key, rows) ->
             val w = rows.filter(::valid)
-            ReportExercise(key, rows, w.size, w.sumOf { it.reps.toLong() })
+            ReportExercise(key, rows, w.size, w.sumOf(AdvancedSets::totalReps))
         }
         data class Key(val exerciseId: String, val basis: RecordedLoadBasis, val setup: String)
         val comparable = working.mapNotNull { s ->
+            if (s.advancedDetails != null) return@mapNotNull null
             val c = confirmations[s.id]?.takeIf { it.fingerprint == LoadConfirmations.fingerprint(s) } ?: return@mapNotNull null
             val kg = when (s.weightUnit.trim().lowercase(java.util.Locale.ROOT)) {
                 "kg" -> s.weight
@@ -49,7 +50,7 @@ object WorkoutReports {
             RepRecords.calculate(StrengthAnalytics.calculate(rows, id, LocalDate.of(1, 1, 1), today, nowMs), confirmations)
                 .events.filter { it.sessionId == session.id && it.setId in validIds }
         }
-        return WorkoutReport(session, groups, working.size, working.sumOf { it.reps.toLong() },
+        return WorkoutReport(session, groups, working.size, working.sumOf(AdvancedSets::totalReps),
             sets.count { it.completed && it.isWarmup }, sets.count { !it.completed },
             sets.count { it.completed && !it.isWarmup && !valid(it) },
             session.durationMinutes.takeIf { it > 0 }, loads, working.size - loads.sumOf { it.sets },

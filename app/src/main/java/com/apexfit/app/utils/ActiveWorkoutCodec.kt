@@ -31,6 +31,12 @@ internal object ActiveWorkoutCodec {
                 require((set.get("reps")?.asInt ?: -1) >= 0)
                 require((set.get("setNumber")?.asInt ?: 0) > 0)
                 require(set.get("weightUnit")?.asString?.lowercase() in setOf("kg", "lb", "lbs"))
+                val details = set.get("advancedDetails")
+                if (details != null && !details.isJsonNull) {
+                    val kg = set.get("weight").asDouble.fromDisplayWeightToKg(set.get("weightUnit").asString)
+                    require(AdvancedSets.decode(kg, details.asString) != null &&
+                        set.get("completed")?.asBoolean == true && set.get("isWarmup")?.asBoolean != true)
+                }
             }
         }
         val migrated = version != ActiveSession.CURRENT_VERSION
