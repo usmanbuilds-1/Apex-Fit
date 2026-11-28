@@ -85,7 +85,7 @@ internal fun MuscleVolumeContent(
     }
     val showBack = preferredBack ?: (rows.firstOrNull { it.directSets > 0 }?.muscle?.let(::showsOnBackOnly) == true)
     val chosen = rows.find { it.muscle == selected }
-    val directCounts = remember(rows) { rows.associate { it.muscle to it.directSets } }
+    val directCounts = remember(rows) { MuscleVolumeSummary.directCounts(rows) }
     val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val window = period.window(today)
 
@@ -107,7 +107,7 @@ internal fun MuscleVolumeContent(
                     preferredBack = null
                 }
             )
-            Text("${window.start.format(dateFormat)} – ${window.endInclusive.format(dateFormat)}",
+            Text("${window.start.format(dateFormat)} – ${today.format(dateFormat)}",
                 color = ApexColors.TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
         }
         when {
@@ -123,16 +123,52 @@ internal fun MuscleVolumeContent(
             }
             selected != null -> {
                 item {
-                    Text("${chosen?.directSets ?: 0} direct sets · ${chosen?.secondarySets ?: 0} secondary exposure",
+                    Text("${chosen?.directSets ?: 0} direct sets · ${chosen?.secondarySets ?: 0} indirect sets",
                         color = ApexColors.TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
                 }
                 if (chosen == null) item { Text("No logged sets for this muscle in this period.") }
-                else items(chosen.exercises, key = { it.key }) { exercise ->
+                else {
+                    item {
+                        Text("Fractional set estimate", style = MaterialTheme.typography.titleMedium)
+                        Text(String.format(Locale.getDefault(), "%.1f", chosen.fractionalSets),
+                            style = MaterialTheme.typography.headlineMedium, color = ApexColors.Primary)
+                        Text("Direct + half of indirect sets. A research-based volume proxy, not measured muscle growth.",
+                            color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 16.dp))
+                        Text("Sets by logged date", style = MaterialTheme.typography.titleMedium)
+                        Text("Unlogged dates are not shown.", color = ApexColors.TextSecondary,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    items(chosen.daily, key = { "date:" + it.date }) { day ->
+                        val maxSets = chosen.daily.maxOfOrNull { it.directSets + it.secondarySets }?.coerceAtLeast(1) ?: 1
+                        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(day.date.format(dateFormat), style = MaterialTheme.typography.bodySmall)
+                                Text("${day.directSets} direct · ${day.secondarySets} indirect",
+                                    style = MaterialTheme.typography.bodySmall, color = ApexColors.TextSecondary)
+                            }
+                            Row(Modifier.fillMaxWidth().padding(top = 4.dp).height(6.dp)
+                                .background(ApexColors.BorderSubtle)) {
+                                if (day.directSets > 0) Box(Modifier.fillMaxHeight()
+                                    .weight(day.directSets.toFloat()).background(ApexColors.Primary))
+                                if (day.secondarySets > 0) Box(Modifier.fillMaxHeight()
+                                    .weight(day.secondarySets.toFloat()).background(ApexColors.TextSecondary))
+                                val unused = maxSets - day.directSets - day.secondarySets
+                                if (unused > 0) Spacer(Modifier.weight(unused.toFloat()))
+                            }
+                        }
+                    }
+                    item {
+                        Text("By exercise", style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+                    }
+                    items(chosen.exercises, key = { "exercise:" + it.key }) { exercise ->
                     HorizontalDivider(color = ApexColors.BorderSubtle)
                     Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
                         Text(exercise.name, style = MaterialTheme.typography.titleMedium)
-                        Text("${exercise.directSets} direct · ${exercise.secondarySets} secondary",
+                        Text("${exercise.directSets} direct · ${exercise.secondarySets} indirect",
                             color = ApexColors.TextSecondary)
+                    }
                     }
                 }
             }
@@ -150,23 +186,39 @@ internal fun MuscleVolumeContent(
                     }
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         ApexAnatomy(showBack, Modifier.widthIn(max = 320.dp).fillMaxWidth(), directSets = directCounts,
-                            onMuscleSelected = { selected = it })
+                            showVolume = true, onMuscleSelected = { selected = it })
                     }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly) {
+                        com.apexfit.app.utils.DirectSetBand.entries.forEach { band ->
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Box(Modifier.size(12.dp).background(com.apexfit.app.ui.components.directSetBandColor(band)))
+                                Text(band.label, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                    Text("Color shows logged direct sets for the selected period, not recovery or a target. A zero means no direct sets logged.",
+                        color = ApexColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                     Text("Muscles by direct set count", style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(vertical = 12.dp))
                 }
-                items(rows, key = { it.muscle }) { row ->
+                val listedMuscles = (rows.map { it.muscle } + directCounts.keys).distinct()
+                items(listedMuscles, key = { it }) { muscle ->
+                    val row = rows.firstOrNull { it.muscle == muscle }
+                    val direct = row?.directSets ?: 0
+                    val indirect = row?.secondarySets ?: 0
                     HorizontalDivider(color = ApexColors.BorderSubtle)
                     Row(
                         Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                            .clickable(role = Role.Button) { selected = row.muscle }.padding(vertical = 8.dp),
+                            .clickable(role = Role.Button) { selected = muscle }.padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(muscleName(row.muscle), modifier = Modifier.weight(1f))
-                        Text("${row.directSets} direct",
-                            color = if (row.directSets > 0) ApexColors.Primary else ApexColors.TextSecondary)
-                        if (row.secondarySets > 0) Text("${row.secondarySets} secondary", color = ApexColors.TextSecondary)
+                        Text(muscleName(muscle), modifier = Modifier.weight(1f))
+                        Text("$direct direct",
+                            color = if (direct > 0) ApexColors.Primary else ApexColors.TextSecondary)
+                        if (indirect > 0) Text("$indirect indirect", color = ApexColors.TextSecondary)
                     }
                 }
             }

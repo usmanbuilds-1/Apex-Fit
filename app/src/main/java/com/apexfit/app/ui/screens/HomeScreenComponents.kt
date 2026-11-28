@@ -50,7 +50,6 @@ import com.apexfit.app.PlanBuilderViewModel
 import com.apexfit.app.R
 import com.apexfit.app.WorkoutExecutionViewModel
 import com.apexfit.app.ui.components.SingleFrontHeatmapCanvas
-import com.apexfit.app.data.HeatmapEntry
 import com.apexfit.app.ui.models.UiState
 import com.apexfit.app.ui.models.UiSessionReadiness
 import com.apexfit.app.ui.theme.*
@@ -187,29 +186,7 @@ fun HomeTodayWorkoutCard(
         }
     }
 
-    val lastTrainedDates by homeViewModel.lastTrainedDateMap.collectAsStateWithLifecycle()
-
-    val recoveryHeatmap = remember(lastTrainedDates, todaySession, todayDate) {
-        val todayDateStr = todayDate
-        val focusText = todaySession?.focus ?: "Chest • Back • Arms"
-        val canvasMuscles = listOf(
-            "chest", "back", "front_delt", "side_delt", "rear_delt",
-            "bicep", "tricep", "quad", "hamstring", "glute", "calf", "core"
-        )
-
-        canvasMuscles.associateWith { m ->
-            val isInToday = isMuscleInFocus(m, focusText)
-            val lastDate = lastTrainedDates[m]
-            val daysSince = if (lastDate != null) getDaysSinceDate(lastDate, todayDateStr) else 100
-
-            val (intIntensity, levelString, colorHex) = when {
-                isInToday -> Triple(100, "ACTIVE", "#FF9500")
-                daysSince <= 2 -> Triple(50, "RECOVERING", "#34D399")
-                else -> Triple(0, "NEUTRAL", "#252535")
-            }
-            HeatmapEntry(volume = 0, intensity = intIntensity, level = levelString, colorHex = colorHex)
-        }
-    }
+    val weeklyVolumeHeatmap by algorithmViewModel.muscleHeatmap.collectAsStateWithLifecycle()
 
     ApexCard(
         elevation = 2.dp,
@@ -344,8 +321,8 @@ fun HomeTodayWorkoutCard(
                     val currentReadiness = readiness
                     if (currentReadiness != null) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("${currentReadiness.score}%", fontSize = 24.sp, fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.ExtraBold, color = PrimaryText)
-                            Text("RECOVERY", fontSize = 12.sp, fontFamily = SyneFamily, fontWeight = FontWeight.ExtraBold, color = GreenAccent, letterSpacing = 1.sp)
+                            Text(currentReadiness.label, fontSize = 14.sp, fontFamily = JetBrainsMonoFamily, fontWeight = FontWeight.ExtraBold, color = PrimaryText)
+                            Text("LOAD ESTIMATE", fontSize = 10.sp, fontFamily = SyneFamily, fontWeight = FontWeight.ExtraBold, color = GreenAccent, letterSpacing = 1.sp)
                         }
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 6.dp)) {
@@ -354,14 +331,19 @@ fun HomeTodayWorkoutCard(
                     }
                 }
 
-                SingleFrontHeatmapCanvas(
-                    modifier = Modifier
-                        .width(72.dp)
-                        .height(120.dp)
-                        .align(Alignment.CenterVertically)
-                        .clip(RoundedCornerShape(8.dp)),
-                    heatmap = recoveryHeatmap
-                )
+                Column(
+                    modifier = Modifier.width(72.dp).align(Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    SingleFrontHeatmapCanvas(
+                        modifier = Modifier.fillMaxWidth().height(100.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        heatmap = weeklyVolumeHeatmap,
+                        periodLabel = "this week"
+                    )
+                    Text("Direct sets\nthis week", color = SecondaryText,
+                        fontSize = 9.sp, lineHeight = 11.sp, textAlign = TextAlign.Center)
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -1220,7 +1202,7 @@ private fun ReadinessExplanationDialog(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "${readiness.score}% · ${readiness.recommendation}",
+                        text = "${readiness.label} · ${readiness.recommendation}",
                         fontFamily = SyneFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
@@ -1275,33 +1257,3 @@ private fun ReadinessExplanationDialog(
     )
 }
 
-private fun getDaysSinceDate(dateString: String, todayStr: String): Int {
-    return try {
-        val dateLog = DateTimeUtils.parseDate(dateString) ?: return 100
-        val todayDate = DateTimeUtils.parseDate(todayStr) ?: return 100
-        val diff = todayDate.time - dateLog.time
-        (diff / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(0)
-    } catch (e: Exception) {
-        100
-    }
-}
-
-private fun isMuscleInFocus(muscle: String, focus: String): Boolean {
-    val f = focus.lowercase()
-    val m = muscle.lowercase()
-    return when (m) {
-        "chest" -> f.contains("chest") || f.contains("pec")
-        "back" -> f.contains("back") || f.contains("lat") || f.contains("lats")
-        "front_delt" -> f.contains("front") || f.contains("delt") || f.contains("shoulder") || f.contains("arms") || f.contains("upper")
-        "side_delt" -> f.contains("side") || f.contains("lateral") || f.contains("delt") || f.contains("shoulder") || f.contains("arms") || f.contains("upper")
-        "rear_delt" -> f.contains("rear") || f.contains("posterior") || f.contains("delt") || f.contains("shoulder") || f.contains("arms") || f.contains("upper")
-        "bicep" -> f.contains("bicep") || f.contains("arm") || f.contains("upper")
-        "tricep" -> f.contains("tricep") || f.contains("arm") || f.contains("upper")
-        "quad" -> f.contains("quad") || f.contains("leg") || f.contains("thigh") || f.contains("lower")
-        "hamstring" -> f.contains("hamstring") || f.contains("leg") || f.contains("thigh") || f.contains("lower")
-        "glute" -> f.contains("glute") || f.contains("butt") || f.contains("leg") || f.contains("lower")
-        "calf" -> f.contains("calf") || f.contains("calves") || f.contains("lower")
-        "core" -> f.contains("core") || f.contains("abs") || f.contains("oblique") || f.contains("abdominal")
-        else -> false
-    }
-}

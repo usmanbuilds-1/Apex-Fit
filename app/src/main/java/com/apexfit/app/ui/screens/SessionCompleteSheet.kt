@@ -84,7 +84,9 @@ internal fun SessionCompleteSheet(
             Text("Total rest ${formatReceiptDuration(totalRestSeconds)}", color = ApexColors.TextSecondary)
             HorizontalDivider(color = ApexColors.BorderSubtle)
             if (showDetails) {
-                sessionSets.filter { it.completed }.groupBy { it.exerciseId }.values.forEach { sets ->
+                sessionSets.filter { it.completed }.groupBy { set ->
+                    set.occurrenceIndex?.let { "occurrence:$it" } ?: "catalog:${set.exerciseId}"
+                }.values.forEach { sets ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(sets.first().exerciseName, style = MaterialTheme.typography.titleMedium)
                         sets.forEach { set ->

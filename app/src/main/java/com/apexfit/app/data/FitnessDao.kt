@@ -80,6 +80,12 @@ interface FitnessDao {
     @Query("SELECT * FROM workout_sessions WHERE completed = 1 OR status = 'partial' ORDER BY date DESC, completed_at DESC")
     fun getSavedTrainingSessionsFlow(): Flow<List<TrainingSession>>
 
+    @Query("SELECT * FROM workout_sessions WHERE id = :id LIMIT 1")
+    suspend fun getTrainingSessionById(id: String): TrainingSession?
+
+    @Query("SELECT * FROM workout_sessions WHERE started_at = :startedAt")
+    suspend fun getTrainingSessionsStartedAt(startedAt: Long): List<TrainingSession>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTrainingSession(session: TrainingSession): Long
 
@@ -233,6 +239,10 @@ interface FitnessDao {
     // Exercise Library
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     fun getAllExercisesFlow(): Flow<List<Exercise>>
+
+    // Soft-deleted exercises still belong to saved training history.
+    @Query("SELECT * FROM exercises")
+    fun getExerciseAttributionFlow(): Flow<List<Exercise>>
 
     @Query("SELECT * FROM exercises WHERE is_deleted = 0 ORDER BY name ASC")
     suspend fun getAllExercises(): List<Exercise>
@@ -444,7 +454,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -468,7 +478,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -486,7 +496,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -598,7 +608,7 @@ interface FitnessDao {
     @Query("""
         SELECT es.id, es.sessionId, es.exerciseId, es.exerciseName,
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-               es.restTaken, es.completed, es.repsInReserve,
+               es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -624,7 +634,7 @@ interface FitnessDao {
         SELECT 
             es.id, es.sessionId, es.exerciseId, es.exerciseName,
             es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
-            es.restTaken, es.completed, es.repsInReserve,
+            es.restTaken, es.completed, es.repsInReserve, es.occurrence_index,
             ts.date AS date,
             COALESCE(em.stalledSessions, 0) AS stalledSessions
         FROM exercise_sets es
@@ -650,13 +660,13 @@ interface FitnessDao {
 
     @Transaction
     suspend fun insertSessionAtomic(session: TrainingSession, sets: List<ExerciseSet>) {
-        insertTrainingSession(session)
+        check(insertTrainingSession(session) != -1L) { "Workout already saved: ${session.id}" }
         insertExerciseSets(sets)
     }
 
     @Transaction
     suspend fun insertSessionWithPRsAtomic(session: TrainingSession, sets: List<ExerciseSet>, prs: List<PersonalRecord>) {
-        insertTrainingSession(session)
+        check(insertTrainingSession(session) != -1L) { "Workout already saved: ${session.id}" }
         insertExerciseSets(sets)
         insertPersonalRecords(prs)
     }
