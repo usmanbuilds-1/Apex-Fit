@@ -57,12 +57,22 @@ internal object ActiveWorkoutCodec {
         }
         val migrated = version != ActiveSession.CURRENT_VERSION
         if (migrated) {
+            if (version < 7) {
+                json.remove("startedLocalDate")
+                json.remove("scheduleOccurrenceId")
+            }
             if (version == 1) json.addProperty("sessionId", newId())
             json.addProperty("schemaVersion", ActiveSession.CURRENT_VERSION)
         }
         val id = json.get("sessionId")?.asString.orEmpty()
         require(id.isNotBlank() && UUID.fromString(id).toString() == id) { "Invalid workout identity" }
         val decoded = gson.fromJson(json, ActiveSession::class.java)
+        require(decoded.startedLocalDate == null ||
+            runCatching { java.time.LocalDate.parse(decoded.startedLocalDate).toString() == decoded.startedLocalDate }
+                .getOrDefault(false)) { "Invalid recorded start date" }
+        require(decoded.scheduleOccurrenceId == null || ScheduleLedger.validOccurrence(
+            decoded.scheduleOccurrenceId, decoded.startedLocalDate, decoded.planSessionId.toLongOrNull()
+        )) { "Invalid scheduled occurrence" }
         val keys = WorkoutOccurrenceKeys.allocate(decoded.exercises.map { it.exerciseId })
         val current = decoded.exercises.map { it.executionKey }
         val normalized = current != keys
