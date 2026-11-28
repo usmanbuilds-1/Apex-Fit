@@ -124,6 +124,7 @@ internal object SecureUserExport {
     }
 
     private suspend fun saveLocked(context: Context, destination: Uri) {
+        check(!LocalResetCoordinator.pending(context)) { "Local deletion pending" }
         require(destination.scheme == "content") { "Expected a document provider URI" }
         cleanupStale(context)
         val directory = File(context.cacheDir, DIRECTORY)
