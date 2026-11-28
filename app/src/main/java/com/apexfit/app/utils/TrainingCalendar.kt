@@ -24,7 +24,8 @@ data class TrainingCalendarDay(
     val scheduleSource: CalendarScheduleSource = CalendarScheduleSource.UNKNOWN,
     val recordedOccurrenceId: String? = null,
     val explicitDecision: OccurrenceDecision? = null,
-    val rescheduledWorkout: TrainingSession? = null
+    val rescheduledWorkout: TrainingSession? = null,
+    val hasManualAssociation: Boolean = false
 ) {
     val completedCount: Int get() = sessions.count { it.completed }
     val partialCount: Int get() = sessions.count { !it.completed && it.status == "partial" }
@@ -116,7 +117,7 @@ object TrainingCalendar {
                         if (a == null || slotId == null || recordedAt == null ||
                             duplicateSessions[a.association.sessionId] != 1) null
                         else RescheduledWorkouts.verified(a, id, date, slotId, recordedAt, today, nowMs)
-                    })
+                    }, recorded.occurrenceId?.let { byOccurrence[it]?.isNotEmpty() == true } ?: false)
             }
             // Today follows live execution; future slots are projections, not promises.
             val current = snapshot?.takeIf { date >= today }
