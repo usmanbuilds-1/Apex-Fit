@@ -633,6 +633,9 @@ interface FitnessDao {
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
                es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
                es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
+               CASE WHEN ts.grouped_execution IS NOT NULL THEN ts.grouped_execution
+                    WHEN ts.notes LIKE '%Session-local circuit:%' OR ts.notes LIKE '%Group %: exercise occurrences %'
+                    THEN 1 ELSE NULL END AS grouped_execution,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -658,6 +661,9 @@ interface FitnessDao {
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
                es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
                es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
+               CASE WHEN ts.grouped_execution IS NOT NULL THEN ts.grouped_execution
+                    WHEN ts.notes LIKE '%Session-local circuit:%' OR ts.notes LIKE '%Group %: exercise occurrences %'
+                    THEN 1 ELSE NULL END AS grouped_execution,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -677,6 +683,9 @@ interface FitnessDao {
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
                es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
                es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
+               CASE WHEN ts.grouped_execution IS NOT NULL THEN ts.grouped_execution
+                    WHEN ts.notes LIKE '%Session-local circuit:%' OR ts.notes LIKE '%Group %: exercise occurrences %'
+                    THEN 1 ELSE NULL END AS grouped_execution,
                ts.date AS date
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
@@ -790,6 +799,9 @@ interface FitnessDao {
                es.muscleGroup, es.weight, es.reps, es.rpe, es.isWarmup,
                es.restTaken, es.completed, es.repsInReserve, es.occurrence_index, es.advanced_details,
                es.weight_unit, es.set_observation, es.source_plan_exercise_id, es.set_number,
+               CASE WHEN ts.grouped_execution IS NOT NULL THEN ts.grouped_execution
+                    WHEN ts.notes LIKE '%Session-local circuit:%' OR ts.notes LIKE '%Group %: exercise occurrences %'
+                    THEN 1 ELSE NULL END AS grouped_execution,
                ts.date AS date 
         FROM exercise_sets es
         INNER JOIN workout_sessions ts ON es.sessionId = ts.id
